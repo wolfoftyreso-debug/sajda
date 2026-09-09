@@ -1,0 +1,20 @@
+# Never upload local credentials or generated artifacts for a direct CLI deploy.
+.env
+.env.local
+.env.*.local
+.env.*
+node_modules
+dist
+dist-vercel
+/public
+coverage
+*.log
+.qa-api-compiled
+tmp
+/supabase
+infra
+tests
+design
+.github
+.agents
+skills-lock.json

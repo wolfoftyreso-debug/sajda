@@ -1,0 +1,48 @@
+{
+  "$description": "Sajda UI tokens exported from src/index.css for design work.",
+  "color": {
+    "canvas": { "$value": "#F9FBFE", "$type": "color" },
+    "surface": { "$value": "#FFFFFF", "$type": "color" },
+    "ink": { "$value": "#131B2B", "$type": "color" },
+    "muted": { "$value": "#5F6D82", "$type": "color" },
+    "line": { "$value": "#DFE8F5", "$type": "color" },
+    "primary": { "$value": "#1673E8", "$type": "color" },
+    "primarySoft": { "$value": "#EAF3FF", "$type": "color" },
+    "success": { "$value": "#26794D", "$type": "color" },
+    "warning": { "$value": "#AA6710", "$type": "color" },
+    "danger": { "$value": "#C42121", "$type": "color" }
+  },
+  "font": {
+    "ui": { "$value": "Plus Jakarta Sans, ui-sans-serif, system-ui, sans-serif", "$type": "fontFamily" },
+    "mono": { "$value": "SFMono-Regular, Consolas, Liberation Mono, monospace", "$type": "fontFamily" }
+  },
+  "type": {
+    "display": { "$value": { "fontFamily": "Plus Jakarta Sans", "fontWeight": 700, "fontSize": 52, "lineHeight": 60, "letterSpacing": -1.8 }, "$type": "typography" },
+    "h1": { "$value": { "fontFamily": "Plus Jakarta Sans", "fontWeight": 700, "fontSize": 36, "lineHeight": 44, "letterSpacing": -1.1 }, "$type": "typography" },
+    "h2": { "$value": { "fontFamily": "Plus Jakarta Sans", "fontWeight": 700, "fontSize": 24, "lineHeight": 31, "letterSpacing": -0.45 }, "$type": "typography" },
+    "body": { "$value": { "fontFamily": "Plus Jakarta Sans", "fontWeight": 400, "fontSize": 16, "lineHeight": 25 }, "$type": "typography" },
+    "label": { "$value": { "fontFamily": "Plus Jakarta Sans", "fontWeight": 700, "fontSize": 12, "lineHeight": 16, "letterSpacing": 1.4 }, "$type": "typography" }
+  },
+  "space": {
+    "1": { "$value": 4, "$type": "dimension" },
+    "2": { "$value": 8, "$type": "dimension" },
+    "3": { "$value": 12, "$type": "dimension" },
+    "4": { "$value": 16, "$type": "dimension" },
+    "5": { "$value": 20, "$type": "dimension" },
+    "6": { "$value": 24, "$type": "dimension" },
+    "8": { "$value": 32, "$type": "dimension" }
+  },
+  "radius": {
+    "small": { "$value": 8, "$type": "dimension" },
+    "default": { "$value": 12, "$type": "dimension" },
+    "large": { "$value": 16, "$type": "dimension" },
+    "xl": { "$value": 20, "$type": "dimension" },
+    "pill": { "$value": 999, "$type": "dimension" }
+  },
+  "motion": {
+    "fast": { "$value": 140, "$type": "duration" },
+    "base": { "$value": 220, "$type": "duration" },
+    "easeOut": { "$value": "cubic-bezier(0.16, 1, 0.3, 1)", "$type": "cubicBezier" },
+    "standard": { "$value": "cubic-bezier(0.2, 0, 0, 1)", "$type": "cubicBezier" }
+  }
+}

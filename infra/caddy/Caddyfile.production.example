@@ -1,0 +1,19 @@
+# Host-level Caddy configuration. Replace both host names before use.
+#
+# `tls internal` is appropriate for a closed LAN after the Caddy root CA has
+# been trusted on every client. For a public DNS name, remove `tls internal`
+# and let Caddy obtain a normal ACME certificate instead. Caddy handles
+# WebSocket upgrades for Supabase Realtime automatically.
+{
+  admin off
+}
+
+namequest.example.internal {
+  tls internal
+  reverse_proxy 127.0.0.1:8080
+}
+
+supabase.namequest.example.internal {
+  tls internal
+  reverse_proxy 127.0.0.1:8000
+}

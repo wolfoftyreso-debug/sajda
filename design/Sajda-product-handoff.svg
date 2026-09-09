@@ -1,0 +1,373 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3692" height="2116" viewBox="0 0 3692 2116" fill="none">
+  <title>Sajda product design hand-off</title>
+  <desc>Editable design boards for Sajda search, Swipe, Marketplace and foundations.</desc>
+  <defs>
+    <filter id="shadow-sm" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#17243D" flood-opacity="0.07"/>
+    </filter>
+    <filter id="shadow-md" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#17243D" flood-opacity="0.10"/>
+    </filter>
+    <linearGradient id="brand-gradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1673E8"/>
+      <stop offset="1" stop-color="#7CBCFF"/>
+    </linearGradient>
+    <linearGradient id="hero-blue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#EAF5FF"/>
+      <stop offset="1" stop-color="#D3EAFF"/>
+    </linearGradient>
+    <linearGradient id="meteor" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#0F3363"/>
+      <stop offset="1" stop-color="#1673E8"/>
+    </linearGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M 48 0 L 0 0 0 48" fill="none" stroke="#8DBCF0" stroke-opacity="0.18"/>
+    </pattern>
+  </defs>
+
+  <rect width="3692" height="2116" fill="#EEF5FD"/>
+
+  <!-- BOARD 01 · FOUNDATIONS -->
+  <g id="01 - Foundations">
+    <rect x="64" y="64" width="880" height="1988" rx="28" fill="#FFFFFF" filter="url(#shadow-md)"/>
+    <rect x="64" y="64" width="880" height="1988" rx="28" stroke="#DFE8F5"/>
+    <g id="Foundation header">
+      <path d="M112 126 L143 102 L128 140 L158 164 L120 166 L112 126Z" fill="url(#brand-gradient)"/>
+      <text x="176" y="150" fill="#1673E8" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="36" font-weight="700" letter-spacing="-1">sajda</text>
+      <text x="112" y="234" fill="#1673E8" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="2.4">DESIGN HAND-OFF · V1</text>
+      <text x="112" y="284" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="30" font-weight="700" letter-spacing="-0.8">A clear system for finding</text>
+      <text x="112" y="321" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="30" font-weight="700" letter-spacing="-0.8">domain names and signals.</text>
+      <text x="112" y="363" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="15">English-first product UI · import and edit freely in Figma</text>
+    </g>
+
+    <g id="Colour tokens">
+      <text x="112" y="442" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="17" font-weight="700">Colour</text>
+      <g transform="translate(112 468)">
+        <rect width="100" height="100" rx="16" fill="#F9FBFE" stroke="#DFE8F5"/>
+        <text x="0" y="124" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12" font-weight="700">Canvas</text>
+        <text x="0" y="143" fill="#5F6D82" font-family="SFMono-Regular, monospace" font-size="11">#F9FBFE</text>
+      </g>
+      <g transform="translate(236 468)">
+        <rect width="100" height="100" rx="16" fill="#FFFFFF" stroke="#DFE8F5"/>
+        <text x="0" y="124" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12" font-weight="700">Surface</text>
+        <text x="0" y="143" fill="#5F6D82" font-family="SFMono-Regular, monospace" font-size="11">#FFFFFF</text>
+      </g>
+      <g transform="translate(360 468)">
+        <rect width="100" height="100" rx="16" fill="#131B2B"/>
+        <text x="0" y="124" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12" font-weight="700">Ink</text>
+        <text x="0" y="143" fill="#5F6D82" font-family="SFMono-Regular, monospace" font-size="11">#131B2B</text>
+      </g>
+      <g transform="translate(484 468)">
+        <rect width="100" height="100" rx="16" fill="#1673E8"/>
+        <text x="0" y="124" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12" font-weight="700">Action</text>
+        <text x="0" y="143" fill="#5F6D82" font-family="SFMono-Regular, monospace" font-size="11">#1673E8</text>
+      </g>
+      <g transform="translate(608 468)">
+        <rect width="100" height="100" rx="16" fill="#26794D"/>
+        <text x="0" y="124" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12" font-weight="700">Verified</text>
+        <text x="0" y="143" fill="#5F6D82" font-family="SFMono-Regular, monospace" font-size="11">#26794D</text>
+      </g>
+    </g>
+
+    <g id="Typography">
+      <text x="112" y="692" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="17" font-weight="700">Typography</text>
+      <text x="112" y="751" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="40" font-weight="700" letter-spacing="-1.5">Find your future empire.</text>
+      <text x="112" y="778" fill="#5F6D82" font-family="SFMono-Regular, monospace" font-size="11">DISPLAY · 40/48 · 700 · −1.5</text>
+      <text x="112" y="837" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="24" font-weight="700" letter-spacing="-0.5">One coherent system, not a pile of tools.</text>
+      <text x="112" y="862" fill="#5F6D82" font-family="SFMono-Regular, monospace" font-size="11">H2 · 24/31 · 700 · −0.5</text>
+      <text x="112" y="918" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="16">Use clear product language and let verified data carry the weight.</text>
+      <text x="112" y="943" fill="#5F6D82" font-family="SFMono-Regular, monospace" font-size="11">BODY · 16/25 · 400</text>
+      <text x="112" y="989" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="1.6">SECTION LABEL / 12 / 700 / +1.6</text>
+    </g>
+
+    <g id="Controls">
+      <text x="112" y="1076" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="17" font-weight="700">Controls</text>
+      <g transform="translate(112 1105)">
+        <rect width="226" height="50" rx="12" fill="#1673E8"/>
+        <text x="113" y="31" text-anchor="middle" fill="white" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="14" font-weight="700">Find 50 suggestions</text>
+      </g>
+      <g transform="translate(354 1105)">
+        <rect width="194" height="50" rx="12" fill="#FFFFFF" stroke="#BFD3EC"/>
+        <text x="97" y="31" text-anchor="middle" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="14" font-weight="700">Secondary action</text>
+      </g>
+      <g transform="translate(112 1171)">
+        <rect width="596" height="56" rx="14" fill="#FFFFFF" stroke="#BFD3EC"/>
+        <circle cx="27" cy="28" r="9" stroke="#5F6D82" stroke-width="2"/>
+        <path d="M33 34 L40 41" stroke="#5F6D82" stroke-width="2" stroke-linecap="round"/>
+        <text x="56" y="34" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="15">Describe an idea, a word, or an exact domain</text>
+      </g>
+      <g transform="translate(112 1243)">
+        <rect width="126" height="38" rx="19" fill="#EAF3FF" stroke="#A8CEFF"/>
+        <text x="63" y="24" text-anchor="middle" fill="#1260BE" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13" font-weight="700">.com selected</text>
+        <rect x="140" width="112" height="38" rx="19" fill="#FFFFFF" stroke="#DFE8F5"/>
+        <text x="196" y="24" text-anchor="middle" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13" font-weight="600">.dev</text>
+        <rect x="266" width="112" height="38" rx="19" fill="#FFFFFF" stroke="#DFE8F5"/>
+        <text x="322" y="24" text-anchor="middle" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13" font-weight="600">.ai</text>
+      </g>
+    </g>
+
+    <g id="Geometry and states">
+      <text x="112" y="1372" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="17" font-weight="700">Geometry &amp; states</text>
+      <path d="M112 1400 H708" stroke="#DFE8F5"/>
+      <text x="112" y="1434" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13">4 px rhythm · corners: 8 / 12 / 16 / 20 px · focus ring: 3 px action blue at 24%</text>
+      <g transform="translate(112 1476)">
+        <rect width="168" height="108" rx="16" fill="#FFFFFF" stroke="#DFE8F5"/>
+        <text x="16" y="29" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13" font-weight="700">Default surface</text>
+        <text x="16" y="57" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12">Hairline border</text>
+        <text x="16" y="78" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12">Quiet elevation</text>
+      </g>
+      <g transform="translate(296 1476)">
+        <rect width="168" height="108" rx="16" fill="#FFFFFF" stroke="#5FA3F5" stroke-width="2"/>
+        <text x="16" y="29" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13" font-weight="700">Interactive</text>
+        <text x="16" y="57" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12">Blue keyline</text>
+        <text x="16" y="78" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12">Small lift only</text>
+      </g>
+      <g transform="translate(480 1476)">
+        <rect width="168" height="108" rx="16" fill="#F1F8F4" stroke="#9FCFB5"/>
+        <path d="M20 55 L28 63 L43 45" stroke="#26794D" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="56" y="55" fill="#26794D" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13" font-weight="700">Confirmed</text>
+        <text x="16" y="84" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12">Use only for evidence</text>
+      </g>
+      <text x="112" y="1695" fill="#1673E8" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="1.6">MOTION</text>
+      <text x="112" y="1724" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="15" font-weight="700">140 ms control response · 220 ms surface response</text>
+      <text x="112" y="1751" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13">No decorative motion by default. Respect reduced-motion preferences.</text>
+    </g>
+
+    <g id="Handoff note">
+      <rect x="112" y="1846" width="708" height="126" rx="16" fill="#F3F8FE" stroke="#D6E5F6"/>
+      <text x="136" y="1880" fill="#1673E8" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="1.5">EDITING NOTE</text>
+      <text x="136" y="1913" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="14" font-weight="700">Keep the interface specific, calm and legible.</text>
+      <text x="136" y="1940" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13">New concepts should reuse these primitives before introducing new visual language.</text>
+    </g>
+  </g>
+
+  <!-- BOARD 02 · SEARCH -->
+  <g id="02 - Search discovery">
+    <rect x="1016" y="64" width="1440" height="960" rx="28" fill="#F9FBFE" filter="url(#shadow-md)"/>
+    <rect x="1016" y="64" width="1440" height="960" rx="28" stroke="#DFE8F5"/>
+    <rect x="1016" y="64" width="1440" height="520" rx="28" fill="url(#hero-blue)"/>
+    <rect x="1016" y="64" width="1440" height="520" rx="28" fill="url(#grid)" opacity="0.55"/>
+    <g id="Search top nav">
+      <path d="M1072 115 L1094 98 L1083 126 L1106 144 L1078 145 L1072 115Z" fill="url(#brand-gradient)"/>
+      <text x="1118" y="133" fill="#1673E8" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="25" font-weight="700">sajda</text>
+      <text x="2048" y="129" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13" font-weight="700">MARKETPLACE</text>
+      <text x="2177" y="129" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13" font-weight="700">DEVELOPERS</text>
+      <rect x="2305" y="101" width="94" height="38" rx="19" fill="#FFFFFF" stroke="#C7DBF1"/>
+      <text x="2352" y="125" text-anchor="middle" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13" font-weight="700">EN</text>
+    </g>
+    <g id="Search hero copy">
+      <text x="1132" y="238" fill="#1673E8" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="2">DOMAIN DISCOVERY</text>
+      <text x="1132" y="311" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="55" font-weight="700" letter-spacing="-2.1">Find the name of your</text>
+      <text x="1132" y="378" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="55" font-weight="700" letter-spacing="-2.1">future empire.</text>
+      <text x="1132" y="423" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="17">Search, verify and shortlist assets with clear evidence and purchasing context.</text>
+    </g>
+    <g id="Search field">
+      <rect x="1132" y="472" width="1208" height="70" rx="18" fill="#FFFFFF" filter="url(#shadow-sm)"/>
+      <rect x="1132" y="472" width="1208" height="70" rx="18" stroke="#BFD3EC"/>
+      <circle cx="1167" cy="507" r="11" stroke="#5F6D82" stroke-width="2.5"/>
+      <path d="M1175 515 L1184 524" stroke="#5F6D82" stroke-width="2.5" stroke-linecap="round"/>
+      <text x="1205" y="513" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="16">Describe an idea, a word, or an exact domain</text>
+      <rect x="2094" y="481" width="236" height="52" rx="14" fill="#1673E8"/>
+      <text x="2212" y="513" text-anchor="middle" fill="#FFFFFF" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="15" font-weight="700">Find 50 suggestions</text>
+    </g>
+
+    <g id="Search paths">
+      <text x="1072" y="642" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="17" font-weight="700">Choose a search path</text>
+      <text x="2187" y="642" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13">Three ways in. One clear system.</text>
+      <g id="Swipe path" transform="translate(1072 668)">
+        <rect width="410" height="280" rx="20" fill="#FFFFFF" filter="url(#shadow-sm)"/>
+        <rect width="410" height="280" rx="20" stroke="#DFE8F5"/>
+        <rect width="410" height="106" rx="20" fill="#E5F3FF"/>
+        <rect y="86" width="410" height="20" fill="#E5F3FF"/>
+        <circle cx="330" cy="52" r="29" fill="#1673E8" opacity="0.15"/>
+        <circle cx="355" cy="67" r="10" fill="#1673E8" opacity="0.38"/>
+        <text x="24" y="144" fill="#1673E8" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="11" font-weight="700" letter-spacing="1.3">SHORTLIST</text>
+        <text x="24" y="176" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="20" font-weight="700">Browse short names</text>
+        <text x="24" y="204" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13">Registry-checked names, one card at a time.</text>
+        <rect x="24" y="226" width="150" height="36" rx="10" fill="#1673E8"/>
+        <text x="99" y="249" text-anchor="middle" fill="#FFFFFF" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12" font-weight="700">Open Swipe</text>
+      </g>
+      <g id="Explore path" transform="translate(1530 668)">
+        <rect width="410" height="280" rx="20" fill="#FFFFFF" filter="url(#shadow-sm)"/>
+        <rect width="410" height="280" rx="20" stroke="#DFE8F5"/>
+        <rect width="410" height="106" rx="20" fill="#143B72"/>
+        <rect y="86" width="410" height="20" fill="#143B72"/>
+        <path d="M284 30 L364 72" stroke="url(#meteor)" stroke-width="7" stroke-linecap="round"/>
+        <circle cx="367" cy="73" r="14" fill="#7CBCFF"/>
+        <text x="24" y="144" fill="#1673E8" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="11" font-weight="700" letter-spacing="1.3">WIDER FIELD</text>
+        <text x="24" y="176" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="20" font-weight="700">Explore broadly</text>
+        <text x="24" y="204" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13">Fresh brandable directions when the first thought is not the last.</text>
+        <rect x="24" y="226" width="164" height="36" rx="10" fill="#1673E8"/>
+        <text x="106" y="249" text-anchor="middle" fill="#FFFFFF" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12" font-weight="700">Explore names</text>
+      </g>
+      <g id="Brief path" transform="translate(1988 668)">
+        <rect width="410" height="280" rx="20" fill="#FFFFFF" filter="url(#shadow-sm)"/>
+        <rect width="410" height="280" rx="20" stroke="#DFE8F5"/>
+        <rect width="410" height="106" rx="20" fill="#F0F4FF"/>
+        <rect y="86" width="410" height="20" fill="#F0F4FF"/>
+        <rect x="286" y="20" width="80" height="64" rx="10" fill="#FFFFFF" stroke="#BFC9F1"/>
+        <path d="M304 39 H348 M304 52 H342 M304 65 H330" stroke="#5874BF" stroke-width="3" stroke-linecap="round"/>
+        <text x="24" y="144" fill="#4B67B4" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="11" font-weight="700" letter-spacing="1.3">DETAILED BRIEF</text>
+        <text x="24" y="176" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="20" font-weight="700">Turn context into names</text>
+        <text x="24" y="204" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13">Words, constraints and useful context in one focused search.</text>
+        <rect x="24" y="226" width="188" height="36" rx="10" fill="#1673E8"/>
+        <text x="118" y="249" text-anchor="middle" fill="#FFFFFF" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12" font-weight="700">Open advanced search</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- BOARD 03 · SWIPE -->
+  <g id="03 - Swipe deck">
+    <rect x="2528" y="64" width="1100" height="960" rx="28" fill="#F9FBFE" filter="url(#shadow-md)"/>
+    <rect x="2528" y="64" width="1100" height="960" rx="28" stroke="#DFE8F5"/>
+    <rect x="2528" y="64" width="1100" height="960" rx="28" fill="url(#grid)" opacity="0.23"/>
+    <g id="Swipe header">
+      <path d="M2580 120 L2603 102 L2590 139 L2615 157 L2586 160 L2580 120Z" fill="url(#brand-gradient)"/>
+      <text x="2626" y="145" fill="#1673E8" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="25" font-weight="700">Swipe</text>
+      <rect x="3004" y="111" width="104" height="36" rx="18" fill="#FFFFFF" stroke="#DFE8F5"/>
+      <text x="3056" y="134" text-anchor="middle" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12" font-weight="700">.COM</text>
+      <rect x="3494" y="111" width="74" height="36" rx="18" fill="#FFFFFF" stroke="#DFE8F5"/>
+      <text x="3531" y="134" text-anchor="middle" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="17">⚙</text>
+    </g>
+    <g id="Swipe card" transform="translate(2652 198)">
+      <rect width="852" height="640" rx="28" fill="#FFFFFF" filter="url(#shadow-md)"/>
+      <rect width="852" height="640" rx="28" stroke="#D6E5F6"/>
+      <rect x="38" y="36" width="192" height="36" rx="18" fill="#EFF8F3"/>
+      <path d="M58 54 L64 60 L76 46" stroke="#26794D" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="87" y="59" fill="#26794D" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12" font-weight="700">REGISTRY-CHECKED</text>
+      <text x="772" y="59" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12">03 / 100</text>
+      <text x="426" y="158" text-anchor="middle" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="1.8">6 LETTERS</text>
+      <text x="426" y="240" text-anchor="middle" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="64" font-weight="700" letter-spacing="-2.7">luminor.com</text>
+      <text x="426" y="280" text-anchor="middle" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="15">A short, calm name with clear pronunciation and room to grow.</text>
+      <g transform="translate(38 336)">
+        <rect width="372" height="112" rx="16" fill="#F5F8FC"/>
+        <text x="22" y="34" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12">WHY IT COULD WORK</text>
+        <text x="22" y="63" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="14" font-weight="700">Compact, confident and easy to repeat.</text>
+        <text x="22" y="88" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12">Useful for a tool, studio or a new category.</text>
+      </g>
+      <g transform="translate(442 336)">
+        <rect width="372" height="112" rx="16" fill="#F5F8FC"/>
+        <text x="22" y="34" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12">PUBLISHED FIRST-YEAR PRICE</text>
+        <text x="22" y="68" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="24" font-weight="700">≈ $15 USD / yr</text>
+        <text x="22" y="92" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12">Provider source · confirm at checkout</text>
+      </g>
+      <g transform="translate(118 505)">
+        <circle cx="32" cy="32" r="32" fill="#FFF5F5" stroke="#F2C9C9"/>
+        <text x="32" y="40" text-anchor="middle" fill="#C42121" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="27">×</text>
+        <circle cx="214" cy="32" r="32" fill="#EFF8F3" stroke="#B9DFC8"/>
+        <path d="M201 32 L210 41 L229 21" stroke="#26794D" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="214" y="83" text-anchor="middle" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="11" font-weight="700">KEEP</text>
+        <rect x="334" width="212" height="64" rx="16" fill="#1673E8"/>
+        <text x="440" y="39" text-anchor="middle" fill="#FFFFFF" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="14" font-weight="700">View provider</text>
+      </g>
+    </g>
+    <text x="3078" y="912" text-anchor="middle" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13">Locked viewport · direct deck · settings only on demand</text>
+  </g>
+
+  <!-- BOARD 04 · MARKETPLACE -->
+  <g id="04 - Marketplace">
+    <rect x="1016" y="1096" width="1440" height="956" rx="28" fill="#F9FBFE" filter="url(#shadow-md)"/>
+    <rect x="1016" y="1096" width="1440" height="956" rx="28" stroke="#DFE8F5"/>
+    <g id="Marketplace nav">
+      <path d="M1072 1148 L1094 1130 L1083 1167 L1106 1185 L1078 1188 L1072 1148Z" fill="url(#brand-gradient)"/>
+      <text x="1118" y="1165" fill="#1673E8" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="25" font-weight="700">sajda</text>
+      <text x="2075" y="1160" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13" font-weight="700">SELL A DOMAIN</text>
+      <rect x="2220" y="1136" width="174" height="42" rx="12" fill="#1673E8"/>
+      <text x="2307" y="1162" text-anchor="middle" fill="#FFFFFF" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13" font-weight="700">Create listing</text>
+    </g>
+    <g id="Marketplace hero">
+      <text x="1072" y="1264" fill="#1673E8" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="1.8">DOMAIN MARKETPLACE</text>
+      <text x="1072" y="1320" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="38" font-weight="700" letter-spacing="-1.2">A clear home for domains worth holding.</text>
+      <text x="1072" y="1356" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="16">Create a deliberate listing, prove control, receive interest, and keep the next move yours.</text>
+    </g>
+    <g id="Listing card" transform="translate(1072 1420)">
+      <rect width="840" height="500" rx="24" fill="#FFFFFF" filter="url(#shadow-sm)"/>
+      <rect width="840" height="500" rx="24" stroke="#DFE8F5"/>
+      <rect x="24" y="24" width="88" height="30" rx="15" fill="#EFF8F3"/>
+      <text x="68" y="44" text-anchor="middle" fill="#26794D" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="11" font-weight="700">VERIFIED</text>
+      <text x="24" y="116" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="42" font-weight="700" letter-spacing="-1.3">luminor.com</text>
+      <text x="24" y="149" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="15">A concise, ownable name for a product or a serious new company.</text>
+      <path d="M24 184 H816" stroke="#DFE8F5"/>
+      <text x="24" y="224" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="1.2">ASKING PRICE</text>
+      <text x="24" y="274" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="33" font-weight="700">$12,500</text>
+      <text x="24" y="305" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13">Seller-set asking price · offers welcome</text>
+      <rect x="24" y="348" width="242" height="52" rx="14" fill="#1673E8"/>
+      <text x="145" y="380" text-anchor="middle" fill="#FFFFFF" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="14" font-weight="700">Make an enquiry</text>
+      <rect x="282" y="348" width="192" height="52" rx="14" fill="#FFFFFF" stroke="#BFD3EC"/>
+      <text x="378" y="380" text-anchor="middle" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="14" font-weight="700">View sale page</text>
+      <text x="24" y="458" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12">Evidence and transfer are handled deliberately; status must never be implied.</text>
+    </g>
+    <g id="Seller workflow" transform="translate(1960 1420)">
+      <rect width="424" height="500" rx="24" fill="#FFFFFF" stroke="#DFE8F5"/>
+      <text x="26" y="51" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="18" font-weight="700">Seller workflow</text>
+      <g transform="translate(26 86)">
+        <circle cx="16" cy="16" r="16" fill="#EAF3FF"/>
+        <text x="16" y="21" text-anchor="middle" fill="#1673E8" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13" font-weight="700">1</text>
+        <text x="48" y="14" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="14" font-weight="700">Create a listing</text>
+        <text x="48" y="35" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12">Define the domain, price and selling context.</text>
+      </g>
+      <path d="M42 129 V159" stroke="#C9DDF4" stroke-width="2" stroke-dasharray="3 4"/>
+      <g transform="translate(26 170)">
+        <circle cx="16" cy="16" r="16" fill="#EAF3FF"/>
+        <text x="16" y="21" text-anchor="middle" fill="#1673E8" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13" font-weight="700">2</text>
+        <text x="48" y="14" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="14" font-weight="700">Prove domain control</text>
+        <text x="48" y="35" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12">Add the requested DNS TXT record.</text>
+      </g>
+      <path d="M42 213 V243" stroke="#C9DDF4" stroke-width="2" stroke-dasharray="3 4"/>
+      <g transform="translate(26 254)">
+        <circle cx="16" cy="16" r="16" fill="#EAF3FF"/>
+        <text x="16" y="21" text-anchor="middle" fill="#1673E8" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13" font-weight="700">3</text>
+        <text x="48" y="14" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="14" font-weight="700">Receive an enquiry</text>
+        <text x="48" y="35" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12">Choose the next step with clear buyer context.</text>
+      </g>
+      <rect x="26" y="394" width="372" height="76" rx="14" fill="#F3F8FE" stroke="#D6E5F6"/>
+      <text x="46" y="424" fill="#1673E8" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="11" font-weight="700" letter-spacing="1.1">SELLER CONTROL</text>
+      <text x="46" y="449" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12">A listing is a clear invitation, never a silent promise.</text>
+    </g>
+  </g>
+
+  <!-- BOARD 05 · ENGINEERING / HANDOFF -->
+  <g id="05 - Product architecture">
+    <rect x="2528" y="1096" width="1100" height="956" rx="28" fill="#FFFFFF" filter="url(#shadow-md)"/>
+    <rect x="2528" y="1096" width="1100" height="956" rx="28" stroke="#DFE8F5"/>
+    <text x="2580" y="1164" fill="#1673E8" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="1.8">DEVELOPER PRODUCT · UX MAP</text>
+    <text x="2580" y="1216" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="33" font-weight="700" letter-spacing="-1">One product, three clear moments.</text>
+    <text x="2580" y="1251" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="15">Discovery has to feel alive, but the evidence must remain visible and sober.</text>
+    <g id="Architecture paths" transform="translate(2580 1302)">
+      <rect width="996" height="116" rx="18" fill="#F9FBFE" stroke="#DFE8F5"/>
+      <circle cx="46" cy="58" r="22" fill="#EAF3FF"/>
+      <path d="M38 58 H54 M46 50 V66" stroke="#1673E8" stroke-width="2.4" stroke-linecap="round"/>
+      <text x="86" y="48" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="16" font-weight="700">Discover</text>
+      <text x="86" y="75" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13">Theme search · exact checks · Swipe deck · contextual inspiration</text>
+      <rect x="816" y="36" width="144" height="42" rx="12" fill="#FFFFFF" stroke="#BFD3EC"/>
+      <text x="888" y="62" text-anchor="middle" fill="#1673E8" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12" font-weight="700">Search system</text>
+    </g>
+    <g transform="translate(2580 1440)">
+      <rect width="996" height="116" rx="18" fill="#F9FBFE" stroke="#DFE8F5"/>
+      <circle cx="46" cy="58" r="22" fill="#EFF8F3"/>
+      <path d="M35 58 L43 66 L58 49" stroke="#26794D" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="86" y="48" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="16" font-weight="700">Verify</text>
+      <text x="86" y="75" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13">Registry status · provider coverage · source and timestamp carried into the card</text>
+      <rect x="816" y="36" width="144" height="42" rx="12" fill="#FFFFFF" stroke="#BFD3EC"/>
+      <text x="888" y="62" text-anchor="middle" fill="#26794D" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12" font-weight="700">Evidence layer</text>
+    </g>
+    <g transform="translate(2580 1578)">
+      <rect width="996" height="116" rx="18" fill="#F9FBFE" stroke="#DFE8F5"/>
+      <circle cx="46" cy="58" r="22" fill="#F0F5FF"/>
+      <path d="M35 53 H57 M35 63 H51" stroke="#5874BF" stroke-width="2.4" stroke-linecap="round"/>
+      <text x="86" y="48" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="16" font-weight="700">Act</text>
+      <text x="86" y="75" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13">Save, compare, offer, create a sale page or use the public developer API</text>
+      <rect x="816" y="36" width="144" height="42" rx="12" fill="#FFFFFF" stroke="#BFD3EC"/>
+      <text x="888" y="62" text-anchor="middle" fill="#5874BF" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12" font-weight="700">Action layer</text>
+    </g>
+    <g id="Design notes" transform="translate(2580 1750)">
+      <rect width="996" height="232" rx="20" fill="#F3F8FE" stroke="#D6E5F6"/>
+      <text x="28" y="42" fill="#1673E8" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="12" font-weight="700" letter-spacing="1.5">WORKING NOTES</text>
+      <text x="28" y="78" fill="#131B2B" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="15" font-weight="700">Use new concepts to make a state more legible — not merely louder.</text>
+      <text x="28" y="111" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13">• Preserve a single dominant action per moment.</text>
+      <text x="28" y="137" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13">• Separate verified facts from directions, estimates and illustrations.</text>
+      <text x="28" y="163" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13">• Use blue for action; green only for genuine confirmation.</text>
+      <text x="28" y="189" fill="#5F6D82" font-family="Plus Jakarta Sans, Arial, sans-serif" font-size="13">• Make text survive translation before locking a component’s dimensions.</text>
+    </g>
+  </g>
+</svg>

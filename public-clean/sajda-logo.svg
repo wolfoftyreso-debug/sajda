@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 240" width="760" height="240" fill="none" role="img" aria-label="sajda">
+  <defs>
+    <linearGradient id="g" x1="18" y1="8" x2="176" y2="232" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#37A0FF"></stop>
+      <stop offset=".30" stop-color="#1673E8"></stop>
+      <stop offset=".52" stop-color="#0B2E7C"></stop>
+      <stop offset=".70" stop-color="#1C6FE0"></stop>
+      <stop offset="1" stop-color="#7CBCFF"></stop>
+    </linearGradient>
+    <radialGradient id="c" cx="0" cy="0" r="1" gradientTransform="translate(103 124) rotate(48) scale(62 34)" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#020C2C"></stop>
+      <stop offset=".55" stop-color="#082058" stop-opacity=".6"></stop>
+      <stop offset="1" stop-color="#082058" stop-opacity="0"></stop>
+    </radialGradient>
+    <clipPath id="k"><path d="M0 0 L186 0 L140 74 L200 74 L200 240 L14 240 L60 170 L0 170Z"></path></clipPath>
+  </defs>
+  <g clip-path="url(#k)">
+    <path d="M214 36 C118 36 66 40 62 78 L138 170 C142 208 84 204 -14 204" stroke="url(#g)" stroke-width="66" stroke-linejoin="round"></path>
+    <path d="M214 36 C118 36 66 40 62 78 L138 170 C142 208 84 204 -14 204" stroke="url(#c)" stroke-width="66" stroke-linejoin="round"></path>
+  </g>
+  <text x="268" y="176" font-family="Quicksand, 'Nunito', 'Trebuchet MS', sans-serif" font-size="168" font-weight="500" letter-spacing="-2" fill="#1B9DF0">sajda</text>
+  <circle cx="447" cy="60" r="15" fill="#0B2A6B"></circle>
+</svg>

@@ -1,0 +1,421 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "regions": ["fra1"],
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build:vercel",
+  "outputDirectory": "dist-vercel",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "functions": {
+    "api/reference-fx.ts": { "maxDuration": 10 },
+    "api/account/billing.ts": { "maxDuration": 30 },
+    "api/billing-webhook.ts": { "maxDuration": 30 },
+    "api/account/lost-domains.ts": { "maxDuration": 30 },
+    "api/cron/lost-domains.ts": { "maxDuration": 60 },
+    "api/account/capabilities.ts": {
+      "maxDuration": 20
+    },
+    "api/auth.ts": {
+      "maxDuration": 30
+    },
+    "api/contact.ts": {
+      "maxDuration": 30
+    },
+    "api/domain-search.ts": {
+      "maxDuration": 30
+    },
+    "api/deep-review.ts": {
+      "maxDuration": 20
+    },
+    "api/marketplace/verify-domain.ts": {
+      "maxDuration": 10
+    },
+    "api/developer/api-keys.ts": {
+      "maxDuration": 10
+    },
+    "api/fact-signals.ts": {
+      "maxDuration": 10
+    },
+    "api/v1/domains.ts": {
+      "maxDuration": 30
+    },
+    "api/v1/public/domains.ts": {
+      "maxDuration": 30
+    },
+    "api/v1/names.ts": {
+      "maxDuration": 30
+    },
+    "api/v1/public/names.ts": {
+      "maxDuration": 30
+    }
+  },
+  "headers": [
+    {
+      "source": "/pricing",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+        { "key": "Cache-Control", "value": "no-store" }
+      ]
+    },
+    {
+      "source": "/plus",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+        { "key": "Cache-Control", "value": "private, no-store" }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=(), payment=()"
+        }
+      ]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/registerSW.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/robots.txt",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/sitemap.xml",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/se",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/se/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/contact",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/auth",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/story",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/how-it-works",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/developers",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/legal",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/security",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/status",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/swipe",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/account",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/watchlist",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/my-domains",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/history",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/install",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/top-10-today",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/admin",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/marketplace",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/marketplace/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.sajda.dev"
+        }
+      ],
+      "destination": "https://sajda.dev/:path*",
+      "permanent": true
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/auth/:authAction*",
+      "destination": "/api/auth?authAction=:authAction*"
+    },
+    { "source": "/plus", "destination": "/" },
+    { "source": "/pricing", "destination": "/" },
+    {
+      "source": "/contact",
+      "destination": "/"
+    },
+    {
+      "source": "/auth",
+      "destination": "/"
+    },
+    {
+      "source": "/story",
+      "destination": "/"
+    },
+    {
+      "source": "/how-it-works",
+      "destination": "/"
+    },
+    {
+      "source": "/developers",
+      "destination": "/"
+    },
+    {
+      "source": "/legal",
+      "destination": "/"
+    },
+    {
+      "source": "/security",
+      "destination": "/"
+    },
+    {
+      "source": "/status",
+      "destination": "/"
+    },
+    {
+      "source": "/marketplace",
+      "destination": "/"
+    },
+    {
+      "source": "/marketplace/:listingId",
+      "destination": "/"
+    },
+    {
+      "source": "/swipe",
+      "destination": "/"
+    },
+    {
+      "source": "/watchlist",
+      "destination": "/"
+    },
+    {
+      "source": "/my-domains",
+      "destination": "/"
+    },
+    {
+      "source": "/history",
+      "destination": "/"
+    },
+    {
+      "source": "/account",
+      "destination": "/"
+    },
+    {
+      "source": "/install",
+      "destination": "/"
+    },
+    {
+      "source": "/top-10-today",
+      "destination": "/"
+    },
+    {
+      "source": "/admin",
+      "destination": "/"
+    }
+  ]
+}

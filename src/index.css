@@ -1,0 +1,352 @@
+@import "@fontsource/plus-jakarta-sans/400.css";
+@import "@fontsource/plus-jakarta-sans/500.css";
+@import "@fontsource/plus-jakarta-sans/600.css";
+@import "@fontsource/plus-jakarta-sans/700.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Sajda's light visual constitution.
+ *
+ * The product surface is deliberately quiet: a cool white canvas, a single
+ * precise blue for action and thin blue-grey keylines.  Spacing and radii stay
+ * on a four-pixel rhythm so separate product areas still read as one system.
+ */
+
+@layer base {
+  :root {
+    color-scheme: light;
+
+    --background: 211 57% 97.2%;
+    --foreground: 221 39% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 221 39% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 221 39% 12%;
+
+    /* #1673E8 — Sajda's action blue from the supplied CI package. */
+    --primary: 213 82% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 211 72% 94.7%;
+    --secondary-foreground: 221 39% 12%;
+
+    --muted: 211 55% 95.4%;
+    --muted-foreground: 216 18% 43%;
+
+    --accent: 207 91% 93.5%;
+    --accent-foreground: 213 82% 36%;
+
+    --destructive: 0 72% 46%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Semantic colours remain independent from the blue product accent. */
+    --success: 151 52% 31%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 34 86% 35%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 213 42% 86%;
+    --input: 213 40% 80%;
+    --ring: 213 82% 50%;
+
+    /* Four-pixel geometry. Keep shared corners crisp rather than pill-like. */
+    --radius: 0.75rem;
+    --sj-radius-1: 0.25rem;
+    --sj-radius-2: 0.5rem;
+    --sj-radius-3: 0.75rem;
+    --sj-radius-4: 1rem;
+    --sj-radius-5: 1.25rem;
+    --sj-radius-pill: 999px;
+
+    --sj-space-1: 0.25rem;
+    --sj-space-2: 0.5rem;
+    --sj-space-3: 0.75rem;
+    --sj-space-4: 1rem;
+    --sj-space-5: 1.25rem;
+    --sj-space-6: 1.5rem;
+    --sj-space-8: 2rem;
+
+    --sj-blue: #1b9df0;
+    --sj-blue-600: #1673e8;
+    --sj-blue-300: #7cbcff;
+    --sj-ink: #0b1220;
+    --sj-line: #dfe8f5;
+    --sj-shadow-xs: 0 1px 2px hsl(219 44% 12% / 0.035);
+    --sj-shadow-sm: 0 8px 20px hsl(219 44% 12% / 0.055);
+    --sj-shadow-md: 0 18px 42px hsl(219 44% 12% / 0.075);
+    --sj-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --sj-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+    --sj-duration-fast: 140ms;
+    --sj-duration-base: 220ms;
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 221 39% 12%;
+    --sidebar-primary: 213 82% 50%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 211 72% 94.7%;
+    --sidebar-accent-foreground: 221 39% 12%;
+    --sidebar-border: 213 42% 86%;
+    --sidebar-ring: 213 82% 50%;
+  }
+
+  /* Keep an accidental `.dark` class from turning the tool back into a dark page. */
+  .dark {
+    color-scheme: light;
+    --background: 211 57% 97.2%;
+    --foreground: 221 39% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 221 39% 12%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 221 39% 12%;
+    --primary: 213 82% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 211 72% 94.7%;
+    --secondary-foreground: 221 39% 12%;
+    --muted: 211 55% 95.4%;
+    --muted-foreground: 216 18% 43%;
+    --accent: 207 91% 93.5%;
+    --accent-foreground: 213 82% 36%;
+    --border: 213 42% 86%;
+    --input: 213 40% 80%;
+    --ring: 213 82% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    /* Do not force a 320px content width inside a 320px viewport with a
+       scrollbar: that creates horizontal overflow on every page. */
+    min-width: 0;
+    background: hsl(var(--background));
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: "ss01" 1, "cv02" 1;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.16);
+    color: hsl(var(--foreground));
+  }
+
+  :focus-visible {
+    outline: 3px solid hsl(var(--ring) / 0.24);
+    outline-offset: 3px;
+  }
+}
+
+@layer utilities {
+  /* Swipe is a self-contained, gesture-first viewport.  The class is added
+     only while the route is mounted, so normal pages retain their document
+     scroll and footer behaviour. */
+  html.swipe-immersive,
+  html.swipe-immersive body,
+  html.swipe-immersive #root {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .swipe-card-idle {
+      animation: swipe-card-idle 1.8s var(--sj-ease-standard) infinite alternate;
+    }
+
+    @keyframes swipe-card-idle {
+      from {
+        translate: -2px 0;
+      }
+      to {
+        translate: 3px 0;
+      }
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .swipe-card-idle {
+      animation: none;
+      translate: 0 0;
+    }
+  }
+
+  /* A restrained ambient field makes the light canvas feel intentional without
+     competing with the search and results. Product graphics stay CSS-native. */
+  .sajda-canvas {
+    isolation: isolate;
+    position: relative;
+    background:
+      radial-gradient(circle at 12% 6%, hsl(207 94% 93% / 0.8), transparent 34rem),
+      radial-gradient(circle at 89% 13%, hsl(216 94% 94% / 0.74), transparent 34rem),
+      hsl(var(--background));
+  }
+
+  .sajda-canvas::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.2;
+    background-image:
+      linear-gradient(hsl(213 66% 47% / 0.1) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(213 66% 47% / 0.1) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: linear-gradient(to bottom, black, transparent 34rem);
+  }
+
+
+  .text-gradient-primary {
+    color: hsl(var(--primary));
+  }
+
+  .glow-primary {
+    box-shadow: 0 8px 18px hsl(var(--primary) / 0.18);
+  }
+
+  .glow-success {
+    box-shadow: 0 8px 18px hsl(var(--success) / 0.14);
+  }
+
+  .card-gradient {
+    background: linear-gradient(145deg, hsl(var(--card)), hsl(214 80% 99.3%));
+  }
+
+  /* Reusable primitives for new product sections. They deliberately avoid
+     coloured text over semantic green surfaces. */
+  .sajda-surface {
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--sj-radius-4);
+    background: hsl(var(--card));
+    box-shadow: var(--sj-shadow-xs);
+  }
+
+  .sajda-surface-raised {
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--sj-radius-4);
+    background: hsl(var(--card));
+    box-shadow: var(--sj-shadow-sm);
+  }
+
+  /* The search is the centre of the product.  Give it a deliberate light-blue
+     field so the controls read as one system before the user gets into the
+     more detailed configuration. */
+  .sajda-search-shell {
+    isolation: isolate;
+    position: relative;
+    border-color: hsl(210 62% 81%);
+    background: hsl(209 83% 95.7%);
+    box-shadow:
+      0 1px 0 hsl(0 0% 100% / 0.86) inset,
+      0 22px 48px hsl(214 42% 24% / 0.09);
+  }
+
+  .sajda-search-shell::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.78;
+    background-image:
+      linear-gradient(90deg, hsl(210 72% 66% / 0.1) 1px, transparent 1px),
+      linear-gradient(hsl(210 72% 66% / 0.1) 1px, transparent 1px);
+    background-size: 32px 32px;
+    mask-image: linear-gradient(to bottom, black, transparent 30rem);
+  }
+
+  .sajda-main-search-row {
+    border-color: hsl(210 55% 80%);
+    background: hsl(0 0% 100% / 0.9);
+    box-shadow:
+      0 1px 0 hsl(0 0% 100% / 0.98) inset,
+      0 9px 22px hsl(214 46% 25% / 0.055);
+  }
+
+  /* Search paths are code-native graphic cards. Keep the outer rhythm and
+     light-blue elevation here while each card owns its own illustration. */
+  .sajda-search-paths > section {
+    max-width: none;
+  }
+
+  .sajda-search-paths .group {
+    box-shadow:
+      0 1px 0 hsl(0 0% 100% / 0.9) inset,
+      0 12px 28px hsl(214 37% 24% / 0.08);
+  }
+
+  .sajda-hairline {
+    border-color: hsl(var(--border));
+  }
+
+  .sajda-interactive {
+    transition:
+      border-color var(--sj-duration-fast) var(--sj-ease-standard),
+      box-shadow var(--sj-duration-base) var(--sj-ease-out),
+      transform var(--sj-duration-base) var(--sj-ease-out),
+      background-color var(--sj-duration-fast) var(--sj-ease-standard);
+  }
+
+  .sajda-interactive:hover {
+    border-color: hsl(var(--primary) / 0.34);
+    box-shadow: var(--sj-shadow-sm);
+  }
+
+  .sajda-mono {
+    font-family: ui-monospace, "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    font-size: 0.75em;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+  }
+
+  .animate-pulse-glow {
+    animation: sajda-pulse 2.8s var(--sj-ease-standard) infinite;
+  }
+
+  .animate-scan {
+    animation: scan 1.8s ease-in-out infinite;
+  }
+
+  @keyframes scan {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  @keyframes sajda-pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 hsl(var(--primary) / 0);
+    }
+    50% {
+      box-shadow: 0 0 0 8px hsl(var(--primary) / 0.08);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

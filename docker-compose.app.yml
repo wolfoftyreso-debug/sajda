@@ -1,0 +1,13 @@
+services:
+  name-quest-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:?Set the public self-hosted Supabase URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:?Set the self-hosted Supabase anon key}
+    image: name-quest-web:local
+    restart: unless-stopped
+    ports:
+      # The host-level Caddy proxy is the only LAN/public ingress.
+      - "${NAME_QUEST_WEB_BIND_ADDRESS:-127.0.0.1}:${NAME_QUEST_WEB_PORT:-8080}:8080"

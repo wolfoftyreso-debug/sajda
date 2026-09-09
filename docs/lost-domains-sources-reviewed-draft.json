@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": "830e54ca-d724-401a-97fb-9954e42a4c16",
+      "name": "awesome-selfhosted — Bookmarks and Link Sharing",
+      "url": "https://awesome-selfhosted.net/tags/bookmarks-and-link-sharing.html",
+      "host": "awesome-selfhosted.net",
+      "review": {
+        "basis": "published_terms",
+        "reference": "https://github.com/awesome-selfhosted/awesome-selfhosted-data/blob/master/LICENSE",
+        "reviewer": "codex-project-operator",
+        "reviewedAt": "2026-09-09T02:05:00.000Z",
+        "expiresAt": "2026-09-16T02:05:00.000Z"
+      }
+    },
+    {
+      "id": "48216079-b8cf-477e-9817-bdbde4be175b",
+      "name": "awesome-selfhosted — Wikis",
+      "url": "https://awesome-selfhosted.net/tags/wikis.html",
+      "host": "awesome-selfhosted.net",
+      "review": {
+        "basis": "published_terms",
+        "reference": "https://github.com/awesome-selfhosted/awesome-selfhosted-data/blob/master/LICENSE",
+        "reviewer": "codex-project-operator",
+        "reviewedAt": "2026-09-09T02:05:00.000Z",
+        "expiresAt": "2026-09-16T02:05:00.000Z"
+      }
+    }
+  ]
+}

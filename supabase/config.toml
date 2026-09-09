@@ -1,0 +1,31 @@
+# Edge Functions use explicit handler authentication from _shared/auth.ts.
+#
+# `verify_jwt = false` is required for the self-hosted scheduler's x-job-secret
+# path: the Edge gateway only understands user JWTs, not this internal secret.
+# It does NOT make an endpoint public: user functions validate a Supabase user
+# token in the handler and job functions require JOB_SECRET. Do not remove the
+# handler checks or expose Kong directly to the network.
+
+[functions.check-domain]
+verify_jwt = false
+
+[functions.generate-domains]
+verify_jwt = false
+
+[functions.value-domains]
+verify_jwt = false
+
+[functions.user-domain-scan]
+verify_jwt = false
+
+[functions.valuate-all-domains]
+verify_jwt = false
+
+[functions.nightly-domain-scan]
+verify_jwt = false
+
+[functions.registrar-scraper]
+verify_jwt = false
+
+[functions.send-daily-notification]
+verify_jwt = false

@@ -1,0 +1,14 @@
+{
+  "fmt": {
+    "lineWidth": 120,
+    "semiColons": true,
+    "singleQuote": false
+  },
+  "lint": {
+    "include": ["supabase/functions"]
+  },
+  "tasks": {
+    "check:functions": "deno check --node-modules-dir=manual --no-remote supabase/functions/generate-domains/index.ts supabase/functions/check-domain/index.ts supabase/functions/value-domains/index.ts supabase/functions/user-domain-scan/index.ts supabase/functions/valuate-all-domains/index.ts supabase/functions/nightly-domain-scan/index.ts supabase/functions/send-daily-notification/index.ts supabase/functions/registrar-scraper/index.ts",
+    "test:functions": "deno test --node-modules-dir=manual --cached-only supabase/functions/_shared/domain-engine.test.ts"
+  }
+}
