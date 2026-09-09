@@ -94,6 +94,18 @@ function epoch(v: unknown): number {
 const identity = (v: unknown) =>
   typeof v === "string" ? v : String(obj(v).id ?? "");
 
+/** Restore the wire representation of authenticated SDK responses only.
+ * stripe-node >=21 wraps decimal strings in an arbitrary-precision Decimal.
+ * Its JSON serializer preserves those exact decimal strings (never Number()).
+ * Keep this at the provider boundary, NOT inside the validators or webhook
+ * handler: untrusted payloads must not acquire permissive object coercion.
+ */
+export function stripeSdkPayload(
+  value: Stripe.Price | Stripe.Checkout.Session | Stripe.ApiList<Stripe.Subscription>,
+): unknown {
+  return JSON.parse(JSON.stringify(value)) as unknown;
+}
+
 /** Validate provider evidence against the approved commercial contract.
  * `active` controls new purchases, not previously paid subscription periods.
  * The integer/decimal checks are separate: Number() would round tiny fractions.
@@ -317,12 +329,12 @@ export function createCommerceProvider(
   const mode = config.mode === "live";
   const ownerHash = (ownerId: string) =>
     createHash("sha256").update(`${config.namespace}:${ownerId}`).digest("hex");
-  const checkoutResult = (session: unknown, customerId: string) =>
-    validatePlusCheckout(session, customerId, config);
+  const checkoutResult = (session: Stripe.Checkout.Session, customerId: string) =>
+    validatePlusCheckout(stripeSdkPayload(session), customerId, config);
   return {
     async price() {
       const price = await stripe.prices.retrieve(config.priceId);
-      return validatePlusPrice(price, config);
+      return validatePlusPrice(stripeSdkPayload(price), config);
     },
     async createCustomer(key, ownerId) {
       const customer = await stripe.customers.create(
@@ -348,7 +360,7 @@ export function createCommerceProvider(
         status: "all",
         limit: 100,
       });
-      const rows = list(subscriptions);
+      const rows = list(stripeSdkPayload(subscriptions));
       for (const row of rows)
         if (row.livemode !== mode || identity(row.customer) !== customerId)
           throw new CommerceError("provider_owner_mismatch");

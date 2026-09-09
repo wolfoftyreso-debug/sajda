@@ -15,6 +15,7 @@ import {
   createCommerceProvider,
   validatePlusPrice,
   validatePlusCheckout,
+  stripeSdkPayload,
   type BillingState,
   type CommerceProvider,
   type CommercePrice,
@@ -205,6 +206,40 @@ test("approved commercial contract is exactly USD 1,880 monthly and is verified 
       () => validatePlusPrice(value, config),
       code("billing_price_unavailable"),
     );
+});
+
+test("Stripe SDK Decimal responses are normalized losslessly before strict price validation", () => {
+  const sdkPrice = { ...stripePrice(), unit_amount_decimal: Stripe.Decimal.from("188000") };
+  assert.equal(typeof sdkPrice.unit_amount_decimal, "object");
+  // Raw/untrusted object-valued decimals remain invalid. Only the authenticated
+  // SDK adapter restores the documented wire representation.
+  assert.throws(() => validatePlusPrice(sdkPrice, config), code("billing_price_unavailable"));
+  assert.deepEqual(validatePlusPrice(stripeSdkPayload(sdkPrice as never), config), price);
+  for (const decimal of ["188000.000000000001", "187999.999999999999", "200000"]) {
+    const invalid = { ...sdkPrice, unit_amount_decimal: Stripe.Decimal.from(decimal) };
+    const wire = stripeSdkPayload(invalid as never) as Record<string, unknown>;
+    assert.equal(wire.unit_amount_decimal, decimal);
+    assert.throws(() => validatePlusPrice(wire, config), code("billing_price_unavailable"));
+  }
+  for (const decimal of [
+    { toString: () => "188000" },
+    { toJSON: () => "188000" },
+    { valueOf: () => 188000 },
+  ]) assert.throws(() => validatePlusPrice({ ...stripePrice(), unit_amount_decimal: decimal }, config), code("billing_price_unavailable"));
+});
+
+test("expanded SDK decimals work in Checkout and subscription reconciliation without rounding", () => {
+  const session = stripeCheckout();
+  session.line_items.data[0].price.unit_amount_decimal = Stripe.Decimal.from("188000") as never;
+  assert.equal(validatePlusCheckout(stripeSdkPayload(session as never), "cus_fixture", config).id, session.id);
+  const { subscription, invoices } = fixtures();
+  subscription.items.data[0].price.unit_amount_decimal = Stripe.Decimal.from("188000") as never;
+  const sdkList = { object: "list", has_more: false, data: [subscription] };
+  const normalized = stripeSdkPayload(sdkList as never) as { data: unknown[] };
+  assert.ok(evaluateSubscription(normalized.data[0], invoices, "cus_fixture", config).grant);
+  subscription.items.data[0].price.unit_amount_decimal = Stripe.Decimal.from("188000.000000000001") as never;
+  const rejected = stripeSdkPayload(sdkList as never) as { data: unknown[] };
+  assert.equal(evaluateSubscription(rejected.data[0], invoices, "cus_fixture", config).grant, null);
 });
 
 test("the previous USD 2,000 price cannot open checkout or grant Plus even with the configured price ID", () => {

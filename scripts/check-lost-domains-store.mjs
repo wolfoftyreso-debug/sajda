@@ -2,6 +2,9 @@
  * Opt-in real PostgreSQL test. The store's transactions become savepoints
  * inside a single outer transaction which ALWAYS rolls back. No crawling,
  * account email, subscriptions or persistent access grants are performed.
+ * Existing catalog sources are isolated only inside that transaction and
+ * their exact enabled state is checked after rollback. No active runs or
+ * eligible real-account daily scheduling may exist in the development DB.
  * Requires migrations through 0012. Without --run, no database is opened.
  * node --env-file=.env.neon-development.local --import tsx scripts/check-lost-domains-store.mjs --run
  */
@@ -17,18 +20,25 @@ async function main(){
   assert.notEqual(process.env.VERCEL_ENV,'production');target.searchParams.set('sslmode','verify-full');
   const pool=new Pool({connectionString:target.toString(),max:1,connectionTimeoutMillis:8000,query_timeout:10000});
   const ids=Array.from({length:9},()=>`qa-lost-rollback-${randomUUID()}`),sourceIds=Array.from({length:3},()=>randomUUID());
-  let client,open=false,label='connect',lastSqlFailure;
+  let client,open=false,label='connect',lastSqlFailure,lastFixtureState;
   const passed=[];
   const verify=async(name,fn)=>{label=name;await fn();passed.push(name);};
   const expectCode=code=>error=>error?.code===code;
   try{
     client=await pool.connect();
-    const before=await client.query(`SELECT
-      (SELECT count(*)::int FROM sajda.lost_domain_sources WHERE enabled) AS enabled_sources,
-      (SELECT count(*)::int FROM sajda.lost_domain_runs WHERE namespace='development' AND status IN ('queued','running')) AS active_runs`);
-    assert.deepEqual(before.rows[0],{enabled_sources:0,active_runs:0},'Rollback harness requires an inactive development Lost Domains catalog.');
     await client.query('BEGIN');open=true;
-    await client.query("SET LOCAL statement_timeout='8s'; SET LOCAL idle_in_transaction_session_timeout='30s'");
+    await client.query("SET LOCAL statement_timeout='8s'; SET LOCAL idle_in_transaction_session_timeout='30s'; SET LOCAL lock_timeout='2s'");
+    label='development isolation prerequisites';
+    // Prevent concurrent catalog changes and run creation while fixtures are
+    // isolated. MVCC readers still see the original catalog, never fixtures.
+    await client.query('LOCK TABLE sajda.lost_domain_sources,sajda.lost_domain_runs IN SHARE ROW EXCLUSIVE MODE NOWAIT');
+    const before=await client.query(`SELECT
+      (SELECT count(*)::int FROM sajda.lost_domain_runs WHERE status IN ('queued','running')) AS active_runs,
+      (SELECT count(*)::int FROM sajda.lost_domain_effective_access WHERE namespace='development'
+        AND daily_refresh AND revoked_at IS NULL AND valid_from<=clock_timestamp() AND expires_at>clock_timestamp()) AS daily_owners`);
+    assert.deepEqual(before.rows[0],{active_runs:0,daily_owners:0},'Rollback harness requires inactive runs in every namespace and no real-account daily scheduling.');
+    const originalSourceState=(await client.query('SELECT id::text,enabled FROM sajda.lost_domain_sources ORDER BY id')).rows;
+    await client.query('UPDATE sajda.lost_domain_sources SET enabled=false WHERE enabled');
     const adapter={connect:async()=>({query:async(sql,params=[])=>{
       try{
         if(sql==='BEGIN'||sql==='BEGIN READ ONLY')return await client.query('SAVEPOINT lost_store_transaction');
@@ -322,7 +332,12 @@ async function main(){
     async function fixtureRun(accountId,domains){
       const started=await freshStore.startRun(accountId,randomUUID());
       const html=domains.map(domain=>`<a href="https://${domain}/${domain==='fixturesensitive.com'?'login':'article'}">Public fixture</a>`).join('');
-      const fetch=createSafeFetcher({lookup:async()=>[{address:'93.184.216.34',family:4}],transport:async input=>{
+      const fetch=createSafeFetcher({lookup:async host=>{
+          // A positive no-address fixture must not simultaneously resolve in
+          // the HTTP layer: that contradiction correctly blocks price refresh.
+          if(domains.some(domain=>host===domain||host.endsWith(`.${domain}`)))return noAddress();
+          return [{address:'93.184.216.34',family:4}];
+        },transport:async input=>{
           const parsed=input.url;let status=200,body='',contentType='text/plain';
           if(parsed.pathname!=='/robots.txt'){
             if(parsed.hostname==='example.org'){body=html;contentType='text/html';}
@@ -347,12 +362,36 @@ async function main(){
         const evidence=await engine.inspectCandidate(lease.candidate);
         assert.equal((await freshStore.finishWork(lease,{kind:'candidate',assessment:evidence})).applied,true);
       }
-      return {started,dashboard:await freshStore.getDashboard(accountId)};
+      // V3 reports are not complete after their first candidate pass. Exercise
+      // every scheduled synthetic confirmation too; the separate temporal tests
+      // above verify the exact gaps. Fast-forward only fixture queue due times,
+      // never assessment timestamps or evidence, inside the outer rollback.
+      for(let round=1;round<=3;round++){
+        const pending=await client.query(`SELECT id::text FROM sajda.lost_domain_work_items
+          WHERE owner_id=$1 AND run_id=$2::uuid AND verification_round=$3
+            AND status IN ('queued','retry_wait') ORDER BY id`,[accountId,started.run.id,round]);
+        if(!pending.rowCount)break;
+        assert.ok(pending.rowCount<=domains.length,'Confirmation candidates stay bounded by the fixture');
+        assert.equal(await freshStore.claimWork(accountId,started.run.id),null,'Future confirmation work is not claimable early');
+        await client.query("UPDATE sajda.lost_domain_work_items SET next_attempt_at=clock_timestamp()-interval '1 second' WHERE owner_id=$1 AND run_id=$2::uuid AND id=ANY($3::uuid[])",[accountId,started.run.id,pending.rows.map(row=>row.id)]);
+        for(let index=0;index<pending.rowCount;index++){
+          const lease=await freshStore.claimWork(accountId,started.run.id);
+          assert.ok(lease);assert.equal(lease.verificationRound,round);
+          const assessment=await engine.inspectCandidate(lease.candidate);
+          assert.equal((await freshStore.finishWork(lease,{kind:'candidate',assessment})).applied,true);
+        }
+      }
+      const dashboard=await freshStore.getDashboard(accountId);
+      lastFixtureState={status:dashboard.runs[0]?.status??'absent',failureCode:dashboard.runs[0]?.failureCode??null,
+        latestReport:dashboard.latestReport!==null,registryStatuses:dashboard.latestReport?.assessments.map(row=>row.registryStatus)??[]};
+      return {started,dashboard};
     }
     const known=await fixtureRun(ids[4],['fixtureknown.com']);
     await verify('real engine fixture output survives a fresh store instance without becoming confirmed',async()=>{
       assert.equal(known.dashboard.latestReport.run.status,'succeeded');
       assert.equal(known.dashboard.latestReport.assessments[0].registryStatus,'registry_not_found');
+      assert.equal(known.dashboard.latestReport.assessments[0].reviewStatus,'review_candidate');
+      assert.equal(known.dashboard.latestReport.assessments[0].risk.level,'review');
       assert.equal(known.dashboard.latestReport.assessments[0].confirmedRegistrable,false);
     });
     // Exact-price requests exercise real SQL, but only synthetic provider data.
@@ -360,6 +399,7 @@ async function main(){
     await client.query('SAVEPOINT quote_refresh_fixture');
     const quoteDomain='fixtureknown.com',quoteKey=randomUUID();
     const technicalBefore=await client.query('SELECT assessment,observed_at FROM sajda.lost_domain_assessments WHERE owner_id=$1 AND run_id=$2::uuid ORDER BY id',[ids[4],known.started.run.id]);
+    label='quote refresh fixture preparation';
     const reservation=await freshStore.beginQuoteRefresh(ids[4],known.started.run.id,quoteDomain,quoteKey);
     assert.ok(reservation.lease);assert.equal(reservation.reused,false);
     await verify('quote refresh is owner-scoped and idempotent before the provider call',async()=>{
@@ -433,6 +473,10 @@ async function main(){
       await client.query('ROLLBACK TO SAVEPOINT foreign_fixture');await client.query('RELEASE SAVEPOINT foreign_fixture');
     });
     await client.query('ROLLBACK');open=false;
+    await verify('existing catalog source enablement is unchanged after rollback',async()=>{
+      const restored=(await client.query('SELECT id::text,enabled FROM sajda.lost_domain_sources ORDER BY id')).rows;
+      assert.deepEqual(restored,originalSourceState);
+    });
     await verify('all synthetic users, grants, sources and job data are absent after rollback',async()=>{
       const result=await client.query(`SELECT
         (SELECT count(*)::int FROM public.sajda_auth_user WHERE id=ANY($1::text[])) AS users,
@@ -445,7 +489,12 @@ async function main(){
       assert.deepEqual(result.rows[0],{users:0,grants:0,sources:0,runs:0,assessments:0,quote_requests:0,quote_observations:0});
     });
     console.log(JSON.stringify({status:'PASS',checks:passed.length,verified:passed,persistentFixtures:0,externalProviderCalls:0,mode:'actual PostgreSQL, rollback-only fixtures and savepoint-bound store transactions'},null,2));
-  }catch{console.error(JSON.stringify({status:'FAIL',check:label,completedChecks:passed.length,...(lastSqlFailure?{database:lastSqlFailure}:{})}));process.exitCode=1;}
+  }catch(error){
+    const location=/check-lost-domains-store\.mjs:(\d+):(\d+)/u.exec(error?.stack??'');
+    console.error(JSON.stringify({status:'FAIL',check:label,completedChecks:passed.length,
+      failureType:error?.name??'unknown',...(location?{scriptLine:Number(location[1])}:{}),
+      ...(lastFixtureState?{fixture:lastFixtureState}:{}),...(lastSqlFailure?{database:lastSqlFailure}:{})}));process.exitCode=1;
+  }
   finally{if(client){if(open)await client.query('ROLLBACK').catch(()=>{process.exitCode=1;});client.release();}await pool.end();}
 }
 main().catch(()=>{console.error(JSON.stringify({status:'FAIL',check:'Configuration/setup validation; no secrets printed.'}));process.exitCode=1;});
