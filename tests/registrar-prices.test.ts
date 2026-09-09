@@ -60,18 +60,21 @@ function fixture(t: TestContext) {
     if (value === undefined) delete process.env[name]; else process.env[name] = value;
   } });
   const calls: Array<{ url: string; init?: RequestInit }> = [];
+  const diagnostics: unknown[] = [];
+  t.mock.method(console, "warn", (message: string) => { diagnostics.push(JSON.parse(message)); });
   const control = {
     price: async (_init?: RequestInit): Promise<Response> => Response.json({ status: "SUCCESS", pricing: {
       com: { registration: "11.08", renewal: "11.08" }, dev: { registration: "12.50", renewal: "12.50" },
     } }),
     registryTaken: false,
+    loopia: async (): Promise<Response> => new Response('<table><tr><td>.com </td><td><span class="with_tax">249,00</span><span class="without_tax">199,20</span></td><td><span class="with_tax">349,00</span></td></tr></table>', { headers: { "content-type": "text/html" } }),
     tldes: () => Response.json({ updated: new Date().toISOString(), registrars: [] }),
   };
   t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
     calls.push({ url, init });
     if (url === porkbunUrl) return control.price(init);
-    if (url === loopiaUrl) return new Response('<table><tr><td>.com </td><td><span class="with_tax">249,00</span><span class="without_tax">199,20</span></td><td><span class="with_tax">349,00</span></td></tr></table>', { headers: { "content-type": "text/html" } });
+    if (url === loopiaUrl) return control.loopia();
     if (new URL(url).hostname === "tldes.com") return control.tldes();
     assert.match(url, /^https:\/\/(rdap\.verisign\.com|pubapi\.registry\.google|rdap\.publicinterestregistry\.org|rdap\.identitydigital\.services|rdap\.centralnic\.com|rdap\.nic\.biz)\//);
     const domain = decodeURIComponent(new URL(url).pathname.split("/domain/").at(-1)!);
@@ -79,7 +82,7 @@ function fixture(t: TestContext) {
       ? Response.json({ objectClassName: "domain", ldhName: domain }, { headers: { "content-type": "application/rdap+json" } })
       : Response.json({ errorCode: 404 }, { status: 404, headers: { "content-type": "application/rdap+json" } });
   });
-  return { control, calls, now, priceCalls: () => calls.filter(call => call.url === porkbunUrl) };
+  return { control, calls, diagnostics, now, priceCalls: () => calls.filter(call => call.url === porkbunUrl) };
 }
 function offer(payload: Payload, provider = "porkbun", tld = "com") {
   const found = payload.results.find(result => result.tld === tld)?.registrarOffers.find(item => item.providerId === provider);
@@ -119,6 +122,56 @@ test("Porkbun public USD prices preserve Loopia and unconnected providers withou
   assert.ok(call.init?.signal);
   assert.deepEqual(call.init?.headers, { Accept: "application/json", "User-Agent": "Sajda-Price-Check/1.0" });
   assert.doesNotMatch(JSON.stringify(f.calls) + JSON.stringify(payload), /private-test-token|127\.0\.0\.1/);
+  assert.deepEqual(f.diagnostics, [], "Successful source snapshots must not create failure logs");
+});
+
+test("provider failure diagnostics are fixed-schema, payload-free and bounded by snapshot caching", async t => {
+  const f = fixture(t);
+  const sensitive = "private-price-payload-domain.example-secret";
+  f.control.loopia = async () => new Response(sensitive, { status: 403, headers: { "content-type": "text/html" } });
+  f.control.price = async () => Response.json({ error: sensitive }, { status: 503 });
+  const providers = ["loopia", "porkbun"];
+  const first = await request({ providers, domains: ["private-query.com", "private-query.dev"] });
+  assert.equal(offer(first, "loopia").priceVerified, false);
+  assert.equal(offer(first, "porkbun").priceVerified, false);
+  const ordered = () => [...f.diagnostics].sort((a, b) => (a as { provider: string }).provider.localeCompare((b as { provider: string }).provider));
+  const expected = [
+    { event: "registrar_price_unavailable", provider: "loopia", reason: "http_error", status: 403 },
+    { event: "registrar_price_unavailable", provider: "porkbun", reason: "http_error", status: 503 },
+  ];
+  assert.deepEqual(ordered(), expected);
+  await request({ providers });
+  assert.equal(f.diagnostics.length, 2, "Cached failures must not log again for another name or request");
+  t.mock.timers.setTime(f.now + 60_000);
+  await request({ providers });
+  assert.equal(f.diagnostics.length, 4, "Exactly one record per provider refresh, not per domain");
+  assert.doesNotMatch(JSON.stringify(f.diagnostics), /private-|https?:|secret|payload/);
+});
+
+test("content, parser and transport failures never forward untrusted error details into logs", async t => {
+  const f = fixture(t);
+  f.control.loopia = async () => new Response("secret-page", { headers: { "content-type": "application/json" } });
+  f.control.price = async () => new Response("secret-invalid-json", { headers: { "content-type": "application/json" } });
+  await request({ providers: ["loopia", "porkbun"] });
+  assert.ok(f.diagnostics.some(row => (row as { reason: string }).reason === "unexpected_content_type"));
+  assert.ok(f.diagnostics.some(row => (row as { reason: string }).reason === "invalid_response"));
+  t.mock.timers.setTime(f.now + 60_000);
+  f.control.loopia = async () => { throw new Error("secret-url https://private.example/account"); };
+  f.control.price = async () => { throw new Error("secret-api-key"); };
+  await request({ providers: ["loopia", "porkbun"] });
+  assert.equal(f.diagnostics.filter(row => (row as { reason: string }).reason === "request_failed").length, 2);
+  assert.doesNotMatch(JSON.stringify(f.diagnostics), /secret|private|https?:/);
+});
+
+test("empty supported price snapshots produce one diagnostic without inventing offers", async t => {
+  const f = fixture(t);
+  f.control.loopia = async () => new Response("<html>No price table</html>", { headers: { "content-type": "text/html" } });
+  f.control.price = async () => Response.json({ status: "SUCCESS", pricing: {} });
+  const payload = await request({ providers: ["loopia", "porkbun"] });
+  assert.equal(offer(payload, "loopia").priceVerified, false);
+  assert.equal(offer(payload).priceVerified, false);
+  assert.equal(f.diagnostics.length, 2);
+  assert.ok(f.diagnostics.every(row => (row as { reason: string }).reason === "no_usable_prices"));
 });
 
 test("published price snapshots coalesce requests, cover later suffixes, and expire after fifteen minutes", async t => {
@@ -230,6 +283,7 @@ test("a stalled JSON body is aborted by the price timeout", async t => {
   t.mock.timers.tick(7_500);
   assert.equal(offer(await pending).priceStatus, "unavailable");
   assert.equal(signal?.aborted, true);
+  assert.deepEqual(f.diagnostics, [{ event: "registrar_price_unavailable", provider: "porkbun", reason: "timeout" }]);
 });
 
 test("Porkbun is fetched only when selected and works in Swipe with no price feed key", async t => {

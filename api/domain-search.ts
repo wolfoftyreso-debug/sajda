@@ -373,6 +373,23 @@ const TLDES_PRICE_FAILURE_CACHE_TTL_MS = 60_000;
 const TLDES_PRICE_FETCH_TIMEOUT_MS = 7_500;
 const TLDES_PRICE_RESPONSE_LIMIT_BYTES = 1_000_000;
 const TLDES_PRICE_MAX_AGE_MS = 2 * 60 * 60_000;
+type RegistrarPriceFailureReason = "http_error" | "unexpected_content_type" | "invalid_response" | "no_usable_prices" | "timeout" | "request_failed";
+class RegistrarPriceSourceError extends Error {
+  constructor(readonly reason: RegistrarPriceFailureReason, readonly status?: number) {
+    super("Registrar price source unavailable.");
+  }
+}
+
+/** One fixed-schema diagnostic per failed upstream snapshot, never per name.
+ * Existing source caches bound repeats. Provider payloads, URLs, credentials,
+ * search terms and domain names must never enter these records. */
+function logRegistrarPriceFailure(provider: "loopia" | "porkbun", error: unknown): void {
+  const reason = error instanceof RegistrarPriceSourceError ? error.reason
+    : error instanceof Error && ["AbortError", "TimeoutError"].includes(error.name) ? "timeout" : "request_failed";
+  const status = error instanceof RegistrarPriceSourceError ? error.status : undefined;
+  console.warn(JSON.stringify({ event: "registrar_price_unavailable", provider, reason,
+    ...(Number.isInteger(status) && status! >= 100 && status! <= 599 ? { status } : {}) }));
+}
 const MAX_ADVANCED_BRIEF_WORDS = 250;
 const MAX_ADVANCED_BRIEF_CHARS = 6_000;
 const MIN_ADVANCED_NAME_LENGTH = 3;
@@ -2469,7 +2486,7 @@ function parsePorkbunPricePayload(payload: unknown, checkedAt: string): Registra
   const root = recordValue(payload);
   const pricing = recordValue(root?.pricing);
   if (root?.status !== "SUCCESS" || !pricing) {
-    throw new Error("Invalid public registrar price schema.");
+    throw new RegistrarPriceSourceError("invalid_response");
   }
 
   const offers = new Map<string, RegistrarOffer>();
@@ -2515,11 +2532,15 @@ async function fetchPorkbunPrices(checkedAt: string): Promise<RegistrarPriceLook
       signal: controller.signal,
     });
     const contentType = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
-    if (!response.ok || contentType !== "application/json") {
-      throw new Error("Public registrar price API did not return JSON.");
-    }
+    if (!response.ok) throw new RegistrarPriceSourceError("http_error", response.status);
+    if (contentType !== "application/json") throw new RegistrarPriceSourceError("unexpected_content_type");
     const body = await readResponseTextLimited(response, PORKBUN_PRICE_RESPONSE_LIMIT_BYTES);
-    return parsePorkbunPricePayload(JSON.parse(body), checkedAt);
+    let payload: unknown;
+    try { payload = JSON.parse(body); } catch { throw new RegistrarPriceSourceError("invalid_response"); }
+    return parsePorkbunPricePayload(payload, checkedAt);
+  } catch (error) {
+    if (controller.signal.aborted) throw new RegistrarPriceSourceError("timeout");
+    throw error;
   } finally {
     clearTimeout(timeout);
   }
@@ -2537,10 +2558,12 @@ async function getPorkbunPrices(): Promise<RegistrarPriceLookup> {
     const checkedAt = new Date(now).toISOString();
     porkbunPriceFetch = fetchPorkbunPrices(checkedAt)
       .then((lookup) => {
+        if (!lookup.offers.size) logRegistrarPriceFailure("porkbun", new RegistrarPriceSourceError("no_usable_prices"));
         porkbunPriceCache = { ...lookup, checkedAt, createdAt: now, ttlMs: PORKBUN_PRICE_CACHE_TTL_MS };
         return lookup;
       })
-      .catch(() => {
+      .catch((error: unknown) => {
+        logRegistrarPriceFailure("porkbun", error);
         const lookup = { checkedAt, offers: new Map<string, RegistrarOffer>() };
         porkbunPriceCache = { ...lookup, createdAt: Date.now(), ttlMs: PORKBUN_PRICE_FAILURE_CACHE_TTL_MS };
         return lookup;
@@ -2795,7 +2818,9 @@ async function getRegistrarOffers(tlds: readonly string[], locale: Locale): Prom
       redirect: "error",
     }, LOOPIA_PRICE_FETCH_TIMEOUT_MS);
     const contentType = response.headers.get("content-type") ?? "";
-    if (response.ok && contentType.toLowerCase().includes("text/html")) {
+    if (!response.ok) throw new RegistrarPriceSourceError("http_error", response.status);
+    if (!contentType.toLowerCase().includes("text/html")) throw new RegistrarPriceSourceError("unexpected_content_type");
+    {
       const html = await readResponseTextLimited(response, LOOPIA_PRICE_RESPONSE_LIMIT_BYTES);
       // Populate every supported suffix at once. The serverless cache is
       // shared by requests, so caching only the first request's TLDs would
@@ -2805,8 +2830,10 @@ async function getRegistrarOffers(tlds: readonly string[], locale: Locale): Prom
         const offer = parseLoopiaOffer(html, tld, checkedAt);
         if (offer) offers.set(tld, offer);
       }
+      if (!offers.size) logRegistrarPriceFailure("loopia", new RegistrarPriceSourceError("no_usable_prices"));
     }
-  } catch {
+  } catch (error) {
+    logRegistrarPriceFailure("loopia", error);
     // Price failures are explicitly rendered as unavailable rather than a
     // stale/static quote. Availability verification remains independent.
   }

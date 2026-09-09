@@ -1,5 +1,11 @@
 # Trading Engine release follow-up — 2026-09-09
 
+Later the same day, authorized network access was available. See the
+[Vercel integration follow-up](VERCEL-INTEGRATION-VERIFICATION-2026-09-09.md)
+for actual Neon migrations, real database/auth tests, Stripe sandbox operations
+and preview deployments. The original blocked-session record below is retained
+as history, not current infrastructure status.
+
 ## Scope and status
 
 This follow-up closes the point-of-use price-refresh gap in the v3 engine. It does not claim that a new Vercel deployment, a multi-day live investigation, a registrar quote or underpriced investment opportunity has been verified. The preceding [v3 report](TRADING-ENGINE-V3-2026-09-09.md) describes the technical research engine and its evidence boundaries.
