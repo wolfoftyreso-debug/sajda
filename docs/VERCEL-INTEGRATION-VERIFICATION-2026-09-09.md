@@ -10,13 +10,18 @@ multi-day unattended research, licensed valuation data or investment readiness.
 Code commit `c42c734` was pushed to `wolfoftyreso-debug/sajda` on `main`.
 Its GitHub Actions [Verify run](https://github.com/wolfoftyreso-debug/sajda/actions/runs/34394633267)
 completed successfully, independently of the local test run.
-Two Vercel **preview**, not production, deployments were created:
+Three Vercel **preview**, not production, deployments were created:
 
 - `https://sajda-bzlxy5g1g-hypbit.vercel.app` — READY; first runtime verification.
 - `https://sajda-k455asubf-hypbit.vercel.app` — READY; includes the sandbox webhook
   secret added after the first build. Runtime re-verification is recorded below.
+- **Latest:** `https://sajda-35nj77uim-hypbit.vercel.app` — READY, commit `e2c911c`;
+  adds bounded price-source diagnostics. That commit's
+  [GitHub Verify run](https://github.com/wolfoftyreso-debug/sajda/actions/runs/34396185510)
+  also completed successfully. Health returned 200/connected and the actual
+  browser rendered the homepage and Swedish language switch.
 
-Both belong to the existing `hypbit/sajda` project, build using Node 24 / Vite,
+All belong to the existing `hypbit/sajda` project, build using Node 24 / Vite,
 and retain Vercel deployment protection. An unauthenticated browser can therefore
 reach Vercel login instead of Sajda. These are not public production links.
 
@@ -104,7 +109,16 @@ DNS authority for `hypbit.com` is AWS. No DNS/MX/SPF records were changed.
   denied with recoverable `Invalid email or password` feedback.
 - The search displayed no currently verified provider prices (0 published,
   2 checked, 18 purchase links). Unknown prices remained unknown; no quote or
-  investment value was invented. Price-source follow-up remains separate.
+  investment value was invented.
+- Price-source investigation reproduced valid official Loopia parsing locally,
+  but unavailable prices in the deployed response before frontend rendering.
+  Eleven price tests, lint and Vercel types passed for the new fixed-schema
+  diagnostics. One final-preview exact-domain probe reproduced the missing
+  prices; deployment logs showed **timeout for both Loopia and Porkbun**.
+  No parser defect, HTTP403 or rate-limit response was demonstrated. The failure
+  remains an upstream connectivity/response-deadline issue in Vercel, not a
+  repaired live-price feed. No proxy, block evasion, extended retry loop or
+  invented quote was introduced. Logs omit domains, queries, URLs and payloads.
 
 ## Next release gates
 
