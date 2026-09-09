@@ -109,15 +109,8 @@ const Index = () => {
     setAdvancedBrief(preset.advanced ? preset.brief ?? preset.keyword ?? "" : "");
     setAdvancedCriteria(DEFAULT_ADVANCED_SEARCH_CRITERIA);
 
-    window.requestAnimationFrame(() => {
-      searchControlsRef.current?.scrollIntoView({ behavior: "auto", block: "center" });
-      window.requestAnimationFrame(() => {
-        const focusTarget = preset.focus === "advanced"
-          ? document.getElementById("advanced-search-brief-input")
-          : document.getElementById("domain-theme");
-        if (focusTarget instanceof HTMLElement) focusTarget.focus();
-      });
-    });
+    // Keep the prepared fields, but start this newly opened page at the top.
+    // Only explicit actions within the page should scroll to its search form.
   }, [setScanMode, setSearchKeyword, setSelectedTLDs]);
 
   const advancedWordCount = countAdvancedBriefWords(advancedBrief);
