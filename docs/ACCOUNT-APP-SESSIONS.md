@@ -71,10 +71,19 @@ Sparade snapshots presenteras fortfarande med okänd aktuell tillgänglighet.
   68 kontrollpunkter godkända, inklusive två nya appinloggningar,
   återkallning av den ena, fortsatt åtkomst för den andra och full städning
   av testets egna credentials. Inga existerande appinloggningar återkallades.
+- Samma 68 kontrollpunkter godkändes sedan på Vercel-preview f702d3d, följt
+  av 43 verifierade sparandekontroller mellan REST, MCP och webbkontot.
+  [Releaseprotokollet](RELEASE-2026-09-10.md) länkar till bygge och simulator-QA.
 - Ingen ny migration krävs; 0013 och 0014 måste redan vara applicerade.
 - Ingen kundprofil raderades, ingen betalning eller Trading-körning startades.
-- Browserautomation kunde inte ansluta en ny QA-flik i denna omgång; de nya
-  vyerna är inte påstått pixelverifierade på mobil eller fysiskt på iPhone.
+- Ny QA-flik gick inte att ansluta, men en befintlig tom produktflik kunde
+  tillfälligt användas mot lokal HTTP/Neon. Riktig lösenordsinloggning,
+  kontonavigering, öppning av appinloggningar, tom sessionslista, Sparats
+  tomläge och manuell listuppdatering fungerade i webbläsaren. Skärmbilder
+  granskades vid 390×844; dokumentets scrollbredd motsvarade klientbredden
+  (375 px efter rullist), och navigation till Sparat startade vid scrollY=0.
+  Fyllda listor, återkallningsdialoger och fysisk iPhone är inte visuellt
+  verifierade av detta test. Deras tillstånd täcks separat av komponenttester.
 - Vercel-skydd, StoreKit, signering/TestFlight och övriga begränsningar finns
   i [iPhone-status](IPHONE.md) och [releaseprotokollet](RELEASE-2026-09-10.md).
 
