@@ -129,8 +129,8 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
       const pricing = label(renderer!.root.findByType("aside"));
       assert.match(pricing, /What's included/);
       assert.match(pricing, /up to 24 approved source pages and 600 names/);
-      assert.match(pricing, /Up to 30 priority names proceed through 3 time-separated review rounds/);
-      assert.match(pricing, /at most 2 new runs per day per account/);
+      assert.match(pricing, /Up to 30 priority names go through 3 review rounds at separate times/);
+      assert.match(pricing, /Each account can start at most 2 new runs per day/);
     });
 
     await t.test("a Plus report loads without automatically starting work", async () => {
@@ -186,11 +186,33 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
       assert.match(text(),/cloudbilling.comRegistered/u);
       assert.equal(actionRequests().length,0);
       await mount(response,"account-a","sv");
-      assert.match(text(),/Tolkade ord: cloud \+ billing/u);
+      assert.match(text(),/Identifierade ord: cloud \+ billing/u);
       assert.match(text(),/Användningsidéer att undersöka/u);
       assert.match(text(),/Inga köpare eller köpintressen har identifierats/u);
       assert.match(text(),/Tidigast i stickprovet/u);
       assert.doesNotMatch(text(),/Recognized words|Exploratory use cases|Metadata samples/u);
+    });
+
+    await t.test("Spanish, French and Chinese render real Trading research and missing-evidence states without English fallback", async () => {
+      const response = snapshot("account-a", "cloudbilling.com"), candidate = response.candidates[0];
+      candidate.marketFit = analyzeTradingMarketFit(candidate.domain);
+      candidate.dossier = analyzeTradingDossier(candidate, { now: Date.now(), sourceApproved: true });
+      candidate.acquisition = evaluateTradingAcquisition({ domain: candidate.domain });
+      candidate.archive = { source: "common_crawl", domain: candidate.domain, status: "unknown", reason: "timeout", checkedAt: new Date().toISOString(), sourceUrl: null, collection: null, sampleCount: null, earliestSampleAt: null, latestSampleAt: null, sampleStatuses: [], priorExistence: null, sampleLimit: 5, collectionLimit: 1 };
+      const expected = {
+        es: ["Análisis técnico profundo", "No hay una señal verificada de precio bajo", "Palabras reconocidas", "Tus"],
+        fr: ["Analyse technique approfondie", "Aucun signal vérifié de prix bas", "Mots reconnus", "Votre"],
+        zh: ["深度技术核查", "没有经过验证的低价信号", "识别出的词语", "你的"],
+      };
+      for (const language of ["es", "fr", "zh"] as const) {
+        await mount(response, "account-a", language);
+        await until(() => text().includes("cloudbilling.com"));
+        for (const phrase of expected[language].slice(0, 3)) assert.ok(text().includes(phrase), `${language}: ${phrase}`);
+        assert.doesNotMatch(text(), /Technical deep review|No verified low-price signal|Recognized words|Your research workspace|Missing archive data/u);
+        assert.equal(actionRequests().length, 0);
+        assert.match(text(), /cloudbilling.com/);
+        assert.match(text(), /40/);
+      }
     });
 
     await t.test("unknown archive evidence stays unknown and a final recheck phase shows its own progress", async () => {
@@ -381,22 +403,22 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
     await t.test("a report subset notice persists with its report and clears only when replaced or access is removed",async()=>{
       const response={...snapshot(),candidatesOmitted:12};
       await mount(response);
-      assert.match(text(),/Report subset: 12 check rows were omitted/u);
-      assert.match(text(),/Search and CSV include only the returned subset/u);
+      assert.match(text(),/Check rows omitted: 12/u);
+      assert.match(text(),/Search and CSV include only the returned data/u);
       reply=()=>Response.json({...empty(),latestAttempt:run("cancelled",activeId)});
       await click("Refresh status");
       await until(()=>text().includes("Stopped"));
-      assert.match(text(),/Report subset: 12 check rows were omitted/u);
+      assert.match(text(),/Check rows omitted: 12/u);
       assert.match(text(),/private-alpha.dev/u);
       reply=()=>Response.json({...snapshot(),candidatesOmitted:0});
       await click("Refresh status");
-      await until(()=>!text().includes("Report subset"));
+      await until(()=>!text().includes("Check rows omitted"));
       await mount(response,"account-a","sv");
-      assert.match(text(),/Begränsat rapportunderlag: 12 kontrollrader utelämnades/u);
+      assert.match(text(),/Antal utelämnade kontrollrader: 12/u);
       assert.match(text(),/Sökning och CSV omfattar endast det hämtade underlaget/u);
       reply=()=>Response.json(empty("account-a",false));
       await click("Uppdatera status");
-      await until(()=>!text().includes("Begränsat rapportunderlag"));
+      await until(()=>!text().includes("Antal utelämnade kontrollrader"));
       assert.doesNotMatch(text(),/private-alpha.dev/u);
     });
 
@@ -410,9 +432,9 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
       assert.match(key!, /^[a-f0-9-]{36}$/u); assert.equal(actionRequests("start")[0].owner, "account-a");
       assert.match(text(), /private-alpha\.dev/, "Starting another review keeps the previous report visible");
       await act(async () => { pending.resolve(Response.json({ code: "lost_domains_unavailable", requestId }, { status: 503 })); await pause(); });
-      await until(() => text().includes("Retry starting"));
+      await until(() => text().includes("Try starting again"));
       reply = () => Response.json(running());
-      await click("Retry starting");
+      await click("Try starting again");
       await until(() => text().includes("Current review"));
       assert.equal(actionRequests("start").length, 2);
       assert.equal(actionRequests("start")[1].body!.requestKey, key);

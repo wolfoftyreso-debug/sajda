@@ -12,8 +12,15 @@ export type PlanId = keyof typeof PLANS;
 export const PLAN_ORDER = Object.freeze(["free", "basic", "premium", "trading"] as const);
 
 export function formatPlanMonthlyPrice(planId: PlanId, language: string): string {
-  const amount = new Intl.NumberFormat(language === "sv" ? "sv-SE" : "en-US", {
+  const locales: Record<string, string> = { en: "en-US", sv: "sv-SE", es: "es-ES", fr: "fr-FR", zh: "zh-CN" };
+  const amount = new Intl.NumberFormat(locales[language] ?? locales.en, {
     maximumFractionDigits: 0,
   }).format(PLANS[planId].unitAmount / 100).replace(/\u00a0/g, " ");
-  return language === "sv" ? `${amount} USD / månad` : `USD ${amount} / month`;
+  switch (language) {
+    case "sv": return `${amount} USD / månad`;
+    case "es": return `${amount} USD / mes`;
+    case "fr": return `${amount} USD / mois`;
+    case "zh": return `${amount} USD / 月`;
+    default: return `USD ${amount} / month`;
+  }
 }

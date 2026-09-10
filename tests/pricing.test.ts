@@ -27,7 +27,15 @@ test("pricing describes four distinct levels without advertising unfinished moni
     assert.match(copy.terms, /eventuell skatt och slutbelopp|applicable tax and the final total/);
     assert.doesNotMatch(JSON.stringify(copy), /unlimited|obegränsad|most popular|populärast/i);
   }
-  for (const language of ["es", "fr", "zh"]) assert.deepEqual(getPricingCopy(language), getPricingCopy("en"));
+  for (const language of ["es", "fr", "zh"]) {
+    const copy = getPricingCopy(language);
+    assert.notEqual(copy.title, getPricingCopy("en").title);
+    assert.deepEqual(Object.keys(copy).sort(), Object.keys(getPricingCopy("en")).sort());
+    assert.equal(Object.keys(copy.plans).length, 4);
+    assert.equal(copy.plans.trading.name, "Trading");
+    assert.equal(copy.plans.premium.name, "Premium");
+  }
+  assert.deepEqual(getPricingCopy("unsupported"), getPricingCopy("en"));
 });
 
 test("mounted pricing presents the shared prices and only truthful navigation, without checkout effects", async t => {
@@ -53,7 +61,7 @@ test("mounted pricing presents the shared prices and only truthful navigation, w
   let renderer: ReactTestRenderer | undefined;
   try {
     const { default: Pricing } = await vite.ssrLoadModule("/src/pages/Pricing.tsx");
-    for (const language of ["sv", "en", "fr"]) {
+    for (const language of ["en", "sv", "es", "fr", "zh"]) {
       await t.test(`${language}: four prices, disabled Basic/Premium and no overflow-prone controls`, async () => {
         setLanguage(language);
         if (renderer) await act(async () => renderer!.unmount());

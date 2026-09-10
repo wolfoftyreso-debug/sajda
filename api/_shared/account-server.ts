@@ -1,9 +1,8 @@
 import { betterAuth } from "better-auth";
 import { Pool, types as pgTypes } from "pg";
 import { AccountAccessError } from "./account-error.js";
-import { sendAccountEmail } from "./account-email.js";
-
-type AccountEmail = { kind: "verify" | "reset"; to: string; url: string };
+import { sendAccountEmail, type AccountEmailMessage } from "./account-email.js";
+import { emailLanguage } from "../../shared/account-email-copy.js";
 
 /** pg returns int8 as text by default, but the SDK limiter performs date arithmetic. */
 export function createAccountPool(connectionString: string): Pool {
@@ -24,7 +23,7 @@ export function createAccountAuth(options: {
   origin: string;
   secret: string;
   pool: Pool;
-  sendEmail?: (message: AccountEmail) => Promise<void>;
+  sendEmail?: (message: AccountEmailMessage) => Promise<void>;
 }) {
   const sendEmail = options.sendEmail ?? sendAccountEmail;
   return betterAuth({
@@ -40,11 +39,11 @@ export function createAccountAuth(options: {
     emailAndPassword: {
       enabled: true, minPasswordLength: 12, maxPasswordLength: 128, requireEmailVerification: true,
       autoSignIn: false, resetPasswordTokenExpiresIn: 30 * 60, revokeSessionsOnPasswordReset: true,
-      sendResetPassword: async ({ user, url }) => sendEmail({ kind: "reset", to: user.email, url }),
+      sendResetPassword: async ({ user, url }, request) => sendEmail({ kind: "reset", to: user.email, url, language: emailLanguage(request?.headers.get("x-sajda-language")) }),
     },
     emailVerification: {
       sendOnSignUp: true, sendOnSignIn: false, autoSignInAfterVerification: false, expiresIn: 60 * 60,
-      sendVerificationEmail: async ({ user, url }) => sendEmail({ kind: "verify", to: user.email, url }),
+      sendVerificationEmail: async ({ user, url }, request) => sendEmail({ kind: "verify", to: user.email, url, language: emailLanguage(request?.headers.get("x-sajda-language")) }),
     },
     rateLimit: {
       enabled: true, storage: "database", modelName: "sajda_auth_rate_limit", window: 60, max: 60,

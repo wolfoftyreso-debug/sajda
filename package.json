@@ -19,6 +19,7 @@
     "test": "tsx --test tests/*.test.ts tests/*.test.mjs",
     "serve:qa": "tsx scripts/serve-vercel-local.ts",
     "check:ui": "node scripts/check-ui-contracts.mjs",
+    "check:language": "node scripts/check-language-contracts.mjs",
     "check:runtime": "node scripts/check-runtime.mjs",
     "test:live-search": "node --import tsx scripts/probe-search-quality.mjs",
     "db:plan": "node scripts/migrate-neon.mjs --plan",
@@ -51,7 +52,7 @@
     "check:neon": "node scripts/check-neon-boundary.mjs",
     "check:neon-build": "node scripts/check-neon-build.mjs",
     "check:node": "node scripts/check-node-syntax.mjs",
-    "check": "npm run lint && npm run typecheck && npm run check:seo-policy && npm run check:neon && npm run check:node && npm run check:vercel && npm test && npm run check:ui",
+    "check": "npm run lint && npm run typecheck && npm run check:language && npm run check:seo-policy && npm run check:neon && npm run check:node && npm run check:vercel && npm test && npm run check:ui",
     "preview": "vite preview"
   },
   "dependencies": {

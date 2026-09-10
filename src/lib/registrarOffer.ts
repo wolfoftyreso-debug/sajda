@@ -318,7 +318,7 @@ function getPriceLocale(language: RegistrarDisplayLanguage): string {
   if (language === "es") return "es-ES";
   if (language === "fr") return "fr-FR";
   if (language === "zh") return "zh-CN";
-  return "en-SE";
+  return "en-US";
 }
 
 function getYearSuffix(language: RegistrarDisplayLanguage): string {

@@ -14,6 +14,13 @@ interface StatsCardProps {
 
 const StatsCard = ({ title, value, icon: Icon, subtitle, trend }: StatsCardProps) => {
   const { language } = useLanguage();
+  const previousSearch = {
+    en: "compared with the previous search",
+    sv: "jämfört med förra sökningen",
+    es: "respecto a la búsqueda anterior",
+    fr: "par rapport à la recherche précédente",
+    zh: "（与上次搜索相比）",
+  }[language];
 
   return (
     <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
@@ -26,7 +33,7 @@ const StatsCard = ({ title, value, icon: Icon, subtitle, trend }: StatsCardProps
           )}
           {trend && (
             <p className={`mt-2 text-sm font-medium ${trend.isPositive ? "text-success" : "text-destructive"}`}>
-              {trend.isPositive ? "+" : "-"}{Math.abs(trend.value)}% {language === "sv" ? "från förra sökningen" : "from the previous search"}
+              {trend.isPositive ? "+" : "-"}{Math.abs(trend.value)}% {previousSearch}
             </p>
           )}
         </div>

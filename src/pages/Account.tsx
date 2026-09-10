@@ -55,7 +55,7 @@ const accountMessages = {
     signedOut: "Déconnecté",
     signedOutDescription: "Vous avez été déconnecté.",
     profile: "Profil",
-    accountInformation: "Informations du compte",
+    accountInformation: "Informations sur le compte",
     email: "E-mail",
     accountCreated: "Compte créé",
     lastSignIn: "Dernière connexion",

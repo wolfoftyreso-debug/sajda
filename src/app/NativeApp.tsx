@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route } from "react-router-dom";
 import FreeSearchGate from "@/components/FreeSearchGate";
 import { LanguageRouteSync } from "@/i18n/LanguageProvider";
 import RouteScrollRestoration from "@/components/RouteScrollRestoration";
+import RouteLoading from "@/components/RouteLoading";
 import AppProviders from "./AppProviders";
 import ProductRoutes from "./ProductRoutes";
 import NativeShell from "./NativeShell";
@@ -16,7 +17,7 @@ export default function NativeApp() {
   return <AppProviders><BrowserRouter><NativeShell>
     <LanguageRouteSync />
     <RouteScrollRestoration />
-    <Suspense fallback={<div className="flex min-h-48 items-center justify-center" role="status" aria-label="Loading"><span className="h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent motion-reduce:animate-none" /></div>}>
+    <Suspense fallback={<RouteLoading className="min-h-48" />}>
       <ProductRoutes authElement={<NativeAuth />}>
         <Route path="/pricing" element={<NativeMembership />} />
         <Route path="/more" element={<NativeMore />} />

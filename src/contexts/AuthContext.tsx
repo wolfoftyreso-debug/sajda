@@ -5,6 +5,7 @@ import { accountError, getAccountAuthClient, isAccountAuthConfigured, readAccoun
 import { accountCallbackUrl, passwordRecoveryUrl } from "@/lib/authNavigation";
 import { isNativeApp } from "@/lib/appSurface";
 import { nativeSignIn, nativeSignOut } from "@/lib/nativeTransport";
+import { useLanguage } from "@/i18n/LanguageProvider";
 
 interface AuthResult { error: Error | null }
 
@@ -26,6 +27,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const { language } = useLanguage();
   const [session, setSession] = useState<AccountSession | null>(null);
   const [loading, setLoading] = useState(isAccountAuthConfigured);
   const [error, setError] = useState<Error | null>(null);
@@ -105,6 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: email.trim(), password,
         name: email.trim().split("@")[0].slice(0, 100),
         callbackURL: accountCallbackUrl(window.location.origin, redirectPath),
+        fetchOptions: { headers: { "x-sajda-language": language } },
       });
       if (result.error) return { error: accountError(result.error, "Your account could not be created.") };
       await refresh();
@@ -116,7 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const requestPasswordReset = async (email: string, redirectPath?: string): Promise<AuthResult> => {
     try {
       const client = await getAccountAuthClient();
-      const result = await client.requestPasswordReset({ email: email.trim(), redirectTo: passwordRecoveryUrl(window.location.origin, redirectPath) });
+      const result = await client.requestPasswordReset({ email: email.trim(), redirectTo: passwordRecoveryUrl(window.location.origin, redirectPath), fetchOptions: { headers: { "x-sajda-language": language } } });
       return { error: result.error ? accountError(result.error, "Password recovery is temporarily unavailable.") : null };
     } catch (failure) { return { error: accountError(failure, "Password recovery is temporarily unavailable.") }; }
   };
@@ -124,7 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const requestEmailVerification = async (email: string, redirectPath?: string): Promise<AuthResult> => {
     try {
       const client = await getAccountAuthClient();
-      const result = await client.sendVerificationEmail({ email: email.trim(), callbackURL: accountCallbackUrl(window.location.origin, redirectPath) });
+      const result = await client.sendVerificationEmail({ email: email.trim(), callbackURL: accountCallbackUrl(window.location.origin, redirectPath), fetchOptions: { headers: { "x-sajda-language": language } } });
       return { error: result.error ? accountError(result.error, "The confirmation email could not be requested. Try again later.") : null };
     } catch (failure) { return { error: accountError(failure, "The confirmation email could not be requested. Try again later.") }; }
   };

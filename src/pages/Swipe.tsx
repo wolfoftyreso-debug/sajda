@@ -116,7 +116,7 @@ const swipeMessages = {
   },
   sv: {
     backToSearch: "Sök",
-    eyebrow: "Sajda · Swajp",
+    eyebrow: "Sajda · Swipe",
     heading: "Bläddra bland korta domänidéer.",
     intro: "Swajpa bland slumpade namn med 3–9 bokstäver efter en registerkontroll. Behåll de namn du vill titta närmare på.",
     deckSettings: "Inställningar för kortleken",
@@ -152,7 +152,7 @@ const swipeMessages = {
     available: "Ledig — registerverifierad",
     letters: "{count} bokstäver",
     source: "Tillgänglighetskälla",
-    provider: "Köpleverantör",
+    provider: "Domänleverantör",
     price: "Aktuellt registreringspris",
     renewal: "Förnyelse: {price}",
     priceUnavailable: "Aktuellt leverantörspris saknas",
@@ -175,9 +175,9 @@ const swipeMessages = {
   },
   es: {
     backToSearch: "Buscar",
-    eyebrow: "Sajda · Desliza",
+    eyebrow: "Sajda · Swipe",
     heading: "Explora ideas de dominios cortos.",
-    intro: "Desliza nombres aleatorios de 3–9 letras tras una comprobación en el registro. Guarda los que merezcan una segunda mirada.",
+    intro: "Explora nombres aleatorios de 3–9 letras, comprobados en el registro. Desliza para conservar los que quieras analizar con más detalle.",
     deckSettings: "Configuración de la baraja",
     closeSettings: "Cerrar configuración",
     deckControls: "Controles de la baraja",
@@ -211,7 +211,7 @@ const swipeMessages = {
     available: "Disponible y verificado por el registro",
     letters: "{count} letras",
     source: "Fuente de disponibilidad",
-    provider: "Proveedor de compra",
+    provider: "Proveedor de dominios",
     price: "Precio de registro actual",
     renewal: "Renovación: {price}",
     priceUnavailable: "El precio actual del proveedor no está disponible",
@@ -236,7 +236,7 @@ const swipeMessages = {
     backToSearch: "Rechercher",
     eyebrow: "Sajda · Swipe",
     heading: "Parcourez des idées de domaines courts.",
-    intro: "Faites défiler des noms aléatoires de 3 à 9 lettres après une vérification au registre. Gardez ceux qui méritent d’être regardés de plus près.",
+    intro: "Parcourez des noms aléatoires de 3 à 9 lettres, vérifiés auprès du registre. Gardez ceux que vous souhaitez examiner de plus près.",
     deckSettings: "Réglages du jeu",
     closeSettings: "Fermer les réglages",
     deckControls: "Réglages du jeu",
@@ -249,7 +249,7 @@ const swipeMessages = {
     chooseFirst: "Choisissez vos extensions de domaine",
     unsupportedEndings: ".se, .nu et .io ne sont pas encore pris en charge par la vérification de Swipe.",
     allExtensions: "Toutes les extensions",
-    resetDefaults: "Réinitialiser par défaut",
+    resetDefaults: "Rétablir les choix par défaut",
     deck: "Jeu de domaines",
     extensionLabel: "Extensions de domaine",
     mixed: "Mixte",
@@ -270,7 +270,7 @@ const swipeMessages = {
     available: "Disponible et vérifié par le registre",
     letters: "{count} lettres",
     source: "Source de disponibilité",
-    provider: "Fournisseur d’achat",
+    provider: "Fournisseur de domaines",
     price: "Prix d’enregistrement actuel",
     renewal: "Renouvellement : {price}",
     priceUnavailable: "Le prix actuel du fournisseur n’est pas disponible",
@@ -293,7 +293,7 @@ const swipeMessages = {
   },
   zh: {
     backToSearch: "搜索",
-    eyebrow: "Sajda · 滑选",
+    eyebrow: "Sajda · Swipe",
     heading: "浏览简短的域名创意。",
     intro: "先完成注册局核验，再滑选由 3–9 个字母组成的随机名称。保留值得进一步查看的名称。",
     deckSettings: "卡组设置",
@@ -312,7 +312,7 @@ const swipeMessages = {
     deck: "域名卡组",
     extensionLabel: "域名后缀",
     mixed: "混合",
-    mixedHelp: "选择一个后缀可获得聚焦卡组；选择“混合”则轮换所有受支持的后缀。",
+    mixedHelp: "选择单个后缀，只浏览该后缀的域名；选择“混合”，则轮流展示所有支持的后缀。",
     chooseExtensions: "选择一个后缀或“混合”",
     publicService: "来自公开搜索服务、已通过注册局核验的建议。",
     localService: "来自此本地服务、已通过注册局核验的建议。",
@@ -329,13 +329,13 @@ const swipeMessages = {
     available: "已由注册局核验可用",
     letters: "{count} 个字母",
     source: "可用性来源",
-    provider: "购买服务商",
+    provider: "域名服务商",
     price: "当前注册价格",
     renewal: "续费：{price}",
     priceUnavailable: "当前服务商价格暂不可用",
     viewProvider: "前往 {provider}",
     priceSource: "价格来源",
-    providerNote: "可用性和价格可能变化。购买前请立即向服务商确认两者。",
+    providerNote: "可注册状态和价格可能变化。购买前，请再次向服务商确认。",
     whyItCouldWork: "它可能适合的原因",
     skip: "跳过",
     keep: "保留",
@@ -385,28 +385,28 @@ function swipeAssessment(domain: string, language: SwipeLanguage): string {
   const balanced = vowelCount > 0 && vowelCount < length;
 
   if (language === "sv") {
-    if (compact && balanced) return `${length} bokstäver och en tydlig rytm gör namnet lätt att säga, skriva och minnas. .${tld} ger det en tydlig digital hemvist.`;
-    if (compact) return `${length} bokstäver håller namnet kompakt och lätt att skriva. .${tld} ger en tydlig digital hemvist.`;
-    return `Den jämna längden ger utrymme för ett eget uttryck utan att bli onödigt långt. .${tld} gör riktningen tydlig.`;
+    if (compact && balanced) return `${length} bokstäver med både vokaler och konsonanter. Prova att säga namnet högt och bedöm om .${tld} passar din idé.`;
+    if (compact) return `Ett kort namn med ${length} bokstäver. Kontrollera hur lätt det är att uttala och stava, och om .${tld} passar din idé.`;
+    return `${length} bokstäver ger mer utrymme för ett eget namn. Prova uttal och stavning och bedöm om .${tld} passar din idé.`;
   }
   if (language === "es") {
-    if (compact && balanced) return `Sus ${length} letras y su ritmo claro ayudan a decirlo, escribirlo y recordarlo. .${tld} le da un hogar digital definido.`;
-    if (compact) return `Con ${length} letras, se mantiene compacto y fácil de escribir. .${tld} le da un hogar digital definido.`;
-    return `Su longitud equilibrada deja espacio para una identidad propia sin hacerse innecesariamente largo. .${tld} mantiene la dirección clara.`;
+    if (compact && balanced) return `${length} letras con vocales y consonantes. Pronúncialo en voz alta y valora si .${tld} encaja con tu idea.`;
+    if (compact) return `Un nombre corto de ${length} letras. Comprueba si es fácil de pronunciar y escribir, y si .${tld} encaja con tu idea.`;
+    return `${length} letras dan más espacio para un nombre propio. Prueba su pronunciación y escritura, y valora si .${tld} encaja con tu idea.`;
   }
   if (language === "fr") {
-    if (compact && balanced) return `Ses ${length} lettres et son rythme net aident à le dire, le saisir et s’en souvenir. .${tld} lui donne un ancrage numérique clair.`;
-    if (compact) return `Avec ${length} lettres, il reste compact et simple à saisir. .${tld} lui donne un ancrage numérique clair.`;
-    return `Sa longueur équilibrée laisse place à une identité propre sans l’allonger inutilement. .${tld} garde l’orientation lisible.`;
+    if (compact && balanced) return `${length} lettres avec des voyelles et des consonnes. Prononcez-le à voix haute et vérifiez si .${tld} convient à votre idée.`;
+    if (compact) return `Un nom court de ${length} lettres. Vérifiez sa prononciation, son orthographe et l’adéquation de .${tld} à votre idée.`;
+    return `${length} lettres offrent plus de place pour un nom distinctif. Testez sa prononciation et son orthographe, puis vérifiez si .${tld} convient à votre idée.`;
   }
   if (language === "zh") {
-    if (compact && balanced) return `${length} 个字母和清晰的发音节奏，让它更容易读、写和记住。.${tld} 让数字定位更明确。`;
-    if (compact) return `${length} 个字母让它保持简洁、便于输入。.${tld} 让数字定位更明确。`;
-    return `长度有分寸，既能承载自己的辨识度，也不显得冗长。.${tld} 让方向更清楚。`;
+    if (compact && balanced) return `${length} 个字母，包含元音和辅音。试着大声读出名称，再判断 .${tld} 是否适合你的想法。`;
+    if (compact) return `一个由 ${length} 个字母组成的简短名称。请检查发音和拼写是否容易，并判断 .${tld} 是否适合你的想法。`;
+    return `${length} 个字母为个性化名称提供了更多空间。请测试发音和拼写，并判断 .${tld} 是否适合你的想法。`;
   }
-  if (compact && balanced) return `${length} letters and a clear rhythm make it easier to say, type, and recall. .${tld} gives it a defined digital home.`;
-  if (compact) return `A ${length}-letter name keeps it compact and easy to type. .${tld} gives it a defined digital home.`;
-  return `Its measured length leaves room for a distinct identity without becoming needlessly long. .${tld} keeps the direction clear.`;
+  if (compact && balanced) return `${length} letters with both vowels and consonants. Say it aloud and consider whether .${tld} fits your idea.`;
+  if (compact) return `A short, ${length}-letter name. Check how easy it is to pronounce and spell, and whether .${tld} fits your idea.`;
+  return `${length} letters leave more room for a distinctive name. Test its pronunciation and spelling, and consider whether .${tld} fits your idea.`;
 }
 
 const Swipe = () => {

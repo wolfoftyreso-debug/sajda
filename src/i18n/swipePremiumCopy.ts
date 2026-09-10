@@ -1,11 +1,11 @@
 export const swipePremiumCopy = {
   sv: {
-    undo: "Ångra senaste", pending: "Kontrollerar behörighet…", hint: "Ett steg tillbaka · senaste swajpen",
-    title: "Ångra ett steg med Premium", description: "Ta tillbaka din senaste swajp — både Hoppa över och Behåll. Kortet visas igen så att du kan välja på nytt.",
+    undo: "Ångra senaste valet", pending: "Kontrollerar åtkomst…", hint: "Ett steg tillbaka · ditt senaste val",
+    title: "Ångra ett steg med Premium", description: "Ångra ditt senaste val, oavsett om du valde Hoppa över eller Behåll. Kortet visas igen så att du kan välja på nytt.",
     availability: "Kräver ett konto med aktiv Premium-behörighet. Köp av Premium är ännu inte aktiverat i denna testversion.",
     close: "Fortsätt swajpa", restored: "Senaste kortet är tillbaka. Du kan välja igen.",
     failure: "Det gick inte att kontrollera din Premium-behörighet. Inget har ändrats. Försök igen.",
-    verify: "Verifiera din e-postadress innan du använder Premium. Inget har ändrats.",
+    verify: "Bekräfta din e-postadress innan du använder Premium. Inget har ändrats.",
   },
   en: {
     undo: "Undo last swipe", pending: "Checking access…", hint: "One step back · your latest swipe",
@@ -16,15 +16,15 @@ export const swipePremiumCopy = {
     verify: "Verify your email address before using Premium. Nothing has changed.",
   },
   es: {
-    undo: "Deshacer último gesto", pending: "Comprobando acceso…", hint: "Un paso atrás · tu último gesto",
-    title: "Retrocede un paso con Premium", description: "Deshaz tu último gesto, tanto Descartar como Guardar. La tarjeta vuelve para que puedas elegir de nuevo.",
+    undo: "Deshacer el último deslizamiento", pending: "Comprobando acceso…", hint: "Un paso atrás · tu última elección",
+    title: "Retrocede un paso con Premium", description: "Deshaz tu última elección, tanto si descartaste el nombre como si lo conservaste. La tarjeta vuelve para que puedas elegir de nuevo.",
     availability: "Requiere una cuenta con acceso Premium activo. La compra de Premium aún no está disponible en esta versión de prueba.",
     close: "Seguir explorando", restored: "Tu última tarjeta ha vuelto. Puedes elegir de nuevo.",
     failure: "No pudimos comprobar tu acceso Premium. Nada ha cambiado. Inténtalo de nuevo.",
     verify: "Verifica tu correo antes de usar Premium. Nada ha cambiado.",
   },
   fr: {
-    undo: "Annuler le dernier geste", pending: "Vérification de l’accès…", hint: "Un pas en arrière · votre dernier geste",
+    undo: "Annuler le dernier balayage", pending: "Vérification de l’accès…", hint: "Un seul retour · votre dernier choix",
     title: "Revenez en arrière avec Premium", description: "Annulez votre dernier geste, Ignorer ou Garder. La carte revient pour vous permettre de choisir à nouveau.",
     availability: "Nécessite un compte avec un accès Premium actif. L’achat de Premium n’est pas encore disponible dans cette version de test.",
     close: "Continuer à explorer", restored: "Votre dernière carte est de retour. Vous pouvez choisir à nouveau.",

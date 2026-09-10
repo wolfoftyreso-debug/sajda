@@ -1,4 +1,14 @@
-# Language selection
+# Language selection and editorial standards
+
+English is the canonical product language. Swedish, Spanish, French and
+Simplified Chinese should express the same behavior in natural language, not
+copy English sentence structure. Use US English, direct Swedish and Spanish,
+French `vous`, and concise Simplified Chinese. Keep product names (Sajda,
+Swipe, Trading), API identifiers, provider evidence and currency values intact.
+
+Use consistent distinctions: saving is not monitoring, a registry result is
+not a price or valuation, and an app sign-in record is not an identified device.
+Localize numbers and dates without converting or inventing monetary values.
 
 The website and iPhone product shell share the same language provider.
 
@@ -67,3 +77,36 @@ entry bundle contains the new device-language negotiation. HTML uses English
 fallback; `/se/sok-doman` retains Swedish HTML and preview noindex. Health
 returned 200. The stable test alias points to this preview, still protected by
 Vercel; no production configuration or live user data was changed.
+
+## Editorial revision — 2026-09-10
+
+Reviewed the five-language search, result cards, Swipe, saved domains, account,
+plans/billing, native navigation/consent, marketplace, developer portal, Trading
+evidence, help, system-status, security and legal UI. Removed incomplete
+English fallback from Spanish/French/Chinese Trading details. Source-language
+evidence and domain names are preserved; Trading's limited Swedish/English
+lexical model is explicitly described, not presented as a multilingual model.
+
+Verification and password-reset email now follow the language of the action.
+Only the five supported `x-sajda-language` values reach the auth hooks; unknown
+or absent values use English. HTML language, subject, action and plain text
+are localized. Recipients, token rules and safety checks remain unchanged.
+Idempotency binds the exact rendered payload so retries deduplicate while a
+different-language request cannot conflict with the previous payload.
+
+`npm run check:language` checks 65 English-source object dictionaries for
+missing keys and interpolation-token mismatches. It is part of `npm run check`.
+This AST check is not a linguistic quality score and does not cover every JSX
+literal, imported dictionary or template function. The separate Trading tests
+cover 178 English-keyed phrases with four explicit translations. Mounted
+component tests cover core cards, account/native UI and Trading evidence states.
+
+Local verification: full check passed (868 tests passed, three existing skips),
+including lint, types, locale contracts and UI/security regressions. Web and
+native product bundles built. Browser checks covered all five homepage
+languages, Swedish/English pricing, English login/reset instructions, and
+320/390-pixel layouts with no horizontal page overflow in the checked views.
+Provider delivery was mocked: no real multilingual email delivery, human
+native-speaker review or physical-iPhone language-switch QA is claimed.
+
+Deployment evidence for this revision is recorded separately after publishing.

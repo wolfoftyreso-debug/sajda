@@ -46,7 +46,8 @@ test("billing refresh is described as checking status, not changing the subscrip
   assert.equal(sv.refresh, "Kontrollera betalstatus");
   assert.equal(en.refresh, "Check billing status");
   for (const code of ["unavailable", "invalid_response", "account_changed", "subscription_changed", "checkout_expired"] as const) {
-    assert.match(sv.errors[code], /Kontrollera betalstatus/);
+    assert.match(sv.errors[code], /Kontrollera (?:betalstatus|den)/);
+    assert.match(sv.errors[code], /betalstatus|betaltjänsten|betalning/);
     assert.match(en.errors[code], /Check billing status/);
   }
   assert.doesNotMatch(JSON.stringify(sv), /[Uu]ppdatera prenumeration/);
@@ -63,8 +64,9 @@ test("Trading capacity describes bounded temporal rounds without promising findi
   assert.match(sv.limits,/Faktisk täckning beror på källor och svar/u);
   assert.match(en.limits,/up to 24 approved source pages and 600 names/u);
   assert.match(en.limits,/Up to 30 priority names/u);
-  assert.match(en.limits,/3 time-separated/u);
+  assert.match(en.limits,/3 review rounds at separate times/u);
   assert.match(en.limits,/72 hours/u);
-  assert.match(en.limits,/at most 2 new runs per day per account/u);
-  assert.match(en.limits,/Coverage depends on sources and responses/u);
+  assert.match(en.limits,/Each account can start at most 2 new runs per day/u);
+  assert.match(en.limits,/Coverage depends on the sources and their responses/u);
+  assert.match(en.limits,/No number of findings is guaranteed/u);
 });

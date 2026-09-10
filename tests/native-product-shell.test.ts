@@ -6,6 +6,7 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 import { createServer } from "vite";
 import { nativeCopy } from "../src/app/nativeCopy";
+import { accountAccessCopy } from "../src/i18n/accountAccessCopy";
 
 const label = (node: ReactTestInstance): string => node.children.map(child => typeof child === "string" ? child : label(child)).join("");
 
@@ -65,7 +66,8 @@ test("native product routes, navigation, sign-in and payment boundaries", async 
       await mount(h(Navigation), "/swipe");
       const links = renderer!.root.findAllByType("a");
       assert.deepEqual(links.map(link => link.props.href), ["/", "/swipe", "/watchlist", "/plus", "/account"]);
-      assert.deepEqual(links.map(label), ["Sök", "Swajp", "Sparat", "Trading", "Konto"]);
+      assert.deepEqual(links.map(label), ["Sök", "Swipe", "Sparat", "Trading", "Konto"]);
+      assert.equal(links[2].props["aria-label"], "Sparade domäner");
       assert.equal(links[1].props["aria-current"], "page");
       for (const link of links) {
         assert.ok(link.props["aria-label"]);
@@ -76,6 +78,25 @@ test("native product routes, navigation, sign-in and payment boundaries", async 
       const destinations = renderer!.root.findAllByType("a").map(link => link.props.href);
       for (const route of ["/marketplace", "/developers", "/pricing", "/history", "/my-domains", "/top-10-today", "/help", "/contact", "/legal#privacy", "/legal#terms", "/security", "/status"]) assert.ok(destinations.includes(route), route);
       assert.equal(destinations.some(route => /^\/(story|se|install)(\/|$)/u.test(route)), false);
+    });
+
+    await t.test("native sign-in and compact navigation remain localized in all five languages", async () => {
+      fixture.user = null; transport.setAvailable(false);
+      for (const language of ["en", "sv", "es", "fr", "zh"] as const) {
+        fixture.language = language;
+        await mount(h(NativeAuth), "/auth");
+        assert.ok(label(renderer!.root).includes(accountAccessCopy[language].appAuth.body));
+        assert.equal(label(renderer!.root.findByProps({ role: "note" })), accountAccessCopy[language].appAuth.preview);
+        assert.equal(label(renderer!.root.findByType("button")), nativeCopy[language].signIn);
+        assert.equal(renderer!.root.findByType("button").props.disabled, true);
+        await mount(h(Navigation), "/watchlist");
+        const saved = renderer!.root.findAllByType("a").find(link => link.props.href === "/watchlist")!;
+        assert.equal(label(saved), nativeCopy[language].savedShort);
+        assert.equal(saved.props["aria-label"], nativeCopy[language].saved);
+        assert.doesNotMatch(saved.findByType("span").props.className, /truncate/u);
+      }
+      assert.equal(fixture.signIns, 0);
+      fixture.language = "sv";
     });
 
     await t.test("shared routes preserve pages and honestly gate unavailable account storage", async () => {
@@ -108,7 +129,7 @@ test("native product routes, navigation, sign-in and payment boundaries", async 
       transport.setAvailable(false);
       await mount(h(NativeAuth), "/auth?next=%2Fwatchlist");
       assert.equal(renderer!.root.findByType("button").props.disabled, true);
-      assert.match(label(renderer!.root), /kräver iOS-bygget på en iPhone/u);
+      assert.ok(label(renderer!.root).includes(accountAccessCopy.sv.appAuth.preview));
       assert.equal(fixture.signIns, 0);
       assert.equal(renderer!.root.findAllByType("input").length, 0);
       transport.setAvailable(true);

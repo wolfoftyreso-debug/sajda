@@ -76,15 +76,15 @@ const legalCopy: Record<Language, LegalCopy> = {
       { id: "accessibility", label: "Accessibility" },
     ],
     eyebrow: "Legal & Privacy Center",
-    title: "Clear rules for a serious search.",
+    title: "Your data, your choices, and our terms.",
     lead: "Sajda is built to help you discover, check, compare, and keep domain opportunities in view. This page explains what the current product handles, where evidence comes from, and what remains your decision.",
     note: "Availability, prices, and market signals can change. A registry or provider checkout remains the final source of truth before a purchase.",
     searchAction: "Start a search",
     howItWorksAction: "How Sajda works",
     atAGlance: "At a glance",
     principles: [
-      { title: "Useful data, not theatre", body: "We use the information needed to run a search, show its evidence, and preserve the choices you ask us to keep." },
-      { title: "Evidence stays labelled", body: "Registry status, provider pricing, and market signals are shown with their source or uncertainty—not turned into guarantees." },
+      { title: "Information with a clear purpose", body: "We use the information needed to run a search, show its evidence, and preserve the choices you ask us to keep." },
+      { title: "Sources and uncertainty stay visible", body: "Registry status, provider pricing, and market signals are shown with their source or uncertainty—not turned into guarantees." },
       { title: "Keys stay out of the browser", body: "Developer credentials belong on your server. Do not put a Sajda API key in client-side code." },
     ],
     privacy: {
@@ -94,7 +94,7 @@ const legalCopy: Record<Language, LegalCopy> = {
       localTitle: "In your browser",
       localBody: "Sajda can use browser local storage for preferences such as language, selected search options, and lists you choose to keep, including wishlists. Search results are also kept in this tab’s session storage for up to 30 minutes so a refresh does not lose them; this snapshot does not include your brief or account details. You can remove browser storage in your browser settings.",
       serviceTitle: "During a search",
-      serviceBody: "A domain query, selected extensions, and search settings may be sent to Sajda’s service so the requested availability check or public domain search can run. Market signals are presented as source-labelled context.",
+      serviceBody: "A domain query, selected extensions, and search settings may be sent to Sajda’s service so the requested availability check or public domain search can run. Market signals are presented as source-labeled context.",
       accountTitle: "When you sign in",
       accountBody: "Where optional authenticated features are enabled, account and saved-product data may be handled through the configured Neon-backed account service. The exact data available depends on the feature you use.",
       keyTitle: "For developers",
@@ -124,11 +124,11 @@ const legalCopy: Record<Language, LegalCopy> = {
     },
     accessibility: {
       eyebrow: "Accessibility",
-      title: "The route should be legible to everyone using it.",
-      lead: "Sajda aims for a calm, readable interface with semantic structure, keyboard access, focus visibility, and information that does not rely on colour alone. We keep improving the product as it evolves.",
+      title: "An interface everyone can understand.",
+      lead: "Sajda aims for a calm, readable interface with semantic structure, keyboard access, focus visibility, and information that does not rely on color alone. We keep improving the product as it evolves.",
       items: [
         { title: "Navigation", body: "Primary pages, links, controls, and these section anchors are designed to work with a keyboard and a visible focus state." },
-        { title: "Clarity", body: "Search status, source labels, and uncertainty are written as text so important meaning is not communicated by colour or decoration alone." },
+        { title: "Clarity", body: "Search status, source labels, and uncertainty are written as text so important meaning is not communicated by color or decoration alone." },
         { title: "Motion and layout", body: "The product keeps interaction feedback purposeful and provides a responsive layout intended to remain usable across common screen sizes." },
       ],
     },
@@ -149,15 +149,15 @@ const legalCopy: Record<Language, LegalCopy> = {
       { id: "accessibility", label: "Tillgänglighet" },
     ],
     eyebrow: "Juridik & integritet",
-    title: "Tydliga regler för en seriös sökning.",
-    lead: "Sajda är byggt för att hjälpa dig upptäcka, kontrollera, jämföra och hålla domänmöjligheter i sikte. Här förklarar vi vad den aktuella produkten hanterar, var underlaget kommer ifrån och vad som fortfarande är ditt beslut.",
-    note: "Tillgänglighet, priser och marknadssignaler kan ändras. Registryt eller leverantörens kassa är den slutliga källan före ett köp.",
+    title: "Dina uppgifter, dina val och våra villkor.",
+    lead: "Sajda hjälper dig att hitta, kontrollera, jämföra och spara intressanta domäner. Här förklarar vi vad den aktuella produkten hanterar, var underlaget kommer ifrån och vad som fortfarande är ditt beslut.",
+    note: "Tillgänglighet, priser och marknadssignaler kan ändras. Domänregistret eller leverantörens kassa är den slutliga källan före ett köp.",
     searchAction: "Starta en sökning",
     howItWorksAction: "Så fungerar Sajda",
     atAGlance: "I korthet",
     principles: [
-      { title: "Användbar data, inte kuliss", body: "Vi använder uppgifterna som behövs för att köra en sökning, visa dess underlag och behålla de val du ber oss spara." },
-      { title: "Underlaget förblir märkt", body: "Registrystatus, leverantörspriser och marknadssignaler visas med källa eller osäkerhet—inte som garantier." },
+      { title: "Uppgifter med ett tydligt syfte", body: "Vi använder uppgifterna som behövs för att köra en sökning, visa dess underlag och behålla de val du ber oss spara." },
+      { title: "Källor och osäkerheter framgår", body: "Status från domänregistret, leverantörspriser och marknadssignaler visas med källa eller osäkerhet—inte som garantier." },
       { title: "Nycklar hör inte hemma i webbläsaren", body: "Utvecklaruppgifter hör hemma på din server. Lägg aldrig en Sajda API-nyckel i klientkod." },
     ],
     privacy: {
@@ -167,7 +167,7 @@ const legalCopy: Record<Language, LegalCopy> = {
       localTitle: "I din webbläsare",
       localBody: "Sajda kan använda lokal lagring i webbläsaren för språk, sökalternativ och listor du väljer att behålla, inklusive önskelistor. Sökresultat sparas också i flikens sessionslagring i upp till 30 minuter så att de inte försvinner vid omladdning; kopian innehåller inte din beskrivning eller dina kontouppgifter. Du kan ta bort webbläsarlagringen i webbläsarens inställningar.",
       serviceTitle: "Under en sökning",
-      serviceBody: "En domänfråga, valda ändelser och sökinställningar kan skickas till Sajdas tjänst så att den begärda tillgänglighetskontrollen eller publika domänsökningen kan köras. Marknadssignaler visas som källmärkta sammanhang.",
+      serviceBody: "En domänfråga, valda ändelser och sökinställningar kan skickas till Sajdas tjänst så att den begärda tillgänglighetskontrollen eller publika domänsökningen kan köras. Marknadssignaler visas som bakgrundsinformation med angivna källor.",
       accountTitle: "När du loggar in",
       accountBody: "Där valfria autentiserade funktioner är aktiverade kan konto- och sparad produktdata hanteras genom den konfigurerade Neon-baserade kontotjänsten. Exakt vilken data som finns beror på den funktion du använder.",
       keyTitle: "För utvecklare",
@@ -176,12 +176,12 @@ const legalCopy: Record<Language, LegalCopy> = {
     terms: {
       eyebrow: "Produktvillkor",
       title: "Sajda hjälper dig att välja. Det väljer inte åt dig.",
-      lead: "Den aktuella produkten är ett lager för sökning, underlag och upptäckt av domäner. Använd resultaten som beslutsstöd och bekräfta sedan transaktionen hos rätt leverantör eller marknadsplatsflöde.",
+      lead: "Sajda är ett verktyg för att hitta och undersöka domäner. Använd resultaten som beslutsstöd och bekräfta sedan transaktionen hos rätt leverantör eller marknadsplatsflöde.",
       items: [
         { title: "Sökresultat", body: "Ett resultat utgår från inmatning, valt sökspår och de källor som finns när frågan skickas. En visad status är ingen reservation och ger ingen rätt att registrera en domän." },
-        { title: "Priser och signaler", body: "Leverantörspriser, screeningvärden och marknadssignaler är sammanhang—inte en offert, värdering eller ett löfte om andrahandsvärde. Skatt, premiumstatus, förnyelsevillkor och tillgänglighet kan ändras i kassan." },
+        { title: "Priser och signaler", body: "Leverantörspriser, screeningvärden och marknadssignaler är underlag—inte en offert, värdering eller ett löfte om andrahandsvärde. Skatt, premiumstatus, förnyelsevillkor och tillgänglighet kan ändras i kassan." },
         { title: "Marknadsplatsobjekt", body: "Ett objekt beskriver en erbjuden domän. Granska dess detaljer och tillämpligt transaktionsflöde innan du förbinder dig. Synlighet i listan bekräftar inte i sig ägande, överlåtbarhet eller genomförd affär." },
-        { title: "Publikt API och utvecklar-API", body: "Använd det publicerade API-kontraktet och håll behörigheter på serversidan. Respektera hastighetsgränser och använd inte tjänsten för att kringgå registry-, leverantörs- eller tredjepartsbegränsningar." },
+        { title: "Publikt API och utvecklar-API", body: "Använd det publicerade API-kontraktet och håll behörigheter på serversidan. Respektera hastighetsgränser och använd inte tjänsten för att kringgå begränsningar hos domänregister, leverantörer eller andra parter." },
       ],
     },
     cookies: {
@@ -197,7 +197,7 @@ const legalCopy: Record<Language, LegalCopy> = {
     },
     accessibility: {
       eyebrow: "Tillgänglighet",
-      title: "Vägen ska vara läsbar för alla som använder den.",
+      title: "Ett gränssnitt som alla kan förstå.",
       lead: "Sajda strävar efter ett lugnt och läsbart gränssnitt med semantisk struktur, tangentbordsåtkomst, synlig fokusmarkering och information som inte bara bygger på färg. Vi fortsätter att förbättra produkten när den utvecklas.",
       items: [
         { title: "Navigering", body: "Primära sidor, länkar, kontroller och dessa sektionslänkar är utformade för att fungera med tangentbord och en synlig fokusmarkering." },
@@ -222,15 +222,15 @@ const legalCopy: Record<Language, LegalCopy> = {
       { id: "accessibility", label: "Accesibilidad" },
     ],
     eyebrow: "Centro legal y de privacidad",
-    title: "Reglas claras para una búsqueda seria.",
+    title: "Tus datos, tus decisiones y nuestras condiciones.",
     lead: "Sajda está diseñado para ayudarte a descubrir, comprobar, comparar y mantener a la vista oportunidades de dominio. Esta página explica qué gestiona el producto actual, de dónde procede la evidencia y qué sigue siendo tu decisión.",
     note: "La disponibilidad, los precios y las señales de mercado pueden cambiar. El registro o la compra con el proveedor sigue siendo la fuente final antes de pagar.",
     searchAction: "Iniciar una búsqueda",
     howItWorksAction: "Cómo funciona Sajda",
     atAGlance: "En resumen",
     principles: [
-      { title: "Datos útiles, no teatro", body: "Usamos la información necesaria para realizar una búsqueda, mostrar su evidencia y conservar las elecciones que nos pides guardar." },
-      { title: "La evidencia conserva su etiqueta", body: "El estado del registro, los precios del proveedor y las señales de mercado se muestran con su fuente o incertidumbre, no como garantías." },
+      { title: "Información con un propósito claro", body: "Usamos la información necesaria para realizar una búsqueda, mostrar su evidencia y conservar las elecciones que nos pides guardar." },
+      { title: "Fuentes e incertidumbres visibles", body: "El estado del registro, los precios del proveedor y las señales de mercado se muestran con su fuente o incertidumbre, no como garantías." },
       { title: "Las claves no van en el navegador", body: "Las credenciales de desarrollador pertenecen a tu servidor. No incluyas una clave API de Sajda en código del cliente." },
     ],
     privacy: {
@@ -249,10 +249,10 @@ const legalCopy: Record<Language, LegalCopy> = {
     terms: {
       eyebrow: "Términos del producto",
       title: "Sajda te ayuda a decidir. No decide por ti.",
-      lead: "El producto actual es una capa de búsqueda, evidencia y descubrimiento para dominios. Usa los resultados como apoyo a la decisión y confirma la transacción en el proveedor o flujo de marketplace correspondiente.",
+      lead: "Sajda es una herramienta para encontrar e investigar dominios. Usa los resultados como apoyo a la decisión y confirma la transacción en el proveedor o flujo de marketplace correspondiente.",
       items: [
         { title: "Resultados de búsqueda", body: "Un resultado se basa en la entrada, la ruta elegida y las fuentes disponibles en el momento de la solicitud. Un estado visible no es una reserva ni crea un derecho a registrar un dominio." },
-        { title: "Precios y señales", body: "Los precios del proveedor, valores de screening y señales de mercado son contexto; no son una cotización, tasación ni promesa de valor de reventa. Los impuestos, el estado premium, las renovaciones y la disponibilidad pueden cambiar en la compra." },
+        { title: "Precios y señales", body: "Los precios del proveedor, indicadores de evaluación inicial y señales de mercado son contexto; no son una cotización, tasación ni promesa de valor de reventa. Los impuestos, el estado premium, las renovaciones y la disponibilidad pueden cambiar en la compra." },
         { title: "Listados del marketplace", body: "Un listado describe un dominio ofrecido. Revisa sus detalles y el flujo de transacción aplicable antes de comprometerte. La visibilidad del listado no confirma por sí sola propiedad, transferibilidad ni finalización." },
         { title: "API pública y de desarrolladores", body: "Usa el contrato API publicado y conserva las credenciales en el servidor. Respeta los límites de uso y no utilices el servicio para eludir restricciones de registros, proveedores o terceros." },
       ],
@@ -270,7 +270,7 @@ const legalCopy: Record<Language, LegalCopy> = {
     },
     accessibility: {
       eyebrow: "Accesibilidad",
-      title: "La ruta debe ser legible para todas las personas que la usen.",
+      title: "Una interfaz que todos puedan entender.",
       lead: "Sajda busca una interfaz tranquila y legible con estructura semántica, acceso por teclado, foco visible e información que no dependa solo del color. Seguimos mejorando el producto a medida que evoluciona.",
       items: [
         { title: "Navegación", body: "Las páginas, enlaces, controles y anclas de esta sección están diseñados para funcionar con teclado y foco visible." },
@@ -280,7 +280,7 @@ const legalCopy: Record<Language, LegalCopy> = {
     },
     close: {
       title: "Una buena búsqueda deja claro el siguiente paso.",
-      body: "Trae un dominio exacto, una palabra de referencia o un brief detallado. Sajda mantiene visible la evidencia mientras decides qué merece asegurarse.",
+      body: "Introduce un dominio concreto, una palabra de referencia o una descripción detallada. Sajda mantiene visible la evidencia mientras decides qué merece asegurarse.",
       action: "Abrir búsqueda de dominios",
     },
   },
@@ -295,14 +295,14 @@ const legalCopy: Record<Language, LegalCopy> = {
       { id: "accessibility", label: "Accessibilité" },
     ],
     eyebrow: "Centre juridique et confidentialité",
-    title: "Des règles claires pour une recherche sérieuse.",
+    title: "Vos données, vos choix et nos conditions.",
     lead: "Sajda est conçu pour vous aider à découvrir, vérifier, comparer et garder en vue des opportunités de domaines. Cette page explique ce que traite le produit actuel, l’origine des informations et ce qui reste votre décision.",
     note: "La disponibilité, les prix et les signaux de marché peuvent évoluer. Le registre ou le paiement chez le fournisseur reste la source finale avant un achat.",
     searchAction: "Lancer une recherche",
     howItWorksAction: "Comment Sajda fonctionne",
     atAGlance: "En bref",
     principles: [
-      { title: "Des données utiles, pas du théâtre", body: "Nous utilisons les informations nécessaires pour effectuer une recherche, afficher ses éléments de preuve et conserver les choix que vous demandez de garder." },
+      { title: "Des informations qui servent un objectif précis", body: "Nous utilisons les informations nécessaires pour effectuer une recherche, afficher ses éléments de preuve et conserver les choix que vous demandez de garder." },
       { title: "Les sources restent identifiées", body: "Le statut du registre, les prix des fournisseurs et les signaux de marché sont affichés avec leur source ou leur incertitude, jamais comme des garanties." },
       { title: "Les clés restent hors du navigateur", body: "Les identifiants développeur doivent rester sur votre serveur. N’intégrez jamais une clé API Sajda dans du code côté client." },
     ],
@@ -322,10 +322,10 @@ const legalCopy: Record<Language, LegalCopy> = {
     terms: {
       eyebrow: "Conditions produit",
       title: "Sajda vous aide à choisir. Il ne choisit pas à votre place.",
-      lead: "Le produit actuel est une couche de recherche, d’information et de découverte pour les domaines. Utilisez les résultats comme aide à la décision, puis confirmez la transaction auprès du fournisseur ou dans le flux de marketplace concerné.",
+      lead: "Sajda est un outil pour trouver et étudier des domaines. Utilisez les résultats comme aide à la décision, puis confirmez la transaction auprès du fournisseur ou dans le flux de marketplace concerné.",
       items: [
         { title: "Résultats de recherche", body: "Un résultat est fondé sur la saisie, le parcours choisi et les sources disponibles au moment de la demande. Un statut affiché n’est pas une réservation et ne crée aucun droit d’enregistrer un domaine." },
-        { title: "Prix et signaux", body: "Les prix des fournisseurs, valeurs de screening et signaux de marché sont du contexte, pas un devis, une expertise ou une promesse de valeur de revente. Les taxes, le statut premium, le renouvellement et la disponibilité peuvent changer au paiement." },
+        { title: "Prix et signaux", body: "Les prix des fournisseurs, indicateurs d’évaluation préliminaire et signaux de marché sont du contexte, pas un devis, une expertise ou une promesse de valeur de revente. Les taxes, le statut premium, le renouvellement et la disponibilité peuvent changer au paiement." },
         { title: "Annonces marketplace", body: "Une annonce décrit un domaine proposé. Vérifiez ses détails et le flux de transaction applicable avant de vous engager. La visibilité d’une annonce ne confirme pas à elle seule la propriété, la cessibilité ou la finalisation." },
         { title: "API publique et développeur", body: "Utilisez le contrat API publié et gardez les identifiants côté serveur. Respectez les limites de débit et n’utilisez pas le service pour contourner les restrictions des registres, fournisseurs ou tiers." },
       ],
@@ -343,7 +343,7 @@ const legalCopy: Record<Language, LegalCopy> = {
     },
     accessibility: {
       eyebrow: "Accessibilité",
-      title: "Le parcours doit être lisible pour toutes les personnes qui l’utilisent.",
+      title: "Une interface que chacun peut comprendre.",
       lead: "Sajda vise une interface calme et lisible, avec une structure sémantique, un accès clavier, un focus visible et des informations qui ne reposent pas uniquement sur la couleur. Nous continuons à améliorer le produit à mesure qu’il évolue.",
       items: [
         { title: "Navigation", body: "Les pages, liens, contrôles et ancres de cette section sont conçus pour fonctionner au clavier avec un état de focus visible." },
@@ -368,15 +368,15 @@ const legalCopy: Record<Language, LegalCopy> = {
       { id: "accessibility", label: "无障碍" },
     ],
     eyebrow: "法律与隐私中心",
-    title: "为严肃的搜索提供清晰规则。",
+    title: "你的数据、你的选择与我们的使用条款。",
     lead: "Sajda 用于帮助你发现、核验、比较并持续关注域名机会。本页说明当前产品处理什么信息、证据来自哪里，以及哪些决定仍由你作出。",
     note: "可用性、价格和市场信号都可能变化。注册局或服务商的结账页面才是购买前的最终信息来源。",
     searchAction: "开始搜索",
     howItWorksAction: "了解 Sajda 的工作方式",
     atAGlance: "要点",
     principles: [
-      { title: "有用的数据，不做表演", body: "我们仅使用运行搜索、展示依据以及保留你要求保存的选择所需的信息。" },
-      { title: "证据始终带有标签", body: "注册局状态、服务商价格和市场信号均附带来源或不确定性说明，而不会被包装成保证。" },
+      { title: "每项信息都有明确用途", body: "我们仅使用运行搜索、展示依据以及保留你要求保存的选择所需的信息。" },
+      { title: "注明来源与不确定性", body: "注册局状态、服务商价格和市场信号均附带来源或不确定性说明，而不会被包装成保证。" },
       { title: "密钥不应放在浏览器中", body: "开发者凭据应留在你的服务器上。不要在客户端代码中放入 Sajda API 密钥。" },
     ],
     privacy: {
@@ -395,7 +395,7 @@ const legalCopy: Record<Language, LegalCopy> = {
     terms: {
       eyebrow: "产品条款",
       title: "Sajda 帮你作出判断，但不会替你决定。",
-      lead: "当前产品是面向域名的搜索、证据和发现层。请将结果作为决策支持，然后在相关服务商或交易市场流程中确认交易。",
+      lead: "Sajda 是用于寻找和研究域名的工具。请将结果作为决策支持，然后在相关服务商或交易市场流程中确认交易。",
       items: [
         { title: "搜索结果", body: "结果基于输入、所选路径以及请求时可用的来源。显示的状态不是预留，也不会产生注册域名的权利。" },
         { title: "价格和信号", body: "服务商价格、筛选价值和市场信号仅为背景信息，不是报价、估值或转售价值承诺。税费、溢价状态、续费条款和可用性可能会在结账时变化。" },
@@ -416,7 +416,7 @@ const legalCopy: Record<Language, LegalCopy> = {
     },
     accessibility: {
       eyebrow: "无障碍",
-      title: "这条路径应当让每位使用者都能清晰阅读。",
+      title: "让每个人都能理解和使用的界面。",
       lead: "Sajda 追求平静、易读的界面，包括语义结构、键盘访问、可见焦点以及不单纯依赖颜色的信息表达。产品持续演进时，我们也会持续改进。",
       items: [
         { title: "导航", body: "主要页面、链接、控件和这些章节锚点都旨在支持键盘使用，并提供可见的焦点状态。" },

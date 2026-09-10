@@ -1,4 +1,5 @@
 import { AccountAccessError } from "./account-error.js";
+import { emailLanguage } from "../../shared/account-email-copy.js";
 
 export type AccountHeaders = Record<string, string | string[] | undefined>;
 
@@ -40,6 +41,8 @@ export function requireSameOrigin(headers: AccountHeaders, origin: string): void
 
 export function accountWebHeaders(headers: AccountHeaders): Headers {
   const result = new Headers();
+  // Locale is untrusted presentation input; forward only a supported value.
+  result.set("x-sajda-language", emailLanguage(headers["x-sajda-language"]));
   for (const name of ["cookie", "origin", "content-type", "user-agent", "sec-fetch-site", "sec-fetch-mode", "sec-fetch-dest", "x-vercel-forwarded-for"]) {
     const value = headers[name];
     if (typeof value === "string") result.set(name, value);

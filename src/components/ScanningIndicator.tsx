@@ -22,11 +22,11 @@ export default function ScanningIndicator({ isScanning, activeTLDScans, onStop }
   const { language, t } = useLanguage();
   if (!isScanning) return null;
   const copy = {
-    en: { title: "Finding and checking domains", body: "We are preparing your results and waiting for the registry checks. Results appear when the request is complete; any unconfirmed status will be labelled." },
-    sv: { title: "Hittar och kontrollerar domäner", body: "Vi förbereder dina resultat och inväntar kontrollerna hos registren. Resultaten visas när anropet är klart; status som inte kan bekräftas märks tydligt." },
+    en: { title: "Finding and checking domains", body: "We are preparing your results and checking domain availability with the registries. Results will appear when the search is complete. Any unconfirmed status will be clearly labeled." },
+    sv: { title: "Hittar och kontrollerar domäner", body: "Vi tar fram dina resultat och kontrollerar tillgängligheten hos domänregistren. Resultaten visas när sökningen är klar. Status som inte kan bekräftas märks tydligt." },
     es: { title: "Buscando y comprobando dominios", body: "Estamos preparando los resultados y esperando las comprobaciones del registro. Los resultados aparecerán al terminar; los estados sin confirmar se indicarán claramente." },
-    fr: { title: "Recherche et vérification des domaines", body: "Nous préparons les résultats et attendons les vérifications des registres. Les résultats apparaîtront une fois la demande terminée ; les statuts non confirmés seront signalés." },
-    zh: { title: "正在查找并核验域名", body: "我们正在准备结果并等待注册局核验。请求完成后将显示结果，无法确认的状态会清楚标注。" },
+    fr: { title: "Recherche et vérification des domaines", body: "Nous préparons vos résultats et vérifions la disponibilité auprès des registres. Les résultats apparaîtront une fois la recherche terminée. Tout statut non confirmé sera clairement signalé." },
+    zh: { title: "正在查找并核验域名", body: "我们正在生成结果，并向注册局查询域名是否可注册。搜索完成后即可查看结果，无法确认的状态会明确标注。" },
   }[language];
   return (
     <section className="rounded-2xl border border-border bg-card p-5 shadow-sm" aria-busy="true" aria-labelledby="search-progress-title">

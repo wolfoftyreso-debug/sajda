@@ -60,7 +60,7 @@ test("configuration validates a single sender mailbox and the server API key", (
   }
 });
 
-test("verification and password reset send genuine Swedish multipart messages over HTTPS", async () => {
+test("verification and password reset default to English multipart messages over HTTPS", async () => {
   await sendAccountEmail(message);
   await sendAccountEmail({ ...message, kind: "reset" });
   assert.equal(requests.length, 2);
@@ -76,13 +76,41 @@ test("verification and password reset send genuine Swedish multipart messages ov
     assert.equal(body.from, "Sajda <konto@sajda.dev>");
     assert.deepEqual(body.to, [message.to]);
     assert.equal(body.reply_to, "dev@hypbit.com");
-    assert.match(body.subject, index === 0 ? /Bekräfta din e-postadress/ : /Återställ ditt lösenord/);
+    assert.match(body.subject, index === 0 ? /Confirm your email address/ : /Reset your password/);
     assert.match(body.text, /Sajda/);
     assert.ok(body.text.includes(actionUrl));
-    assert.match(body.html, /<html lang="sv">/);
+    assert.match(body.html, /<html lang="en">/);
     assert.match(body.html, /table role="presentation"/);
     assert.match(body.html, /max-width:560px/);
     assert.equal("cc" in body || "bcc" in body, false);
+  }
+});
+
+test("all account email locales have native copy, correct language metadata and unchanged private action URLs", async () => {
+  const headings = { en: "Confirm your email address", sv: "Bekräfta din e-postadress", es: "Confirma tu correo electrónico", fr: "Confirmez votre adresse e-mail", zh: "确认你的电子邮箱" } as const;
+  for (const language of Object.keys(headings) as (keyof typeof headings)[]) {
+    for (const kind of ["verify", "reset"] as const) {
+      await sendAccountEmail({ ...message, language, kind });
+      const body = JSON.parse(String(requests.at(-1)!.init.body));
+      assert.ok(body.html.includes(`<html lang="${language === "zh" ? "zh-Hans" : language}">`));
+      assert.ok(body.text.includes(actionUrl));
+      assert.ok(body.html.includes("private-link-token&amp;callbackURL="));
+      assert.deepEqual(body.to, [message.to]);
+      assert.equal(body.reply_to, "dev@hypbit.com");
+      assert.equal("cc" in body || "bcc" in body, false);
+      if (kind === "verify") assert.ok(body.subject.includes(headings[language]));
+      if (language !== "en") assert.ok(!body.text.includes("Choose a new password"));
+    }
+  }
+});
+
+test("unknown or injected email language falls back to English without becoming HTML", async () => {
+  for (const language of [undefined, "de", "sv-SE", '__proto__', '<script>alert(1)</script>']) {
+    await sendAccountEmail({ ...message, language } as AccountEmailMessage);
+    const body = JSON.parse(String(requests.at(-1)!.init.body));
+    assert.match(body.subject, /Confirm your email address/);
+    assert.match(body.html, /<html lang="en">/);
+    assert.doesNotMatch(body.html, /<script>/);
   }
 });
 
@@ -204,6 +232,21 @@ test("idempotency hashes kind and action URL without exposing recovery tokens in
   assert.notEqual(keys[0], keys[2]);
   assert.notEqual(keys[0], keys[3]);
   for (const request of requests) assert.equal(JSON.stringify(request.init.headers).includes("private-link-token"), false);
+});
+
+test("locale-specific email retries deduplicate identical payloads without provider key conflicts", async () => {
+  await sendAccountEmail(message);
+  await sendAccountEmail({ ...message, language: "en" });
+  await sendAccountEmail({ ...message, language: "fr" });
+  await sendAccountEmail({ ...message, language: "fr" });
+  await sendAccountEmail({ ...message, language: "unsupported" } as unknown as AccountEmailMessage);
+  const keys = requests.map(request => new Headers(request.init.headers).get("idempotency-key"));
+  assert.equal(keys[0], keys[1]);
+  assert.equal(keys[0], keys[4]);
+  assert.notEqual(keys[0], keys[2]);
+  assert.equal(keys[2], keys[3]);
+  assert.equal(requests[0].init.body, requests[1].init.body);
+  assert.equal(requests[2].init.body, requests[3].init.body);
 });
 
 test("provider failures return controlled errors without logging tokens, addresses or raw bodies", async (context) => {

@@ -178,7 +178,7 @@ test("Plus billing validates server truth and protects explicit checkout, portal
 
     await t.test("success return is only an informational state, never an automatic mutation or entitlement", async () => {
       await mount(billing(), "account-a", "/plus?billing=success");
-      assert.match(text(), /returning here alone does not confirm payment or activate access/);
+      assert.match(text(), /Returning here does not confirm payment or activate access/);
       assert.equal(posts().length, 0); assert.equal(navigations.length, 0);
     });
   } finally {

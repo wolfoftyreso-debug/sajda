@@ -9,6 +9,7 @@ import PlusBilling from "@/components/PlusBilling";
 import { isNativeApp } from "@/lib/appSurface";
 import { nativeCopy } from "@/app/nativeCopy";
 import TradingEvidenceSummary, { type TradingQuoteControls } from "@/components/TradingEvidenceSummary";
+import { tradingText, tradingLocale, tradingRunCapacity, tradingOmittedRows, tradingShowMore } from "@/i18n/tradingEvidenceCopy";
 import { filterTradingReport, tradingReportCsv, type TradingReportFilter } from "@/lib/tradingReport";
 import { useAuth } from "@/contexts/AuthContext";
 import { applyDocumentMetadata, useLanguage } from "@/i18n/LanguageProvider";
@@ -53,10 +54,9 @@ export default function LostDomains() {
   const snapshot = data?.owner === accountId ? data.snapshot : null;
   const report = data?.owner === accountId ? data.report : null;
   const activeRun = snapshot?.activeRun ?? null;
-  const isSwedish = language === "sv";
-  const time = useCallback((value: string) => new Intl.DateTimeFormat(isSwedish ? "sv-SE" : "en-GB", {
+  const time = useCallback((value: string) => new Intl.DateTimeFormat(tradingLocale[language], {
     dateStyle: "medium", timeStyle: "short",
-  }).format(new Date(value)), [isSwedish]);
+  }).format(new Date(value)), [language]);
 
   useEffect(() => {
     applyDocumentMetadata(language, "/plus");
@@ -251,7 +251,7 @@ export default function LostDomains() {
       <header className={`grid gap-8 border-b border-border ${isNativeApp ? "pb-6" : snapshot?.access ? "pb-6 pt-6" : "pb-10 pt-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:gap-12"}`}>
         <div className="min-w-0">
           {!isNativeApp && <p className="text-sm font-semibold tracking-wide text-primary">{copy.eyebrow}</p>}
-          <h1 className={isNativeApp ? "text-2xl font-semibold tracking-tight" : "mt-4 max-w-3xl text-3xl font-semibold leading-[1.12] tracking-[-0.045em] [overflow-wrap:anywhere] min-[375px]:text-4xl sm:text-5xl"}>{isNativeApp ? "Trading" : snapshot?.access ? (isSwedish?"Trading-arbetsyta":"Trading workspace") : copy.title}</h1>
+          <h1 className={isNativeApp ? "text-2xl font-semibold tracking-tight" : "mt-4 max-w-3xl text-3xl font-semibold leading-[1.12] tracking-[-0.045em] [overflow-wrap:anywhere] min-[375px]:text-4xl sm:text-5xl"}>{isNativeApp ? "Trading" : snapshot?.access ? (tradingText(copy.locale, "Trading workspace")) : copy.title}</h1>
           <p className={isNativeApp ? "mt-3 max-w-2xl text-sm leading-6 text-muted-foreground" : "mt-5 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg"}>{isNativeApp ? nativeCopy[language].tradingHelp : copy.intro}</p>
           <a href="#plus-method" className={`${link} mt-5`}>{copy.readMore}<ChevronDown className="h-4 w-4" aria-hidden="true" /></a>
         </div>
@@ -295,7 +295,7 @@ export default function LostDomains() {
           {!snapshot.enabled && <p className="rounded-xl border border-border bg-secondary/50 p-4 text-sm leading-6" role="status">{copy.disabled}</p>}
           {snapshot.enabled && !snapshot.sourcesAvailable && <p className="rounded-xl border border-border bg-secondary/50 p-4 text-sm leading-6" role="status">{copy.noSources}</p>}
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <p className="max-w-2xl text-xs leading-5 text-muted-foreground">{copy.limits}<span className="mt-1 block font-medium">{snapshot.sourcesAvailable} {isSwedish?"godkända källsidor tillgängliga just nu.":"approved source pages available now."}</span></p>
+            <p className="max-w-2xl text-xs leading-5 text-muted-foreground">{copy.limits}<span className="mt-1 block font-medium">{snapshot.sourcesAvailable} {tradingText(copy.locale, "approved source pages available now.")}</span></p>
             <Button className={button} onClick={start} disabled={Boolean(busy || activeRun || !snapshot.enabled || !snapshot.sourcesAvailable) || signingOut}>
               {busy === "start" ? <LoaderCircle className="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Search className="h-4 w-4 shrink-0" aria-hidden="true" />}
               {busy === "start" ? copy.pending : startKey.current ? copy.retryStart : copy.start}
@@ -307,18 +307,18 @@ export default function LostDomains() {
               <p className="inline-flex items-center gap-2 text-sm font-medium text-primary" role="status">
                 {busy === "advance" && <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}{copy.status[activeRun.status]}</p></div>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">{copy.progressNote}</p>
-            {activeRun.capacity && <p className="mt-2 text-xs leading-5 text-muted-foreground">{isSwedish?`Den här körningen: högst ${activeRun.capacity.sourceLimit} källsidor och ${activeRun.capacity.candidateLimit} namn. Upp till 30 prioriterade namn kontrolleras igen i ${activeRun.verificationMaxRounds ?? 1} omgångar.`:`This run: up to ${activeRun.capacity.sourceLimit} source pages and ${activeRun.capacity.candidateLimit} names. Up to 30 priority names are rechecked in ${activeRun.verificationMaxRounds ?? 1} rounds.`}</p>}
+            {activeRun.capacity && <p className="mt-2 text-xs leading-5 text-muted-foreground">{tradingRunCapacity(language, activeRun.capacity.sourceLimit, activeRun.capacity.candidateLimit, activeRun.verificationMaxRounds ?? 1)}</p>}
             {activeRun.verificationMaxRounds === 3 && <p className="mt-3 text-sm leading-6">{copy.deepSchedule}</p>}
             {activeRun.nextCheckAt && Date.parse(activeRun.nextCheckAt) > now && <div className="mt-4 rounded-lg border border-primary/20 bg-primary/5 p-4" role="status">
               <p className="text-sm font-semibold">{copy.waitingForCheck}</p><p className="mt-1 text-sm"><time dateTime={activeRun.nextCheckAt}>{time(activeRun.nextCheckAt)}</time></p>
               <p className="mt-2 text-xs leading-5 text-muted-foreground">{copy.waitingNote}</p>
             </div>}
-            {activeRun.status === "running" && <p className="mt-3 text-sm font-medium" role="status">{activeRun.verificationCount ? (isSwedish?"Slutkontrollerar de högst prioriterade kandidaterna med nya register- och risksvar.":"Rechecking the highest-priority candidates with fresh registry and risk observations.") : activeRun.candidateCount ? copy.checkingStage : copy.collecting}</p>}
+            {activeRun.status === "running" && <p className="mt-3 text-sm font-medium" role="status">{activeRun.verificationCount ? (tradingText(copy.locale, "Rechecking the highest-priority candidates with fresh registry and risk observations.")) : activeRun.candidateCount ? copy.checkingStage : copy.collecting}</p>}
             <dl className="mt-5 grid gap-4 sm:grid-cols-3">
               <Metric label={copy.checking} value={activeRun.candidateCount ? `${activeRun.completedCount} / ${activeRun.candidateCount}` : "—"} />
               <Metric label={copy.sources} value={String(activeRun.sourceCount)} />
               <Metric label={copy.failedChecks} value={String(activeRun.failedCount)} />
-              {!!activeRun.verificationCount && <Metric label={isSwedish?"Slutkontroller":"Final rechecks"} value={`${activeRun.completedVerificationCount ?? 0} / ${activeRun.verificationCount}`} />}
+              {!!activeRun.verificationCount && <Metric label={tradingText(copy.locale, "Final rechecks")} value={`${activeRun.completedVerificationCount ?? 0} / ${activeRun.verificationCount}`} />}
               {activeRun.verificationMaxRounds !== undefined && <Metric label={copy.reviewRound} value={`${activeRun.verificationRound ?? 0} / ${activeRun.verificationMaxRounds}`} />}
             </dl>
             {activeRun.status === "queued" && <p className="mt-4 text-sm text-muted-foreground">{copy.queued}</p>}
@@ -341,32 +341,32 @@ export default function LostDomains() {
                 <span className="text-sm text-muted-foreground">{copy.status[report.latestRun.status]}</span></div>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{copy.reportNote}</p>
               {report.latestRun.status === "partial" && <p className="mt-3 rounded-lg bg-secondary/60 p-3 text-sm leading-6" role="status">{copy.partialReport}</p>}
-              {!!report.candidatesOmitted && <p className="mt-3 rounded-lg border border-border bg-secondary/60 p-3 text-sm leading-6" role="status">{isSwedish?`Begränsat rapportunderlag: ${report.candidatesOmitted} ${report.candidatesOmitted===1?"kontrollrad":"kontrollrader"} utelämnades eftersom underlaget är stort. Sökning och CSV omfattar endast det hämtade underlaget.`:`Report subset: ${report.candidatesOmitted} check ${report.candidatesOmitted===1?"row was":"rows were"} omitted because the report is large. Search and CSV include only the returned subset.`}</p>}
+              {!!report.candidatesOmitted && <p className="mt-3 rounded-lg border border-border bg-secondary/60 p-3 text-sm leading-6" role="status">{tradingOmittedRows(language, report.candidatesOmitted)}</p>}
               <p className="mt-2 text-xs text-muted-foreground">{copy.completed}: <time dateTime={report.latestRun.completedAt ?? report.latestRun.updatedAt}>{time(report.latestRun.completedAt ?? report.latestRun.updatedAt)}</time></p>
-              {!!report.latestRun.verificationCount && <p className="mt-2 text-xs text-muted-foreground">{isSwedish?"Slutkontroller":"Final rechecks"}: {report.latestRun.completedVerificationCount ?? 0} / {report.latestRun.verificationCount}</p>}
+              {!!report.latestRun.verificationCount && <p className="mt-2 text-xs text-muted-foreground">{tradingText(copy.locale, "Final rechecks")}: {report.latestRun.completedVerificationCount ?? 0} / {report.latestRun.verificationCount}</p>}
               <dl className="mt-5 grid grid-cols-2 gap-5 lg:grid-cols-5">
-                <Metric label={isSwedish?"Domäner i rapporten":"Domains in this report"} value={String(report.candidates.length)} />
-                <Metric label={isSwedish?"Starka aktuella signaler":"Strong current signals"} value={String(priorityCount)} />
-                <Metric label={isSwedish?"Stark namnmatchning":"Strong name fit"} value={String(strongFitCount)} />
-                <Metric label={isSwedish?"Ändrad registerstatus":"Registry changes"} value={String(changedCount)} />
-                <Metric label={isSwedish?"Godkända källsidor":"Approved source pages"} value={String(snapshot.sourcesAvailable)} />
+                <Metric label={tradingText(copy.locale, "Domains in this report")} value={String(report.candidates.length)} />
+                <Metric label={tradingText(copy.locale, "Strong current signals")} value={String(priorityCount)} />
+                <Metric label={tradingText(copy.locale, "Strong name fit")} value={String(strongFitCount)} />
+                <Metric label={tradingText(copy.locale, "Registry changes")} value={String(changedCount)} />
+                <Metric label={tradingText(copy.locale, "Approved source pages")} value={String(snapshot.sourcesAvailable)} />
               </dl>
               <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
-                <label className="min-w-0 text-xs font-medium">{isSwedish?"Filtrera domän":"Filter domain"}<input value={query} onChange={event=>setQuery(event.target.value)} maxLength={253} placeholder={isSwedish?"Sök i rapporten…":"Search this report…"} className="mt-1 block min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm font-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" /></label>
-                <label className="min-w-0 text-xs font-medium">{isSwedish?"Status":"Status"}<select value={filter} onChange={event=>setFilter(event.target.value as TradingReportFilter)} className="mt-1 block min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm font-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  {([['all',isSwedish?'Alla kontroller':'All checks'],['price_review',isSwedish?'Klara för prisgranskning':'Ready for price review'],['acquisition_review',isSwedish?'Förvärvsunderlag komplett':'Acquisition evidence complete'],['priority',isSwedish?'Starka tekniska signaler':'Strong technical signals'],['strong_fit',isSwedish?'Stark namnmatchning':'Strong name fit'],['changed',isSwedish?'Ändrad registerstatus':'Registry changed'],['unregistered',isSwedish?'Saknas i register':'Registry absent'],['registered',isSwedish?'Registrerade':'Registered'],['unknown',isSwedish?'Okänd status':'Unknown status'],['excluded',isSwedish?'Uteslutna':'Excluded']] as const).map(([value,label])=><option value={value} key={value}>{label}</option>)}
+                <label className="min-w-0 text-xs font-medium">{tradingText(copy.locale, "Filter domain")}<input value={query} onChange={event=>setQuery(event.target.value)} maxLength={253} placeholder={tradingText(copy.locale, "Search this report…")} className="mt-1 block min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm font-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" /></label>
+                <label className="min-w-0 text-xs font-medium">{tradingText(copy.locale, "Status")}<select value={filter} onChange={event=>setFilter(event.target.value as TradingReportFilter)} className="mt-1 block min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm font-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  {([['all',tradingText(copy.locale, "All checks")],['price_review',tradingText(copy.locale, "Ready for price review")],['acquisition_review',tradingText(copy.locale, "Acquisition evidence complete")],['priority',tradingText(copy.locale, "Strong technical signals")],['strong_fit',tradingText(copy.locale, "Strong name fit")],['changed',tradingText(copy.locale, "Registry changed")],['unregistered',tradingText(copy.locale, "Registry absent")],['registered',tradingText(copy.locale, "Registered")],['unknown',tradingText(copy.locale, "Unknown status")],['excluded',tradingText(copy.locale, "Excluded")]] as const).map(([value,label])=><option value={value} key={value}>{label}</option>)}
                 </select></label>
-                <label className="min-w-0 text-xs font-medium">{isSwedish?"Ändelse":"Extension"}<select value={tld} onChange={event=>setTld(event.target.value)} className="mt-1 block min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm font-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><option value="">{isSwedish?"Alla ändelser":"All extensions"}</option>{tlds.map(value=><option key={value} value={value}>.{value}</option>)}</select></label>
-                <Button variant="outline" className={`${button} self-end`} onClick={exportReport} disabled={!filtered.length||signingOut}><Download className="h-4 w-4 shrink-0" aria-hidden="true" />{isSwedish?"Exportera CSV":"Export CSV"}</Button>
+                <label className="min-w-0 text-xs font-medium">{tradingText(copy.locale, "Extension")}<select value={tld} onChange={event=>setTld(event.target.value)} className="mt-1 block min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm font-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><option value="">{tradingText(copy.locale, "All extensions")}</option>{tlds.map(value=><option key={value} value={value}>.{value}</option>)}</select></label>
+                <Button variant="outline" className={`${button} self-end`} onClick={exportReport} disabled={!filtered.length||signingOut}><Download className="h-4 w-4 shrink-0" aria-hidden="true" />{tradingText(copy.locale, "Export CSV")}</Button>
               </div>
-              <p className="mt-3 text-xs text-muted-foreground" role="status">{filtered.length} / {report.candidates.length} {isSwedish?"kontroller matchar urvalet. Exporten innehåller observationstid och ej verifierad registrerbarhet.":"checks match this selection. Export includes observation time and unverified registrability."}</p>
-              {filter==="strong_fit" && <p className="mt-2 text-xs leading-5 text-muted-foreground">{isSwedish?"Stark namnmatchning beskriver orden och ändelsen. Kontrollera registerstatus separat; filtret kan även visa registrerade domäner.":"Strong name fit describes the words and extension. Check registry status separately; this filter can also include registered domains."}</p>}
-              {exportFailed&&<p role="alert" className="mt-2 text-sm text-destructive">{isSwedish?"Exporten kunde inte skapas. Rapporten är kvar. Försök igen.":"Export could not be created. Your report is preserved. Try again."}</p>}
+              <p className="mt-3 text-xs text-muted-foreground" role="status">{filtered.length} / {report.candidates.length} {tradingText(copy.locale, "checks match this selection. Export includes observation time and unverified registrability.")}</p>
+              {filter==="strong_fit" && <p className="mt-2 text-xs leading-5 text-muted-foreground">{tradingText(copy.locale, "Strong name fit describes the words and extension. Check registry status separately; this filter can also include registered domains.")}</p>}
+              {exportFailed&&<p role="alert" className="mt-2 text-sm text-destructive">{tradingText(copy.locale, "Export could not be created. Your report is preserved. Try again.")}</p>}
             </header>
             <div className="p-5 sm:p-6">
               <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{copy.reviewWarning}</p>
               <p className="mt-2 text-xs text-muted-foreground">{report.candidates.some(row=>row.registrar?.status==="checked")
-                ? (isSwedish?"Registratorsvar är tidsbundna observationer. Sajda har inte reserverat eller köpt någon domän.":"Registrar responses are timestamped observations. Sajda has not reserved or purchased any domain.")
+                ? (tradingText(copy.locale, "Registrar responses are timestamped observations. Sajda has not reserved or purchased any domain."))
                 : `${copy.confirmed}: ${copy.zeroConfirmed}`}</p>
               {candidates.length ? <ol className="mt-6 space-y-4">{candidates.map((candidate, index) => <Candidate key={candidate.domain} candidate={candidate} index={index} copy={copy} time={time} quote={quoteControls(candidate)} />)}</ol>
                 : <div className="py-10 text-center"><FileSearch className="mx-auto h-7 w-7 text-muted-foreground" aria-hidden="true" /><h4 className="mt-3 font-semibold">{copy.none}</h4><p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{copy.noneBody}</p></div>}
@@ -376,14 +376,14 @@ export default function LostDomains() {
                 <ul className="mt-3 divide-y divide-border">{visibleDiagnostics.map(row => <li key={row.domain}><details className="py-2">
                   <summary className="min-h-11 cursor-pointer py-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                     <span className="break-all font-medium">{row.domain}</span><span className="ml-3 text-muted-foreground">{isFreshReviewCandidate(row, now) ? copy.freshOverflow : copy.diagnosticStates[row.reviewStatus]}</span>
-                    <NameFitBadge candidate={row} swedish={isSwedish}/>
+                    <NameFitBadge candidate={row} language={language}/>
                   </summary>
                   {row.reviewStatus === "review_candidate" && !isFreshReviewCandidate(row, now) && <p className="mb-3 text-sm leading-6 text-muted-foreground">{copy.staleEvidence}</p>}
                   <Observations candidate={row} copy={copy} time={time} quote={quoteControls(row)} />
                 </details></li>)}</ul>
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-xs leading-5 text-muted-foreground" role="status">{visibleDiagnostics.length} / {diagnostics.length} {isSwedish?"övriga kontroller visas. Sökning och CSV omfattar alla matchande rader i rapportunderlaget.":"other checks displayed. Search and CSV include all matching rows in this report."}</p>
-                  {visibleDiagnostics.length<diagnostics.length && <Button variant="outline" className={button} onClick={()=>setDiagnosticsLimit(limit=>limit+DIAGNOSTICS_BATCH_SIZE)}>{isSwedish?`Visa ${Math.min(DIAGNOSTICS_BATCH_SIZE,diagnostics.length-visibleDiagnostics.length)} till`:`Show ${Math.min(DIAGNOSTICS_BATCH_SIZE,diagnostics.length-visibleDiagnostics.length)} more`}</Button>}
+                  <p className="text-xs leading-5 text-muted-foreground" role="status">{visibleDiagnostics.length} / {diagnostics.length} {tradingText(copy.locale, "other checks displayed. Search and CSV include all matching rows in this report.")}</p>
+                  {visibleDiagnostics.length<diagnostics.length && <Button variant="outline" className={button} onClick={()=>setDiagnosticsLimit(limit=>limit+DIAGNOSTICS_BATCH_SIZE)}>{tradingShowMore(language, Math.min(DIAGNOSTICS_BATCH_SIZE, diagnostics.length - visibleDiagnostics.length))}</Button>}
                 </div>
               </details>}
               {attributedSources.length > 0 && <div className="mt-5 border-t border-border pt-4 text-xs leading-5 text-muted-foreground">
@@ -398,7 +398,7 @@ export default function LostDomains() {
         </div>}
       </section>
 
-      {snapshot?.access && <details className={`${panel} mb-8 p-5`}><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{isSwedish?"Konto och Trading-abonnemang":"Account and Trading subscription"}</summary>
+      {snapshot?.access && <details className={`${panel} mb-8 p-5`}><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{tradingText(copy.locale, "Account and Trading subscription")}</summary>
         <div className="max-w-xl pt-4"><PlusBilling accountId={accountId} language={language} fallback={copy} disabled={signingOut} onStatusVerified={billingStatusVerified}/></div>
       </details>}
 
@@ -421,16 +421,16 @@ function Candidate({ candidate, index, copy, time,quote }: { candidate: LostDoma
   return <li className="rounded-xl border border-border p-4 sm:p-5">
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0"><p className="text-xs font-medium text-muted-foreground">{String(index + 1).padStart(2, "0")}</p><h4 className="mt-1 break-all text-xl font-semibold tracking-tight sm:text-2xl">{candidate.domain}</h4>
-        <NameFitBadge candidate={candidate} swedish={copy.locale==="sv"}/>
+        <NameFitBadge candidate={candidate} language={copy.locale}/>
         <p className="mt-2 text-xs font-medium leading-5 text-muted-foreground">{copy.registryNotFound}</p></div>
-      {candidate.dossier ? <dl className="flex flex-wrap gap-x-5 gap-y-3"><div><dt className="text-xs text-muted-foreground">{copy.locale==="sv"?"Färska kontrolltyper":"Fresh check types"}</dt><dd className="mt-1 text-sm font-semibold">{candidate.dossier.coverage.observedFamilies} / 4</dd></div>
-        <div><dt className="text-xs text-muted-foreground">{copy.locale==="sv"?"Samstämmiga omgångar":"Consistent rounds"}</dt><dd className="mt-1 text-sm font-semibold">{candidate.dossier.temporal.stableChecks} / 3</dd></div></dl>
+      {candidate.dossier ? <dl className="flex flex-wrap gap-x-5 gap-y-3"><div><dt className="text-xs text-muted-foreground">{tradingText(copy.locale, "Fresh check types")}</dt><dd className="mt-1 text-sm font-semibold">{candidate.dossier.coverage.observedFamilies} / 4</dd></div>
+        <div><dt className="text-xs text-muted-foreground">{tradingText(copy.locale, "Consistent rounds")}</dt><dd className="mt-1 text-sm font-semibold">{candidate.dossier.temporal.stableChecks} / 3</dd></div></dl>
         : <dl className="flex flex-wrap gap-x-5 gap-y-3"><div><dt className="text-xs text-muted-foreground">{copy.score}</dt><dd className="mt-1 text-sm font-semibold">{candidate.opportunity?.score ?? candidate.potentialScore}/100</dd></div>
         <div><dt className="text-xs text-muted-foreground">{copy.coverage}</dt><dd className="mt-1 text-sm font-semibold">{candidate.confidenceScore}/100</dd></div></dl>}
     </div>
     {candidate.dossier && <p className="mt-3 text-sm font-medium">{candidate.dossier.status==="ready_for_price_review" && !(Date.parse(candidate.dossier.validUntil ?? "")>Date.now())
-      ? (copy.locale==="sv"?"Underlaget har löpt ut – ny kontroll krävs":"Evidence expired — a fresh check is required")
-      : (copy.locale==="sv"?{ready_for_price_review:"Tekniskt klar för prisgranskning – inte ett köpbesked",monitor:"Fler kontroller krävs",reject:"Utesluten från förvärvsgranskning",incomplete:"Underlag saknas"}:{ready_for_price_review:"Technically ready for price review — not a purchase confirmation",monitor:"More checks required",reject:"Excluded from acquisition review",incomplete:"Evidence is missing"})[candidate.dossier.status]}</p>}
+      ? (tradingText(copy.locale, "Evidence expired — a fresh check is required"))
+      : ({ready_for_price_review: tradingText(copy.locale, "Technically ready for price review — not a purchase confirmation"), monitor: tradingText(copy.locale, "More checks required"), reject: tradingText(copy.locale, "Excluded from acquisition review"), incomplete: tradingText(copy.locale, "Evidence is missing")})[candidate.dossier.status]}</p>}
     <details className="mt-3 border-t border-border pt-2">
       <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{copy.evidence}</summary>
       <Observations candidate={candidate} copy={copy} time={time} quote={quote} />
@@ -438,14 +438,14 @@ function Candidate({ candidate, index, copy, time,quote }: { candidate: LostDoma
   </li>;
 }
 
-function NameFitBadge({candidate,swedish}:{candidate:LostDomainAssessment;swedish:boolean}) {
+function NameFitBadge({candidate,language}:{candidate:LostDomainAssessment;language:string}) {
   if (candidate.marketFit?.tier!=="strong" || candidate.sensitive || candidate.risk.level==="excluded" || candidate.reviewStatus==="excluded") return null;
-  return <span className="mt-2 inline-flex rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary">{swedish?"Stark namnmatchning":"Strong name fit"} · {candidate.marketFit.score}/100</span>;
+  return <span className="mt-2 inline-flex rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary">{tradingText(language, "Strong name fit")} · {candidate.marketFit.score}/100</span>;
 }
 
 function Observations({ candidate, copy, time,quote }: { candidate: LostDomainAssessment; copy: LostDomainsCopy; time: (value: string) => string;quote?:TradingQuoteControls }) {
   return <div className="space-y-4 pb-2">
-        <TradingEvidenceSummary candidate={candidate} swedish={copy.locale==="sv"} time={time} quote={quote}/>
+        <TradingEvidenceSummary candidate={candidate} language={copy.locale} time={time} quote={quote}/>
         <p className="text-sm leading-6 text-muted-foreground">{copy.reviewWarning}</p>
         {!candidate.sensitive && candidate.risk.level !== "excluded" && candidate.dossier?.status!=="reject" && candidate.acquisition?.status!=="excluded" && <div className="flex flex-wrap gap-x-5"><a className={link} href={candidate.sourceUrl} aria-label={`${copy.source}: ${candidate.domain}`} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">{copy.source}<ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></a>
           <a className={link} href={candidate.targetUrl} aria-label={`${copy.targetLink}: ${candidate.domain}`} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">{copy.targetLink}<ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></a></div>}

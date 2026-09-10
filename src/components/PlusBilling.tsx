@@ -80,7 +80,7 @@ export default function PlusBilling({ accountId, language, fallback, disabled = 
       {error && <div role="alert" className="text-sm leading-6 text-destructive"><p>{copy.errors[error.code]}</p>{error.requestId && <p className="mt-2 break-all text-xs">{fallback.requestReference}: {error.requestId}</p>}</div>}
       {!busy && snapshot && !snapshot.ready && <p className="text-sm leading-6 text-muted-foreground">{copy.unavailable}</p>}
       {snapshot && snapshot.status !== "none" && <p className="text-sm leading-6">{copy.existing}: <strong className="font-semibold">{copy.statuses[snapshot.status]}</strong></p>}
-      {snapshot?.accessExpiresAt && <p className="mt-2 text-xs leading-5 text-muted-foreground">{copy.expires}: <time dateTime={snapshot.accessExpiresAt}>{new Intl.DateTimeFormat(language === "sv" ? "sv-SE" : "en-GB", { dateStyle: "medium" }).format(new Date(snapshot.accessExpiresAt))}</time></p>}
+      {snapshot?.accessExpiresAt && <p className="mt-2 text-xs leading-5 text-muted-foreground">{copy.expires}: <time dateTime={snapshot.accessExpiresAt}>{new Intl.DateTimeFormat(({ en: "en-US", sv: "sv-SE", es: "es-ES", fr: "fr-FR", zh: "zh-CN" } as Record<string, string>)[language] ?? "en-US", { dateStyle: "medium" }).format(new Date(snapshot.accessExpiresAt))}</time></p>}
       {returnState === "success" && <p className="mt-3 text-sm leading-6 text-muted-foreground" role="status">{copy.returnPending}</p>}
       {returnState === "cancel" && <p className="mt-3 text-sm leading-6 text-muted-foreground" role="status">{copy.cancelled}</p>}
       {snapshot?.ready && snapshot.canCheckout && <Button className={`${button} mt-4`} disabled={Boolean(busy) || disabled} onClick={() => void open("checkout")}>

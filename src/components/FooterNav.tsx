@@ -17,7 +17,7 @@ const footerMessages: Record<Language, {
   en: {
     navigation: "Main navigation",
     search: "Search",
-    watchlist: "Watchlist",
+    watchlist: "Saved",
     history: "History",
     domains: "Domains",
     account: "Account",
@@ -25,7 +25,7 @@ const footerMessages: Record<Language, {
   sv: {
     navigation: "Huvudnavigering",
     search: "Sök",
-    watchlist: "Bevaka",
+    watchlist: "Sparat",
     history: "Historik",
     domains: "Domäner",
     account: "Konto",
@@ -33,7 +33,7 @@ const footerMessages: Record<Language, {
   es: {
     navigation: "Navegación principal",
     search: "Buscar",
-    watchlist: "Lista",
+    watchlist: "Guardados",
     history: "Historial",
     domains: "Dominios",
     account: "Cuenta",
@@ -41,7 +41,7 @@ const footerMessages: Record<Language, {
   fr: {
     navigation: "Navigation principale",
     search: "Recherche",
-    watchlist: "Suivi",
+    watchlist: "Enregistrés",
     history: "Historique",
     domains: "Domaines",
     account: "Compte",
@@ -49,7 +49,7 @@ const footerMessages: Record<Language, {
   zh: {
     navigation: "主导航",
     search: "搜索",
-    watchlist: "关注",
+    watchlist: "已保存",
     history: "历史记录",
     domains: "域名",
     account: "账户",

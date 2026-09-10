@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
+import { accountEmailCopy, emailLanguage, type EmailLanguage } from "../../shared/account-email-copy.js";
 
 export interface AccountEmailMessage {
   kind: "verify" | "reset";
   to: string;
   url: string;
+  language?: EmailLanguage;
 }
 
 export interface ContactEmailMessage {
@@ -83,24 +85,13 @@ function hasControlCharacters(value: string, multiline = false): boolean {
   });
 }
 
-function emailContent(kind: AccountEmailMessage["kind"], url: string) {
-  const content = kind === "verify" ? {
-    subject: "Bekräfta din e-postadress – Sajda",
-    heading: "Bekräfta din e-postadress",
-    introduction: "Bekräfta din e-postadress för att börja spara domäner på ditt Sajda-konto.",
-    action: "Bekräfta e-postadress",
-    notice: "Om du inte har skapat ett Sajda-konto kan du bortse från det här mejlet.",
-  } : {
-    subject: "Återställ ditt lösenord – Sajda",
-    heading: "Välj ett nytt lösenord",
-    introduction: "Vi har fått en begäran om att återställa lösenordet till ditt Sajda-konto. Följ länken för att välja ett nytt lösenord.",
-    action: "Välj nytt lösenord",
-    notice: "Om du inte har begärt ett nytt lösenord kan du bortse från det här mejlet. Lösenordet ändras inte förrän du väljer ett nytt.",
-  };
-  const safety = "Länken är personlig och gäller en begränsad tid. Dela den inte med någon.";
-  const text = `Sajda\n\n${content.heading}\n\n${content.introduction}\n\n${content.action}:\n${url}\n\n${safety}\n\n${content.notice}\n\nSajda · Sök, jämför och spara domäner`;
+function emailContent(kind: AccountEmailMessage["kind"], url: string, language: EmailLanguage) {
+  const copy = accountEmailCopy[language];
+  const content = copy[kind];
+  const safety = copy.safety;
+  const text = `Sajda\n\n${content.heading}\n\n${content.introduction}\n\n${content.action}:\n${url}\n\n${safety}\n\n${content.notice}\n\n${copy.footer}`;
   const link = escapeHtml(url);
-  const html = `<!doctype html><html lang="sv"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+  const html = `<!doctype html><html lang="${language === "zh" ? "zh-Hans" : language}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;background:#f4f7fb;color:#172033;font-family:Arial,Helvetica,sans-serif">
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:32px 16px">
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #dce5ef;border-radius:16px"><tr><td style="padding:32px">
@@ -110,8 +101,8 @@ function emailContent(kind: AccountEmailMessage["kind"], url: string) {
 <p style="margin:28px 0"><a href="${link}" style="display:inline-block;padding:14px 20px;border-radius:10px;background:#176de5;color:#ffffff;text-decoration:none;font-size:16px;font-weight:700">${escapeHtml(content.action)}</a></p>
 <p style="font-size:14px;line-height:1.7;color:#526176">${escapeHtml(safety)}</p>
 <p style="font-size:14px;line-height:1.7;color:#526176">${escapeHtml(content.notice)}</p>
-<p style="margin-top:24px;font-size:13px;line-height:1.7;color:#526176">Fungerar inte knappen? Kopiera den här länken till webbläsaren:<br><a href="${link}" style="color:#176de5;word-break:break-all;overflow-wrap:anywhere">${link}</a></p>
-</td></tr></table><p style="font-size:12px;line-height:1.6;color:#526176">Sajda · Sök, jämför och spara domäner</p>
+<p style="margin-top:24px;font-size:13px;line-height:1.7;color:#526176">${escapeHtml(copy.fallback)}<br><a href="${link}" style="color:#176de5;word-break:break-all;overflow-wrap:anywhere">${link}</a></p>
+</td></tr></table><p style="font-size:12px;line-height:1.6;color:#526176">${escapeHtml(copy.footer)}</p>
 </td></tr></table></body></html>`;
   return { subject: content.subject, text, html };
 }
@@ -124,11 +115,13 @@ export async function sendAccountEmail(message: AccountEmailMessage): Promise<vo
   if (!actionUrl || !validAddress(message?.to) || !["verify", "reset"].includes(message?.kind)) {
     throw new AccountEmailError("invalid_email_request", 400, "Mejlet kunde inte förberedas. Begär en ny länk.");
   }
-  // Resend deduplicates a repeated token URL without receiving that token in a
-  // request header. Changed tokens receive a distinct key; do not log either.
-  const idempotencyKey = `sajda-${message.kind}-${createHash("sha256").update(`${message.kind}\n${actionUrl}`).digest("hex")}`;
+  // Bind the key to the immutable rendered payload, including its locale.
+  // Same-second verification requests can reuse a token URL in another language.
+  // Never put the action token, recipient or locale payload itself in a header.
+  const content = emailContent(message.kind, actionUrl, emailLanguage(message.language));
+  const idempotencyKey = `sajda-${message.kind}-${createHash("sha256").update(JSON.stringify([message.kind, message.to, content])).digest("hex")}`;
   await sendProviderEmail(configuration, {
-    to: [message.to], reply_to: CONTACT_RECIPIENT, ...emailContent(message.kind, actionUrl),
+    to: [message.to], reply_to: CONTACT_RECIPIENT, ...content,
   }, idempotencyKey);
 }
 

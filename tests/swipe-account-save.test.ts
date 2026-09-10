@@ -129,8 +129,8 @@ test("mounted Swipe account save uses the actual owner-scoped service and safe c
 
     await t.test("network failure has no false success; explicit retry is safe and leaves local tags untouched", async () => {
       await reset(); postReply = () => { throw new Error("Sensitive provider detail must not render"); };
-      await click(); assert.equal(label(button()), "Retry saving");
-      assert.match(label(root().findByProps({ role: "alert" })), /could not be confirmed/u);
+      await click(); assert.equal(label(button()), "Try saving again");
+      assert.match(label(root().findByProps({ role: "alert" })), /could not confirm the save/u);
       assert.doesNotMatch(label(root()), /Sensitive/u);
       assert.equal(root().findByType("a").props.href, "/watchlist");
       postReply = () => Response.json({ ok: true, item: { id: "42", domain: "short.dev" } });
@@ -154,8 +154,8 @@ test("mounted Swipe account save uses the actual owner-scoped service and safe c
       });
       await click();
       assert.equal(writes[0].signal?.aborted, true);
-      assert.equal(label(button()), "Retry saving");
-      assert.match(label(root().findByProps({ role: "alert" })), /could not be confirmed/u);
+      assert.equal(label(button()), "Try saving again");
+      assert.match(label(root().findByProps({ role: "alert" })), /could not confirm the save/u);
       expireRequest = false;
       postReply = () => Response.json({ ok: true, item: { id: "42", domain: "short.dev" } });
       await click(); assert.equal(writes.length, 2); assert.equal(label(button()), "Saved to your account");
@@ -233,8 +233,8 @@ test("mounted Swipe account save uses the actual owner-scoped service and safe c
     await t.test("HTTP 200 without the concrete matching saved-record ack is not success", async () => {
       for (const payload of [{}, { ok: true }, { ok: true, item: { id: "42", domain: "other.dev" } }, { ok: true, item: { id: 42, domain: "short.dev" } }, { ok: true, item: { id: "0", domain: "short.dev" } }]) {
         await reset(); postReply = () => Response.json(payload); await click();
-        assert.equal(label(button()), "Retry saving");
-        assert.match(label(root().findByProps({ role: "alert" })), /could not be confirmed/u);
+        assert.equal(label(button()), "Try saving again");
+        assert.match(label(root().findByProps({ role: "alert" })), /could not confirm the save/u);
       }
       await reset(); postReply = () => Response.json({ ok: true, item: { id: "43", domain: "xn--bcher-kva.se" } });
       await addToWatchlist({ ...swipeAccountSnapshot(item), domain: "Bücher.se" }, { accountId: "account-a" });

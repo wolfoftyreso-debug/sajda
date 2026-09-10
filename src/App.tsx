@@ -7,6 +7,7 @@ import SajdaFooter from "@/components/SajdaFooter";
 import RouteScrollRestoration from "@/components/RouteScrollRestoration";
 import FreeSearchGate from "@/components/FreeSearchGate";
 import { LanguageRouteSync } from "@/i18n/LanguageProvider";
+import RouteLoading from "@/components/RouteLoading";
 const Install = lazy(() => import("./pages/Install"));
 const Auth = lazy(() => import("./pages/Auth"));
 const NativeConnect = lazy(() => import("./pages/NativeConnect"));
@@ -23,7 +24,7 @@ const AppRoutes = () => {
     <>
       <LanguageRouteSync />
       <RouteScrollRestoration />
-      <Suspense fallback={<div className="min-h-screen bg-background" aria-label="Loading page" />}>
+      <Suspense fallback={<RouteLoading className="min-h-screen bg-background" />}>
         <ProductRoutes authElement={<Auth />}>
           <Route path="/connect/native" element={<NativeConnect />} />
           <Route path="/story" element={<SajdaStory />} />
