@@ -1,10 +1,11 @@
-import { useEffect, type ComponentType, type SVGProps } from "react";
+import { useEffect, type ComponentType, type ReactNode, type SVGProps } from "react";
 import {
   ArrowLeft,
   ArrowRight,
   BadgeCheck,
   BookOpen,
   CheckCircle2,
+  ChevronDown,
   CircleAlert,
   FileSearch,
   Layers3,
@@ -30,6 +31,7 @@ type HowItWorksCopy = {
   primaryAction: string;
   secondaryAction: string;
   status: string;
+  detailsLabel: string;
   resultTitle: string;
   resultRows: Array<{ label: string; body: string }>;
   direction: {
@@ -75,426 +77,431 @@ type HowItWorksCopy = {
 
 const howItWorksCopy: Record<Language, HowItWorksCopy> = {
   en: {
-    documentTitle: "How Sajda works — Domain search with evidence",
+    documentTitle: "How to find a domain | Sajda",
     navBack: "Back to search",
     navStory: "The Sajda story",
     anchors: [
-      { id: "direction", label: "Direction" },
-      { id: "evidence", label: "Evidence" },
-      { id: "context", label: "Context" },
+      { id: "direction", label: "Search" },
+      { id: "evidence", label: "Availability & price" },
+      { id: "context", label: "Compare" },
     ],
     eyebrow: "How Sajda works",
-    title: "Turn a rough idea into a checked next step.",
-    lead: "Sajda helps you find a domain name in three deliberate passes: shape the brief, verify what can be verified, then compare the evidence before you decide.",
+    title: "How to find a domain",
+    lead: "Check a name or get new ideas, compare availability and prices, then choose where to buy.",
     primaryAction: "Start a search",
-    secondaryAction: "See the process",
-    status: "Sajda is decision support. Registry and provider checkout remain the final source of truth.",
-    resultTitle: "What stays attached to a result",
+    secondaryAction: "See the three steps",
+    status: "Sajda helps you compare; your provider confirms availability and the final price before purchase.",
+    detailsLabel: "More details",
+    resultTitle: "What you see in a result",
     resultRows: [
-      { label: "The name", body: "Your reference word, brief, or exact domain query remains part of the search context." },
-      { label: "Availability evidence", body: "The result shows the registry method used—or clearly says when it could not be confirmed." },
-      { label: "Price source", body: "A price is shown only when its source and freshness qualify. Otherwise, you get a provider handoff." },
-      { label: "Decision context", body: "A shortlist can explain its score and trade-offs while leaving the purchase decision with you." },
+      { label: "Domain name", body: "Names based on your idea, preferences or exact search." },
+      { label: "Availability", body: "The check result and method, or an unknown status if it cannot be confirmed." },
+      { label: "Price", body: "A current sourced price when available, or a link to check with the provider." },
+      { label: "Name score", body: "An explained score to help you compare, not a financial valuation." },
     ],
     direction: {
-      eyebrow: "01 · Set the direction",
-      title: "Start as precisely—or as openly—as you need.",
-      lead: "A search should not forget why you started it. Sajda keeps the input visible while it creates or checks candidates, rather than treating every search as a random word generator.",
+      eyebrow: "Step 1 · Search",
+      title: "Choose how to search",
+      lead: "Check a name you have, get ideas or set more detailed preferences.",
       paths: [
         {
-          label: "Exact check",
-          title: "Ask about the name you already have.",
-          body: "Enter a complete name such as sajda.dev, or one label with several endings such as sajda .com .dev .ai.",
-          detail: "Sajda parses up to 12 unambiguous exact domains and sends those names to the availability check. It does not quietly turn an exact query into a creative theme.",
+          label: "Have a name?",
+          title: "Check a domain",
+          body: "Enter a domain, such as sajda.dev, to check if it is available.",
+          detail: "Check up to 12 exact domains at once, or enter one name with several endings: sajda .com .dev .ai. Sajda checks the domains you entered without generating alternatives instead.",
         },
         {
-          label: "Creative search",
-          title: "Give the search a reference, not a blank stare.",
-          body: "Use an idea, product, audience, or reference word to make candidate generation follow a visible naming direction.",
-          detail: "Choose extensions and a search style, then see names that carry that input forward into the registry-checking stage.",
+          label: "Need ideas?",
+          title: "Find domain ideas",
+          body: "Describe your business or idea to get name suggestions.",
+          detail: "Choose domain endings and a naming style. Sajda uses your input to generate suggestions, then checks their availability.",
         },
         {
-          label: "Advanced brief",
-          title: "Give more context when the name has to do real work.",
-          body: "Paste up to 250 words about the audience, feeling, words to include or avoid, and the sort of name you are looking for.",
-          detail: "You can constrain length, naming language, style, priority words, and excluded words before candidates are generated.",
+          label: "Have specific needs?",
+          title: "Refine your search",
+          body: "Choose the language, length and words you want in a name.",
+          detail: "Add up to 250 words about your audience and preferred style. Set name length, language and words to include or avoid before suggestions are generated.",
         },
       ],
-      criteriaTitle: "The controls are constraints, not decoration.",
-      criteriaBody: "Length, language, style, and word choices travel with the search request. They are there to influence generation before an availability check—not to make a finished name look more scientific after the fact.",
-      action: "Open the search workspace",
+      criteriaTitle: "Your preferences guide the suggestions",
+      criteriaBody: "Length, language, style and word choices are used when generating names, before their availability is checked.",
+      action: "Start a search",
     },
     evidence: {
-      eyebrow: "02 · Check the evidence",
-      title: "A green result needs a method behind it.",
-      lead: "Availability and price are separate questions. Sajda keeps them separate, shows the path used to answer each one, and leaves uncertainty visible instead of filling it with confidence theatre.",
-      flowTitle: "Availability flow",
+      eyebrow: "Step 2 · Check",
+      title: "Check availability and price",
+      lead: "See whether a name is available and what a provider charges, with unknown details clearly marked.",
+      flowTitle: "How availability is checked",
       flow: [
-        { title: "Prepare the candidates", body: "Sajda either parses exact domains or generates candidates from the selected search direction." },
-        { title: "Ask the relevant registry path", body: "Checks use the available registry route for the extension, such as RDAP, DAS, or WHOIS." },
-        { title: "Show the actual state", body: "A name is only presented as available when an authoritative check confirms it. If a route fails or cannot confirm the answer, the state remains unknown." },
-        { title: "Hand off before checkout", body: "Availability can change. Open the chosen provider before you buy and let its checkout confirm the final order." },
+        { title: "Select the names", body: "Sajda checks the domains you entered or generated from your idea." },
+        { title: "Check the registry", body: "The check uses the route available for each ending, such as RDAP, DAS or WHOIS." },
+        { title: "Show the result", body: "A domain is marked available only after an authoritative check confirms it; failed or inconclusive checks remain unknown." },
+        { title: "Confirm before buying", body: "Availability can change, so the provider confirms it again before you pay." },
       ],
-      priceTitle: "Price is shown with its status and source, never treated as a confirmed quote.",
-      priceLead: "Sajda compares selected provider paths. It never treats a screening estimate as a registration price, and it does not imply that an available domain currently belongs with one registrar.",
+      priceTitle: "Understand the price",
+      priceLead: "Compare sourced prices from selected providers; a name score or estimate is not a registration price.",
       prices: [
-        { label: "Verified price", title: "Source and checked time are visible.", body: "A current, source-backed price can be shown with its currency and tax treatment when those details are known." },
-        { label: "No verified price", title: "The provider link stays useful.", body: "When there is no connected or fresh source, Sajda says so and links you to the provider's own search page instead of inventing a number." },
-        { label: "Final purchase", title: "Checkout decides the transaction.", body: "Promotions, tax, premium status, renewal terms, and availability can change. Confirm them with the provider before payment." },
+        { label: "Price available", title: "Check the source and date", body: "Current sourced prices show their currency and tax treatment when those details are known." },
+        { label: "Price unknown", title: "Check with the provider", body: "If no current price source is available, Sajda links to the provider's search instead of guessing a price." },
+        { label: "Before you pay", title: "Confirm the full cost", body: "Check promotions, tax, premium pricing, renewal terms and availability with the provider before payment." },
       ],
-      providerNote: "Selected providers are purchase options for an available name. They are not a claim about the current registrar or owner of a registered name.",
+      providerNote: "Provider links show where you can buy an available domain, not who currently owns or manages a registered one.",
     },
     context: {
-      eyebrow: "03 · Choose with context",
-      title: "A shortlist should explain itself.",
-      lead: "Once you have registry-verified available names, Sajda can turn the strongest candidates into a readable Top 10. It is a transparent decision aid—not a valuation.",
-      reviewTitle: "Deep Review starts after verification.",
-      reviewBody: "Only candidates that are both available and authoritatively verified can enter the ranking. The score is displayed as components, so you can see the trade-offs rather than accept a mysterious number.",
+      eyebrow: "Step 3 · Compare",
+      title: "Compare your best options",
+      lead: "Build a Top 10 from verified available names and see why each one ranks.",
+      reviewTitle: "Get an explained Top 10",
+      reviewBody: "Deep Review ranks only names confirmed available by an authoritative check and shows the parts of each score, not a financial valuation.",
       reviewPoints: [
         "Readability and practical name length",
         "Fit with your theme and selected extension",
         "Registry evidence and price clarity",
         "A visible search signal—not a trademark or legal conclusion",
       ],
-      marketTitle: "Market facts are context, not a price tag for your name.",
-      marketBody: "When Sajda shows a historical domain sale, it is source-labelled and described as reported evidence. A past transaction is not a current listing, a quote, or a valuation for a different domain.",
-      limitsTitle: "What Sajda does not promise",
+      marketTitle: "Past sales are not valuations",
+      marketBody: "Historical sales include their reported source; they are not current listings, quotes or valuations of other domains.",
+      limitsTitle: "Good to know",
       limits: [
-        "Trademark clearance, legal advice, or ownership transfer",
-        "A complete view of every registrar, aftermarket, or private sale",
-        "A guaranteed price or purchase outcome before provider checkout",
-        "A verified answer when the registry path cannot provide one",
+        "Sajda does not clear trademarks, provide legal advice or transfer domain ownership.",
+        "Comparisons do not cover every provider, resale market or private sale.",
+        "Prices and purchases are not guaranteed before the provider confirms them at checkout.",
+        "Availability remains unknown when a registry check cannot confirm it.",
       ],
       developerAction: "Read the developer proposal",
     },
     finish: {
-      title: "Useful, checkable, and still your decision.",
-      body: "Bring an idea or an exact name. Sajda will make the next step clearer, keep the evidence close, and point you to the provider that completes the purchase.",
+      title: "Ready to find your domain?",
+      body: "Start with a name or an idea, then compare your options before buying from a provider.",
       action: "Find a domain name",
       storyAction: "Read the Sajda story",
     },
   },
   sv: {
-    documentTitle: "Så fungerar Sajda — Domänsökning med underlag",
+    documentTitle: "Så hittar du en domän | Sajda",
     navBack: "Tillbaka till sökningen",
     navStory: "Berättelsen om Sajda",
     anchors: [
-      { id: "direction", label: "Riktning" },
-      { id: "evidence", label: "Underlag" },
-      { id: "context", label: "Sammanhang" },
+      { id: "direction", label: "Sök" },
+      { id: "evidence", label: "Tillgänglighet och pris" },
+      { id: "context", label: "Jämför" },
     ],
     eyebrow: "Så fungerar Sajda",
-    title: "Gör en rå idé till ett kontrollerat nästa steg.",
-    lead: "Sajda hjälper dig att hitta ett domännamn i tre medvetna steg: formulera briefen, verifiera det som går att verifiera och jämför sedan underlaget innan du bestämmer dig.",
+    title: "Så hittar du en domän",
+    lead: "Kontrollera ett namn eller få nya förslag, jämför tillgänglighet och priser och välj var du vill köpa.",
     primaryAction: "Starta en sökning",
-    secondaryAction: "Se processen",
-    status: "Sajda är beslutsstöd. Registry-källan och leverantörens kassa är alltid den slutliga sanningen.",
-    resultTitle: "Det som följer med ett resultat",
+    secondaryAction: "Se de tre stegen",
+    status: "Sajda hjälper dig att jämföra; leverantören bekräftar tillgänglighet och slutpris före köpet.",
+    detailsLabel: "Läs mer",
+    resultTitle: "Det här visar ett resultat",
     resultRows: [
-      { label: "Namnet", body: "Ditt referensord, din brief eller din exakta domänfråga följer med som söksammanhang." },
-      { label: "Tillgänglighetsunderlag", body: "Resultatet visar vilken registry-metod som användes—eller säger tydligt när det inte kunde bekräftas." },
-      { label: "Priskälla", body: "Ett pris visas bara när källa och aktualitet räcker. Annars får du en väg vidare till leverantören." },
-      { label: "Beslutssammanhang", body: "En kortlista kan förklara sin poäng och sina avvägningar utan att låtsas fatta köpet åt dig." },
+      { label: "Domännamn", body: "Namn som utgår från din idé, dina önskemål eller din exakta sökning." },
+      { label: "Tillgänglighet", body: "Kontrollens resultat och metod, eller okänd status om svaret inte kan bekräftas." },
+      { label: "Pris", body: "Ett aktuellt pris med källa när det finns, annars en länk till leverantörens priskontroll." },
+      { label: "Namnpoäng", body: "En förklarad poäng som hjälper dig att jämföra, inte en ekonomisk värdering." },
     ],
     direction: {
-      eyebrow: "01 · Sätt riktningen",
-      title: "Börja så precist—eller så öppet—som du behöver.",
-      lead: "En sökning ska inte glömma varför du startade den. Sajda håller inmatningen synlig medan kandidater skapas eller kontrolleras, i stället för att göra varje sökning till en slumpgenerator.",
+      eyebrow: "Steg 1 · Sök",
+      title: "Välj hur du vill söka",
+      lead: "Kontrollera ett namn du har, få nya förslag eller ange mer detaljerade önskemål.",
       paths: [
         {
-          label: "Exakt kontroll",
-          title: "Fråga om namnet du redan har.",
-          body: "Skriv ett komplett namn som sajda.dev, eller ett namn med flera ändelser som sajda .com .dev .ai.",
-          detail: "Sajda tolkar upp till 12 otvetydiga exakta domäner och skickar just dessa namn till tillgänglighetskontrollen. En exakt fråga förvandlas inte i smyg till ett kreativt tema.",
+          label: "Har du ett namn?",
+          title: "Kontrollera en domän",
+          body: "Skriv en domän, till exempel sajda.dev, för att se om den är ledig.",
+          detail: "Kontrollera upp till 12 exakta domäner samtidigt, eller skriv ett namn med flera ändelser: sajda .com .dev .ai. Sajda kontrollerar domänerna du angav utan att ersätta dem med nya förslag.",
         },
         {
-          label: "Kreativ sökning",
-          title: "Ge sökningen en referens, inte en tom blick.",
-          body: "Använd en idé, produkt, målgrupp eller ett referensord så att kandidatgenereringen följer en synlig namnriktning.",
-          detail: "Välj ändelser och sökstil och se sedan namn som bär den inmatningen vidare till registry-kontrollen.",
+          label: "Behöver du idéer?",
+          title: "Få domänförslag",
+          body: "Beskriv din verksamhet eller idé för att få namnförslag.",
+          detail: "Välj domänändelser och namnstil. Sajda använder din beskrivning för att skapa förslag och kontrollerar sedan om domänerna är lediga.",
         },
         {
-          label: "Avancerad brief",
-          title: "Ge mer sammanhang när namnet ska göra ett riktigt jobb.",
-          body: "Klistra in upp till 250 ord om målgruppen, känslan, ord som ska finnas med eller undvikas och vilken typ av namn du söker.",
-          detail: "Du kan begränsa längd, namnspråk, stil, prioriterade ord och exkluderade ord innan kandidaterna skapas.",
+          label: "Har du särskilda krav?",
+          title: "Anpassa sökningen",
+          body: "Välj språk, längd och vilka ord du vill ha med i namnet.",
+          detail: "Skriv upp till 250 ord om målgrupp och önskad känsla. Ange namnlängd, språk och ord som ska finnas med eller undvikas innan förslagen skapas.",
         },
       ],
-      criteriaTitle: "Reglagen är begränsningar, inte dekoration.",
-      criteriaBody: "Längd, språk, stil och ordval följer med sökningen. De ska påverka genereringen före en registry-kontroll—inte få ett färdigt namn att se mer vetenskapligt ut i efterhand.",
-      action: "Öppna sökytan",
+      criteriaTitle: "Dina önskemål styr förslagen",
+      criteriaBody: "Längd, språk, stil och ordval används när namnen skapas, innan domänernas tillgänglighet kontrolleras.",
+      action: "Starta en sökning",
     },
     evidence: {
-      eyebrow: "02 · Kontrollera underlaget",
-      title: "Ett grönt resultat behöver en metod bakom sig.",
-      lead: "Tillgänglighet och pris är olika frågor. Sajda håller isär dem, visar vilken väg som användes för varje svar och låter osäkerheten synas i stället för att fylla den med låtsassäkerhet.",
-      flowTitle: "Flöde för tillgänglighet",
+      eyebrow: "Steg 2 · Kontrollera",
+      title: "Kontrollera tillgänglighet och pris",
+      lead: "Se om namnet är ledigt och vad en leverantör tar betalt, med okända uppgifter tydligt markerade.",
+      flowTitle: "Så kontrolleras tillgängligheten",
       flow: [
-        { title: "Förbered kandidaterna", body: "Sajda tolkar antingen exakta domäner eller skapar kandidater från den valda sökriktningen." },
-        { title: "Fråga rätt registry-väg", body: "Kontroller använder den registry-väg som finns för ändelsen, till exempel RDAP, DAS eller WHOIS." },
-        { title: "Visa den faktiska statusen", body: "Ett namn visas som ledigt först när en auktoritativ kontroll bekräftar det. Om en väg misslyckas eller inte kan bekräfta svaret är statusen fortfarande okänd." },
-        { title: "Lämna över före köp", body: "Tillgänglighet kan ändras. Öppna vald leverantör före köp och låt dess kassa bekräfta den slutliga ordern." },
+        { title: "Välj namnen", body: "Sajda kontrollerar domänerna du skrev in eller som skapades utifrån din idé." },
+        { title: "Kontrollera registret", body: "Kontrollen använder den metod som finns för ändelsen, till exempel RDAP, DAS eller WHOIS." },
+        { title: "Visa resultatet", body: "En domän visas som ledig först efter en bekräftad registerkontroll; misslyckade eller oklara kontroller får status okänd." },
+        { title: "Bekräfta före köp", body: "Tillgängligheten kan ändras, så leverantören bekräftar den igen innan du betalar." },
       ],
-      priceTitle: "Priset visas med sin status—inte som en påhittad offert.",
-      priceLead: "Sajda jämför valda leverantörsvägar. Ett screeningvärde blir aldrig ett registreringspris, och ett ledigt namn påstås inte automatiskt höra hemma hos en viss registrar.",
+      priceTitle: "Förstå priset",
+      priceLead: "Jämför priser med källa från utvalda leverantörer; en namnpoäng eller uppskattning är inte ett registreringspris.",
       prices: [
-        { label: "Verifierat pris", title: "Källa och kontrolltid syns.", body: "Ett aktuellt pris med källa kan visas med valuta och skattehantering när de uppgifterna är kända." },
-        { label: "Inget verifierat pris", title: "Leverantörslänken är fortfarande användbar.", body: "När det saknas en ansluten eller färsk källa säger Sajda det och länkar till leverantörens egen söksida i stället för att hitta på en siffra." },
-        { label: "Slutligt köp", title: "Kassan avgör transaktionen.", body: "Kampanjer, skatt, premiumstatus, förnyelsevillkor och tillgänglighet kan ändras. Bekräfta dem hos leverantören före betalning." },
+        { label: "Pris finns", title: "Se källa och datum", body: "Aktuella priser med källa visar valuta och momsstatus när de uppgifterna är kända." },
+        { label: "Priset är okänt", title: "Kontrollera hos leverantören", body: "När en aktuell priskälla saknas länkar Sajda till leverantörens sökning i stället för att gissa priset." },
+        { label: "Innan du betalar", title: "Bekräfta hela kostnaden", body: "Kontrollera kampanjer, skatt, premiumpriser, förnyelsevillkor och tillgänglighet hos leverantören före betalning." },
       ],
-      providerNote: "Valda leverantörer är köpalternativ för ett ledigt namn. De är inte ett påstående om den nuvarande registrarens eller ägarens identitet för ett registrerat namn.",
+      providerNote: "Leverantörslänkarna visar var du kan köpa en ledig domän, inte vem som äger eller hanterar en registrerad domän.",
     },
     context: {
-      eyebrow: "03 · Välj med sammanhang",
-      title: "En kortlista ska kunna förklara sig själv.",
-      lead: "När du har registry-verifierade lediga namn kan Sajda göra de starkaste kandidaterna till en läsbar topp 10. Det är ett transparent beslutsstöd, inte en värdering.",
-      reviewTitle: "Djupgranskning börjar efter verifiering.",
-      reviewBody: "Endast kandidater som både är lediga och auktoritativt verifierade kan rankas. Poängen visas som komponenter så att du ser avvägningarna i stället för att acceptera ett mystiskt tal.",
+      eyebrow: "Steg 3 · Jämför",
+      title: "Jämför dina bästa alternativ",
+      lead: "Skapa en topp 10 av verifierat lediga namn och se varför varje namn får sin placering.",
+      reviewTitle: "Få en förklarad topp 10",
+      reviewBody: "Djupgranskning rankar bara namn som bekräftats lediga av en tillförlitlig registerkontroll och visar poängens delar, inte en ekonomisk värdering.",
       reviewPoints: [
         "Läsbarhet och praktisk namnlängd",
-        "Passning mot ditt tema och vald ändelse",
-        "Registry-underlag och pristydlighet",
-        "En synlig söksignal—inte en varumärkes- eller juridisk slutsats",
+        "Hur väl namnet passar ditt tema och vald ändelse",
+        "Registerkontroll och tydliga prisuppgifter",
+        "Söksignaler, inte ett juridiskt besked om namnet",
       ],
-      marketTitle: "Marknadsfakta är sammanhang, inte en prislapp för ditt namn.",
-      marketBody: "När Sajda visar en historisk domänförsäljning är den källmärkt och beskriven som rapporterat underlag. En tidigare affär är inte en aktuell annons, offert eller värdering av en annan domän.",
-      limitsTitle: "Det Sajda inte lovar",
+      marketTitle: "Tidigare försäljningar är inte värderingar",
+      marketBody: "Tidigare försäljningar har en angiven källa; de är inte aktuella annonser, offerter eller värderingar av andra domäner.",
+      limitsTitle: "Bra att veta",
       limits: [
-        "Varumärkesgranskning, juridisk rådgivning eller ägaröverföring",
-        "En fullständig bild av varje registrar, aftermarket eller privat affär",
-        "Ett garanterat pris eller köpresultat före leverantörens kassa",
-        "Ett verifierat svar när registry-vägen inte kan ge ett",
+        "Sajda godkänner inte varumärken, ger inte juridiska råd och överför inte domänägande.",
+        "Jämförelserna omfattar inte alla leverantörer, andrahandsmarknader eller privata affärer.",
+        "Priser och köp garanteras inte innan leverantören bekräftar dem i kassan.",
+        "Tillgängligheten förblir okänd när registerkontrollen inte kan bekräfta den.",
       ],
       developerAction: "Läs utvecklarförslaget",
     },
     finish: {
-      title: "Användbart, kontrollerbart och fortfarande ditt beslut.",
-      body: "Kom med en idé eller ett exakt namn. Sajda gör nästa steg tydligare, håller underlaget nära och pekar mot leverantören som genomför köpet.",
+      title: "Redo att hitta din domän?",
+      body: "Börja med ett namn eller en idé och jämför alternativen innan du köper hos en leverantör.",
       action: "Hitta ett domännamn",
       storyAction: "Läs Sajdas berättelse",
     },
   },
   es: {
-    documentTitle: "Cómo funciona Sajda — Búsqueda de dominios con evidencia",
+    documentTitle: "Cómo encontrar un dominio | Sajda",
     navBack: "Volver a la búsqueda",
     navStory: "La historia de Sajda",
     anchors: [
-      { id: "direction", label: "Dirección" },
-      { id: "evidence", label: "Evidencia" },
-      { id: "context", label: "Contexto" },
+      { id: "direction", label: "Buscar" },
+      { id: "evidence", label: "Disponibilidad y precio" },
+      { id: "context", label: "Comparar" },
     ],
     eyebrow: "Cómo funciona Sajda",
-    title: "Convierte una idea inicial en un siguiente paso comprobado.",
-    lead: "Sajda te ayuda a encontrar un dominio en tres pasos deliberados: definir el briefing, verificar lo verificable y comparar la evidencia antes de decidir.",
+    title: "Cómo encontrar un dominio",
+    lead: "Comprueba un nombre o descubre ideas, compara disponibilidad y precios y elige dónde comprar.",
     primaryAction: "Iniciar una búsqueda",
-    secondaryAction: "Ver el proceso",
-    status: "Sajda es apoyo para decidir. El registro y el checkout del proveedor siguen siendo la fuente final de verdad.",
-    resultTitle: "Lo que permanece junto a un resultado",
+    secondaryAction: "Ver los tres pasos",
+    status: "Sajda te ayuda a comparar; el proveedor confirma la disponibilidad y el precio final antes de la compra.",
+    detailsLabel: "Más detalles",
+    resultTitle: "Qué muestra un resultado",
     resultRows: [
-      { label: "El nombre", body: "Tu palabra de referencia, briefing o consulta de dominio exacto sigue formando parte del contexto." },
-      { label: "Evidencia de disponibilidad", body: "El resultado muestra el método de registro utilizado o indica claramente cuándo no pudo confirmarse." },
-      { label: "Fuente de precio", body: "Solo se muestra un precio cuando su fuente y actualidad son suficientes. Si no, hay un acceso al proveedor." },
-      { label: "Contexto de decisión", body: "Una lista corta puede explicar su puntuación y sus concesiones, mientras la decisión de compra sigue siendo tuya." },
+      { label: "Nombre de dominio", body: "Nombres basados en tu idea, preferencias o búsqueda exacta." },
+      { label: "Disponibilidad", body: "El resultado y método de la comprobación, o un estado desconocido si no se puede confirmar." },
+      { label: "Precio", body: "Un precio actual con fuente, cuando lo hay, o un enlace para consultar al proveedor." },
+      { label: "Puntuación del nombre", body: "Una puntuación explicada para comparar, no una valoración económica." },
     ],
     direction: {
-      eyebrow: "01 · Marca la dirección",
-      title: "Empieza con tanta precisión—o apertura—como necesites.",
-      lead: "Una búsqueda no debería olvidar por qué la iniciaste. Sajda mantiene visible la entrada mientras crea o comprueba candidatos, en lugar de tratar cada búsqueda como un generador de palabras aleatorias.",
+      eyebrow: "Paso 1 · Buscar",
+      title: "Elige cómo buscar",
+      lead: "Comprueba un nombre que ya tienes, descubre ideas o indica tus preferencias.",
       paths: [
-        { label: "Comprobación exacta", title: "Pregunta por el nombre que ya tienes.", body: "Introduce un nombre completo como sajda.dev, o una etiqueta con varias extensiones como sajda .com .dev .ai.", detail: "Sajda analiza hasta 12 dominios exactos inequívocos y envía esos nombres a la comprobación de disponibilidad. No convierte silenciosamente una consulta exacta en un tema creativo." },
-        { label: "Búsqueda creativa", title: "Da a la búsqueda una referencia, no una mirada en blanco.", body: "Usa una idea, producto, audiencia o palabra de referencia para que la generación siga una dirección de naming visible.", detail: "Elige extensiones y estilo de búsqueda y verás nombres que llevan esa entrada hasta la fase de verificación del registro." },
-        { label: "Briefing avanzado", title: "Da más contexto cuando el nombre tiene que hacer un trabajo real.", body: "Pega hasta 250 palabras sobre la audiencia, sensación, palabras que incluir o evitar y el tipo de nombre que buscas.", detail: "Puedes acotar longitud, idioma de naming, estilo, palabras prioritarias y palabras excluidas antes de generar candidatos." },
+        { label: "¿Ya tienes un nombre?", title: "Comprueba un dominio", body: "Introduce un dominio, como sajda.dev, para ver si está disponible.", detail: "Comprueba hasta 12 dominios exactos a la vez o escribe un nombre con varias extensiones: sajda .com .dev .ai. Sajda comprueba los dominios introducidos sin sustituirlos por nuevas sugerencias." },
+        { label: "¿Necesitas ideas?", title: "Encuentra ideas de dominios", body: "Describe tu negocio o idea para recibir propuestas de nombres.", detail: "Elige extensiones y un estilo de nombre. Sajda genera sugerencias a partir de tu descripción y comprueba su disponibilidad." },
+        { label: "¿Tienes requisitos concretos?", title: "Ajusta tu búsqueda", body: "Elige el idioma, la longitud y las palabras que quieres en el nombre.", detail: "Añade hasta 250 palabras sobre tu público y el estilo deseado. Define la longitud, el idioma y las palabras que incluir o evitar antes de generar sugerencias." },
       ],
-      criteriaTitle: "Los controles son límites, no decoración.",
-      criteriaBody: "La longitud, el idioma, el estilo y las palabras elegidas viajan con la solicitud. Influyen en la generación antes de la comprobación de registro, no después para hacer que un nombre acabado parezca más científico.",
-      action: "Abrir el espacio de búsqueda",
+      criteriaTitle: "Tus preferencias guían las sugerencias",
+      criteriaBody: "La longitud, el idioma, el estilo y las palabras se utilizan al generar nombres, antes de comprobar su disponibilidad.",
+      action: "Iniciar una búsqueda",
     },
     evidence: {
-      eyebrow: "02 · Comprueba la evidencia",
-      title: "Un resultado verde necesita un método detrás.",
-      lead: "Disponibilidad y precio son preguntas distintas. Sajda las separa, muestra la vía usada para cada una y deja visible la incertidumbre en vez de rellenarla con seguridad fingida.",
-      flowTitle: "Flujo de disponibilidad",
+      eyebrow: "Paso 2 · Comprobar",
+      title: "Comprueba disponibilidad y precio",
+      lead: "Consulta si el nombre está disponible y cuánto cobra un proveedor, con los datos desconocidos claramente indicados.",
+      flowTitle: "Cómo se comprueba la disponibilidad",
       flow: [
-        { title: "Preparar candidatos", body: "Sajda analiza dominios exactos o genera candidatos a partir de la dirección de búsqueda elegida." },
-        { title: "Consultar la vía de registro", body: "Las comprobaciones usan la ruta de registro disponible para la extensión, como RDAP, DAS o WHOIS." },
-        { title: "Mostrar el estado real", body: "Un nombre solo aparece como disponible cuando una comprobación autorizada lo confirma. Si una ruta falla o no confirma, el estado sigue siendo desconocido." },
-        { title: "Pasar al proveedor antes del checkout", body: "La disponibilidad puede cambiar. Abre el proveedor elegido antes de comprar y deja que su checkout confirme el pedido final." },
+        { title: "Seleccionar los nombres", body: "Sajda comprueba los dominios introducidos o generados a partir de tu idea." },
+        { title: "Consultar el registro", body: "La comprobación utiliza el método disponible para cada extensión, como RDAP, DAS o WHOIS." },
+        { title: "Mostrar el resultado", body: "Un dominio solo figura como disponible tras una confirmación autorizada del registro; las comprobaciones fallidas o no concluyentes quedan como desconocidas." },
+        { title: "Confirmar antes de comprar", body: "La disponibilidad puede cambiar, por lo que el proveedor la confirma de nuevo antes del pago." },
       ],
-      priceTitle: "El precio se muestra con su estado y su fuente; nunca se presenta como una cotización confirmada.",
-      priceLead: "Sajda compara vías de proveedores seleccionados. Nunca convierte una estimación de selección en un precio de registro ni sugiere que un dominio disponible pertenezca a un registrador concreto.",
+      priceTitle: "Entiende el precio",
+      priceLead: "Compara precios con fuente de proveedores seleccionados; una puntuación o estimación no es un precio de registro.",
       prices: [
-        { label: "Precio verificado", title: "La fuente y la hora de comprobación son visibles.", body: "Un precio actual con fuente puede mostrarse con su moneda y tratamiento fiscal cuando se conocen esos detalles." },
-        { label: "Sin precio verificado", title: "El enlace al proveedor sigue siendo útil.", body: "Cuando no hay una fuente conectada o reciente, Sajda lo indica y enlaza a la página de búsqueda del proveedor en vez de inventar una cifra." },
-        { label: "Compra final", title: "El checkout decide la transacción.", body: "Promociones, impuestos, estado premium, renovaciones y disponibilidad pueden cambiar. Confírmalos con el proveedor antes de pagar." },
+        { label: "Precio disponible", title: "Consulta la fuente y la fecha", body: "Los precios actuales con fuente muestran la moneda y los impuestos cuando esos datos se conocen." },
+        { label: "Precio desconocido", title: "Consulta al proveedor", body: "Si no hay una fuente de precio actual, Sajda enlaza a la búsqueda del proveedor en lugar de adivinar el importe." },
+        { label: "Antes de pagar", title: "Confirma el coste total", body: "Confirma promociones, impuestos, precios premium, renovación y disponibilidad con el proveedor antes del pago." },
       ],
-      providerNote: "Los proveedores seleccionados son opciones de compra para un nombre disponible. No son una afirmación sobre el registrador o propietario actual de un nombre registrado.",
+      providerNote: "Los enlaces muestran dónde comprar un dominio disponible, no quién posee o gestiona uno registrado.",
     },
     context: {
-      eyebrow: "03 · Elige con contexto",
-      title: "Una lista corta debería poder explicarse.",
-      lead: "Cuando tienes nombres disponibles verificados por el registro, Sajda puede convertir los candidatos más fuertes en un Top 10 legible. Es una ayuda transparente para decidir, no una valoración.",
-      reviewTitle: "La revisión profunda empieza después de verificar.",
-      reviewBody: "Solo entran en la clasificación candidatos disponibles y verificados de forma autorizada. La puntuación se muestra por componentes para que puedas ver las concesiones en lugar de aceptar un número misterioso.",
+      eyebrow: "Paso 3 · Comparar",
+      title: "Compara tus mejores opciones",
+      lead: "Crea un Top 10 de nombres con disponibilidad verificada y descubre el motivo de cada posición.",
+      reviewTitle: "Obtén un Top 10 explicado",
+      reviewBody: "La revisión profunda solo clasifica nombres confirmados disponibles por una comprobación autorizada y muestra las partes de su puntuación, no una valoración económica.",
       reviewPoints: ["Legibilidad y longitud práctica", "Ajuste con tu tema y extensión elegida", "Evidencia de registro y claridad de precio", "Una señal de búsqueda visible, no una conclusión legal o de marca"],
-      marketTitle: "Los datos de mercado son contexto, no una etiqueta de precio para tu nombre.",
-      marketBody: "Cuando Sajda muestra una venta histórica de dominio, lleva fuente y se describe como evidencia reportada. Una transacción pasada no es un anuncio actual, presupuesto ni valoración de otro dominio.",
-      limitsTitle: "Lo que Sajda no promete",
-      limits: ["Liberación de marcas, asesoramiento legal o transferencia de propiedad", "Una vista completa de cada registrador, mercado secundario o venta privada", "Un precio o compra garantizados antes del checkout del proveedor", "Una respuesta verificada cuando la vía de registro no puede darla"],
+      marketTitle: "Las ventas anteriores no son valoraciones",
+      marketBody: "Las ventas históricas indican la fuente que las reporta; no son anuncios actuales, cotizaciones ni valoraciones de otros dominios.",
+      limitsTitle: "Qué debes saber",
+      limits: ["Sajda no confirma derechos de marca, no ofrece asesoramiento legal ni transfiere la propiedad de dominios.", "Las comparaciones no incluyen todos los proveedores, mercados de reventa o ventas privadas.", "Los precios y las compras no se garantizan hasta la confirmación del proveedor antes del pago.", "La disponibilidad queda como desconocida cuando el registro no puede confirmarla."],
       developerAction: "Leer la propuesta para desarrolladores",
     },
     finish: {
-      title: "Útil, comprobable y todavía tu decisión.",
-      body: "Trae una idea o un nombre exacto. Sajda aclarará el siguiente paso, mantendrá cerca la evidencia y te dirigirá al proveedor que completa la compra.",
+      title: "¿Listo para encontrar tu dominio?",
+      body: "Empieza con un nombre o una idea y compara las opciones antes de comprar a un proveedor.",
       action: "Encontrar un dominio",
       storyAction: "Leer la historia de Sajda",
     },
   },
   fr: {
-    documentTitle: "Comment Sajda fonctionne — Recherche de domaines avec preuves",
+    documentTitle: "Comment trouver un domaine | Sajda",
     navBack: "Retour à la recherche",
     navStory: "L’histoire de Sajda",
     anchors: [
-      { id: "direction", label: "Direction" },
-      { id: "evidence", label: "Preuves" },
-      { id: "context", label: "Contexte" },
+      { id: "direction", label: "Rechercher" },
+      { id: "evidence", label: "Disponibilité et prix" },
+      { id: "context", label: "Comparer" },
     ],
     eyebrow: "Comment Sajda fonctionne",
-    title: "Transformez une idée brute en prochaine étape vérifiée.",
-    lead: "Sajda vous aide à trouver un domaine en trois passages délibérés : cadrer le brief, vérifier ce qui peut l’être, puis comparer les preuves avant de choisir.",
+    title: "Comment trouver un domaine",
+    lead: "Vérifiez un nom ou trouvez des idées, comparez disponibilité et prix, puis choisissez où acheter.",
     primaryAction: "Lancer une recherche",
-    secondaryAction: "Voir le processus",
-    status: "Sajda aide à la décision. Le registre et le paiement du prestataire restent la source finale de vérité.",
-    resultTitle: "Ce qui reste attaché à un résultat",
+    secondaryAction: "Voir les trois étapes",
+    status: "Sajda vous aide à comparer ; le prestataire confirme la disponibilité et le prix final avant l’achat.",
+    detailsLabel: "En savoir plus",
+    resultTitle: "Ce qu’affiche un résultat",
     resultRows: [
-      { label: "Le nom", body: "Votre mot de référence, brief ou requête de domaine exact reste dans le contexte de recherche." },
-      { label: "Preuve de disponibilité", body: "Le résultat affiche la méthode de registre utilisée, ou indique clairement lorsqu’elle n’a pas pu confirmer." },
-      { label: "Source du prix", body: "Un prix n’est affiché que si sa source et sa fraîcheur sont suffisantes. Sinon, vous obtenez un accès au prestataire." },
-      { label: "Contexte de décision", body: "Une sélection peut expliquer son score et ses compromis, tandis que la décision d’achat vous appartient." },
+      { label: "Nom de domaine", body: "Des noms issus de votre idée, de vos préférences ou de votre recherche exacte." },
+      { label: "Disponibilité", body: "Le résultat et la méthode du contrôle, ou un statut inconnu si la réponse ne peut être confirmée." },
+      { label: "Prix", body: "Un prix actuel sourcé, s’il existe, ou un lien pour consulter le prestataire." },
+      { label: "Score du nom", body: "Un score expliqué pour comparer, et non une estimation financière." },
     ],
     direction: {
-      eyebrow: "01 · Définir la direction",
-      title: "Commencez avec autant de précision—ou d’ouverture—qu’il vous faut.",
-      lead: "Une recherche ne doit pas oublier pourquoi vous l’avez lancée. Sajda garde l’entrée visible pendant la création ou la vérification des candidats, au lieu de traiter chaque recherche comme un générateur de mots aléatoires.",
+      eyebrow: "Étape 1 · Rechercher",
+      title: "Choisissez comment rechercher",
+      lead: "Vérifiez un nom que vous avez, trouvez des idées ou précisez vos critères.",
       paths: [
-        { label: "Vérification exacte", title: "Interrogez le nom que vous avez déjà.", body: "Saisissez un nom complet comme sajda.dev, ou une étiquette avec plusieurs extensions comme sajda .com .dev .ai.", detail: "Sajda analyse jusqu’à 12 domaines exacts sans ambiguïté et envoie ces noms à la vérification de disponibilité. Une requête exacte n’est pas discrètement transformée en thème créatif." },
-        { label: "Recherche créative", title: "Donnez une référence à la recherche, pas un regard vide.", body: "Utilisez une idée, un produit, une audience ou un mot de référence pour que la génération suive une direction de naming visible.", detail: "Choisissez des extensions et un style, puis voyez des noms qui transportent cette entrée jusqu’à l’étape de vérification du registre." },
-        { label: "Brief avancé", title: "Donnez plus de contexte quand le nom doit accomplir une vraie tâche.", body: "Collez jusqu’à 250 mots sur l’audience, l’ambiance, les mots à inclure ou éviter et le type de nom recherché.", detail: "Vous pouvez contraindre la longueur, la langue de nom, le style, les mots prioritaires et les mots exclus avant la génération." },
+        { label: "Vous avez un nom ?", title: "Vérifier un domaine", body: "Saisissez un domaine, comme sajda.dev, pour savoir s’il est disponible.", detail: "Vérifiez jusqu’à 12 domaines exacts à la fois, ou saisissez un nom avec plusieurs extensions : sajda .com .dev .ai. Sajda vérifie les domaines saisis sans les remplacer par de nouvelles suggestions." },
+        { label: "Besoin d’idées ?", title: "Trouver des idées de domaines", body: "Décrivez votre activité ou votre idée pour obtenir des suggestions de noms.", detail: "Choisissez des extensions et un style de nom. Sajda génère des suggestions à partir de votre description, puis vérifie leur disponibilité." },
+        { label: "Des besoins précis ?", title: "Affiner la recherche", body: "Choisissez la langue, la longueur et les mots souhaités dans le nom.", detail: "Ajoutez jusqu’à 250 mots sur votre public et le style recherché. Précisez la longueur, la langue et les mots à inclure ou éviter avant de générer des suggestions." },
       ],
-      criteriaTitle: "Les contrôles sont des contraintes, pas de la décoration.",
-      criteriaBody: "La longueur, la langue, le style et les choix de mots voyagent avec la requête. Ils orientent la génération avant le contrôle du registre, et non après pour rendre un nom fini plus scientifique.",
-      action: "Ouvrir l’espace de recherche",
+      criteriaTitle: "Vos préférences guident les suggestions",
+      criteriaBody: "La longueur, la langue, le style et les mots sont utilisés pour générer les noms, avant de vérifier leur disponibilité.",
+      action: "Lancer une recherche",
     },
     evidence: {
-      eyebrow: "02 · Vérifier les preuves",
-      title: "Un résultat vert a besoin d’une méthode derrière lui.",
-      lead: "Disponibilité et prix sont deux questions distinctes. Sajda les sépare, montre le chemin utilisé pour chacune et laisse l’incertitude visible au lieu de la remplir d’assurance factice.",
-      flowTitle: "Flux de disponibilité",
+      eyebrow: "Étape 2 · Vérifier",
+      title: "Vérifiez la disponibilité et le prix",
+      lead: "Découvrez si le nom est disponible et combien facture un prestataire, avec les informations inconnues clairement indiquées.",
+      flowTitle: "Comment la disponibilité est vérifiée",
       flow: [
-        { title: "Préparer les candidats", body: "Sajda analyse les domaines exacts ou génère des candidats à partir de la direction de recherche choisie." },
-        { title: "Interroger le bon chemin de registre", body: "Les contrôles utilisent la route de registre disponible pour l’extension, par exemple RDAP, DAS ou WHOIS." },
-        { title: "Afficher l’état réel", body: "Un nom n’est présenté comme disponible qu’après confirmation par un contrôle faisant autorité. Si une route échoue ou ne confirme pas, l’état reste inconnu." },
-        { title: "Passer au prestataire avant le paiement", body: "La disponibilité peut changer. Ouvrez le prestataire choisi avant d’acheter et laissez son paiement confirmer la commande finale." },
+        { title: "Choisir les noms", body: "Sajda vérifie les domaines saisis ou générés à partir de votre idée." },
+        { title: "Consulter le registre", body: "Le contrôle utilise la méthode disponible pour chaque extension, comme RDAP, DAS ou WHOIS." },
+        { title: "Afficher le résultat", body: "Un domaine est indiqué disponible uniquement après un contrôle faisant autorité ; les contrôles échoués ou non concluants restent inconnus." },
+        { title: "Confirmer avant l’achat", body: "La disponibilité peut changer ; le prestataire la confirme donc à nouveau avant le paiement." },
       ],
-      priceTitle: "Le prix est affiché avec son statut et sa source, sans jamais être présenté comme un devis confirmé.",
-      priceLead: "Sajda compare les chemins des prestataires sélectionnés. Une estimation de sélection ne devient jamais un prix d’enregistrement, et un domaine disponible n’est pas attribué à un registrar particulier.",
+      priceTitle: "Comprendre le prix",
+      priceLead: "Comparez les prix sourcés de prestataires sélectionnés ; un score ou une estimation n’est pas un prix d’enregistrement.",
       prices: [
-        { label: "Prix vérifié", title: "La source et l’heure de contrôle sont visibles.", body: "Un prix actuel sourcé peut être affiché avec sa devise et son traitement fiscal lorsque ces détails sont connus." },
-        { label: "Aucun prix vérifié", title: "Le lien vers le prestataire reste utile.", body: "Sans source connectée ou récente, Sajda le précise et renvoie vers la page de recherche du prestataire au lieu d’inventer un montant." },
-        { label: "Achat final", title: "Le paiement décide de la transaction.", body: "Promotions, taxes, statut premium, renouvellement et disponibilité peuvent changer. Confirmez-les avec le prestataire avant paiement." },
+        { label: "Prix disponible", title: "Consulter la source et la date", body: "Les prix actuels sourcés précisent la devise et les taxes lorsque ces informations sont connues." },
+        { label: "Prix inconnu", title: "Consulter le prestataire", body: "Sans source de prix actuelle, Sajda renvoie vers la recherche du prestataire au lieu de deviner un montant." },
+        { label: "Avant de payer", title: "Confirmer le coût total", body: "Confirmez promotions, taxes, prix premium, conditions de renouvellement et disponibilité auprès du prestataire avant le paiement." },
       ],
-      providerNote: "Les prestataires sélectionnés sont des options d’achat pour un nom disponible. Ils ne constituent pas une affirmation sur le registrar ou le propriétaire actuel d’un nom enregistré.",
+      providerNote: "Les liens indiquent où acheter un domaine disponible, pas qui possède ou gère un domaine déjà enregistré.",
     },
     context: {
-      eyebrow: "03 · Choisir avec contexte",
-      title: "Une sélection doit pouvoir s’expliquer.",
-      lead: "Une fois des noms disponibles vérifiés par le registre obtenus, Sajda peut transformer les candidats les plus solides en un Top 10 lisible. C’est une aide à la décision transparente, pas une évaluation.",
-      reviewTitle: "L’analyse approfondie commence après la vérification.",
-      reviewBody: "Seuls les candidats à la fois disponibles et vérifiés de manière autoritative entrent au classement. Le score est affiché en composantes afin que vous voyiez les compromis plutôt que d’accepter un nombre mystérieux.",
+      eyebrow: "Étape 3 · Comparer",
+      title: "Comparez vos meilleures options",
+      lead: "Créez un Top 10 de noms dont la disponibilité a été vérifiée et découvrez pourquoi chacun est classé.",
+      reviewTitle: "Obtenir un Top 10 expliqué",
+      reviewBody: "L’analyse approfondie ne classe que les noms confirmés disponibles par un contrôle faisant autorité et détaille leur score, sans estimation financière.",
       reviewPoints: ["Lisibilité et longueur pratique", "Adéquation avec votre thème et extension choisie", "Preuve du registre et clarté du prix", "Un signal de recherche visible, pas une conclusion juridique ou de marque"],
-      marketTitle: "Les faits de marché sont du contexte, pas une étiquette de prix pour votre nom.",
-      marketBody: "Lorsque Sajda affiche une vente historique de domaine, elle est sourcée et décrite comme une preuve rapportée. Une transaction passée n’est ni une annonce actuelle, ni un devis, ni l’évaluation d’un autre domaine.",
-      limitsTitle: "Ce que Sajda ne promet pas",
-      limits: ["Recherche de marque, conseil juridique ou transfert de propriété", "Une vue complète de chaque registrar, marché secondaire ou vente privée", "Un prix ou un résultat d’achat garanti avant le paiement du prestataire", "Une réponse vérifiée quand la route de registre ne peut pas la fournir"],
+      marketTitle: "Les ventes passées ne sont pas des estimations",
+      marketBody: "Les ventes passées citent leur source ; elles ne sont ni des annonces actuelles, ni des devis, ni des estimations d’autres domaines.",
+      limitsTitle: "Bon à savoir",
+      limits: ["Sajda ne valide pas les droits de marque, ne donne pas de conseil juridique et ne transfère pas la propriété des domaines.", "Les comparaisons ne couvrent pas tous les prestataires, marchés de revente ou ventes privées.", "Les prix et les achats ne sont pas garantis avant confirmation par le prestataire au paiement.", "La disponibilité reste inconnue si le contrôle du registre ne peut pas la confirmer."],
       developerAction: "Lire la proposition développeurs",
     },
     finish: {
-      title: "Utile, vérifiable, et toujours votre décision.",
-      body: "Apportez une idée ou un nom exact. Sajda clarifie la prochaine étape, garde les preuves à portée de main et vous oriente vers le prestataire qui finalise l’achat.",
+      title: "Prêt à trouver votre domaine ?",
+      body: "Commencez par un nom ou une idée et comparez les options avant d’acheter auprès d’un prestataire.",
       action: "Trouver un domaine",
       storyAction: "Lire l’histoire de Sajda",
     },
   },
   zh: {
-    documentTitle: "Sajda 如何工作 — 具备依据的域名搜索",
+    documentTitle: "如何找到域名 | Sajda",
     navBack: "返回搜索",
     navStory: "Sajda 的故事",
     anchors: [
-      { id: "direction", label: "方向" },
-      { id: "evidence", label: "依据" },
-      { id: "context", label: "上下文" },
+      { id: "direction", label: "搜索" },
+      { id: "evidence", label: "可用性与价格" },
+      { id: "context", label: "比较" },
     ],
     eyebrow: "Sajda 如何工作",
-    title: "将一个粗略想法变成可核验的下一步。",
-    lead: "Sajda 通过三个清晰步骤帮助你寻找域名：梳理说明、核验可核验的内容，然后在决定前比较依据。",
+    title: "如何找到域名",
+    lead: "查询已有名称或获取新灵感，比较可用性与价格，再选择购买渠道。",
     primaryAction: "开始搜索",
-    secondaryAction: "查看流程",
-    status: "Sajda 是决策辅助工具。注册局与服务商结账页始终是最终事实来源。",
-    resultTitle: "会随结果保留的信息",
+    secondaryAction: "查看三个步骤",
+    status: "Sajda 帮助你比较；服务商会在购买前确认可用性与最终价格。",
+    detailsLabel: "了解更多",
+    resultTitle: "搜索结果包含什么",
     resultRows: [
-      { label: "名称", body: "你的参考词、说明或精确域名查询会保留在搜索上下文中。" },
-      { label: "可用性依据", body: "结果显示使用的注册局方法，或明确说明何时无法确认。" },
-      { label: "价格来源", body: "只有来源与时效足够时才显示价格；否则会给出服务商入口。" },
-      { label: "决策上下文", body: "候选列表可以解释分数和取舍，而不会假装替你完成购买。" },
+      { label: "域名", body: "根据你的想法、偏好或精确查询提供名称。" },
+      { label: "可用性", body: "显示检查结果与方法，无法确认时标为未知。" },
+      { label: "价格", body: "有可靠的最新来源时显示价格，否则提供服务商查询链接。" },
+      { label: "名称评分", body: "通过可解释的评分帮助你比较，但评分不是财务估值。" },
     ],
     direction: {
-      eyebrow: "01 · 确定方向",
-      title: "按你需要的精确程度或开放程度开始。",
-      lead: "搜索不应该忘记你为什么开始。Sajda 在生成或核验候选名称时保留输入内容，而不会把每次搜索当作随机词生成器。",
+      eyebrow: "第 1 步 · 搜索",
+      title: "选择搜索方式",
+      lead: "查询已有名称、获取新灵感，或设置更详细的偏好。",
       paths: [
-        { label: "精确查询", title: "查询你已经拥有的名称。", body: "输入完整名称，例如 sajda.dev，或一个标签加多个后缀，例如 sajda .com .dev .ai。", detail: "Sajda 会解析最多 12 个明确的精确域名，并将这些名称发送至可用性检查。它不会悄悄把精确查询变成创意主题。" },
-        { label: "创意搜索", title: "给搜索一个参考，而不是空白凝视。", body: "使用想法、产品、受众或参考词，让候选名称生成遵循可见的命名方向。", detail: "选择后缀与搜索风格，然后查看将这些输入延续至注册局核验阶段的名称。" },
-        { label: "高级说明", title: "当名称必须承担真正任务时，提供更多上下文。", body: "粘贴最多 250 个词，说明受众、感觉、要包含或避开的词，以及你寻找的名称类型。", detail: "在生成候选名称前，你可以限制长度、命名语言、风格、优先词和排除词。" },
+        { label: "已有名称？", title: "查询域名", body: "输入一个域名，例如 sajda.dev，查看是否可注册。", detail: "一次最多查询 12 个精确域名，也可以输入同一名称的多个后缀：sajda .com .dev .ai。Sajda 会检查你输入的域名，不会用新建议代替。" },
+        { label: "需要灵感？", title: "获取域名建议", body: "描述你的业务或想法，即可获取名称建议。", detail: "选择域名后缀与命名风格，Sajda 会根据你的描述生成建议，并检查可用性。" },
+        { label: "有具体要求？", title: "细化搜索条件", body: "选择名称的语言、长度以及希望包含的词语。", detail: "最多添加 250 个词，描述受众与期望风格；在生成建议前设置名称长度、语言，以及需要包含或避开的词语。" },
       ],
-      criteriaTitle: "这些控制项是约束，不是装饰。",
-      criteriaBody: "长度、语言、风格和词语选择会随搜索请求传递。它们在注册局核验之前影响生成，而不是事后让一个完成的名称看起来更科学。",
-      action: "打开搜索工作区",
+      criteriaTitle: "根据你的偏好生成建议",
+      criteriaBody: "长度、语言、风格与词语要求会用于生成名称，然后再检查域名是否可注册。",
+      action: "开始搜索",
     },
     evidence: {
-      eyebrow: "02 · 核验依据",
-      title: "绿色结果背后需要有方法。",
-      lead: "可用性和价格是两个不同的问题。Sajda 将它们分开，显示每个答案所使用的路径，并让不确定性保持可见，而不是用虚假的信心填补它。",
-      flowTitle: "可用性流程",
+      eyebrow: "第 2 步 · 检查",
+      title: "检查可用性与价格",
+      lead: "查看名称是否可注册以及服务商的报价，尚未确认的信息会明确标出。",
+      flowTitle: "如何检查可用性",
       flow: [
-        { title: "准备候选名称", body: "Sajda 解析精确域名，或根据所选搜索方向生成候选名称。" },
-        { title: "查询相应的注册局路径", body: "核验使用该后缀可用的注册局路径，例如 RDAP、DAS 或 WHOIS。" },
-        { title: "显示实际状态", body: "仅当权威核验确认时，名称才会显示为可注册。如果路径失败或无法确认，状态仍为未知。" },
-        { title: "结账前交给服务商", body: "可用性会变化。购买前请打开所选服务商，并由其结账页确认最终订单。" },
+        { title: "选择名称", body: "Sajda 会检查你输入的域名，或根据你的想法生成的域名。" },
+        { title: "查询注册局", body: "根据后缀使用可用的查询方法，例如 RDAP、DAS 或 WHOIS。" },
+        { title: "显示结果", body: "只有权威检查确认后，域名才会标为可注册；检查失败或结果不明确时，状态保持未知。" },
+        { title: "购买前再次确认", body: "可用性可能变化，因此服务商会在付款前再次确认。" },
       ],
-      priceTitle: "价格会显示其状态和来源，但不会被呈现为已确认报价。",
-      priceLead: "Sajda 比较所选服务商路径。它绝不把筛选估值变成注册价格，也不暗示一个可注册域名目前属于某个注册商。",
+      priceTitle: "看懂价格",
+      priceLead: "比较所选服务商提供的有来源价格；名称评分或估算并不是注册价格。",
       prices: [
-        { label: "已核验价格", title: "来源与核验时间清晰可见。", body: "当细节已知时，可以显示带来源的当前价格、币种与税务处理。" },
-        { label: "没有已核验价格", title: "服务商链接仍然有用。", body: "如果没有已连接或新鲜的来源，Sajda 会说明情况，并链接到服务商自己的搜索页，而不是编造数字。" },
-        { label: "最终购买", title: "结账页决定交易。", body: "促销、税费、高级域名状态、续费条款和可用性都可能变化。付款前请与服务商确认。" },
+        { label: "有价格信息", title: "查看来源与日期", body: "有最新来源的价格会在信息已知时显示币种和含税情况。" },
+        { label: "价格未知", title: "向服务商查询", body: "没有最新价格来源时，Sajda 会链接到服务商的搜索页，而不会猜测金额。" },
+        { label: "付款前", title: "确认全部费用", body: "付款前请向服务商确认促销、税费、溢价域名价格、续费条款及可用性。" },
       ],
-      providerNote: "所选服务商是可注册名称的购买选项，并不表示已注册名称当前的注册商或所有者。",
+      providerNote: "服务商链接显示可注册域名的购买渠道，不表示已注册域名由谁持有或管理。",
     },
     context: {
-      eyebrow: "03 · 带着上下文选择",
-      title: "候选列表应该能够解释自己。",
-      lead: "当你拥有注册局核验的可注册名称后，Sajda 可以将最强候选整理为可读的 Top 10。这是透明的决策辅助，不是估值。",
-      reviewTitle: "深度审阅在核验之后开始。",
-      reviewBody: "只有既可注册又经过权威核验的候选名称才会进入排名。分数以组件方式展示，让你看到取舍，而不是接受一个神秘数字。",
+      eyebrow: "第 3 步 · 比较",
+      title: "比较最佳候选",
+      lead: "从已确认可注册的域名中选出 Top 10，并了解每个名称的排名理由。",
+      reviewTitle: "获取有解释的 Top 10",
+      reviewBody: "深度审阅只对经过权威检查确认可注册的名称排名，并展示评分的组成部分，而不是财务估值。",
       reviewPoints: ["易读性和实用名称长度", "与你的主题和所选后缀的匹配", "注册局依据和价格清晰度", "可见的搜索信号，而不是商标或法律结论"],
-      marketTitle: "市场事实是上下文，不是你的名称的价格标签。",
-      marketBody: "当 Sajda 展示历史域名成交时，它会标明来源，并说明其为已报道的证据。过去的交易不是当前挂牌、报价或另一个域名的估值。",
-      limitsTitle: "Sajda 不承诺什么",
-      limits: ["商标清查、法律意见或所有权转让", "每个注册商、二级市场或私人交易的完整视图", "服务商结账前保证的价格或购买结果", "当注册局路径无法给出答案时的已核验答案"],
+      marketTitle: "历史成交价不等于估值",
+      marketBody: "历史成交记录会注明报道来源；它们不是当前挂牌、报价或其他域名的估值。",
+      limitsTitle: "你需要了解",
+      limits: ["Sajda 不确认商标权、不提供法律意见，也不转让域名所有权。", "比较结果不涵盖所有服务商、转售市场或私人交易。", "在服务商结账确认之前，不保证价格或购买结果。", "注册局检查无法确认可用性时，状态保持未知。"],
       developerAction: "阅读开发者方案",
     },
     finish: {
-      title: "有用、可核验，仍然由你决定。",
-      body: "带来一个想法或精确名称。Sajda 会让下一步更清晰，让依据留在身边，并指向完成购买的服务商。",
+      title: "准备好寻找你的域名了吗？",
+      body: "从一个名称或想法开始，比较候选，再向服务商购买。",
       action: "寻找域名",
       storyAction: "阅读 Sajda 的故事",
     },
@@ -507,10 +514,22 @@ const flowIcons = [FileSearch, Search, BadgeCheck, ShieldCheck] as const;
 function SectionHeading({ eyebrow, title, lead }: { eyebrow: string; title: string; lead?: string }) {
   return (
     <div className="max-w-3xl">
-      <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">{eyebrow}</p>
-      <h2 className="mt-3 text-balance text-3xl font-semibold tracking-[-0.045em] text-foreground sm:text-4xl">{title}</h2>
-      {lead && <p className="mt-4 text-pretty text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">{lead}</p>}
+      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">{eyebrow}</p>
+      <h2 className="mt-3 text-balance text-3xl font-bold leading-tight tracking-[-0.035em] text-foreground sm:text-4xl">{title}</h2>
+      {lead && <p className="mt-3 max-w-2xl text-pretty text-base leading-7 text-muted-foreground sm:text-lg">{lead}</p>}
     </div>
+  );
+}
+
+function DetailDisclosure({ label, subject, children }: { label: string; subject: string; children: ReactNode }) {
+  return (
+    <details className="group mt-5 border-t border-border">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 rounded-lg py-3 text-sm font-semibold text-primary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [&::-webkit-details-marker]:hidden">
+        <span>{label}<span className="sr-only">: {subject}</span></span>
+        <ChevronDown className="h-4 w-4 shrink-0 group-open:rotate-180" aria-hidden="true" />
+      </summary>
+      <div className="pb-1 pt-1 text-sm leading-6 text-muted-foreground">{children}</div>
+    </details>
   );
 }
 
@@ -529,7 +548,7 @@ export default function HowItWorks() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-20 border-b border-border/80 bg-card/95 backdrop-blur-xl">
-        <div className="mx-auto flex min-h-[4.75rem] w-full max-w-7xl items-center justify-between gap-4 px-5 sm:px-7">
+        <div className="mx-auto flex min-h-[4.75rem] w-full max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-3 sm:gap-4 sm:px-7">
           <Link
             to="/"
             className="inline-flex shrink-0 items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
@@ -566,7 +585,7 @@ export default function HowItWorks() {
                 <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
                 {copy.eyebrow}
               </p>
-              <h1 className="mt-6 max-w-[14ch] text-balance text-4xl font-semibold leading-[1.02] tracking-[-0.055em] text-foreground sm:text-6xl">
+              <h1 className="mt-6 max-w-[18ch] text-balance text-4xl font-bold leading-[1.08] tracking-[-0.045em] text-foreground sm:text-6xl">
                 {copy.title}
               </h1>
               <p className="mt-6 max-w-2xl text-pretty text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">
@@ -619,14 +638,17 @@ export default function HowItWorks() {
             {copy.direction.paths.map((path, index) => {
               const Icon = pathIcons[index] as Icon;
               return (
-                <article key={path.label} className="sajda-surface p-5 sm:p-6">
-                  <span className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary">
-                    <Icon className="h-5 w-5" aria-hidden="true" />
-                  </span>
-                  <p className="mt-5 text-xs font-bold uppercase tracking-[0.13em] text-primary">{path.label}</p>
-                  <h3 className="mt-2 text-lg font-semibold tracking-[-0.025em] text-foreground">{path.title}</h3>
-                  <p className="mt-3 text-sm leading-6 text-muted-foreground">{path.body}</p>
-                  <p className="mt-5 border-t border-border pt-4 text-sm leading-6 text-foreground/80">{path.detail}</p>
+                <article key={path.label} data-search-path={index} className="sajda-surface flex min-w-0 flex-col p-5 sm:p-6">
+                  <div className="flex items-center gap-3">
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+                      <Icon className="h-5 w-5" aria-hidden="true" />
+                    </span>
+                    <h3 className="text-xl font-bold leading-snug tracking-[-0.025em] text-foreground">{path.title}</h3>
+                  </div>
+                  <p className="mt-4 flex-1 text-sm leading-6 text-muted-foreground">{path.body}</p>
+                  <DetailDisclosure label={copy.detailsLabel} subject={path.title}>
+                    <p>{path.detail}</p>
+                  </DetailDisclosure>
                 </article>
               );
             })}
@@ -677,8 +699,8 @@ export default function HowItWorks() {
                 <div className="mt-6 space-y-3">
                   {copy.evidence.prices.map((price) => (
                     <article key={price.label} className="rounded-xl border border-border bg-card p-4">
-                      <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-primary">{price.label}</p>
-                      <h4 className="mt-2 text-sm font-semibold text-foreground">{price.title}</h4>
+                      <h4 className="text-base font-semibold text-foreground">{price.label}</h4>
+                      <p className="mt-1 text-sm font-medium text-foreground/80">{price.title}</p>
                       <p className="mt-1 text-sm leading-6 text-muted-foreground">{price.body}</p>
                     </article>
                   ))}
@@ -701,14 +723,16 @@ export default function HowItWorks() {
               </span>
               <h3 className="mt-5 text-xl font-semibold tracking-[-0.03em] text-foreground">{copy.context.reviewTitle}</h3>
               <p className="mt-3 text-sm leading-6 text-muted-foreground">{copy.context.reviewBody}</p>
-              <ul className="mt-6 grid gap-3 border-t border-border pt-5 text-sm text-foreground/85 sm:grid-cols-2">
-                {copy.context.reviewPoints.map((point) => (
-                  <li key={point} className="flex gap-2.5">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
-                    <span>{point}</span>
-                  </li>
-                ))}
-              </ul>
+              <DetailDisclosure label={copy.detailsLabel} subject={copy.context.reviewTitle}>
+                <ul className="grid gap-3 sm:grid-cols-2">
+                  {copy.context.reviewPoints.map((point) => (
+                    <li key={point} className="flex gap-2.5">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+                      <span>{point}</span>
+                    </li>
+                  ))}
+                </ul>
+              </DetailDisclosure>
             </article>
             <div className="grid gap-5">
               <article className="sajda-surface p-5 sm:p-6">
