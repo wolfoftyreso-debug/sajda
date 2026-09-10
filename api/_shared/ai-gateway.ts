@@ -8,6 +8,10 @@ import { hasCurrentAiConsent } from "../../shared/ai-consent.js";
 const GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/responses";
 const ALLOWED_MODELS = new Set(["google/gemini-2.5-flash-lite", "google/gemini-3.1-flash-lite"]);
 const MAX_RESPONSE_BYTES = 32_768;
+const SAFE_ERROR_CATEGORIES = new Set([
+  "access_denied", "no_providers_available", "permission_denied", "insufficient_quota",
+  "rate_limit_exceeded", "model_not_found", "invalid_request_error",
+]);
 const TASK_LIMITS = {
   brief: { modelVariable: "AI_GATEWAY_BRIEF_MODEL", tokens: 600, timeout: 4_000 },
   review: { modelVariable: "AI_GATEWAY_REVIEW_MODEL", tokens: 1_400, timeout: 5_500 },
@@ -41,6 +45,18 @@ interface GatewayDependencies {
 function object(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown> : undefined;
+}
+
+/** Provider strings are untrusted: only these fixed categories may enter logs. */
+function gatewayErrorCategory(value: unknown): string {
+  const response = object(value);
+  const error = object(response?.error);
+  for (const candidate of [error?.type, error?.code, response?.type]) {
+    if (typeof candidate !== "string" || candidate.length > 64) continue;
+    const category = candidate.trim().toLowerCase().replaceAll("-", "_");
+    if (SAFE_ERROR_CATEGORIES.has(category)) return category;
+  }
+  return "unknown";
 }
 
 /** Only complete assistant output is data; refusals/tool/reasoning text isn't. */
@@ -116,6 +132,7 @@ export function createGatewayRequester(deps: GatewayDependencies) {
     const started = Date.now();
     let status = "authentication_unavailable";
     let httpStatus = 0;
+    let errorCategory: string | undefined;
     let release: (() => Promise<void>) | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
@@ -143,7 +160,13 @@ export function createGatewayRequester(deps: GatewayDependencies) {
         }),
       });
       httpStatus = response.status;
-      if (!response.ok) { await response.body?.cancel(); return undefined; }
+      if (!response.ok) {
+        errorCategory = "unknown";
+        try { errorCategory = gatewayErrorCategory(await boundedJson(response)); }
+        catch { /* Malformed/oversized errors must not expose provider details. */ }
+        finally { await response.body?.cancel().catch(() => undefined); }
+        return undefined;
+      }
       status = "invalid_output";
       const text = completedGatewayText(await boundedJson(response));
       if (!text) return undefined;
@@ -158,7 +181,8 @@ export function createGatewayRequester(deps: GatewayDependencies) {
     } finally {
       if (timer) clearTimeout(timer);
       if (release) await release().catch(() => undefined);
-      deps.log({ event: "sajda_ai_gateway", requestId, task: options.task, model, status, httpStatus, durationMs: Date.now() - started });
+      deps.log({ event: "sajda_ai_gateway", requestId, task: options.task, model, status, httpStatus,
+        ...(errorCategory ? { errorCategory } : {}), durationMs: Date.now() - started });
     }
   };
 }

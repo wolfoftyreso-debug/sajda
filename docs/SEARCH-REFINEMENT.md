@@ -25,7 +25,9 @@ that the public endpoint is impossible to call independently.
 
 - With current explicit [AI permission](AI-PRIVACY.md), one Vercel AI Gateway
   request generates at most 24 distinct labels, across four naming directions.
-  Google Gemini 3.1 Flash Lite is explicitly configured in Preview/Development.
+  Google Gemini 2.5 Flash Lite is explicitly configured in Preview/Development.
+  The initial 3.1 Flash Lite runtime request returned HTTP 403 from the
+  Gateway/Vertex route; it is not treated as a successful model verification.
 - Full visible search descriptions are no longer silently cut after 100
   characters. The product limit is 6,000 characters and the HTTP byte cap still
   applies. The stable v1/MCP contract keeps its own narrower published bounds.

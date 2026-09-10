@@ -54,6 +54,7 @@ test("Gateway uses request-time OIDC, fixed endpoint, bounded structured output 
   }
   assert.doesNotMatch(JSON.stringify(h.logs), /private|browser-not-allowed|summary|Bearer/);
   assert.equal(h.logs[0].status, "completed");
+  assert.ok(h.logs.every(log => log.errorCategory === undefined), "successful responses have no provider error category");
 });
 
 test("missing, declined, stale or ambiguous AI permission never obtains credentials, quota or provider transport", async () => {
@@ -138,6 +139,75 @@ test("HTTP/transport/malformed/oversized/refusal/incomplete errors release the l
     assert.equal(h.state.releases, 1);
     assert.notEqual(h.logs[0].status, "completed");
     assert.doesNotMatch(JSON.stringify(h.logs), /private|unexpected/);
+  }
+});
+
+test("non-2xx diagnostics normalize only allowlisted nested/root categories and release every lease", async () => {
+  const cases: [unknown, string][] = [
+    [{ error: { type: "access_denied", message: "private provider message" } }, "access_denied"],
+    [{ error: { code: "no_providers_available" } }, "no_providers_available"],
+    [{ type: " permission-DENIED ", message: "private prompt" }, "permission_denied"],
+    [{ error: { type: "insufficient_quota" } }, "insufficient_quota"],
+    [{ error: { code: "RATE_LIMIT_EXCEEDED" } }, "rate_limit_exceeded"],
+    [{ type: "model_not_found" }, "model_not_found"],
+    [{ error: { type: "invalid_request_error" } }, "invalid_request_error"],
+    [{ error: { type: "private-oidc-fixture", code: "access_denied" } }, "access_denied"],
+    [{ error: { type: "private-oidc-fixture" }, type: "permission_denied" }, "permission_denied"],
+    [{ error: { type: "private-oidc-fixture", code: "Bearer browser-not-allowed" }, type: "private brief fixture" }, "unknown"],
+    [{ error: { type: "access_denied private secret", message: "rate_limit_exceeded" } }, "unknown"],
+    [{ error: { type: "access_denied".padEnd(65, " ") } }, "unknown"],
+    [{ error: { type: ["access_denied"], code: { type: "permission_denied" } }, type: 403 }, "unknown"],
+    [{ error: "access_denied", message: "no_providers_available" }, "unknown"],
+    [{ code: "access_denied" }, "unknown"],
+    [[{ type: "access_denied" }], "unknown"],
+    [null, "unknown"],
+  ];
+  for (const [body, category] of cases) {
+    const h = harness();
+    let providerCalls = 0;
+    h.deps.fetch = async () => { providerCalls++; return Response.json(body, { status: 403 }); };
+    assert.equal(await createGatewayRequester(h.deps)(h.options), undefined);
+    assert.equal(providerCalls, 1, "diagnostics never retry the provider");
+    assert.equal(h.state.releases, 1);
+    assert.equal(h.logs.length, 1);
+    assert.equal(h.logs[0].status, "provider_unavailable");
+    assert.equal(h.logs[0].httpStatus, 403);
+    assert.equal(h.logs[0].errorCategory, category);
+    assert.deepEqual(Object.keys(h.logs[0]).sort(), ["durationMs", "errorCategory", "event", "httpStatus", "model", "requestId", "status", "task"]);
+    assert.doesNotMatch(JSON.stringify(h.logs), /private|browser-not-allowed|Bearer|message|prompt|error\.type/);
+  }
+});
+
+test("malformed and oversized non-2xx bodies remain unknown, are bounded and release the lease", async () => {
+  for (const response of [
+    new Response("<html>private provider failure</html>", { status: 502 }),
+    new Response('{"error":{"type":"access_denied"', { status: 403 }),
+    new Response(null, { status: 503 }),
+    new Response(JSON.stringify({ error: { type: "access_denied", message: "private".repeat(6_000) } }), { status: 403 }),
+  ]) {
+    const h = harness(); h.deps.fetch = async () => response;
+    assert.equal(await createGatewayRequester(h.deps)(h.options), undefined);
+    assert.equal(h.logs[0].errorCategory, "unknown");
+    assert.equal(h.state.releases, 1);
+    assert.doesNotMatch(JSON.stringify(h.logs), /private|Bearer|message/);
+    assert.equal(response.body?.locked ?? false, false);
+  }
+
+  for (const declaredOversize of [false, true]) {
+    let pulls = 0; let cancels = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) { pulls++; controller.enqueue(new TextEncoder().encode("private".repeat(6_000))); },
+      cancel() { cancels++; },
+    }, { highWaterMark: 0 });
+    const response = new Response(body, { status: 503,
+      ...(declaredOversize ? { headers: { "content-length": "33000" } } : {}) });
+    const h = harness(); h.deps.fetch = async () => response;
+    assert.equal(await createGatewayRequester(h.deps)(h.options), undefined);
+    assert.equal(pulls, declaredOversize ? 0 : 1, "stop before/at the byte limit, not after reading an unbounded body");
+    assert.equal(cancels, 1);
+    assert.equal(h.state.releases, 1);
+    assert.equal(h.logs[0].errorCategory, "unknown");
+    assert.doesNotMatch(JSON.stringify(h.logs), /private|Bearer|message/);
   }
 });
 
