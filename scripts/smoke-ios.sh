@@ -18,5 +18,3 @@ xcrun simctl install "$SAJDA_SIMULATOR_ID" ios/App/build/Build/Products/Debug-ip
 xcrun simctl launch "$SAJDA_SIMULATOR_ID" com.hypbit.sajda
 sleep 10
 xcrun simctl io "$SAJDA_SIMULATOR_ID" screenshot ios/App/build/sajda-iphone-smoke.png
-# Preserve app bundle permissions inside the downloadable artifact.
-ditto -c -k --keepParent ios/App/build/Build/Products/Debug-iphonesimulator/App.app ios/App/build/Sajda-Simulator.zip

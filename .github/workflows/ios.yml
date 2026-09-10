@@ -28,9 +28,13 @@ jobs:
       - run: npm run sync:ios
       - name: Compile actual iOS app without distribution signing
         run: xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath ios/App/build CODE_SIGNING_ALLOWED=NO build
+      - name: Package simulator app with preserved permissions
+        run: ditto -c -k --keepParent ios/App/build/Build/Products/Debug-iphonesimulator/App.app ios/App/build/Sajda-Simulator.zip
       - name: Boot the app in a real iPhone simulator
+        timeout-minutes: 8
         run: bash scripts/smoke-ios.sh
       - name: Simulator app artifact (not installable on a physical iPhone)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: sajda-ios-simulator
