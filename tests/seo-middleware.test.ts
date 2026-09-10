@@ -9,6 +9,8 @@ const queryVariants = [
   "?q=private-idea", "?sort=price", "?neverSeenBefore=1", "?%75nrecognized=value",
   "?%E5%90%8D%E7%A7%B0=%E7%A7%98%E5%AF%86", "?=value", "?flag", "?q=first&q=second",
 ];
+const seoNamespaces = ["/se", "/%73e", "/s%65", "/%73%65", "/%2Fse", "/%2f%73%65", "/%2F%2fse", "//se"];
+const seoSeparators = ["/", "%2F", "%2f"];
 
 test("production indexing fails closed without an exact explicit activation", () => {
   for (const flag of [undefined, "", " ", "INDEX", "enabled", "false", "noindex"]) {
@@ -21,7 +23,7 @@ test("production indexing fails closed without an exact explicit activation", ()
 });
 
 test("official Vercel middleware continues static routing and marks all query keys", async () => {
-  assert.deepEqual(config.matcher, ["/se", "/se/:path*"]);
+  assert.deepEqual(config.matcher, ["/((?:/|%2[fF])*(?:s|%73)(?:e|%65)(?:/.*|%2[fF].*)?)"]);
   for (const suffix of queryVariants) {
     const response = middleware(new Request(`https://sajda-eight.vercel.app/se/sok-doman${suffix}`));
     assert.equal(response.status, 200);
@@ -40,6 +42,35 @@ test("official Vercel middleware continues static routing and marks all query ke
     assert.equal(response.headers.get("x-middleware-next"), "1");
   }
   assert.equal(middleware(new Request("https://sajda-eight.vercel.app/se?anything=yes")).headers.get("x-robots-tag"), "noindex, nofollow");
+});
+
+test("encoded SEO namespaces cannot bypass the query gate or broaden it to other routes", () => {
+  // The config contains a regex-only path (no named-param syntax); checking its
+  // scope here complements the separate official Vercel compiler validation.
+  const matcher = new RegExp(`^${config.matcher[0]}$`);
+  for (const namespace of seoNamespaces) {
+    const suffixes = ["", ...seoSeparators.flatMap(separator => [
+      `${separator}sok-doman`, `${separator}%73ok-doman`, `${separator}%invalid`,
+    ])];
+    for (const suffix of suffixes) {
+      const pathname = namespace + suffix;
+      assert.equal(matcher.test(pathname), true, `routing matcher: ${pathname}`);
+      const request = new Request(`https://sajda-eight.vercel.app${pathname}?q=private-idea`);
+      assert.equal(new URL(request.url).pathname, pathname, "Request preserves the raw encoding that caused the deployed bypass");
+      const result = middleware(request);
+      assert.equal(result.headers.get("x-sajda-query-policy"), "noindex", pathname);
+      assert.equal(result.headers.get("x-robots-tag"), "noindex, nofollow", pathname);
+      assert.equal(result.headers.get("x-middleware-next"), "1");
+      assert.equal(result.headers.get("location"), null);
+    }
+    assert.equal(middleware(new Request(`https://sajda-eight.vercel.app${namespace}/sok-doman`)).headers.get("x-sajda-query-policy"), null,
+      "clean public pages do not acquire a query restriction");
+  }
+  for (const pathname of ["/api/auth", "/assets/app.js", "/%61pi/auth", "/%61ssets/app.js", "/%2Fapi/auth", "/%2fassets/app.js", "/secret", "/%73ecret", "/%2573e", "/se%252Fsok-doman", "/SE/sok-doman", "/%se", "/s%ZZ", "/x%2F..%2Fse/sok-doman", "/%2e%2fse/sok-doman"]) {
+    assert.equal(matcher.test(pathname), false, `routing matcher: ${pathname}`);
+    const response = middleware(new Request(`https://sajda-eight.vercel.app${pathname}?q=private-idea`));
+    assert.equal(response.headers.get("x-sajda-query-policy"), null, pathname);
+  }
 });
 
 test("production-mode HTTP fixture exposes noindex before serving an indexable HTML document", async () => {
@@ -73,6 +104,13 @@ test("production-mode HTTP fixture exposes noindex before serving an indexable H
       assert.equal(response.headers.get("x-robots-tag"), "noindex, nofollow");
       assert.equal(response.headers.get("x-sajda-query-policy"), "noindex");
       assert.equal(await response.text(), html, "no client script is needed to read the stricter HTTP directive");
+    }
+    for (const pathname of seoNamespaces.flatMap(namespace => seoSeparators.map(separator => `${namespace}${separator}sok-doman`))) {
+      const response = await fetch(`${origin}${pathname}?unknown=value`, { signal: AbortSignal.timeout(5000) });
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("x-robots-tag"), "noindex, nofollow", pathname);
+      assert.equal(response.headers.get("x-sajda-query-policy"), "noindex", pathname);
+      assert.equal(await response.text(), html);
     }
     const head = await fetch(`${origin}/se?unknown=value`, { method: "HEAD", signal: AbortSignal.timeout(5000) });
     assert.equal(head.headers.get("x-robots-tag"), "noindex, nofollow");

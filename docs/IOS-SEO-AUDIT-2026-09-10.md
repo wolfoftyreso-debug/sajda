@@ -27,7 +27,7 @@ is a different gate from production readiness.
 | P2 | Initial SEO HTML was a thin second representation of richer React pages. | Build-time render the actual page component, including product entry, guidance, FAQ and internal links; no new content factory. |
 | P2 | Production could become indexable when its explicit indexing setting was absent. | Production fails closed unless `SAJDA_SEO_INDEXING=index` is deliberately set; preview/development cannot override noindex. |
 | P2 | Query variants received noindex only after client rendering. | Narrow Vercel middleware adds HTTP noindex to every parameterized `/se` URL, including unknown/encoded keys, before static HTML is served. No redirects, cookies or external calls. |
-| P2 | Deployed SEO had no repeatable whole-surface HTTP test. | New read-only 22-page plus 7 routing/indexing checks. Query tests require a constant middleware marker, independently of preview-wide noindex. Tests return public metadata only and never response cookies or credentials. |
+| P2 | Deployed SEO had no repeatable whole-surface HTTP test. | New read-only 22-page plus 14 routing/indexing checks, including encoded paths. Query tests require a constant middleware marker, independently of preview-wide noindex. Tests return public metadata only and never response cookies or credentials. |
 
 No new P0 defect was established by this audit. That is not a penetration-test
 certificate or proof that all production risks have been eliminated.
@@ -170,6 +170,33 @@ Runtime commit `3ac273f870e3e79a7520bf8d91a2b67b67d88ef1`, Vercel preview
   longer deadline resolved the previous infrastructure timeout.
   [Simulator artifact](https://github.com/wolfoftyreso-debug/sajda/actions/runs/34502260457/artifacts/10162812914)
   This does not verify taps, authenticated transport or system share-sheet use.
+
+### Final app verification after header correction
+
+Native source commit `d873c11bd9b2576a93859c95ed0a5a62a7dfdb79` passed
+[Verify CI 34504372567](https://github.com/wolfoftyreso-debug/sajda/actions/runs/34504372567)
+and [iPhone CI 34504372547](https://github.com/wolfoftyreso-debug/sajda/actions/runs/34504372547).
+Both Debug and Release compiled. The second fresh simulator completed boot,
+installation, launch and screenshot, with every bounded phase returning zero.
+The final screenshot was also downloaded and visually inspected: the real
+English search screen and native navigation are present. The simulator ZIP is
+not a signed physical-device application.
+[Final simulator artifact](https://github.com/wolfoftyreso-debug/sajda/actions/runs/34504372547/artifacts/10163502212)
+(seven-day artifact retention).
+
+The corresponding second Vercel candidate
+`dpl_HdeR5SZ17EpYozULGwQU9qkSvbWc` passed all then-current 29 HTTP checks and
+the five native negative API cases. Its bounded deployment-log query returned
+no 5xx records during the audit window. Direct unauthenticated HEAD requests
+to home, SEO and native auth returned 302 to Vercel authentication; protection
+was not disabled. This is operator-verified preview behavior, not proof of
+public/native-client reachability.
+
+An additional URL-normalization probe then found that encoded namespace
+letters and encoded/leading slashes could reach the same SEO HTML without
+the middleware marker. Normal preview noindex remained present throughout;
+no public indexing was activated. The final server-only correction and
+expanded HTTP regression are separate from the already-verified native code.
 
 ## Next five highest-value release actions
 

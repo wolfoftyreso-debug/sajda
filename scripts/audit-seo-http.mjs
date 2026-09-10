@@ -67,7 +67,13 @@ export async function auditSeoHttp({ origin, canonicalOrigin = DEFAULT_SEO_ORIGI
     }
   }));
   const checks = [];
-  for (const path of ["/robots.txt", "/sitemap.xml", "/se/sok-doman/", "/sajda-audit-missing-route", "/auth", "/se/sok-doman?q=private-test-idea", "/se/sok-doman?%75nrecognized=policy-test"]) {
+  for (const path of [
+    "/robots.txt", "/sitemap.xml", "/se/sok-doman/", "/sajda-audit-missing-route", "/auth",
+    "/se/sok-doman?q=private-test-idea", "/se/sok-doman?%75nrecognized=policy-test",
+    "/%73e/sok-doman?q=policy-test", "/s%65/sok-doman?q=policy-test", "/%73%65/sok-doman?%75nrecognized=policy-test",
+    "/se%2Fsok-doman?q=policy-test", "/se%2fsok-doman?q=policy-test", "/%73%65%2Fsok-doman?q=policy-test",
+    "/%2Fse/sok-doman?q=policy-test",
+  ]) {
     try {
       const result = await httpGet(origin, path, cli);
       const $ = load(result.body);
