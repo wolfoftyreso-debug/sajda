@@ -25,6 +25,12 @@ assert.equal(
   true,
   "an explicit production noindex override must remain available",
 );
+for (const flag of [undefined, "", " ", "enabled", "INDEX", "false"]) {
+  assert.equal(isNoindexBuild({ VERCEL_ENV: "production", SAJDA_SEO_INDEXING: flag }), true,
+    "production must require an exact, explicit index decision");
+}
+assert.equal(isNoindexBuild({}), false, "an environment-less local build keeps its inspection behavior");
+assert.equal(isNoindexBuild({ SAJDA_SEO_INDEXING: "noindex" }), true, "local noindex override remains supported");
 assert.equal(
   resolveSeoBuildOrigin({}),
   DEFAULT_SEO_ORIGIN,

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+import { isNativeApp } from "@/lib/appSurface";
 import { useLanguage, type Language } from "@/i18n/LanguageProvider";
 
 type Icon = ComponentType<SVGProps<SVGSVGElement>>;
@@ -460,7 +461,7 @@ export default function Security() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-20 border-b border-border/80 bg-card/95 backdrop-blur-xl">
+      {!isNativeApp && <header className="sticky top-0 z-20 border-b border-border/80 bg-card/95 backdrop-blur-xl">
         <div className="mx-auto flex min-h-[4.75rem] w-full max-w-7xl items-center justify-between gap-4 px-5 sm:px-7">
           <Link
             to="/"
@@ -487,7 +488,7 @@ export default function Security() {
             <LanguageSwitcher />
           </div>
         </div>
-      </header>
+      </header>}
 
       <main>
         <section className="sajda-canvas overflow-hidden border-b border-border/70">

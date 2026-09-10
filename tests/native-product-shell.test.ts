@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
 import { createElement as h, Suspense } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 import { createServer } from "vite";
@@ -155,5 +156,50 @@ test("native product routes, navigation, sign-in and payment boundaries", async 
     await vite.close();
     globalThis.fetch = originalFetch;
     for (const [name, descriptor] of originals) { if (descriptor) Object.defineProperty(globalThis, name, descriptor); else Reflect.deleteProperty(globalThis, name); }
+  }
+});
+
+test("shared support, legal, security and status pages leave native chrome to the app shell", async () => {
+  const key = "__SAJDA_NATIVE_PUBLIC_PAGE_TEST__";
+  const original = Object.getOwnPropertyDescriptor(globalThis, key);
+  const originalFetch = globalThis.fetch;
+  const fixture = { language: "en" };
+  Object.defineProperty(globalThis, key, { configurable: true, value: fixture });
+  globalThis.fetch = async () => { throw new Error("Public page render must not submit forms or call services"); };
+  const vite = await createServer({ configFile: false, appType: "custom",
+    server: { middlewareMode: true, watch: null, hmr: false, ws: false },
+    resolve: { alias: { "@": path.resolve("src") } }, optimizeDeps: { noDiscovery: true, include: [] }, esbuild: { jsx: "automatic" },
+    ssr: { noExternal: ["react-router-dom"] },
+    plugins: [{ name: "native-public-page-test-boundaries", enforce: "pre",
+      resolveId(source) { if (source === "react-router-dom") return "\0native-public-page-links"; },
+      load(id) {
+      if (id === "\0native-public-page-links") return "import{createElement as h,forwardRef}from'react';export const Link=forwardRef(({to,children,...props},ref)=>h('a',{...props,href:to,ref},children));";
+      const name = id.replaceAll("\\", "/");
+      if (name.endsWith("/src/lib/appSurface.ts")) return "export let isNativeApp=false;export const setNative=value=>{isNativeApp=value;};";
+      if (name.endsWith("/src/i18n/LanguageProvider.tsx")) return `export const useLanguage=()=>globalThis.${key};export const applyDocumentMetadata=()=>{};`;
+      if (name.endsWith("/src/components/LanguageSwitcher.tsx")) return "import{createElement as h}from'react';export default()=>h('div',{'data-web-language-switcher':true},'Web languages');";
+    } }],
+  });
+  try {
+    const surface = await vite.ssrLoadModule("/src/lib/appSurface.ts");
+    for (const page of ["Contact", "Legal", "Security", "Status"]) {
+      const { default: Page } = await vite.ssrLoadModule(`/src/pages/${page}.tsx`);
+      for (const language of ["en", "sv", "es", "fr", "zh"]) {
+        fixture.language = language;
+        const render = () => renderToStaticMarkup(h(Page));
+        surface.setNative(false); const web = render();
+        assert.equal((web.match(/<header\b/gu) ?? []).length, 1, `${page}/${language}: retain website header`);
+        assert.match(web, /data-web-language-switcher/u);
+        surface.setNative(true); const native = render();
+        assert.doesNotMatch(native, /<header\b|data-web-language-switcher/u, `${page}/${language}: no duplicate app header`);
+        assert.equal((native.match(/<h1\b/gu) ?? []).length, 1, `${page}/${language}: retain screen title`);
+        assert.equal(native.match(/<h1\b[^>]*>(.*?)<\/h1>/su)?.[1], web.match(/<h1\b[^>]*>(.*?)<\/h1>/su)?.[1]);
+        if (page === "Contact") { assert.match(native, /<form\b/u); assert.match(native, /id="contact-message"/u); }
+        if (page === "Legal") for (const anchor of ["privacy", "terms", "cookies", "accessibility"]) assert.ok(native.includes(`id="${anchor}"`), anchor);
+      }
+    }
+  } finally {
+    await vite.close(); globalThis.fetch = originalFetch;
+    if (original) Object.defineProperty(globalThis, key, original); else Reflect.deleteProperty(globalThis, key);
   }
 });

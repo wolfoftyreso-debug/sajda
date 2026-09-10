@@ -3,6 +3,7 @@ import { productFetch } from "@/lib/productFetch";
 import { ArrowLeft, CheckCircle2, CircleAlert, LoaderCircle, RefreshCw, Server } from "lucide-react";
 import { Link } from "react-router-dom";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+import { isNativeApp } from "@/lib/appSurface";
 import { Button } from "@/components/ui/button";
 import { useLanguage, type Language } from "@/i18n/LanguageProvider";
 
@@ -208,7 +209,7 @@ export default function Status() {
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border bg-white/90 backdrop-blur">
+      {!isNativeApp && <header className="border-b border-border bg-white/90 backdrop-blur">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-5 py-5 sm:px-7">
           <Link to="/" className="inline-flex items-center gap-2 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
@@ -216,7 +217,7 @@ export default function Status() {
           </Link>
           <LanguageSwitcher />
         </div>
-      </header>
+      </header>}
 
       <section className="mx-auto w-full max-w-5xl px-5 pb-20 pt-14 sm:px-7 sm:pt-20">
         <div className="rounded-[2rem] border border-[#bddcf7] bg-[#eaf6ff] px-6 py-10 shadow-[0_20px_55px_hsl(210_55%_35%/0.10)] sm:px-10 sm:py-12">

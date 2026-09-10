@@ -67,7 +67,7 @@ export async function auditSeoHttp({ origin, canonicalOrigin = DEFAULT_SEO_ORIGI
     }
   }));
   const checks = [];
-  for (const path of ["/robots.txt", "/sitemap.xml", "/se/sok-doman/", "/sajda-audit-missing-route", "/auth", "/se/sok-doman?q=private-test-idea"]) {
+  for (const path of ["/robots.txt", "/sitemap.xml", "/se/sok-doman/", "/sajda-audit-missing-route", "/auth", "/se/sok-doman?q=private-test-idea", "/se/sok-doman?%75nrecognized=policy-test"]) {
     try {
       const result = await httpGet(origin, path, cli);
       const $ = load(result.body);
@@ -87,6 +87,7 @@ export async function auditSeoHttp({ origin, canonicalOrigin = DEFAULT_SEO_ORIGI
       if (path === "/auth" || path.includes("?")) {
         const robots = `${result.headers["x-robots-tag"] ?? ""} ${$('meta[name="robots"]').attr("content") ?? ""}`;
         if (!/\bnoindex\b/u.test(robots)) issues.push("private_or_query_page_indexable");
+        if (path.includes("?") && result.headers["x-sajda-query-policy"] !== "noindex") issues.push("query_middleware_not_verified");
       }
       checks.push({ path, status: result.status, issues });
     } catch { checks.push({ path, issues: ["request_failed"] }); }

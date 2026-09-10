@@ -757,5 +757,9 @@ export function isNoindexBuild(environment = process.env) {
   if (environment.SAJDA_SEO_INDEXING?.trim() === "noindex") return true;
   if (environment.SAJDA_SEO_INDEXING?.trim() === "index") return false;
 
+  // Missing, empty or misspelled production settings must not publish a new
+  // search surface. An explicit index decision is required for production.
+  if (vercelEnvironment === "production") return true;
+
   return false;
 }

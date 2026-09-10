@@ -20,11 +20,14 @@ is a different gate from production readiness.
 | P2 | Browser blob downloads do not provide a usable file export in packaged iOS. | Bounded native system sharing for Trading CSV, generated SVG logos and HTML sales pages; actual iPhone share targets still require device verification. |
 | P2 | A lazy import/render failure could strand the app without a usable screen. | Localized route recovery preserves bottom navigation and explains reload consequences. |
 | P2 | More promoted legacy features unavailable on the Neon product path. | Unavailable history/domain-inventory/top-list entries are removed from the menu; direct routes retain honest unavailable states. This does not implement these missing features. |
+| P2 | Contact, legal, security and status pages duplicated the app's navigation and language controls. | NativeShell now supplies their single header; website headers and page content remain unchanged. All four pages are tested on both surfaces in all five languages. |
 | P2 | Native build/transport configuration accepted local-network/IP backend origins. | Strict HTTPS DNS-host validation across native build, client transport and Swift. No credential or network-protection bypass added. |
 | P2 | Simulator selection depended on the first installed runtime. | Select active Xcode SDK runtime, create a disposable job-owned iPhone simulator, bound every phase and compile Debug plus Release. |
 | P2 | Client navigation could replace preview noindex and leave another route's SEO records behind. | One web-only metadata owner, explicit build policy and route/query restrictions, current-page structured data and breadcrumbs. |
 | P2 | Initial SEO HTML was a thin second representation of richer React pages. | Build-time render the actual page component, including product entry, guidance, FAQ and internal links; no new content factory. |
-| P2 | Deployed SEO had no repeatable whole-surface HTTP test. | New read-only 22-page plus 6 routing/indexing checks. Tests return public metadata only and never response cookies or credentials. |
+| P2 | Production could become indexable when its explicit indexing setting was absent. | Production fails closed unless `SAJDA_SEO_INDEXING=index` is deliberately set; preview/development cannot override noindex. |
+| P2 | Query variants received noindex only after client rendering. | Narrow Vercel middleware adds HTTP noindex to every parameterized `/se` URL, including unknown/encoded keys, before static HTML is served. No redirects, cookies or external calls. |
+| P2 | Deployed SEO had no repeatable whole-surface HTTP test. | New read-only 22-page plus 7 routing/indexing checks. Query tests require a constant middleware marker, independently of preview-wide noindex. Tests return public metadata only and never response cookies or credentials. |
 
 No new P0 defect was established by this audit. That is not a penetration-test
 certificate or proof that all production risks have been eliminated.
@@ -76,8 +79,12 @@ certificate or proof that all production risks have been eliminated.
   remains the actual preview access gate. An intended public noindex page must
   be crawlable for its directive to be seen.
   [Google noindex guidance](https://developers.google.com/search/docs/crawling-indexing/block-indexing)
-- Initial HTML and hydrated page content now share their rendering source.
-  This improves crawler access but is not a promise of indexing or rankings.
+- Build-time HTML and client-rendered pages share the same React page
+  components. The client uses `createRoot` and replaces the prerendered subtree;
+  this is not `hydrateRoot` hydration or complete app-shell SSR. Global providers
+  and footer are client-rendered. A transient loading replacement was observed;
+  its field layout-shift impact is not measured. Initial content access is
+  improved, but this is not a promise of indexing or rankings.
   [Google JavaScript SEO guidance](https://developers.google.com/search/docs/crawling-indexing/javascript/javascript-seo-basics)
 - Search Console ownership, Google-selected canonicals, field Core Web Vitals,
   organic performance and real keyword demand remain **not verified**. The
@@ -115,20 +122,22 @@ tests. Execution results for this revision are recorded below when complete.
 
 ### Local integrated results
 
-- `npm run check`: PASS; **918 passed, 3 explicitly skipped, 0 failed**.
+- Final `npm run check`: PASS; **922 passed, 3 explicitly skipped, 0 failed**.
   Lint, application/API type checks, 67 five-language dictionary contracts,
   SEO policy, server-only Neon boundaries and UI contracts passed.
 - `npm run build:vercel`: PASS with preview/noindex policy and the documented
   Vercel canonical. All 22 initial HTML pages, structured data, assets and
   internal crawl graph passed the strengthened static checker.
-- `npm run build:native`: PASS against the stable test backend. Native entry
-  `native-sxubuYB-.js`; no SEO documents, canonical, JSON-LD, sitemap, robots
+- `npm run build:native`: PASS against the stable test backend. Final local native entry
+  `native-B_uPwEUw.js`; no SEO documents, canonical, JSON-LD, sitemap, robots
   or service worker are packaged. This is not Swift compilation.
 - `npm audit --omit=dev --audit-level=high`: zero reported vulnerabilities.
 - Real browser QA of the built native UI: search, options, More, auth boundary,
   Trading and Swipe settings; 320/390-wide portrait and 844×390 landscape
   samples. No horizontal overflow in inspected samples. Dialog close works;
   no live search, paid operation or private account mutation was performed.
+  The rebuilt native Contact page also has a single shell/language control;
+  its complete form and privacy text remain present.
 - Real browser QA of built website: `/se/sok-doman` → trademark guide → pricing.
   Canonical/breadcrumbs changed with the actual page; pricing removed stale
   JSON-LD/hreflang, restored English product metadata and remained noindex.
@@ -136,3 +145,42 @@ tests. Execution results for this revision are recorded below when complete.
   files changed. Clean built-asset checks did not reproduce them; these are
   not reported as production crashes. The new recovery screen did remain
   usable during the development failure.
+
+### First deployed verification
+
+Runtime commit `3ac273f870e3e79a7520bf8d91a2b67b67d88ef1`, Vercel preview
+`dpl_7VoQiSiZebek98ABJ7q8bDczb4bR`:
+[candidate deployment](https://sajda-kz93bxpgq-hypbit.vercel.app).
+
+- Vercel reached READY, then all 22 document checks and 6 route/indexing checks
+  passed. This includes 308 trailing-slash normalization and a real 404.
+- Five deployed native negative cases passed: anonymous auth GET 401, invalid
+  auth method 405, unsupported auth action 400, account GET 405, anonymous
+  account POST 401. All returned JSON, `private, no-store` and request IDs.
+  No valid credential, account mutation or background job was used.
+- Browser SEO form handoff preserved `example.com` as exact-domain input in the
+  product workspace without placing it in the URL or starting a search.
+- Native Debug and Release both compiled successfully in
+  [iPhone CI 34502260457](https://github.com/wolfoftyreso-debug/sajda/actions/runs/34502260457).
+  The simulator also booted, installed and launched `com.hypbit.sajda`, then
+  captured the app and cleaned up its own device. The downloaded screenshot
+  was visually inspected: English search UI, iPhone safe areas and labeled
+  bottom navigation are visible, not a blank page or launch screen. The first
+  boot spent about eight minutes in operating-system migration; the bounded
+  longer deadline resolved the previous infrastructure timeout.
+  [Simulator artifact](https://github.com/wolfoftyreso-debug/sajda/actions/runs/34502260457/artifacts/10162812914)
+  This does not verify taps, authenticated transport or system share-sheet use.
+
+## Next five highest-value release actions
+
+1. Complete the account-deletion lifecycle, including retained records and
+   active-subscription consequences, without ad hoc production deletions.
+2. Complete AI-sharing disclosure/permission and the actual privacy inventory
+   required for the selected App Store distribution.
+3. Choose supported storefronts, then implement and test the appropriate
+   native purchase, restoration and subscription-management lifecycle.
+4. Sign and distribute a TestFlight build against a customer-reachable backend;
+   test physical-device auth, saved state, sharing, accessibility and failures.
+5. Complete missing product parity, then intentionally open the public website,
+   verify Search Console ownership and measure indexing/Core Web Vitals before
+   expanding SEO pages.

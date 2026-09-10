@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ArrowLeft, CheckCircle2, LoaderCircle, Mail } from "lucide-react";
 import { Link } from "react-router-dom";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+import { isNativeApp } from "@/lib/appSurface";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -95,14 +96,14 @@ export default function Contact() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="border-b border-border bg-card">
+      {!isNativeApp && <header className="border-b border-border bg-card">
         <nav className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-7" aria-label={copy.title}>
           <Link to="/" className="inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />{copy.back}
           </Link>
           <LanguageSwitcher />
         </nav>
-      </header>
+      </header>}
       <main className="mx-auto w-full max-w-6xl px-5 py-9 sm:px-7 sm:py-12">
         <div className="max-w-2xl">
           <h1 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">{copy.title}</h1>

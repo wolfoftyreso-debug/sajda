@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 const files = (await readdir(resolve(projectRoot, "api"), { recursive: true }))
   .filter(name => name.endsWith(".ts")).map(name => resolve(projectRoot, "api", name));
+files.push(resolve(projectRoot, "middleware.ts"));
 const result = spawnSync(process.execPath, [resolve(projectRoot, "node_modules/typescript/bin/tsc"),
   "--noEmit", "--target", "ES2022", "--lib", "ES2023,DOM", "--module", "NodeNext",
   "--moduleResolution", "NodeNext", "--skipLibCheck", "--types", "node", ...files],
