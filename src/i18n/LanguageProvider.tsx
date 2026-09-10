@@ -1,14 +1,12 @@
 /* eslint-disable react-refresh/only-export-components -- This i18n context deliberately exports provider, hook, and pure translation helpers. */
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from "react";
+import { useLocation } from "react-router-dom";
 import { contactCopy } from "./contactCopy";
+import { getDeviceLanguage, isLanguage, isSwedishMarketPath, languageForPath, LANGUAGE_STORAGE_KEY, readLanguagePreference, type Language } from "./languagePreference";
 
-export type Language = "en" | "sv" | "es" | "fr" | "zh";
+export type { Language } from "./languagePreference";
 
 type TemplateValues = Record<string, string | number>;
-
-// A new key deliberately starts the redesigned public experience in English.
-// Once someone selects a language, that explicit choice is still remembered.
-const LANGUAGE_STORAGE_KEY = "name-quest.language.v2";
 
 const messages = {
   en: {
@@ -1340,6 +1338,12 @@ const documentCopy: Readonly<Record<Language, {
 
 /** Route overrides live with the global language metadata, not in competing effects. */
 export function applyDocumentMetadata(language: Language, pathname: string): void {
+  // Market pages own their static, localized metadata. Never replace that
+  // content or save a language preference merely because a URL was opened.
+  if (isSwedishMarketPath(pathname)) {
+    document.documentElement.lang = "sv-SE";
+    return;
+  }
   const base = documentCopy[language];
   const contact = pathname === "/contact" || pathname === "/contact/" ? contactCopy[language] : undefined;
   const plus = pathname === "/plus" || pathname === "/plus/";
@@ -1377,41 +1381,57 @@ interface LanguageContextValue {
   selectedLanguage: Language;
   setLanguage: (language: Language) => void;
   t: (key: TranslationKey, values?: TemplateValues) => string;
+  setPathname: (pathname: string) => void;
 }
 
 const LanguageContext = createContext<LanguageContextValue | undefined>(undefined);
 
 export function getStoredLanguage(): Language {
-  if (typeof window === "undefined") return "en";
-  try {
-    const stored = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
-    return stored === "sv" || stored === "es" || stored === "fr" || stored === "zh" ? stored : "en";
-  } catch {
-    return "en";
-  }
+  return readLanguagePreference() ?? getDeviceLanguage();
 }
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [selectedLanguage, setSelectedLanguage] = useState<Language>(getStoredLanguage);
-  const language = selectedLanguage;
+  const [explicitLanguage, setExplicitLanguage] = useState<Language | null>(readLanguagePreference);
+  const [deviceLanguage, setDeviceLanguage] = useState<Language>(getDeviceLanguage);
+  const [pathname, setPathname] = useState(() => typeof window === "undefined" ? "/" : window.location.pathname);
+  const selectedLanguage = explicitLanguage ?? deviceLanguage;
+  const language = languageForPath(selectedLanguage, pathname);
+
+  const setLanguage = useCallback((next: Language) => {
+    if (!isLanguage(next)) return;
+    setExplicitLanguage(next);
+    try {
+      window.localStorage.setItem(LANGUAGE_STORAGE_KEY, next);
+    } catch {
+      // An explicit choice still works for this session if storage is blocked.
+    }
+  }, []);
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem(LANGUAGE_STORAGE_KEY, selectedLanguage);
-    } catch {
-      // The interface still works when private browsing blocks storage.
-    }
-    applyDocumentMetadata(selectedLanguage, window.location.pathname);
-  }, [selectedLanguage]);
+    const update = () => setDeviceLanguage(getDeviceLanguage());
+    window.addEventListener?.("languagechange", update);
+    return () => window.removeEventListener?.("languagechange", update);
+  }, []);
+
+  useEffect(() => { applyDocumentMetadata(language, pathname); }, [language, pathname]);
 
   const value = useMemo<LanguageContextValue>(() => ({
     language,
     selectedLanguage,
-    setLanguage: setSelectedLanguage,
-    t: (key, values) => translate(selectedLanguage, key, values),
-  }), [language, selectedLanguage]);
+    setLanguage,
+    setPathname,
+    t: (key, values) => translate(language, key, values),
+  }), [language, selectedLanguage, setLanguage]);
 
   return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
+}
+
+/** Mounted inside the router; route locale is temporary, never a saved choice. */
+export function LanguageRouteSync() {
+  const { pathname } = useLocation();
+  const { setPathname } = useLanguage();
+  useLayoutEffect(() => { setPathname(pathname); }, [pathname, setPathname]);
+  return null;
 }
 
 export function useLanguage() {

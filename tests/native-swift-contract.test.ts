@@ -7,6 +7,7 @@ import test from "node:test";
 // and ordering, but are not Swift compilation, simulator, or native runtime tests.
 const swift = readFileSync(path.resolve("ios/App/App/SajdaNativePlugin.swift"), "utf8");
 const scene = readFileSync(path.resolve("ios/App/App/SceneDelegate.swift"), "utf8");
+const infoPlist = readFileSync(path.resolve("ios/App/App/Info.plist"), "utf8");
 
 function section(start: string, end: string): string {
   const from = swift.indexOf(start);
@@ -23,6 +24,15 @@ function before(source: string, earlier: string, later: string): void {
   assert.notEqual(second, -1, `Missing source contract: ${later}`);
   assert.ok(first < second, `${earlier} must occur before ${later}`);
 }
+
+test("source-only iOS contract: manually localized web UI declares supported languages with an English fallback", () => {
+  assert.match(infoPlist, /<key>CFBundleDevelopmentRegion<\/key>\s*<string>en<\/string>/u);
+  assert.equal([...infoPlist.matchAll(/<key>CFBundleLocalizations<\/key>/gu)].length, 1);
+  const declaration = infoPlist.match(/<key>CFBundleLocalizations<\/key>\s*<array>([\s\S]*?)<\/array>/u);
+  assert.ok(declaration, "iOS must know which languages the bundled web UI handles without .lproj translations");
+  const languages = [...declaration[1].matchAll(/<string>([^<]+)<\/string>/gu)].map(match => match[1]);
+  assert.deepEqual(languages, ["en", "sv", "es", "fr", "zh-Hans"]);
+});
 
 test("source-only Swift contract: the active scene installs the custom native plugin", () => {
   assert.match(scene, /rootViewController\s*=\s*SajdaViewController\(\)/u);

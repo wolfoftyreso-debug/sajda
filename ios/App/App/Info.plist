@@ -6,6 +6,15 @@
 	<string>$(CAPACITOR_DEBUG)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
+	<!-- Translations are bundled in the shared web UI rather than .lproj files. -->
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>sv</string>
+		<string>es</string>
+		<string>fr</string>
+		<string>zh-Hans</string>
+	</array>
 	<key>CFBundleDisplayName</key>
         <string>Sajda</string>
 	<key>CFBundleURLTypes</key>

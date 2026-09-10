@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Route } from "react-router-dom";
 import FreeSearchGate from "@/components/FreeSearchGate";
+import { LanguageRouteSync } from "@/i18n/LanguageProvider";
 import RouteScrollRestoration from "@/components/RouteScrollRestoration";
 import AppProviders from "./AppProviders";
 import ProductRoutes from "./ProductRoutes";
@@ -13,6 +14,7 @@ const NativeAuth = lazy(() => import("./NativeAuth"));
 /** Separate dependency graph: no public landing pages or website footer. */
 export default function NativeApp() {
   return <AppProviders><BrowserRouter><NativeShell>
+    <LanguageRouteSync />
     <RouteScrollRestoration />
     <Suspense fallback={<div className="flex min-h-48 items-center justify-center" role="status" aria-label="Loading"><span className="h-7 w-7 animate-spin rounded-full border-2 border-primary border-t-transparent motion-reduce:animate-none" /></div>}>
       <ProductRoutes authElement={<NativeAuth />}>

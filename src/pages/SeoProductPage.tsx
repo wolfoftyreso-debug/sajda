@@ -181,14 +181,7 @@ function EntryField({ pageId }: SeoProductPageProps) {
 
 export default function SeoProductPage({ pageId }: SeoProductPageProps) {
   const page = getSeoProductPage(pageId);
-  const { language, setLanguage } = useLanguage();
-
-  // `/se` is an intentional locale choice, not just Swedish copy inside an
-  // otherwise English application. Keep the shared footer and the prepared
-  // search workspace in Swedish once someone has entered this market route.
-  useEffect(() => {
-    if (language !== "sv") setLanguage("sv");
-  }, [language, setLanguage]);
+  const { language } = useLanguage();
 
   useEffect(() => {
     const previousTitle = document.title;

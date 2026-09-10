@@ -16,7 +16,6 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useLanguage } from "@/i18n/LanguageProvider";
 import { SEO_CANONICAL_ORIGIN } from "@/lib/seoCanonicalOrigin";
 
 const PAGE_PATH = "/se/sa-fungerar-sajda";
@@ -117,12 +116,6 @@ function setMetaContent(attribute: "name" | "property", key: string, content: st
  * SEO-page manifest so it can be integrated as a dedicated canonical route.
  */
 export default function SajdaMethodology() {
-  const { language, setLanguage } = useLanguage();
-
-  useEffect(() => {
-    if (language !== "sv") setLanguage("sv");
-  }, [language, setLanguage]);
-
   useEffect(() => {
     const previousTitle = document.title;
     const description = document.querySelector<HTMLMetaElement>("meta[name='description']");
