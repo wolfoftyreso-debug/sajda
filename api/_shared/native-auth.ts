@@ -96,7 +96,7 @@ export async function requireNativeSession(headers: AccountHeaders) {
   const row = rows[0];
   const principal: DelegatedAccountPrincipal = {
     userId: String(row.user_id), credentialId: String(row.id), environment: nativeEnvironment(), source: "native",
-    scopes: ["account:read","saved:read","saved:write","trading:read","trading:run","trading:quote","swipe:write","keys:manage"],
+    scopes: ["account:read","saved:read","saved:write","trading:read","trading:run","trading:quote","swipe:write","keys:manage","sessions:manage"],
   };
   return {
     principal,

@@ -10,6 +10,10 @@ Create a scoped API key from the Sajda account that owns the saved domains and T
 
 This release supports MCP clients that can send a configured bearer header. It does **not** implement OAuth discovery, OAuth registration, or OAuth login for clients that require those flows. A browser session cookie and the legacy operator search key cannot authenticate this endpoint.
 
+App-sign-in management is deliberately not an MCP tool or a public API-key
+scope. It belongs to the account's web/native control panel; see
+[account connections](ACCOUNT-APP-SESSIONS.md).
+
 Example using the actual SDK client, with the key supplied through the host environment:
 
 ```ts

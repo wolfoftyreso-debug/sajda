@@ -30,6 +30,7 @@ import {
   normaliseRegistrarOffer,
 } from "@/lib/registrarOffer";
 import { useReferenceFx } from "@/hooks/useReferenceFx";
+import SwipeAccountSave from "@/components/SwipeAccountSave";
 import {
   swipeWishlistCategories,
   type SwipeWishlistCategory,
@@ -43,10 +44,10 @@ const MAX_REFRESH_BATCH = 12;
 
 const wishlistMessages = {
   en: {
-    trigger: "Saved",
-    triggerLabel: "Open saved names",
-    title: "Saved names",
-    description: "A private, persistent list in this browser. Keep organising while you explore.",
+    trigger: "On this device",
+    triggerLabel: "Open names on this device",
+    title: "Names on this device",
+    description: "Separate from Saved in your account. Choose which names to copy to your account; local tags and categories stay here.",
     storedHere: "Stored on this device",
     search: "Filter names or tags",
     category: "Category",
@@ -83,10 +84,10 @@ const wishlistMessages = {
     visibleCount: "{count} shown",
   },
   sv: {
-    trigger: "Sparade",
-    triggerLabel: "Öppna sparade namn",
-    title: "Sparade namn",
-    description: "En privat, beständig lista i den här webbläsaren. Organisera medan du utforskar.",
+    trigger: "På enheten",
+    triggerLabel: "Öppna namn på den här enheten",
+    title: "Namn på den här enheten",
+    description: "Separat från Sparat på ditt konto. Välj vilka namn du vill kopiera till kontot; lokala taggar och kategorier stannar här.",
     storedHere: "Sparas på den här enheten",
     search: "Filtrera namn eller taggar",
     category: "Kategori",
@@ -123,10 +124,10 @@ const wishlistMessages = {
     visibleCount: "{count} visas",
   },
   es: {
-    trigger: "Guardados",
-    triggerLabel: "Abrir nombres guardados",
-    title: "Nombres guardados",
-    description: "Una lista privada y persistente en este navegador. Organízala mientras exploras.",
+    trigger: "En este dispositivo",
+    triggerLabel: "Abrir nombres en este dispositivo",
+    title: "Nombres en este dispositivo",
+    description: "Separados de Guardados en tu cuenta. Elige qué nombres copiar a tu cuenta; las etiquetas y categorías locales permanecen aquí.",
     storedHere: "Guardado en este dispositivo",
     search: "Filtrar nombres o etiquetas",
     category: "Categoría",
@@ -163,10 +164,10 @@ const wishlistMessages = {
     visibleCount: "{count} mostrados",
   },
   fr: {
-    trigger: "Enregistrés",
-    triggerLabel: "Ouvrir les noms enregistrés",
-    title: "Noms enregistrés",
-    description: "Une liste privée et persistante dans ce navigateur. Organisez-la pendant votre exploration.",
+    trigger: "Sur cet appareil",
+    triggerLabel: "Ouvrir les noms sur cet appareil",
+    title: "Noms sur cet appareil",
+    description: "Séparés des noms enregistrés dans votre compte. Choisissez les noms à copier dans votre compte ; les étiquettes et catégories locales restent ici.",
     storedHere: "Enregistré sur cet appareil",
     search: "Filtrer les noms ou les étiquettes",
     category: "Catégorie",
@@ -203,10 +204,10 @@ const wishlistMessages = {
     visibleCount: "{count} affichés",
   },
   zh: {
-    trigger: "已保存",
-    triggerLabel: "打开已保存名称",
-    title: "已保存名称",
-    description: "仅保存在此浏览器中的私有持久列表。探索时也可持续整理。",
+    trigger: "此设备上",
+    triggerLabel: "打开此设备上的名称",
+    title: "此设备上的名称",
+    description: "与账户中的已保存列表分开。请选择要复制到账户的名称；本地标签和分类仍保存在这里。",
     storedHere: "保存在此设备上",
     search: "筛选名称或标签",
     category: "分类",
@@ -293,6 +294,9 @@ function getCopy(language: string): WishlistCopy {
 export interface SwipeWishlistPanelProps {
   items: SwipeWishlistEntry[];
   language: string;
+  accountId?: string | null;
+  emailVerified?: boolean;
+  authLoading?: boolean;
   isRefreshing?: boolean;
   onRefresh: (domains: string[]) => void | Promise<void>;
   onUpdate: (domain: string, update: Partial<Pick<SwipeWishlistEntry, "category" | "tags">>) => void;
@@ -309,6 +313,9 @@ export interface SwipeWishlistPanelProps {
 export function SwipeWishlistPanel({
   items,
   language,
+  accountId = null,
+  emailVerified = false,
+  authLoading = false,
   isRefreshing = false,
   onRefresh,
   onUpdate,
@@ -473,7 +480,7 @@ export function SwipeWishlistPanel({
                     <li key={item.domain} className="rounded-2xl border border-border bg-card p-4 shadow-[0_8px_22px_hsl(0_0%_12%/0.04)]">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <h3 className="truncate text-base font-semibold tracking-[-0.015em] text-foreground">{item.domain}</h3>
+                          <h3 className="break-all text-base font-semibold tracking-[-0.015em] text-foreground">{item.domain}</h3>
                           <p className="mt-1 text-[11px] text-muted-foreground">{withValue(copy.savedOn, formatDate(item.savedAt, language as WishlistLanguage))} · {withValue(copy.checkedOn, formatDate(item.lastCheckedAt, language as WishlistLanguage))}</p>
                         </div>
                         <button
@@ -550,6 +557,7 @@ export function SwipeWishlistPanel({
                           </Button>
                         </div>
                       </div>
+                      <SwipeAccountSave item={item} language={language} accountId={accountId} emailVerified={emailVerified} authLoading={authLoading} />
                     </li>
                   );
                 })}

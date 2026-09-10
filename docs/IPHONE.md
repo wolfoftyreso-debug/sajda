@@ -30,6 +30,10 @@ Appen har korta sök-, Trading- och marknadsplatsrubriker. Alla söklägen,
 återanvänds. Native sökinställningar kan öppnas utan att slå på avancerad brief.
 Swajps kortlek får den återstående skärmhöjden ovanför appnavigationen.
 Skalet reserverar safe areas och flyttar fokus vid sidbyte.
+Swajps lokala lista kan uttryckligen kopiera en kandidat till kontots Sparat
+med serverbekräftelse. Sparat har sökning, ändelsefilter och sortering.
+Konto har även hantering av egna appinloggningar med säker återkallning.
+Se [kontrakt och verifieringsgränser](ACCOUNT-APP-SESSIONS.md).
 Apphuvudet använder ett kompakt språkval med fem fullständigt namngivna
 alternativ. Webbens separata språkknappar är oförändrade. Språkbyte och
 återläsning testas genom den riktiga språkprovidern; den slutliga

@@ -436,7 +436,7 @@ const Swipe = () => {
   const [isUndoPending, setIsUndoPending] = useState(false);
   const [isPremiumDialogOpen, setIsPremiumDialogOpen] = useState(false);
   const [undoFeedback, setUndoFeedback] = useState<string | null>(null);
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { language } = useLanguage();
   const {
     anonymousSearchAccessReady,
@@ -883,6 +883,9 @@ const Swipe = () => {
               <SwipeWishlistPanel
                 items={saved}
                 language={swipeLanguage}
+                accountId={user?.id ?? null}
+                emailVerified={user?.email_verified === true}
+                authLoading={authLoading}
                 isRefreshing={isRefreshingSaved}
                 onOpenChange={setIsWishlistOpen}
                 onRefresh={refreshSaved}

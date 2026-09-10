@@ -27,6 +27,7 @@ import mcp from "../api/mcp";
 import accountApi from "../api/v1/account";
 import nativeAuth from "../api/native/auth";
 import nativeAccount from "../api/native/account";
+import appSessions from "../api/account/app-sessions";
 
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 const root = resolve(projectRoot, "dist-vercel");
@@ -47,6 +48,7 @@ const handlers = new Map<string, Handler>([
   ["/api/account/saved-domains", savedDomains],
   ["/api/account/capabilities", capabilities],
   ["/api/account/membership", membership],
+  ["/api/account/app-sessions", appSessions],
   ["/api/account/lost-domains", lostDomains],
   ["/api/cron/lost-domains", lostDomainsCron],
   ["/api/contact", contact],

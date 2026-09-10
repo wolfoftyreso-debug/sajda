@@ -10,6 +10,7 @@ import saved from "../account/saved-domains.js";
 import trading from "../account/lost-domains.js";
 import capabilities from "../account/capabilities.js";
 import developerKeys from "../developer/api-keys.js";
+import appSessions from "../account/app-sessions.js";
 
 export const config = { maxDuration: 60 };
 const input = z.object({
@@ -33,6 +34,8 @@ export function nativeAccountRoute(path: string, method: string, body?: unknown)
     throw new AccountAccessError("invalid_request",400,"Invalid app API route.");
   }
   if (url.pathname === "/api/account/membership" && method === "GET" && !url.search) return { handler: membership, scope:"account:read", query:{} };
+  if (url.pathname === "/api/account/app-sessions" && ["GET","DELETE"].includes(method)
+    && (method === "GET" || !url.search)) return { handler: appSessions, scope:"sessions:manage", query:Object.fromEntries(url.searchParams) };
   if (url.pathname === "/api/account/saved-domains" && ["GET","POST","DELETE"].includes(method)
     && (method === "GET" || !url.search)) return { handler: saved, scope:method === "GET" ? "saved:read":"saved:write", query:Object.fromEntries(url.searchParams) };
   if (url.pathname === "/api/account/capabilities" && ["GET","POST"].includes(method) && !url.search)

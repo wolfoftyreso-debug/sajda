@@ -59,6 +59,9 @@ test("delegated identity cannot be serialized into HTTP headers or reused for an
 test("native account routing is canonical, scoped and cannot invoke Stripe or arbitrary endpoints", () => {
   for (const [path, method, body, scope] of [
     ["/api/account/membership", "GET", undefined, "account:read"],
+    ["/api/account/app-sessions", "GET", undefined, "sessions:manage"],
+    ["/api/account/app-sessions?cursor=opaque", "GET", undefined, "sessions:manage"],
+    ["/api/account/app-sessions", "DELETE", { id: "12345678-1234-4234-8234-123456789abc" }, "sessions:manage"],
     ["/api/account/saved-domains?cursor=10", "GET", undefined, "saved:read"],
     ["/api/account/saved-domains", "DELETE", { domain: "example.com" }, "saved:write"],
     ["/api/account/capabilities", "POST", { capability: "swipe_undo" }, "swipe:write"],
@@ -77,6 +80,8 @@ test("native account routing is canonical, scoped and cannot invoke Stripe or ar
   for (const method of ["POST", "DELETE", "PUT", "GET"]) assert.throws(() => nativeAccountRoute("/api/account/billing", method, { action: "checkout" }));
   assert.throws(() => nativeAccountRoute("/api/account/lost-domains", "POST", { action: "grant_access" }));
   assert.throws(() => nativeAccountRoute("/api/account/saved-domains?cursor=10", "DELETE"));
+  assert.throws(() => nativeAccountRoute("/api/account/app-sessions?cursor=opaque", "DELETE"));
+  assert.throws(() => nativeAccountRoute("/api/account/app-sessions", "POST", { id: "all" }));
   for (const path of ["/api/developer/api-keys", "/api/developer/api-keys?id=not-a-key", "/api/developer/api-keys?id=12345678-1234-4234-8234-123456789abc&id=12345678-1234-4234-8234-123456789abc", "/api/developer/api-keys?id=12345678-1234-4234-8234-123456789abc&accountId=victim"]) {
     assert.throws(() => nativeAccountRoute(path, "DELETE"), undefined, path);
   }

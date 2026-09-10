@@ -9,6 +9,8 @@
  * Optional SAJDA_QA_EXACT_SEARCH=true also checks example.com once through REST
  * and once through MCP, using actual registry/price sources but no AI generation.
  * Without that separate opt-in there is no provider work.
+ * Optional SAJDA_QA_APP_SESSIONS=true checks listing and owner revocation of
+ * two app credentials created only by this probe. No existing sign-in is revoked.
  *
  * Only new QA credentials are created/revoked. Account/user rows, saved data,
  * subscriptions and Trading runs are not intentionally changed. Scope-denial
@@ -65,6 +67,7 @@ async function run() {
   const cookies = new Map();
   const keyName = `sajda-live-qa-${randomUUID()}`;
   let accountId, keyId, apiKey, nativeToken, keyCreateAttempted = false, keyRevoked = false, nativeRevoked = false;
+  const extraNativeTokens = new Set();
   let client;
   const cleanupFailures = [];
 
@@ -192,6 +195,9 @@ async function run() {
       validateExactResult("mcp_exact_domain_registry_evidence", object(mcpChecked.data));
     }
 
+    if (process.env.SAJDA_QA_APP_SESSIONS === "true") {
+      await request("api_key_cannot_manage_app_sessions", "/api/account/app-sessions", { bearer: apiKey, expected: 401 });
+    }
     await request("revoke_api_key", `/api/developer/api-keys?id=${encodeURIComponent(keyId)}`, { method: "DELETE", browser: true });
     keyRevoked = true;
     await request("revoked_rest_bearer_denied", "/api/v1/account?resource=membership", { bearer: apiKey, expected: 401 });
@@ -228,6 +234,39 @@ async function run() {
     check("native_billing_gate", deniedBilling.data.code === "unsupported_native_action");
     await request("native_token_cannot_authorize_web_account", "/api/account/membership", {
       bearer: nativeToken, headers: { "X-Sajda-Account": accountId }, expected: 401 });
+    if (process.env.SAJDA_QA_APP_SESSIONS === "true") {
+      const sessions = await request("app_session_self_list", "/api/native/account", { method: "POST", bearer: nativeToken,
+        body: { path: "/api/account/app-sessions", method: "GET", accountId } });
+      const currentId = sessions.data.currentSessionId;
+      check("app_session_identifies_current", typeof currentId === "string" && sessions.data.accountId === accountId
+        && Array.isArray(sessions.data.items) && sessions.data.items.some(item => item.id === currentId));
+      const webApps = await request("browser_lists_app_sessions", "/api/account/app-sessions", { browser: true });
+      check("app_session_metadata_is_private_safe", webApps.data.currentSessionId === null && webApps.data.accountId === accountId
+        && Array.isArray(webApps.data.items) && webApps.data.items.some(item => item.id === currentId)
+        && webApps.data.items.every(item => Object.keys(item).sort().join(",") === "createdAt,expiresAt,id"));
+      const verifier2 = randomBytes(48).toString("base64url"), state2 = randomBytes(32).toString("base64url");
+      const authorized2 = await request("second_app_authorize", "/api/native/auth", { method: "POST", browser: true,
+        body: { action: "authorize", challenge: createHash("sha256").update(verifier2).digest("base64url"), state: state2 } });
+      const callback2 = new URL(authorized2.data.callback);
+      check("second_app_callback_bound", callback2.protocol === "com.hypbit.sajda:" && callback2.hostname === "auth"
+        && callback2.pathname === "/callback" && callback2.searchParams.get("state") === state2);
+      const exchanged2 = await request("second_app_exchange", "/api/native/auth", { method: "POST",
+        body: { action: "exchange", code: callback2.searchParams.get("code"), verifier: verifier2 } });
+      const secondToken = exchanged2.data.token;
+      check("second_app_token_is_distinct", typeof secondToken === "string" && /^sjn_[A-Za-z0-9_-]{43}$/u.test(secondToken) && secondToken !== nativeToken);
+      extraNativeTokens.add(secondToken);
+      await request("browser_revoke_created_app_session", "/api/account/app-sessions", { method: "DELETE", browser: true, body: { id: currentId } });
+      await request("revoked_app_session_denied", "/api/native/auth", { bearer: nativeToken, expected: 401 });
+      const secondApps = await request("other_app_session_still_authorized", "/api/native/account", { method: "POST", bearer: secondToken,
+        body: { path: "/api/account/app-sessions", method: "GET", accountId } });
+      check("app_session_revocation_is_scoped", secondApps.data.accountId === accountId && secondApps.data.currentSessionId !== currentId
+        && Array.isArray(secondApps.data.items) && !secondApps.data.items.some(item => item.id === currentId));
+      await request("native_repeat_revoke_created_session", "/api/native/account", { method: "POST", bearer: secondToken,
+        body: { path: "/api/account/app-sessions", method: "DELETE", accountId, body: { id: currentId } } });
+      // The first credential is already revoked. Finish the original logout and
+      // replay tests using the newly created second sign-in instead.
+      nativeToken = secondToken; extraNativeTokens.delete(secondToken);
+    }
     await request("native_logout", "/api/native/auth", { method: "POST", bearer: nativeToken, body: { action: "logout" } });
     nativeRevoked = true;
     await request("native_revoked_session_denied", "/api/native/auth", { bearer: nativeToken, expected: 401 });
@@ -245,6 +284,11 @@ async function run() {
       try { await request("cleanup_native_session", "/api/native/auth", { method: "POST", bearer: nativeToken, body: { action: "logout" }, expected: [200, 401] }); }
       catch { cleanupFailures.push("new_native_session"); }
     }
+    for (const token of extraNativeTokens) {
+      try { await request("cleanup_extra_native_session", "/api/native/auth", { method: "POST", bearer: token, body: { action: "logout" }, expected: [200, 401] }); }
+      catch { cleanupFailures.push("new_extra_native_session"); }
+    }
+    extraNativeTokens.clear();
     if (keyCreateAttempted && !keyRevoked && accountId && cookies.size) {
       try {
         if (!keyId) {

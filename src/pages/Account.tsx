@@ -10,6 +10,7 @@ import { checkIsAdmin } from "@/lib/adminService";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { getMembershipCopy } from "@/i18n/membershipCopy";
 import AccountMembershipPanel from "@/components/AccountMembershipPanel";
+import AccountAppSessions from "@/components/AccountAppSessions";
 import { isNativeApp } from "@/lib/appSurface";
 import { nativeCopy } from "@/app/nativeCopy";
 
@@ -195,6 +196,7 @@ const Account = () => {
           </div>
 
           {/* Admin Link */}
+          <AccountAppSessions accountId={user.id} />
           {isAdmin && (
             <Button
               onClick={() => navigate('/admin')}
