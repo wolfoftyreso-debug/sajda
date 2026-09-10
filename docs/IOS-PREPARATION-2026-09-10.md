@@ -86,7 +86,30 @@ product work. See the prior [iOS/SEO audit](IOS-SEO-AUDIT-2026-09-10.md).
 
 Local source/unit/mounted UI checks, actual database rollback tests, signed
 provider sandbox tests, simulator builds and deployed HTTP checks are distinct
-verification levels. Final build/deployment evidence is appended after execution.
+verification levels.
+
+- Integrated `npm run check`: 1,012 tests, 1,007 passed, five opt-in database
+  tests skipped, zero failures. The two new PostgreSQL tests were also run
+  explicitly against the development database and passed (see above).
+- Web build: 22 pre-rendered SEO pages and the public-bundle boundary passed.
+  Separate native build and Capacitor sync passed; the native output contains
+  no website SEO pages, canonical metadata, JSON-LD, sitemap or service worker.
+- Production-dependency audit: zero reported vulnerabilities.
+- Actual browser exercise of mounted product panels in an isolated local
+  fixture: deliberate deletion confirmation, invalid-code recovery, successful
+  synthetic deletion, AI opt-in and revocation. At 320/390-pixel widths the
+  inspected controls and translated text remained inside their panels.
+  English/French/Chinese checks found an existing-error language-switch bug;
+  the fix and a mounted regression test were added and browser-retested.
+  These fixtures did not send email, buy anything, call AI or delete an account.
+- First deployed candidate: `sajda-8uf9z83ta-hypbit.vercel.app`, commit
+  `f55d76cfbbcd178758fa55b5234346c393aa9432`, Vercel READY. All 36 actual HTTP
+  SEO checks passed, including query noindex, encoded paths, redirects and 404.
+  All eight new unauthenticated API/method/webhook/cron boundary probes passed
+  with no-store/noindex and correlation IDs. No user/provider mutations.
+- Actual macOS Xcode Debug and Release compilation passed for that commit in
+  [iPhone CI run 34529230637](https://github.com/wolfoftyreso-debug/sajda/actions/runs/34529230637).
+  Compilation is not signing, a physical-device test or an Apple sandbox purchase.
 
 ## Primary references
 

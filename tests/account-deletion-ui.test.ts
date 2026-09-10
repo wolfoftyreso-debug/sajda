@@ -62,6 +62,12 @@ test("mounted deletion flow requires deliberate confirmation, handles retries an
     await click(accountDeletionCopy.en.request);
     assert.match(JSON.stringify(renderer!.toJSON()), /could not be sent/);
     assert.doesNotMatch(JSON.stringify(renderer!.toJSON()), /private provider/);
+    fixture.language = "fr";
+    await act(async () => { renderer!.update(h(Panel, { accountId: "owner-a", onDeleted })); });
+    assert.ok(JSON.stringify(renderer!.toJSON()).includes(accountDeletionCopy.fr.emailError));
+    assert.ok(!JSON.stringify(renderer!.toJSON()).includes(accountDeletionCopy.en.emailError));
+    fixture.language = "en";
+    await act(async () => { renderer!.update(h(Panel, { accountId: "owner-a", onDeleted })); });
     fixture.request = healthy;
     await click(accountDeletionCopy.en.request);
     assert.equal(requests[before].body.requestId, requests[before + 1].body.requestId);
