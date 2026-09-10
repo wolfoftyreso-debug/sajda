@@ -26,4 +26,15 @@ The inspected [Elicit recent-work screen](https://mobbin.com/screens/d24b4334-a8
 - A second visual pass removed excessive explanation before the actual domain list. Anchor navigation both scrolls to and focuses the requested report/progress section.
 - No real Trading run, quote request, subscription, account or provider was created, advanced or cancelled for this UX test.
 
-The ignored local fixture is not shipped and is not an application feature flag. Live deployment evidence is recorded below after deployment.
+The ignored local fixture is not shipped and is not an application feature flag.
+
+## Release evidence
+
+- Application commit: `f183b2ba4e2c39f6e77b71db7cdcc1f07e0a9418`, pushed to `main`.
+- Final `npm run check`: 1,020 tests, 1,015 passed, five opt-in integration tests skipped, zero failures. Lint, TypeScript, 71 language dictionaries, UI, SEO policy, Node syntax and Vercel/Neon boundaries passed.
+- The focused mounted Trading suite passed all 38 tests. Production web and native product bundles built successfully.
+- [GitHub Verify](https://github.com/wolfoftyreso-debug/sajda/actions/runs/34534148774): success. [iPhone workflow](https://github.com/wolfoftyreso-debug/sajda/actions/runs/34534148766): native bundle, sync, unsigned Debug and Release compiles passed; simulator boot was still running at the time of this record. This is not physical-iPhone or TestFlight verification.
+- Vercel deployment `dpl_EH4HuY96CxBNvy1RktYNTsu46L4d` reached **READY**: [immutable preview](https://sajda-drl7fvomi-hypbit.vercel.app/plus). The stable [test alias](https://sajda-test-hypbit.vercel.app/plus) was assigned to it.
+- Live read-only HTTP probe: `/plus` 200 and noindex; deployed `index-Cbr_1xGD.js` references `LostDomains-BkiM-KG6.js`, which contains the eight checked new UI markers; `/auth?next=%2Fplus` 200; private Trading without an application session 401/no-store with no report data.
+- Actual deployed-browser mobile check: new Trading guest screen renders, its primary action reaches the shared account sign-in page with the correct return route, and no runtime console errors were recorded in this interaction. Authenticated report interactions were tested with isolated fixtures, not a newly started real scan.
+- Bounded Vercel 5xx log check returned no entries during the verification window. This is a smoke check, not evidence that future runtime failures cannot occur.
