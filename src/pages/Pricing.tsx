@@ -66,7 +66,7 @@ export default function Pricing() {
             const isCurrent = currentMembership?.plan === id;
             const isIncluded = currentMembership && PLAN_ORDER.indexOf(id) < PLAN_ORDER.indexOf(currentMembership.plan);
             return (
-              <article key={id} data-plan={id} aria-labelledby={`pricing-${id}`} className={`flex min-w-0 flex-col rounded-2xl border bg-card p-5 sm:p-6 ${id === "trading" ? "border-primary/50" : "border-border"}`}>
+              <article key={id} data-plan={id} aria-labelledby={`pricing-${id}`} className={`flex min-w-0 flex-col rounded-2xl border bg-card p-5 sm:p-6 ${id === "premium" ? "border-primary/50" : "border-border"}`}>
                 <p className="text-sm font-medium text-muted-foreground">{plan.audience}</p>
                 <h2 id={`pricing-${id}`} className="mt-2 text-2xl font-semibold tracking-tight">{plan.name}</h2>
                 {(isCurrent || isIncluded) && <p className="mt-2 text-sm font-semibold text-primary" data-plan-access={isCurrent ? "current" : "included"}>{isCurrent ? copy.currentLevel : copy.included}</p>}

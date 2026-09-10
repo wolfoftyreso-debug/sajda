@@ -10,7 +10,7 @@ import { createAccountAuth, createAccountPool } from "../api/_shared/account-ser
 const languages = ["en", "sv", "es", "fr", "zh"] as const;
 
 test("monthly plan labels use all five locales without changing USD prices", () => {
-  assert.deepEqual(Object.values(PLANS).map(plan => plan.unitAmount), [0, 900, 2900, 188000]);
+  assert.deepEqual(Object.values(PLANS).map(plan => plan.unitAmount), [0, 900, 1900, 4900]);
   const suffixes = { en: "month", sv: "månad", es: "mes", fr: "mois", zh: "月" };
   for (const language of languages) {
     for (const plan of Object.values(PLANS)) {
@@ -20,7 +20,7 @@ test("monthly plan labels use all five locales without changing USD prices", () 
       assert.equal(result.replace(/\D/g, ""), String(plan.unitAmount / 100));
     }
   }
-  assert.equal(formatPlanMonthlyPrice("trading", "unknown"), "USD 1,880 / month");
+  assert.equal(formatPlanMonthlyPrice("trading", "unknown"), "USD 49 / month");
 });
 
 test("transactional email dictionaries share the English contract and use a bounded locale", () => {

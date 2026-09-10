@@ -1,7 +1,7 @@
 # Sajda Trading billing operations (legacy Plus identifiers)
 
 The site now has Gratis, Bas, Premium and Trading. Current monthly prices are
-USD 0 / 9 / 29 / 1,880 in `shared/plans.ts`. This billing implementation applies
+USD 0 / 9 / 19 / 49 in `shared/plans.ts`, revised on 2026-09-11. This billing implementation applies
 only to **Trading**, retaining the `sajda-plus` identity and `STRIPE_PLUS_*`
 configuration for compatibility. Bas/Premium purchases are not activated.
 See `PRICING-TIERS-2026-09-09.md` for the tier/feature activation boundaries.
@@ -14,9 +14,10 @@ event ledger and finite, namespaced Plus grants in Neon. Browser success URLs
 never grant access. No product, price, customer, subscription, invoice or active
 grant is created by the migration or build.
 
-The approved price is **USD 1,880 per month**, defined once in
-`shared/plus-plan.ts` as 188,000 cents, USD, one-month billing. It is not a
-provisional price. The actual configured Stripe Price must match that contract:
+The approved price is **USD 49 per month**, sourced from the shared catalog by
+`shared/plus-plan.ts` as 4,900 cents, USD, one-month billing. A lower catalog
+price does not activate checkout or prove commercial readiness. The actual
+configured Stripe Price must match that contract:
 licensed, per-unit recurring billing with exactly one unit and no tiers,
 quantity transformations or customer-chosen amount. Both new-checkout price
 reads and subscription entitlement reconciliation validate the expanded Stripe
@@ -43,7 +44,7 @@ All variables below are **server-only** and must never have a `VITE_` prefix.
 | `STRIPE_MODE`                             | Defaults to `test`; only `test` or `live`                                                 |
 | `STRIPE_SECRET_KEY`                       | `sk_test_...` in preview/development, `sk_live_...` in production                         |
 | `STRIPE_WEBHOOK_SECRET`                   | Endpoint signing secret, not the API key                                                  |
-| `STRIPE_PLUS_PRICE_ID`                    | Existing Price matching exactly USD 1,880 (188,000 cents), every one month                |
+| `STRIPE_PLUS_PRICE_ID`                    | Existing Price matching exactly USD 49 (4,900 cents), every one month                |
 | `STRIPE_PORTAL_CONFIGURATION_ID`          | Existing customer portal configuration                                                    |
 | `STRIPE_CHECKOUT_ENABLED`                 | Exactly `true` to permit new checkout                                                     |
 | `STRIPE_LIVE_ENABLED`                     | Exactly `true`, **in addition** to live mode and production, to permit live configuration |
@@ -53,7 +54,8 @@ Production rejects test mode. Preview/development reject live mode. Production
 uses its own Neon database; it must not share pilot/test users or manual grants
 with preview. Legacy operator grants remain independent of billing, so canceling
 a paid subscription does not secretly remove an independently granted operator
-permission. Billing never grants the separate Swipe undo capability.
+permission. Billing does not copy a separate Swipe undo grant; active Trading
+membership inherits Premium capabilities through the central membership reader.
 
 Disable new sales by setting `STRIPE_CHECKOUT_ENABLED=false`. Keep API and
 webhook credentials configured: existing customers must retain portal access,
@@ -62,6 +64,43 @@ disables checkout but does not disable the mapped customer's billing portal.
 A mismatched price likewise disables new purchases while keeping cancellation
 available. Archiving an otherwise exact matching Price blocks new purchases,
 but does not revoke already-paid time on an existing matching subscription.
+
+## Price revision and sandbox migration
+
+The 2026-09-11 catalog supersedes Premium USD 29 and Trading USD 1,880; the
+historical verification reports retain their original observations. Basic
+remains USD 9 and Free remains USD 0. Premium has no active web checkout.
+
+The read-only audit of sandbox `acct_1UDqPlAJ7seQoN51` found zero subscriptions,
+zero invoices, zero PaymentIntents and one test customer. Live/production
+subscriber state was not verified. Never infer that production is empty from
+this sandbox result.
+
+```sh
+node --import tsx scripts/setup-stripe-sandbox.mjs --account=acct_1UDqPlAJ7seQoN51
+# Only after approval to write the sandbox catalog:
+node --import tsx scripts/setup-stripe-sandbox.mjs --account=acct_1UDqPlAJ7seQoN51 --apply
+```
+
+The setup script reads the central Trading amount and versions the Price lookup
+and idempotency keys with that amount. It reuses the existing product and portal
+and preserves older Prices. Changing a catalog number never edits an immutable
+Stripe Price, starts checkout, updates Vercel configuration or migrates a
+subscription. Until the USD 49 Price exists and is explicitly configured, the
+old USD 1,880 Price must fail the current checkout and entitlement validators.
+
+On 2026-09-11, test Price `price_1UEGrIAJ7seQoN51F0OIF5K7` was created
+at USD 49/month and verified by a fresh provider read. The existing product,
+portal and historical USD 1,880 Price were preserved. Preview/Development
+`STRIPE_PLUS_PRICE_ID` now points to the new test Price, while
+`STRIPE_CHECKOUT_ENABLED=false` remains unchanged. No live configuration,
+payment, subscription, invoice or customer was created by this price revision.
+
+Before any future price change with paying subscribers, inventory that
+environment's subscriptions and paid periods, define a grandfathering or
+consented migration policy, and test its implementation. The current single-
+price contract does not grandfather a different amount; changing it blindly
+could remove valid paid access. No subscriber migration is performed here.
 
 ## Endpoints and Stripe configuration
 

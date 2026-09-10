@@ -1,27 +1,30 @@
 // Explicitly opt-in, test-only catalog setup. Never changes Vercel, webhooks,
 // customers, subscriptions, payment state, environment files or live resources.
-// Inspect: node scripts/setup-stripe-sandbox.mjs --account=acct_...
-// Apply:   node scripts/setup-stripe-sandbox.mjs --account=acct_... --apply
+// Inspect: node --import tsx scripts/setup-stripe-sandbox.mjs --account=acct_...
+// Apply:   node --import tsx scripts/setup-stripe-sandbox.mjs --account=acct_... --apply
 import { readFileSync } from "node:fs";
 import { parseEnv } from "node:util";
 import Stripe from "stripe";
+import { PLUS_PLAN } from "../shared/plus-plan.ts";
 
 const args = process.argv.slice(2);
 const accountArgs = args.filter((value) => /^--account=acct_[A-Za-z0-9]+$/u.test(value));
 if (accountArgs.length !== 1 || args.some((value) => value !== "--apply" && !accountArgs.includes(value))) {
-  process.stderr.write("Usage: node scripts/setup-stripe-sandbox.mjs --account=acct_... [--apply]\n");
+  process.stderr.write("Usage: node --import tsx scripts/setup-stripe-sandbox.mjs --account=acct_... [--apply]\n");
   process.exit(1);
 }
 const expectedAccount = accountArgs[0].slice("--account=".length);
 const apply = args.includes("--apply");
-const catalogKey = "sajda_trading_usd_1880_monthly_test_v1";
+// A new approved amount gets a new immutable Price and idempotency key.
+// The existing product/portal and historical Prices remain untouched.
+const catalogKey = `sajda_trading_${PLUS_PLAN.currency}_${PLUS_PLAN.unitAmount}_cents_monthly_test_v2`;
 const portalKey = "sajda_trading_cancel_at_period_end_test_v1";
 const productName = "Sajda Trading";
 const emit = (value) => process.stdout.write(`${JSON.stringify(value)}\n`);
 const ensure = (condition, code) => { if (!condition) throw new Error(code); };
 const exactPrice = (price, productId) => price.active && price.livemode === false
-  && price.product === productId && price.currency === "usd" && price.unit_amount === 188000
-  && /^188000(?:\.0+)?$/u.test(price.unit_amount_decimal ?? "")
+  && price.product === productId && price.currency === PLUS_PLAN.currency && price.unit_amount === PLUS_PLAN.unitAmount
+  && new RegExp(`^${PLUS_PLAN.unitAmount}(?:\\.0+)?$`, "u").test(price.unit_amount_decimal ?? "")
   && price.type === "recurring" && price.billing_scheme === "per_unit"
   && price.recurring?.interval === "month" && price.recurring.interval_count === 1
   && price.recurring.usage_type === "licensed" && price.tiers_mode == null
@@ -81,12 +84,12 @@ try {
   if (price) ensure(product && exactPrice(price, product.id), "existing_price_requires_review");
   if (!price && apply) {
     price = await stripe.prices.create({
-      product: product.id, currency: "usd", unit_amount: 188000,
+      product: product.id, currency: PLUS_PLAN.currency, unit_amount: PLUS_PLAN.unitAmount,
       billing_scheme: "per_unit",
       recurring: { interval: "month", interval_count: 1, usage_type: "licensed" },
       lookup_key: catalogKey,
       metadata: { sajda_catalog: catalogKey, sajda_plan: "trading", sajda_environment: "test" },
-    }, { idempotencyKey: `sajda-sandbox-price-${expectedAccount}-v1` });
+    }, { idempotencyKey: `sajda-sandbox-price-${expectedAccount}-${catalogKey}` });
     ensure(exactPrice(price, product.id), "created_price_verification_failed");
   }
   const matchingPortals = portals.data.filter((item) => item.metadata.sajda_portal === portalKey
@@ -117,7 +120,7 @@ try {
   emit({
     check: "catalog", mode: "test", apply, complete: Boolean(product && price && portal),
     productId: product?.id ?? null, priceId: price?.id ?? null, portalConfigurationId: portal?.id ?? null,
-    currency: "usd", amount: 188000, interval: "month", cancellation: "at_period_end",
+    currency: PLUS_PLAN.currency, amount: PLUS_PLAN.unitAmount, interval: "month", cancellation: "at_period_end",
     checkoutConfigurationChanged: false, webhookConfigurationChanged: false, paymentSubmitted: false,
   });
 } catch (error) {

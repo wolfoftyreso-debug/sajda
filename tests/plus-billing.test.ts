@@ -61,8 +61,8 @@ test("Plus billing validates server truth and protects explicit checkout, portal
     const posts = () => requests.filter(row => row.method === "POST");
 
     await t.test("snapshot rejects invented readiness, currency, plan periods and wrong account", () => {
-      assert.equal(client.parsePlusBilling(billing(), "account-a").price.unitAmount, 188000);
-      for (const change of [{ price: null }, { price: { ...billing().price, currency: "sek" } }, { price: { ...billing().price, interval: "year" } }, { price: { ...billing().price, unitAmount: -1 } }, ...[187999, 188001, 200000, 230000].map(unitAmount => ({ price: { ...billing().price, unitAmount } })), { ready: false }, { status: "active" }, { status: "made-up" }]) {
+      assert.equal(client.parsePlusBilling(billing(), "account-a").price.unitAmount, 4900);
+      for (const change of [{ price: null }, { price: { ...billing().price, currency: "sek" } }, { price: { ...billing().price, interval: "year" } }, { price: { ...billing().price, unitAmount: -1 } }, ...[4899, 4901, 200000, 230000].map(unitAmount => ({ price: { ...billing().price, unitAmount } })), { ready: false }, { status: "active" }, { status: "made-up" }]) {
         assert.throws(() => client.parsePlusBilling({ ...billing(), ...change }, "account-a"), (error: { code: string }) => error.code === "invalid_response");
       }
       assert.throws(() => client.parsePlusBilling(billing("account-b"), "account-a"), (error: { code: string }) => error.code === "account_changed");
@@ -82,12 +82,12 @@ test("Plus billing validates server truth and protects explicit checkout, portal
     await t.test("guest pricing starts neither a private request nor a checkout", async () => {
       await mount(billing(), null); assert.equal(requests.length, 0); assert.equal(navigations.length, 0);
       assert.equal(verifiedOwners.length, 0);
-      assert.match(text(), /USD 1,880 \/ month/); assert.match(text(), /Monthly price/);
+      assert.match(text(), /USD 49 \/ month/); assert.match(text(), /Monthly price/);
       assert.equal(buttons("Try test checkout").length, 0);
     });
 
     await t.test("verified server price must match the approved plan and test mode is explicit", async () => {
-      await mount(); assert.match(text(), /USD 1,880 \/ month/);
+      await mount(); assert.match(text(), /USD 49 \/ month/);
       assert.match(text(), /Test mode — no real payment|Tax is additional/);
       assert.doesNotMatch(text(), /Preliminary|Indicative/); assert.equal(posts().length, 0);
       assert.equal(button("Try test checkout").props.disabled, false);
@@ -96,7 +96,7 @@ test("Plus billing validates server truth and protects explicit checkout, portal
 
     await t.test("a conflicting provider price cannot replace the fixed price or enable checkout", async () => {
       await mount({ ...billing(), price: { ...billing().price!, unitAmount: 230000 } });
-      assert.match(text(), /USD 1,880 \/ month/);
+      assert.match(text(), /USD 49 \/ month/);
       assert.doesNotMatch(text(), /2,300|Preliminary|Indicative/);
       assert.match(text(), /billing response could not be verified/);
       assert.equal(buttons("Try test checkout").length, 0);
@@ -105,7 +105,7 @@ test("Plus billing validates server truth and protects explicit checkout, portal
 
     await t.test("the previous USD 2,000 price is rejected without displaying it or enabling checkout", async () => {
       await mount({ ...billing(), price: { ...billing().price!, unitAmount: 200000 } });
-      assert.match(text(), /USD 1,880 \/ month/);
+      assert.match(text(), /USD 49 \/ month/);
       assert.doesNotMatch(text(), /2,000/);
       assert.match(text(), /billing response could not be verified/);
       assert.equal(buttons("Try test checkout").length, 0);
@@ -115,7 +115,7 @@ test("Plus billing validates server truth and protects explicit checkout, portal
 
     await t.test("disconnected checkout does not change the fixed price or pretend purchasing is available", async () => {
       await mount({ ...billing(), ready: false, mode: null, price: null, canCheckout: false, canManage: false });
-      assert.match(text(), /USD 1,880 \/ month/);
+      assert.match(text(), /USD 49 \/ month/);
       assert.match(text(), /New subscriptions are not available right now/);
       assert.doesNotMatch(text(), /Preliminary|Indicative|Test mode/);
       assert.equal(buttons("Try test checkout").length, 0);

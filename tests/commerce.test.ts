@@ -120,8 +120,8 @@ const fixtures = () => {
         customer: "cus_fixture",
         livemode: false,
         status: "paid",
-        amount_paid: 188000,
-        amount_due: 188000,
+        amount_paid: 4900,
+        amount_due: 4900,
         currency: "usd",
         parent: { subscription_details: { subscription: "sub_fixture" } },
         lines: {
@@ -155,18 +155,18 @@ const invalidPrices = () => [
   { ...stripePrice(), object: "product" },
   { ...stripePrice(), livemode: true },
   { ...stripePrice(), currency: "sek" },
-  { ...stripePrice(), unit_amount: 187999, unit_amount_decimal: "187999" },
-  { ...stripePrice(), unit_amount: 188001, unit_amount_decimal: "188001" },
-  { ...stripePrice(), unit_amount: 188000.5, unit_amount_decimal: "188000.5" },
-  { ...stripePrice(), unit_amount: "188000" },
+  { ...stripePrice(), unit_amount: 4899, unit_amount_decimal: "4899" },
+  { ...stripePrice(), unit_amount: 4901, unit_amount_decimal: "4901" },
+  { ...stripePrice(), unit_amount: 4900.5, unit_amount_decimal: "4900.5" },
+  { ...stripePrice(), unit_amount: "4900" },
   { ...stripePrice(), unit_amount: null },
-  { ...stripePrice(), unit_amount_decimal: "188000.000000000001" },
-  { ...stripePrice(), unit_amount_decimal: "1.88e5" },
-  { ...stripePrice(), unit_amount_decimal: 188000 },
+  { ...stripePrice(), unit_amount_decimal: "4900.000000000001" },
+  { ...stripePrice(), unit_amount_decimal: "4.9e3" },
+  { ...stripePrice(), unit_amount_decimal: 4900 },
   { ...stripePrice(), type: "one_time", recurring: null },
   { ...stripePrice(), billing_scheme: "tiered" },
   { ...stripePrice(), tiers_mode: "volume" },
-  { ...stripePrice(), tiers: [{ unit_amount: 188000, up_to: "inf" }] },
+  { ...stripePrice(), tiers: [{ unit_amount: 4900, up_to: "inf" }] },
   { ...stripePrice(), transform_quantity: { divide_by: 2, round: "up" } },
   { ...stripePrice(), custom_unit_amount: { enabled: true } },
   {
@@ -188,15 +188,15 @@ const invalidPrices = () => [
   { ...stripePrice(), tax_behavior: "unknown" },
 ];
 
-test("approved commercial contract is exactly USD 1,880 monthly and is verified from provider evidence", () => {
-  assert.equal(PLUS_PLAN.unitAmount, 188000);
+test("approved commercial contract is exactly USD 49 monthly and is verified from provider evidence", () => {
+  assert.equal(PLUS_PLAN.unitAmount, 4900);
   assert.equal(PLUS_PLAN.currency, "usd");
   assert.equal(PLUS_PLAN.interval, "month");
   assert.equal(PLUS_PLAN.intervalCount, 1);
   assert.deepEqual(validatePlusPrice(stripePrice(), config), price);
   assert.deepEqual(
     validatePlusPrice(
-      { ...stripePrice(), unit_amount_decimal: "188000.000000000000" },
+      { ...stripePrice(), unit_amount_decimal: "4900.000000000000" },
       config,
     ),
     price,
@@ -209,49 +209,49 @@ test("approved commercial contract is exactly USD 1,880 monthly and is verified 
 });
 
 test("Stripe SDK Decimal responses are normalized losslessly before strict price validation", () => {
-  const sdkPrice = { ...stripePrice(), unit_amount_decimal: Stripe.Decimal.from("188000") };
+  const sdkPrice = { ...stripePrice(), unit_amount_decimal: Stripe.Decimal.from("4900") };
   assert.equal(typeof sdkPrice.unit_amount_decimal, "object");
   // Raw/untrusted object-valued decimals remain invalid. Only the authenticated
   // SDK adapter restores the documented wire representation.
   assert.throws(() => validatePlusPrice(sdkPrice, config), code("billing_price_unavailable"));
   assert.deepEqual(validatePlusPrice(stripeSdkPayload(sdkPrice as never), config), price);
-  for (const decimal of ["188000.000000000001", "187999.999999999999", "200000"]) {
+  for (const decimal of ["4900.000000000001", "4899.999999999999", "200000"]) {
     const invalid = { ...sdkPrice, unit_amount_decimal: Stripe.Decimal.from(decimal) };
     const wire = stripeSdkPayload(invalid as never) as Record<string, unknown>;
     assert.equal(wire.unit_amount_decimal, decimal);
     assert.throws(() => validatePlusPrice(wire, config), code("billing_price_unavailable"));
   }
   for (const decimal of [
-    { toString: () => "188000" },
-    { toJSON: () => "188000" },
-    { valueOf: () => 188000 },
+    { toString: () => "4900" },
+    { toJSON: () => "4900" },
+    { valueOf: () => 4900 },
   ]) assert.throws(() => validatePlusPrice({ ...stripePrice(), unit_amount_decimal: decimal }, config), code("billing_price_unavailable"));
 });
 
 test("expanded SDK decimals work in Checkout and subscription reconciliation without rounding", () => {
   const session = stripeCheckout();
-  session.line_items.data[0].price.unit_amount_decimal = Stripe.Decimal.from("188000") as never;
+  session.line_items.data[0].price.unit_amount_decimal = Stripe.Decimal.from("4900") as never;
   assert.equal(validatePlusCheckout(stripeSdkPayload(session as never), "cus_fixture", config).id, session.id);
   const { subscription, invoices } = fixtures();
-  subscription.items.data[0].price.unit_amount_decimal = Stripe.Decimal.from("188000") as never;
+  subscription.items.data[0].price.unit_amount_decimal = Stripe.Decimal.from("4900") as never;
   const sdkList = { object: "list", has_more: false, data: [subscription] };
   const normalized = stripeSdkPayload(sdkList as never) as { data: unknown[] };
   assert.ok(evaluateSubscription(normalized.data[0], invoices, "cus_fixture", config).grant);
-  subscription.items.data[0].price.unit_amount_decimal = Stripe.Decimal.from("188000.000000000001") as never;
+  subscription.items.data[0].price.unit_amount_decimal = Stripe.Decimal.from("4900.000000000001") as never;
   const rejected = stripeSdkPayload(sdkList as never) as { data: unknown[] };
   assert.equal(evaluateSubscription(rejected.data[0], invoices, "cus_fixture", config).grant, null);
 });
 
-test("the previous USD 2,000 price cannot open checkout or grant Plus even with the configured price ID", () => {
-  const previousPrice = { ...stripePrice(), unit_amount: 200000, unit_amount_decimal: "200000" };
+for (const previousAmount of [188000, 200000]) test(`the superseded USD ${previousAmount / 100} price cannot open checkout or grant Plus even with the configured price ID`, () => {
+  const previousPrice = { ...stripePrice(), unit_amount: previousAmount, unit_amount_decimal: String(previousAmount) };
   assert.throws(() => validatePlusPrice(previousPrice, config), code("billing_price_unavailable"));
   const session = stripeCheckout();
   session.line_items.data[0].price = previousPrice;
   assert.throws(() => validatePlusCheckout(session, "cus_fixture", config), code("billing_price_unavailable"));
   const { subscription, invoices } = fixtures();
   subscription.items.data[0].price = previousPrice;
-  invoices.data[0].amount_paid = 200000;
-  invoices.data[0].amount_due = 200000;
+  invoices.data[0].amount_paid = previousAmount;
+  invoices.data[0].amount_due = previousAmount;
   assert.equal(evaluateSubscription(subscription, invoices, "cus_fixture", config).grant, null);
 });
 
@@ -372,7 +372,7 @@ test("inclusive-tax subtotal is not confused with the approved price for one mon
   session.line_items.data[0].price.tax_behavior = "inclusive";
   assert.equal(
     validatePlusCheckout(
-      { ...session, amount_subtotal: 156667, amount_total: 188000 },
+      { ...session, amount_subtotal: 4083, amount_total: 4900 },
       "cus_fixture",
       config,
     ).url,

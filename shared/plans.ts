@@ -4,8 +4,8 @@
 export const PLANS = Object.freeze({
   free: Object.freeze({ id: "free", name: "Gratis", currency: "usd", unitAmount: 0, interval: "month", intervalCount: 1 }),
   basic: Object.freeze({ id: "basic", name: "Bas", currency: "usd", unitAmount: 900, interval: "month", intervalCount: 1 }),
-  premium: Object.freeze({ id: "premium", name: "Premium", currency: "usd", unitAmount: 2900, interval: "month", intervalCount: 1 }),
-  trading: Object.freeze({ id: "trading", name: "Trading", currency: "usd", unitAmount: 188_000, interval: "month", intervalCount: 1 }),
+  premium: Object.freeze({ id: "premium", name: "Premium", currency: "usd", unitAmount: 1900, interval: "month", intervalCount: 1 }),
+  trading: Object.freeze({ id: "trading", name: "Trading", currency: "usd", unitAmount: 4900, interval: "month", intervalCount: 1 }),
 } as const);
 
 export type PlanId = keyof typeof PLANS;

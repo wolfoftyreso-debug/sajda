@@ -19,9 +19,9 @@ test("the expert plan is consistently named Trading without changing its interna
 test("Plus shows the approved fixed monthly US dollar price independently of checkout readiness", () => {
   const sv = getLostDomainsCopy("sv");
   const en = getLostDomainsCopy("en");
-  assert.equal(sv.price, "1 880 USD / månad");
-  assert.equal(en.price, "USD 1,880 / month");
-  assert.equal(PLUS_PLAN.unitAmount, 188000);
+  assert.equal(sv.price, "49 USD / månad");
+  assert.equal(en.price, "USD 49 / month");
+  assert.equal(PLUS_PLAN.unitAmount, 4900);
   assert.equal(sv.price, formatPlusMonthlyPrice("sv"));
   assert.equal(en.price, formatPlusMonthlyPrice("en"));
   assert.equal(sv.priceLabel, "Månadspris");

@@ -38,6 +38,16 @@ test("pricing describes four distinct levels without advertising unfinished moni
   assert.deepEqual(getPricingCopy("unsupported"), getPricingCopy("en"));
 });
 
+test("pricing keeps ordinary naming separate from Trading and states that saving is free", () => {
+  assert.match(getPricingCopy("en").lead, /not a requirement for finding good names/);
+  assert.match(getPricingCopy("sv").lead, /inte ett krav för att hitta bra namn/);
+  for (const language of ["en", "sv", "es", "fr", "zh"]) {
+    assert.equal(getPricingCopy(language).plans.free.points.length, 4);
+  }
+  assert.match(getPricingCopy("en").plans.free.points.join(" "), /Save domains with a verified account/);
+  assert.match(getPricingCopy("sv").plans.free.points.join(" "), /Spara domäner med verifierat konto/);
+});
+
 test("mounted pricing presents the shared prices and only truthful navigation, without checkout effects", async t => {
   const originalFetch = globalThis.fetch;
   const fixtureKey = "__SAJDA_PRICING_TEST_LANGUAGE__";
