@@ -158,6 +158,31 @@ Read-only snapshots and failed requests log safe correlation codes only. No
 payment payload, API key, signature, customer email or card details are logged.
 Use request IDs plus the event/customer ledger to investigate incidents.
 
+## Apple and Stripe coexistence (2026-09-10)
+
+Before opening Stripe checkout, the server checks for account-owned App Store
+subscriptions in the same environment and repeats the check after acquiring the
+existing fenced Stripe customer lease. Active, billing-retry and grace-period
+Apple records block a second Stripe checkout. Turning off Apple auto-renewal does
+not by itself release this guard: the remaining paid period still belongs to
+Apple. A stale record is not proof of cancellation; synchronize App Store status
+to confirm expiry or revocation. An unavailable database check fails closed.
+
+The website receives an `appStoreManaged` flag when that guard is active and
+offers [Apple subscription settings](https://apps.apple.com/account/subscriptions)
+instead of a Stripe purchase button. A subscription discovered between reads
+returns `app_store_subscription_exists` (409) with the same recovery path. An
+existing Stripe portal remains available, so an account which already has both
+providers is not prevented from managing its Stripe billing.
+
+This protects **known existing** subscriptions. It is not an atomic reservation
+across Apple and Stripe: simultaneous first purchases on different platforms or
+an externally opened checkout can still race. Sales remain gated until sandbox
+tests cover these states and a cross-provider reconciliation/support policy is
+approved. No code in this pass performs a real purchase, refund or cancellation.
+Account deletion has its separate explicit confirmation and recovery contract
+in [ACCOUNT-DELETION.md](ACCOUNT-DELETION.md).
+
 ## Primary evidence
 
 - [Stripe webhook delivery, signatures and unordered events](https://docs.stripe.com/webhooks)

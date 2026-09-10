@@ -16,7 +16,7 @@ const en = {
   },
   native: {
     title: "Sign in to the Sajda app", warning: "Continue only if you just started signing in from Sajda’s iPhone app.",
-    permission: "The app can access your account, saved domains, API keys and plan features, and manage app sign-ins. This does not authorize any purchase.",
+    permission: "The app can access your account, saved domains, API keys and plan features, manage app sign-ins and initiate account deletion. Deletion still requires a code sent to your email. This does not authorize any purchase.",
     invalid: "Start signing in again from the Sajda app.", checking: "Checking your account…", signIn: "Sign in",
     connecting: "Connecting…", connect: "Connect my account to the app",
     failed: "We could not connect your account. Start signing in again from the app.", cancel: "Cancel",
@@ -39,7 +39,7 @@ export const accountAccessCopy: Record<Language, typeof en> = {
     },
     native: {
       title: "Logga in i Sajda-appen", warning: "Fortsätt bara om du själv precis startade inloggningen i Sajdas iPhone-app.",
-      permission: "Appen får tillgång till ditt konto, sparade domäner, API-nycklar och funktionerna i din nivå. Den får också hantera appinloggningar. Du godkänner inga köp här.",
+      permission: "Appen får tillgång till ditt konto, sparade domäner, API-nycklar och funktionerna i din nivå. Den får hantera appinloggningar och begära kontoborttagning, som kräver en kod via e-post. Du godkänner inga köp här.",
       invalid: "Starta inloggningen på nytt från Sajda-appen.", checking: "Kontrollerar ditt konto…", signIn: "Logga in",
       connecting: "Ansluter…", connect: "Anslut mitt konto till appen", failed: "Vi kunde inte ansluta ditt konto. Starta inloggningen på nytt från appen.", cancel: "Avbryt",
     },
@@ -58,7 +58,7 @@ export const accountAccessCopy: Record<Language, typeof en> = {
     },
     native: {
       title: "Inicia sesión en la aplicación de Sajda", warning: "Continúa solo si acabas de iniciar este proceso desde la aplicación de Sajda para iPhone.",
-      permission: "La aplicación podrá acceder a tu cuenta, tus dominios guardados, tus claves API y las funciones de tu plan, y gestionar las sesiones de la aplicación. Esto no autoriza ninguna compra.",
+      permission: "La aplicación podrá acceder a tu cuenta, dominios guardados, claves API y funciones del plan, gestionar sesiones e iniciar la eliminación de la cuenta. La eliminación requiere un código enviado a tu correo. Esto no autoriza ninguna compra.",
       invalid: "Vuelve a iniciar sesión desde la aplicación de Sajda.", checking: "Comprobando tu cuenta…", signIn: "Iniciar sesión",
       connecting: "Conectando…", connect: "Conectar mi cuenta a la aplicación", failed: "No pudimos conectar tu cuenta. Vuelve a iniciar sesión desde la aplicación.", cancel: "Cancelar",
     },
@@ -77,7 +77,7 @@ export const accountAccessCopy: Record<Language, typeof en> = {
     },
     native: {
       title: "Connectez-vous à l’application Sajda", warning: "Continuez uniquement si vous venez de lancer la connexion depuis l’application iPhone de Sajda.",
-      permission: "L’application pourra accéder à votre compte, à vos domaines enregistrés, à vos clés API et aux fonctions de votre offre, et gérer les connexions de l’application. Cela n’autorise aucun achat.",
+      permission: "L’application pourra accéder à votre compte, vos domaines enregistrés, clés API et fonctions de l’offre, gérer les connexions et demander la suppression du compte. La suppression nécessite un code envoyé par e-mail. Cela n’autorise aucun achat.",
       invalid: "Relancez la connexion depuis l’application Sajda.", checking: "Vérification de votre compte…", signIn: "Se connecter",
       connecting: "Connexion en cours…", connect: "Associer mon compte à l’application", failed: "Nous n’avons pas pu associer votre compte. Relancez la connexion depuis l’application.", cancel: "Annuler",
     },
@@ -95,7 +95,7 @@ export const accountAccessCopy: Record<Language, typeof en> = {
     },
     native: {
       title: "登录 Sajda 应用", warning: "只有在你刚刚从 Sajda 的 iPhone 应用中发起登录时，才应继续。",
-      permission: "应用将能够访问你的账户、已保存的域名、API 密钥和方案功能，并管理应用登录。这不会授权任何购买。",
+      permission: "应用将能够访问你的账户、已保存的域名、API 密钥和方案功能，管理应用登录并发起账户删除。删除仍需通过邮箱验证码确认。这不会授权任何购买。",
       invalid: "请从 Sajda 应用重新发起登录。", checking: "正在检查账户…", signIn: "登录", connecting: "正在连接…", connect: "将我的账户连接到应用",
       failed: "无法连接你的账户，请从应用重新发起登录。", cancel: "取消",
     },

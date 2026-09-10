@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { productFetch } from "@/lib/productFetch";
+import { requestDeadline, throwIfCancelled } from "@/lib/abort";
 import { normaliseReferenceFx, REFERENCE_FX_CACHE_MS, type ReferenceFx } from "../../shared/reference-fx";
 
 let snapshot: ReferenceFx | null = null;
@@ -13,11 +14,14 @@ const getServerSnapshot = () => null;
 async function refresh() {
   if (Date.now() < expiresAt) return;
   if (!pending) pending = (async () => {
+    const deadline = requestDeadline(7_000);
     try {
-      const response = await productFetch("/api/reference-fx", { credentials: "omit", signal: AbortSignal.timeout(7_000) });
+      const response = await productFetch("/api/reference-fx", { credentials: "omit", signal: deadline.signal });
       const payload = response.ok ? await response.json() : null;
+      throwIfCancelled(deadline.signal);
       snapshot = normaliseReferenceFx(payload?.referenceFx);
     } catch { snapshot = null; }
+    finally { deadline.dispose(); }
     expiresAt = snapshot ? Date.parse(snapshot.fetchedAt) + REFERENCE_FX_CACHE_MS : Date.now() + 60_000;
     for (const listener of listeners) listener();
   })().finally(() => { pending = null; });

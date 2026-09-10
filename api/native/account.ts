@@ -11,6 +11,7 @@ import trading from "../account/lost-domains.js";
 import capabilities from "../account/capabilities.js";
 import developerKeys from "../developer/api-keys.js";
 import appSessions from "../account/app-sessions.js";
+import deletion from "../account/deletion.js";
 
 export const config = { maxDuration: 60 };
 const input = z.object({
@@ -34,6 +35,7 @@ export function nativeAccountRoute(path: string, method: string, body?: unknown)
     throw new AccountAccessError("invalid_request",400,"Invalid app API route.");
   }
   if (url.pathname === "/api/account/membership" && method === "GET" && !url.search) return { handler: membership, scope:"account:read", query:{} };
+  if (url.pathname === "/api/account/deletion" && method === "POST" && !url.search) return { handler: deletion, scope:"account:delete", query:{} };
   if (url.pathname === "/api/account/app-sessions" && ["GET","DELETE"].includes(method)
     && (method === "GET" || !url.search)) return { handler: appSessions, scope:"sessions:manage", query:Object.fromEntries(url.searchParams) };
   if (url.pathname === "/api/account/saved-domains" && ["GET","POST","DELETE"].includes(method)
@@ -47,7 +49,7 @@ export function nativeAccountRoute(path: string, method: string, body?: unknown)
     }
     return { handler:trading, scope:method === "GET"?"trading:read":action === "refresh_quote"?"trading:quote":"trading:run", query:{} };
   }
-  // In-app billing is a separate StoreKit project. No native request can initiate
+  // StoreKit has a dedicated verified commerce boundary. No native request can initiate
   // the browser Stripe checkout or portal, even if its UI is modified.
   throw new AccountAccessError("unsupported_native_action",403,"This action is not available in the app.");
 }

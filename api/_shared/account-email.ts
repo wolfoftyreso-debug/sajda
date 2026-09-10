@@ -179,3 +179,28 @@ async function sendProviderEmail(
     throw new AccountEmailError("email_delivery_failed", 503, "Mejlet kunde inte skickas just nu. Vänta en stund och begär en ny länk.");
   }
 }
+
+/** A confirmation code is sent only to the signed-in account's stored email.
+ * This does not delete anything; deletion still requires an authenticated POST.
+ * Never copy codes to the operator mailbox or put them in URLs/logs. */
+export async function sendAccountDeletionEmail(message: {
+  to: string; code: string; requestId: string; language?: EmailLanguage;
+}): Promise<void> {
+  const configuration = emailConfiguration();
+  if (!configuration) throw new AccountEmailError("email_not_configured", 503, "Account email is temporarily unavailable.");
+  if (!validAddress(message.to) || !/^\d{8}$/u.test(message.code)
+    || !/^[0-9a-f-]{36}$/u.test(message.requestId)) {
+    throw new AccountEmailError("invalid_email_request", 400, "Request a new account deletion code.");
+  }
+  const copy = {
+    en: ["Confirm deletion of your Sajda account", "Your account deletion code", "Enter this code in Sajda to permanently delete your account. It expires in 15 minutes.", "If you did not request this, do not share the code. Your account has not been deleted."],
+    sv: ["Bekräfta radering av ditt Sajda-konto", "Din kod för att radera kontot", "Ange koden i Sajda för att radera ditt konto permanent. Koden gäller i 15 minuter.", "Om du inte begärde detta ska du inte dela koden. Ditt konto har inte raderats."],
+    es: ["Confirma la eliminación de tu cuenta de Sajda", "Tu código para eliminar la cuenta", "Introduce este código en Sajda para eliminar tu cuenta de forma permanente. Caduca en 15 minutos.", "Si no lo has solicitado, no compartas el código. Tu cuenta no se ha eliminado."],
+    fr: ["Confirmez la suppression de votre compte Sajda", "Votre code de suppression", "Saisissez ce code dans Sajda pour supprimer définitivement votre compte. Il expire dans 15 minutes.", "Si vous n’avez pas fait cette demande, ne partagez pas le code. Votre compte n’a pas été supprimé."],
+    zh: ["确认删除您的 Sajda 账户", "账户删除验证码", "请在 Sajda 中输入此验证码，以永久删除您的账户。验证码 15 分钟内有效。", "如果您没有发起此请求，请勿向他人透露验证码。您的账户尚未删除。"],
+  }[emailLanguage(message.language)];
+  const text = `Sajda\n\n${copy[1]}\n\n${message.code}\n\n${copy[2]}\n\n${copy[3]}`;
+  const html = `<!doctype html><html lang="${message.language === "zh" ? "zh-Hans" : emailLanguage(message.language)}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="font-family:Arial,Helvetica,sans-serif;background:#f4f7fb;color:#172033;padding:24px"><main style="max-width:520px;margin:auto;background:white;padding:28px;border-radius:12px"><p>Sajda</p><h1 style="font-size:24px">${escapeHtml(copy[1])}</h1><p style="font-size:16px;line-height:1.6">${escapeHtml(copy[2])}</p><p style="font-size:32px;font-weight:bold;letter-spacing:4px">${message.code}</p><p style="font-size:14px;line-height:1.6">${escapeHtml(copy[3])}</p></main></body></html>`;
+  const digest = createHash("sha256").update(JSON.stringify([message.to, message.requestId, text])).digest("hex");
+  await sendProviderEmail(configuration, { to: [message.to], reply_to: CONTACT_RECIPIENT, subject: copy[0], text, html }, `sajda-delete-${digest}`);
+}

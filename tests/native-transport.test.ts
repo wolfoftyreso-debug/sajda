@@ -13,6 +13,11 @@ interface Transport {
   nativeShareCsv(filename: string, csv: string): Promise<{ completed: boolean }>;
   nativeShareFile(filename: string, content: string): Promise<{ completed: boolean }>;
   nativeRequest(path: string, method: string, body?: unknown, signal?: AbortSignal): Promise<Response>;
+  sanitizeNativeStoreCatalog(value:unknown,accountId:string): unknown;
+  nativeCommerceCatalog(accountId:string):Promise<unknown>;
+  nativeCommercePurchase(accountId:string,productId:string):Promise<string>;
+  nativeCommerceRestore(accountId:string):Promise<string>;
+  forgetDeletedAccount(accountId:string):Promise<void>;
 }
 
 function deferred<T = unknown>() {
@@ -49,6 +54,11 @@ test("native transport validates the bridge boundary and fences authentication c
     onCancel: async (_id: string): Promise<void> => {},
     onShareCsv: async (): Promise<unknown> => ({ completed: true }),
     onShareFile: async (): Promise<unknown> => ({ completed: true }),
+    onCommerce:async():Promise<unknown>=>({enabled:false,purchasesEnabled:false,accountId:"account-native-123",products:[]}),
+    async commerceCatalog(){return fixture.onCommerce();},
+    async commercePurchase(){return fixture.onCommerce();},
+    async commerceRestore(){return fixture.onCommerce();},
+    async forgetDeletedAccount(){return {ok:true};},
     async session() { return fixture.onSession(); },
     async signIn() { return fixture.onSignIn(); },
     async signOut() { return fixture.onSignOut(); },
@@ -78,6 +88,40 @@ test("native transport validates the bridge boundary and fences authentication c
   try {
     const transport = await vite.ssrLoadModule("/src/lib/nativeTransport.ts") as Transport;
     assert.equal(transport.nativeAvailable, true);
+
+    await t.test("App Store catalog never leaks account-binding tokens, JWS or unexpected product claims",async()=>{
+      const owner="account-native-123";
+      const product={id:"com.hypbit.sajda.premium",plan:"premium",name:"Premium",price:"29,99 €"};
+      const good={enabled:true,purchasesEnabled:true,accountId:owner,products:[product]};
+      const dirty={...good,appAccountToken:"must-not-leak",signedTransaction:"must-not-leak",plan:"trading"};
+      fixture.onCommerce=async()=>dirty;
+      assert.deepEqual(await transport.nativeCommerceCatalog(owner),good);
+      for(const invalid of [null,{}, {...good,accountId:"other"},{...good,enabled:"yes"},
+        {...good,products:[]},{...good,products:[{...product,plan:"admin"}]},
+        {...good,products:[product,product]},{...good,enabled:false}]){
+        assert.throws(()=>transport.sanitizeNativeStoreCatalog(invalid,owner));
+      }
+    });
+    await t.test("pending, cancellation and no-active restore are not new paid access",async()=>{
+      const owner="account-native-123";
+      for(const state of ["pending","cancelled","verified","no_active"]){
+        fixture.onCommerce=async()=>({accountId:owner,state,token:"discard"});
+        assert.equal(await transport.nativeCommercePurchase(owner,"com.hypbit.sajda.premium"),state);
+      }
+      assert.equal(await transport.nativeCommerceRestore(owner),"no_active");
+      fixture.onCommerce=async()=>({accountId:owner,state:"paid"});
+      await assert.rejects(transport.nativeCommercePurchase(owner,"com.hypbit.sajda.premium"));
+    });
+    await t.test("delayed App Store replies cannot update a replacement account; deletion cleanup fences outstanding calls",async()=>{
+      const owner="account-native-123";
+      const slow=deferred();fixture.onCommerce=()=>slow.promise;
+      const result=transport.nativeCommerceCatalog(owner);
+      const rejected=assert.rejects(result);
+      await assert.rejects(transport.nativeCommerceCatalog(owner),"No duplicate system actions");
+      await transport.forgetDeletedAccount(owner);
+      slow.resolve({enabled:false,purchasesEnabled:false,accountId:owner,products:[]});
+      await rejected;
+    });
 
     await t.test("only bounded generated CSV, SVG and HTML artifacts reach file sharing", async () => {
       for (const [filename, content] of [["report.csv", "domain"], ["example-dev-logo-study.svg", '<svg xmlns="http://www.w3.org/2000/svg"/>'], ["index.html", "<!doctype html><p>For sale</p>"]]) {

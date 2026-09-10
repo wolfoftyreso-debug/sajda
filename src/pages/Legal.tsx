@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+import AiPrivacyControl from "@/components/AiPrivacyControl";
 import { isNativeApp } from "@/lib/appSurface";
 import { Button } from "@/components/ui/button";
 import { useLanguage, type Language } from "@/i18n/LanguageProvider";
@@ -553,6 +554,7 @@ export default function Legal() {
 
         <section id="privacy" className="mx-auto w-full max-w-7xl scroll-mt-24 px-5 py-14 sm:px-7 sm:py-20">
           <SectionHeading eyebrow={copy.privacy.eyebrow} title={copy.privacy.title} lead={copy.privacy.lead} />
+          <AiPrivacyControl className="mt-6" />
           <div className="mt-9 grid gap-4 md:grid-cols-2">
             {privacyCards.map((card) => {
               const Icon = card.icon;

@@ -1,4 +1,5 @@
 import { accountRequest, readAccountSession } from "@/integrations/neon/auth";
+import { throwIfCancelled } from "./abort";
 import { assertAccountSessionOwner, type AccountRequestScope } from "@/lib/accountRequestScope";
 import { isAccountMembership, type AccountMembership } from "../../shared/account-membership";
 
@@ -26,9 +27,9 @@ export async function getAccountMembership(options: AccountRequestScope): Promis
       || response.code !== undefined || response.ok === false || !isAccountMembership(response.membership)) {
       throw new MembershipError("invalid_response", reference);
     }
-    scope.signal?.throwIfAborted();
+    throwIfCancelled(scope.signal);
     const session = await readAccountSession();
-    scope.signal?.throwIfAborted();
+    throwIfCancelled(scope.signal);
     if (!session || !Number.isFinite(session.expires_at) || Number(session.expires_at) <= Date.now() / 1000) throw new MembershipError("unauthenticated", reference);
     assertAccountSessionOwner(session.user.id, scope.accountId);
     if (response.membership.expiresAt && Date.parse(response.membership.expiresAt) <= Date.now()) throw new MembershipError("expired", reference);

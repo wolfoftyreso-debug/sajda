@@ -1,4 +1,5 @@
 import { accountRequest, readAccountSession } from "@/integrations/neon/auth";
+import { throwIfCancelled } from "./abort";
 import { assertAccountSessionOwner, type AccountRequestScope } from "@/lib/accountRequestScope";
 import { PLUS_PLAN } from "../../shared/plus-plan";
 
@@ -15,9 +16,10 @@ export interface PlusBillingSnapshot {
   canCheckout: boolean;
   canManage: boolean;
   accessExpiresAt: string | null;
+  appStoreManaged?: boolean;
 }
 export type PlusBillingErrorCode = "unavailable" | "invalid_response" | "unauthenticated" | "account_changed" | "rate_limited" | "not_ready"
-  | "email_verification_required" | "subscription_changed" | "checkout_expired" | "review_required";
+  | "email_verification_required" | "subscription_changed" | "checkout_expired" | "review_required" | "app_store_subscription_exists";
 export class PlusBillingError extends Error {
   constructor(readonly code: PlusBillingErrorCode, readonly requestId?: string) { super("Billing could not be confirmed."); this.name = "PlusBillingError"; }
 }
@@ -34,6 +36,8 @@ function owned(value: unknown, accountId: string): Record<string, unknown> {
 export function parsePlusBilling(value: unknown, accountId: string): PlusBillingSnapshot {
   const payload = owned(value, accountId);
   if (![payload.ready, payload.canCheckout, payload.canManage].every(value => typeof value === "boolean")
+    || (payload.appStoreManaged !== undefined && typeof payload.appStoreManaged !== "boolean")
+    || (payload.appStoreManaged === true && payload.canCheckout === true)
     || !["test", "live", null].includes(payload.mode as string | null) || !billingStatuses.includes(payload.status as PlusBillingStatus)
     || !(payload.accessExpiresAt === null || typeof payload.accessExpiresAt === "string" && /^\d{4}-\d{2}-\d{2}T/u.test(payload.accessExpiresAt) && Number.isFinite(Date.parse(payload.accessExpiresAt)))) return invalid();
   let price: PlusBillingSnapshot["price"] = null;
@@ -46,7 +50,8 @@ export function parsePlusBilling(value: unknown, accountId: string): PlusBilling
   if (payload.ready && (!price || !payload.mode) || payload.canCheckout && !payload.ready || payload.canManage && !payload.mode
     || payload.canCheckout && ["active", "trialing", "past_due", "unpaid", "paused", "conflict"].includes(String(payload.status))) return invalid();
   return { accountId, requestId: String(payload.requestId), ready: payload.ready as boolean, mode: payload.mode as PlusBillingSnapshot["mode"], price,
-    status: payload.status as PlusBillingStatus, canCheckout: payload.canCheckout as boolean, canManage: payload.canManage as boolean, accessExpiresAt: payload.accessExpiresAt as string | null };
+    status: payload.status as PlusBillingStatus, canCheckout: payload.canCheckout as boolean, canManage: payload.canManage as boolean, accessExpiresAt: payload.accessExpiresAt as string | null,
+    ...(payload.appStoreManaged === true ? { appStoreManaged: true } : {}) };
 }
 export function parseBillingRedirect(value: unknown, accountId: string, action: PlusBillingAction): string {
   const payload = owned(value, accountId);
@@ -65,6 +70,7 @@ function safeFailure(error: unknown): Error {
   if (row?.status === 429) return new PlusBillingError("rate_limited", requestId);
   if (["billing_not_configured", "billing_disabled", "billing_not_ready", "checkout_disabled"].includes(String(row?.code))) return new PlusBillingError("not_ready", requestId);
   if (row?.code === "email_verification_required") return new PlusBillingError("email_verification_required", requestId);
+  if (row?.code === "app_store_subscription_exists") return new PlusBillingError("app_store_subscription_exists", requestId);
   if (["subscription_exists", "checkout_completed"].includes(String(row?.code))) return new PlusBillingError("subscription_changed", requestId);
   if (row?.code === "checkout_expired") return new PlusBillingError("checkout_expired", requestId);
   if (["billing_review_required", "billing_reconciliation_required"].includes(String(row?.code))) return new PlusBillingError("review_required", requestId);
@@ -73,9 +79,9 @@ function safeFailure(error: unknown): Error {
 async function request<T>(scope: AccountRequestScope, parse: (value: unknown) => T, body?: { action: PlusBillingAction; requestKey: string }): Promise<T> {
   try {
     const result = parse(await accountRequest<unknown>("/api/account/billing", { ...scope, ...(body ? { method: "POST", body } : {}) }));
-    scope.signal?.throwIfAborted();
+    throwIfCancelled(scope.signal);
     const session = await readAccountSession();
-    scope.signal?.throwIfAborted();
+    throwIfCancelled(scope.signal);
     if (!session || !Number.isFinite(session.expires_at) || Number(session.expires_at) <= Date.now() / 1000) throw new PlusBillingError("unauthenticated");
     assertAccountSessionOwner(session.user.id, scope.accountId);
     return result;

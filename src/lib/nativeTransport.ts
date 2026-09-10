@@ -9,6 +9,11 @@ interface NativeBridge {
   cancel(options: { id: string }): Promise<void>;
   shareCsv(options: { filename: string; csv: string }): Promise<unknown>;
   shareFile(options: { filename: string; content: string }): Promise<unknown>;
+  commerceCatalog(options: { accountId: string }): Promise<unknown>;
+  commercePurchase(options: { accountId: string; productId: string }): Promise<unknown>;
+  commerceRestore(options: { accountId: string }): Promise<unknown>;
+  commerceManage(): Promise<unknown>;
+  forgetDeletedAccount(options: { accountId: string }): Promise<unknown>;
 }
 const bridge = registerPlugin<NativeBridge>("SajdaNative");
 let authGeneration = 0;
@@ -133,4 +138,67 @@ export async function nativeRequest(path: string, method: string, body?: unknown
     if (privateRequest && generation !== authGeneration) throw staleAccount();
     return responseFromBridge(result);
   } finally { if (abort) signal?.removeEventListener("abort",abort); }
+}
+
+export interface NativeStoreProduct { id: string; name: string; price: string; plan: "basic" | "premium" | "trading" }
+export interface NativeStoreCatalog { enabled: boolean; purchasesEnabled: boolean; accountId: string; products: NativeStoreProduct[] }
+let commercePending = false;
+async function commerceCall(accountId: string, perform: () => Promise<unknown>) {
+  if (!nativeAvailable) throw new Error("App Store actions require the iPhone app.");
+  if (!accountId || accountId.length > 200 || signInPending || signOutPending || commercePending) throw staleAccount();
+  commercePending = true;
+  const generation = authGeneration;
+  try {
+    const value = await perform();
+    if (generation !== authGeneration) throw staleAccount();
+    if (!record(value) || value.accountId !== accountId) throw invalidResponse();
+    return value;
+  } finally { commercePending = false; }
+}
+export function sanitizeNativeStoreCatalog(value: unknown, accountId: string): NativeStoreCatalog {
+  if (!record(value) || value.accountId !== accountId || typeof value.enabled !== "boolean"
+    || typeof value.purchasesEnabled !== "boolean" || !Array.isArray(value.products) || value.products.length > 3
+    || !value.enabled && (value.products.length > 0 || value.purchasesEnabled)) throw invalidResponse();
+  const products = value.products.map(item => {
+    if (!record(item) || typeof item.id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{2,149}$/.test(item.id)
+      || typeof item.name !== "string" || !item.name.trim() || item.name.length > 200
+      || typeof item.price !== "string" || !item.price.trim() || item.price.length > 80
+      || !["basic","premium","trading"].includes(String(item.plan))) throw invalidResponse();
+    return { id:item.id,name:item.name,price:item.price,plan:item.plan as NativeStoreProduct["plan"] };
+  });
+  if (new Set(products.map(item=>item.id)).size !== products.length
+    || new Set(products.map(item=>item.plan)).size !== products.length || value.enabled && !products.length) throw invalidResponse();
+  return { enabled:value.enabled,purchasesEnabled:value.purchasesEnabled,accountId,products };
+}
+export async function nativeCommerceCatalog(accountId: string) {
+  return sanitizeNativeStoreCatalog(await commerceCall(accountId,()=>bridge.commerceCatalog({accountId})),accountId);
+}
+export async function nativeCommercePurchase(accountId: string, productId: string) {
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{2,149}$/.test(productId)) throw invalidResponse();
+  const value=await commerceCall(accountId,()=>bridge.commercePurchase({accountId,productId}));
+  if (!["verified","pending","cancelled","no_active"].includes(String(value.state))) throw invalidResponse();
+  return value.state as "verified"|"pending"|"cancelled"|"no_active";
+}
+export async function nativeCommerceRestore(accountId:string) {
+  const value=await commerceCall(accountId,()=>bridge.commerceRestore({accountId}));
+  if(value.state!=="verified"&&value.state!=="no_active") throw invalidResponse();
+  return value.state;
+}
+export async function nativeCommerceManage() {
+  if(!nativeAvailable || commercePending) throw invalidResponse();
+  commercePending=true;
+  try { const value=await bridge.commerceManage();if(!record(value)||value.ok!==true)throw invalidResponse(); }
+  finally { commercePending=false; }
+}
+/** Use only after the account deletion endpoint confirmed removal. Native code
+ * independently fences the previously server-verified owner and Keychain token. */
+export async function forgetDeletedAccount(accountId:string) {
+  if(!nativeAvailable || !accountId || accountId.length>200 || signInPending || signOutPending)throw staleAccount();
+  signOutPending=true;
+  const generation=++authGeneration;
+  try {
+    const value=await bridge.forgetDeletedAccount({accountId});
+    if(generation!==authGeneration)throw staleAccount();
+    if(!record(value)||value.ok!==true)throw invalidResponse();
+  }finally{signOutPending=false;}
 }

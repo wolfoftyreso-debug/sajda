@@ -1,6 +1,7 @@
 import { getVercelOidcToken } from "@vercel/oidc";
 import { reserveAiAllowance } from "./ai-allowance.js";
 import { createRequestId } from "./public-api.js";
+import { hasCurrentAiConsent } from "../../shared/ai-consent.js";
 
 // Server-only. This fixed endpoint and model allowlist cannot be overridden by
 // caller input. Provider failures never trigger a direct-provider retry.
@@ -18,6 +19,7 @@ export interface AiRequestContext {
 }
 
 interface GatewayRequest<T> {
+  consent?: unknown;
   task: keyof typeof TASK_LIMITS;
   request: AiRequestContext;
   input: string;
@@ -102,6 +104,9 @@ async function currentToken(deps: GatewayDependencies): Promise<string | undefin
 /** Dependency injection is for tests, not an HTTP-configurable gateway. */
 export function createGatewayRequester(deps: GatewayDependencies) {
   return async function requestGatewayJson<T>(options: GatewayRequest<T>): Promise<T | undefined> {
+    // This is the final transport boundary, not merely a UI setting. Refuse
+    // even token/quota lookup until explicit current permission is present.
+    if (!hasCurrentAiConsent(options.consent)) return undefined;
     const limits = TASK_LIMITS[options.task];
     const model = deps.env[limits.modelVariable]?.trim();
     if (deps.env.AI_GATEWAY_ENABLED !== "true" || !model || !ALLOWED_MODELS.has(model)) return undefined;
@@ -133,7 +138,7 @@ export function createGatewayRequester(deps: GatewayDependencies) {
           text: { format: { type: "json_schema", name: options.schemaName, strict: true, schema: options.schema } },
           // Pro per-request ZDR: if no compliant provider is available we use
           // local analysis, never retry with weaker privacy settings or BYOK.
-          providerOptions: { gateway: { disallowPromptTraining: true, zeroDataRetention: true, tags: ["sajda", options.task] } },
+          providerOptions: { gateway: { only: ["google", "vertex"], disallowPromptTraining: true, zeroDataRetention: true, tags: ["sajda", options.task] } },
         }),
       });
       httpStatus = response.status;

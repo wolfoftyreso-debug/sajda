@@ -25,6 +25,7 @@ export interface BillingSnapshot {
   canCheckout: boolean;
   canManage: boolean;
   accessExpiresAt: string | null;
+  appStoreManaged?: boolean;
 }
 const terminal = (status: SubscriptionStatus) =>
   ["none", "canceled", "incomplete_expired"].includes(status);
@@ -84,6 +85,7 @@ export function createCommerceService(
         throw error;
       }
       const { config, store, provider } = services;
+      const appStoreManaged = await store.appStoreSubscription(ownerId);
       let customer = await store.read(ownerId);
       let reconciled = true;
       if (
@@ -120,10 +122,12 @@ export function createCommerceService(
         status: customer?.status ?? "none",
         canCheckout:
           ready &&
+          !appStoreManaged &&
           terminal(customer?.status ?? "none") &&
           !customer?.paymentHold,
         canManage: Boolean(customer?.customerId),
         accessExpiresAt: customer?.accessExpiresAt ?? null,
+        ...(appStoreManaged ? { appStoreManaged: true } : {}),
       };
     },
     async checkout(
@@ -134,8 +138,12 @@ export function createCommerceService(
       const { config, store, provider } = resolve();
       if (!config.checkoutEnabled)
         throw new CommerceError("checkout_disabled", 503);
+      if (await store.appStoreSubscription(ownerId))
+        throw new CommerceError("app_store_subscription_exists", 409);
       await provider.price();
       return withLease(store, ownerId, async (lease) => {
+        if (await store.appStoreSubscription(ownerId, lease))
+          throw new CommerceError("app_store_subscription_exists", 409);
         if (lease.paymentHold)
           throw new CommerceError("billing_review_required", 409);
         let customerId = lease.customerId;

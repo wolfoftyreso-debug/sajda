@@ -125,7 +125,7 @@ export const openApiDocument = {
         summary: "Anonymous consumer domain search route",
         operationId: "searchAnonymousProductDomains",
         security: [],
-        description: "The public product route used by Sajda's own search UI. It is CORS-enabled and returns the same evidence model, but its richer UI request shape is not the stable developer contract. New integrations should use /api/v1/public/domains.",
+        description: "The public product route used by Sajda's own search UI. Advanced brief AI is off unless aiConsent contains the current explicit permission. Omit it for non-AI analysis. Exact checks never use AI. The strict /api/v1/public/domains, /api/v1/domains and MCP search contracts do not accept briefs or invoke third-party AI; new integrations should use those contracts.",
         requestBody: {
           required: true,
           content: {
@@ -609,11 +609,17 @@ export const openApiDocument = {
           creativeMode: { type: "string", enum: ["light", "medium", "heavy", "deep"] },
           advanced: { type: "boolean", default: false },
           brief: { type: "string", maxLength: 6000 },
+          aiConsent: { $ref: "#/components/schemas/AiConsent" },
           criteria: { type: "object", additionalProperties: true },
           swipe: { type: "boolean", default: false },
           minLength: { type: "integer", minimum: 3, maximum: 9 },
           maxLength: { type: "integer", minimum: 3, maximum: 9 },
         },
+      },
+      AiConsent: {
+        type: "object", additionalProperties: false, required: ["version", "accepted"],
+        description: "Obtain explicit informed permission from the person whose text is submitted before supplying this object. Advanced search shares the brief and language with Google Gemini (Google/Vertex AI) through Vercel AI Gateway for interpretation. Deep Review shares the theme and Top 10 domain names for short editorial notes. Omit aiConsent for non-AI processing. Malformed or outdated permission returns 400 ai_consent_invalid. Exact checks never use AI, even with consent. Permission must not be inferred from account creation or API-key possession.",
+        properties: { version: { type: "string", const: "2026-09-10" }, accepted: { type: "boolean", const: true } },
       },
       DomainsSearchResponse: {
         type: "object",

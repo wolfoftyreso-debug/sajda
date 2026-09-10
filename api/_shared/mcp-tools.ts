@@ -57,7 +57,7 @@ const definitions: ToolDefinition[] = [
       .refine(values => new Set(values).size === values.length, "Use unique domains."), locale, providers }).strict(),
     readOnly: true, idempotent: true, openWorld: true },
   { name: "domains_search", title: "Search domain names", scope: "domains:search",
-    description: "Generate and check names using Sajda's existing search engine. Availability may be unknown; standard suffix prices are distinct from exact domain offers. Uses the shared search quota.",
+    description: "Generate and check names using Sajda's non-AI search engine. This tool does not send input to third-party AI or accept advanced briefs/AI consent. Registry and registrar checks use external services. Availability may be unknown; standard suffix prices are distinct from exact domain offers. Uses the shared search quota.",
     schema: z.object({ query: z.string().trim().min(1).max(100),
       tlds: z.array(z.enum(NAMES_API_TLDS)).min(1).max(NAMES_API_TLDS.length)
         .refine(values => new Set(values).size === values.length, "Use unique TLDs."),

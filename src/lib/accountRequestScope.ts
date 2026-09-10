@@ -1,3 +1,5 @@
+import { throwIfCancelled } from "./abort";
+
 export interface AccountRequestScope {
   accountId: string;
   signal?: AbortSignal;
@@ -23,9 +25,9 @@ export async function collectAccountPages<T>(
   const visited = new Set<string>();
   let cursor: string | null = null;
   do {
-    scope.signal?.throwIfAborted();
+    throwIfCancelled(scope.signal);
     const page = await request(cursor, scope);
-    scope.signal?.throwIfAborted();
+    throwIfCancelled(scope.signal);
     if (!Array.isArray(page.items) || (page.nextCursor !== null && typeof page.nextCursor !== "string")) {
       throw new Error("Your saved domains could not be loaded. Try again.");
     }

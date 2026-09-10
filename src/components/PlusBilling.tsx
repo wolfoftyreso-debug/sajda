@@ -61,7 +61,7 @@ export default function PlusBilling({ accountId, language, fallback, disabled = 
         const failure = cause instanceof PlusBillingError ? cause : new PlusBillingError("unavailable");
         setError(failure);
         if (failure.code === "checkout_expired") key.current = null;
-        if (["unauthenticated", "account_changed", "checkout_expired", "subscription_changed"].includes(failure.code)) setData(null);
+        if (["unauthenticated", "account_changed", "checkout_expired", "subscription_changed", "app_store_subscription_exists"].includes(failure.code)) setData(null);
       }
     } finally { if (current()) { request.current = null; setBusy(null); } }
   }
@@ -78,7 +78,11 @@ export default function PlusBilling({ accountId, language, fallback, disabled = 
     {accountId && <div className="mt-4 border-t border-border pt-4">
       {busy === "load" && <p className="flex items-center gap-2 text-sm" role="status"><LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />{copy.loading}</p>}
       {error && <div role="alert" className="text-sm leading-6 text-destructive"><p>{copy.errors[error.code]}</p>{error.requestId && <p className="mt-2 break-all text-xs">{fallback.requestReference}: {error.requestId}</p>}</div>}
-      {!busy && snapshot && !snapshot.ready && <p className="text-sm leading-6 text-muted-foreground">{copy.unavailable}</p>}
+      {!busy && snapshot && !snapshot.ready && !snapshot.appStoreManaged && <p className="text-sm leading-6 text-muted-foreground">{copy.unavailable}</p>}
+      {(snapshot?.appStoreManaged || error?.code === "app_store_subscription_exists") && <div className="space-y-3 rounded-lg border border-border p-3">
+        <p className="text-sm leading-6">{copy.appStoreManaged}</p>
+        <a className="inline-flex min-h-11 items-center text-sm font-semibold text-primary underline underline-offset-4" href="https://apps.apple.com/account/subscriptions" target="_blank" rel="noopener noreferrer">{copy.manageAppStore}</a>
+      </div>}
       {snapshot && snapshot.status !== "none" && <p className="text-sm leading-6">{copy.existing}: <strong className="font-semibold">{copy.statuses[snapshot.status]}</strong></p>}
       {snapshot?.accessExpiresAt && <p className="mt-2 text-xs leading-5 text-muted-foreground">{copy.expires}: <time dateTime={snapshot.accessExpiresAt}>{new Intl.DateTimeFormat(({ en: "en-US", sv: "sv-SE", es: "es-ES", fr: "fr-FR", zh: "zh-CN" } as Record<string, string>)[language] ?? "en-US", { dateStyle: "medium" }).format(new Date(snapshot.accessExpiresAt))}</time></p>}
       {returnState === "success" && <p className="mt-3 text-sm leading-6 text-muted-foreground" role="status">{copy.returnPending}</p>}
@@ -90,6 +94,6 @@ export default function PlusBilling({ accountId, language, fallback, disabled = 
       <Button variant="ghost" className={`${button} mt-2 text-xs`} disabled={Boolean(busy) || disabled} onClick={() => void load()}><RefreshCw className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />{copy.refresh}</Button>
       {error && ["unauthenticated", "account_changed", "email_verification_required"].includes(error.code) && <Button asChild variant="outline" className={`${button} mt-2`}><Link to="/auth?next=%2Fplus">{fallback.signIn}</Link></Button>}
     </div>}
-    {(!snapshot?.ready || !accountId || error?.code === "review_required") && <Button asChild className={`${button} mt-5`}><Link to="/contact">{fallback.contact}<ArrowUpRight className="h-4 w-4 shrink-0" aria-hidden="true" /></Link></Button>}
+    {((!snapshot?.ready && !snapshot?.appStoreManaged && error?.code !== "app_store_subscription_exists") || !accountId || error?.code === "review_required") && <Button asChild className={`${button} mt-5`}><Link to="/contact">{fallback.contact}<ArrowUpRight className="h-4 w-4 shrink-0" aria-hidden="true" /></Link></Button>}
   </div>;
 }

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { AccountMembership } from "../../shared/account-membership.js";
 import { AccountAccessError, type VerifiedAccount } from "./account-auth.js";
 import { getNeonSql } from "./neon.js";
+import { refreshNativeCommerceMembership } from "./native-commerce-service.js";
 
 const REQUESTS_PER_MINUTE = 120;
 type MembershipQuery = (text: string, params: unknown[]) => Promise<Record<string, unknown>[]>;
@@ -52,6 +53,14 @@ export function createAccountMembershipReader(deps: {
           AND entitlement.revoked_at IS NULL AND entitlement.valid_from <= statement_timestamp()
           AND entitlement.expires_at > statement_timestamp()
         UNION ALL
+        SELECT CASE WHEN a.plan='premium' THEN 2 ELSE 1 END AS tier, a.plan,
+          'subscription'::text AS access_source, LEAST(a.expires_at,a.verified_at+interval '24 hours') AS expires_at
+        FROM sajda.native_commerce_subscriptions a JOIN account_owner u ON u.id=a.owner_id
+        WHERE a.namespace=$4 AND a.owner_id=$2 AND a.plan IN ('basic','premium') AND u.verified=true
+          AND a.status IN (1,4) AND a.revoked_at IS NULL AND a.valid_from<=statement_timestamp()
+          AND a.expires_at>statement_timestamp() AND a.verified_at>statement_timestamp()-interval '24 hours'
+          AND (a.namespace='production')=(a.environment='Production')
+        UNION ALL
         SELECT 3 AS tier, 'trading'::text AS plan,
           CASE WHEN EXISTS (
             SELECT 1 FROM sajda.lost_domain_access operator_grant
@@ -85,20 +94,26 @@ export function createAccountMembershipReader(deps: {
     if (row.verified !== true) {
       throw new AccountAccessError("email_verification_required", 403, "Confirm your email address before using this account feature.");
     }
+    // Authenticate/rate-limit in PostgreSQL before any external Apple request.
+    // A refreshed state gets one new read; the injected query prevents recursion.
+    if (!deps.query && await refreshNativeCommerceMembership(account.id)) {
+      return createAccountMembershipReader({ query, environment: () => env })(account);
+    }
     if (row.plan === null && row.access_source === null && row.expires_at === null) {
       return { plan: "free", accessSource: "free", expiresAt: null,
         capabilities: { save_domains: true, swipe_undo: false, trading: false } };
     }
     const checkedAt = timestamp(row.checked_at);
     const expiresAt = timestamp(row.expires_at);
-    if (typeof row.plan !== "string" || !["premium", "trading"].includes(row.plan)
+    if (typeof row.plan !== "string" || !["basic", "premium", "trading"].includes(row.plan)
       || typeof row.access_source !== "string" || !["operator", "subscription"].includes(row.access_source)
+      || row.plan === "basic" && row.access_source !== "subscription"
       || !Number.isFinite(checkedAt) || !Number.isFinite(expiresAt) || expiresAt <= checkedAt) {
       throw new Error("Invalid membership grant response");
     }
-    return { plan: row.plan as "premium" | "trading", accessSource: row.access_source as "operator" | "subscription",
+    return { plan: row.plan as "basic" | "premium" | "trading", accessSource: row.access_source as "operator" | "subscription",
       expiresAt: new Date(expiresAt).toISOString(),
-      capabilities: { save_domains: true, swipe_undo: true, trading: row.plan === "trading" } };
+      capabilities: { save_domains: true, swipe_undo: row.plan === "premium" || row.plan === "trading", trading: row.plan === "trading" } };
   };
 }
 

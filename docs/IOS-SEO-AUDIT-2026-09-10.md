@@ -6,6 +6,11 @@ English remains the base product language. The app must not contain website
 acquisition pages. This is not a change to pricing, billing activation, DNS,
 production data or crawler capacity.
 
+**Follow-up implementation:** [iPhone release preparation](IOS-PREPARATION-2026-09-10.md)
+addresses account deletion, AI permission and native-commerce implementation.
+The original audit findings below are retained as historical evidence; see the
+follow-up for current implementation status and remaining external release gates.
+
 ## Release decision
 
 **Not cleared for App Store or public commercial launch.** The revision fixes

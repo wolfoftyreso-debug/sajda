@@ -42,7 +42,7 @@ test("source-only Swift contract: the active scene installs the custom native pl
 
 test("source-only Swift contract: all bridge entry points first hop to the main queue", () => {
   const entries = [...swift.matchAll(/@objc public func (\w+)\(_ call: CAPPluginCall\)/gu)].map(match => match[1]);
-  assert.deepEqual(entries.sort(), ["cancel", "request", "session", "shareCsv", "shareFile", "signIn", "signOut"]);
+  assert.deepEqual(entries.sort(), ["cancel", "commerceCatalog", "commerceManage", "commercePurchase", "commerceRestore", "forgetDeletedAccount", "request", "session", "shareCsv", "shareFile", "signIn", "signOut"]);
   for (const name of entries) {
     assert.match(swift, new RegExp(`@objc public func ${name}\\(_ call: CAPPluginCall\\)\\s*\\{\\s*DispatchQueue\\.main\\.async\\s*\\{`, "u"));
   }
@@ -165,8 +165,9 @@ test("source-only Swift contract: session identity is whitelisted and validated 
   assert.match(sanitizer, /return \["user": identity, "expires_at": expiresAt\]/u);
   assert.doesNotMatch(sanitizer, /return (?:session|user)\b/u);
   const reader = section("@objc public func session(", "@objc public func signOut(");
-  assert.match(reader, /call\.resolve\(\["session": try self\.sanitizedSession\(value\["session"\]\)\]\)/u);
-  assert.doesNotMatch(reader, /call\.resolve\(\["session": (?:value|session)(?:\[|\])/u);
+  assert.match(reader, /let session = try self\.sanitizedSession\(value\["session"\]\)/u);
+  before(reader, "try self.sanitizedSession(", 'call.resolve(["session": session])');
+  assert.doesNotMatch(reader, /call\.resolve\(\["session": value/u);
   before(reader, "try self.current(generation, token: token)", "try self.clearToken(ifMatching: token)");
   before(reader, "try self.current(generation, token: token)", "try self.sanitizedSession(");
 });
@@ -179,4 +180,29 @@ test("source-only Swift contract: private requests capture a token and fence res
   assert.match(request, /bearer = token/u);
   assert.match(request, /body: call\.getString\("body"\), bearer: bearer/u);
   before(request, "try self.current(generation, token: token)", 'call.resolve(["status": status');
+});
+
+test("source-only StoreKit contract: launch listener and restore never grant locally or finish before server acceptance",()=>{
+  assert.match(swift,/public override func load\(\)/u);
+  assert.match(swift,/StoreKit\.Transaction\.updates/u);
+  assert.match(swift,/transactionUpdates\?\.cancel\(\)/u);
+  const delivery=section("@MainActor private func deliverTransaction(","@MainActor private func synchronizeTransactions(");
+  before(delivery,'case .verified(let transaction)','"signedTransaction": result.jwsRepresentation');
+  before(delivery,'reply["ok"] as? Bool == true',"await transaction.finish()");
+  before(delivery,"try current(generation, token: token)","await transaction.finish()");
+  assert.doesNotMatch(delivery,/localStorage|setPlan|grantAccess/u);
+  const restore=section("@objc public func commerceRestore(","@objc public func commerceManage(");
+  before(restore,'catalog["enabled"] as? Bool == true',"try await AppStore.sync()");
+  assert.match(restore,/"no_active"/u);
+  assert.match(swift,/product\.purchase\(options: \[\.appAccountToken\(uuid\)\]\)/u);
+  assert.match(swift,/AppStore\.showManageSubscriptions\(in: scene\)/u);
+});
+
+test("source-only deleted-account cleanup: only the previously server-verified matching owner can clear its captured token",()=>{
+  const cleanup=section("@objc public func forgetDeletedAccount(","@objc(SajdaViewController)");
+  before(cleanup,"known.id == expected","try self.clearToken(ifMatching: known.token)");
+  before(cleanup,"try self.current(known.generation, token: known.token)","try self.clearToken(ifMatching: known.token)");
+  assert.doesNotMatch(cleanup,/SecItemDelete|perform\(path:/u);
+  const read=section("@objc public func session(","@objc public func signOut(");
+  before(read,"try self.sanitizedSession(", "self.knownAccount = (id, token, generation)");
 });

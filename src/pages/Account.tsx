@@ -11,6 +11,12 @@ import { useLanguage } from "@/i18n/LanguageProvider";
 import { getMembershipCopy } from "@/i18n/membershipCopy";
 import AccountMembershipPanel from "@/components/AccountMembershipPanel";
 import AccountAppSessions from "@/components/AccountAppSessions";
+import AccountDeletionPanel from "@/components/AccountDeletionPanel";
+import AiPrivacyControl from "@/components/AiPrivacyControl";
+import NativeCommercePanel from "@/components/NativeCommercePanel";
+import { accountDeletionCopy } from "@/i18n/accountDeletionCopy";
+import { useMembership } from "@/contexts/MembershipContext";
+import { useScan } from "@/contexts/ScanContext";
 import { isNativeApp } from "@/lib/appSurface";
 import { nativeCopy } from "@/app/nativeCopy";
 
@@ -78,7 +84,9 @@ const accountMessages = {
 } as const;
 
 const Account = () => {
-  const { user, loading, signOut } = useAuth();
+  const { user, loading, signOut, completeAccountDeletion } = useAuth();
+  const { refresh: refreshMembership } = useMembership();
+  const { clearResults } = useScan();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isAdmin, setIsAdmin] = useState(false);
@@ -153,6 +161,7 @@ const Account = () => {
         </header>
         <div className="space-y-6">
           <AccountMembershipPanel />
+          {isNativeApp && <NativeCommercePanel key={user.id} accountId={user.id} onChanged={refreshMembership} />}
           {isNativeApp && <Link to="/more" className="flex min-h-14 flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4 font-semibold text-primary focus-visible:ring-2 focus-visible:ring-ring">{nativeCopy[language].more}<span className="text-sm font-normal text-muted-foreground">{nativeCopy[language].marketplace} · API · {nativeCopy[language].help}</span></Link>}
           {/* Profile Card */}
           <div className="rounded-lg border border-border bg-card p-6">
@@ -197,6 +206,7 @@ const Account = () => {
 
           {/* Admin Link */}
           <AccountAppSessions accountId={user.id} />
+          <AiPrivacyControl />
           {isAdmin && (
             <Button
               onClick={() => navigate('/admin')}
@@ -218,6 +228,13 @@ const Account = () => {
             <LogOut className="h-4 w-4" />
             {copy.signOut}
           </Button>
+          <AccountDeletionPanel key={user.id} accountId={user.id} onDeleted={async owner => {
+            if (await completeAccountDeletion(owner)) {
+              clearResults();
+              toast({ title: accountDeletionCopy[language].success, description: accountDeletionCopy[language].closeWarning });
+              navigate("/", { replace: true });
+            }
+          }} />
         </div>
       </main>
 

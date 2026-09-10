@@ -42,7 +42,8 @@ test("mounted account and pricing share one confirmed membership without startin
   } = { language: "sv", user, loading: false, membershipLoading: false, membership: trading, error: null, refreshCount: 0,
     refresh: async () => { fixture.refreshCount++; } };
   Object.defineProperty(globalThis, fixtureKey, { configurable: true, value: fixture });
-  Object.defineProperty(globalThis, "window", { configurable: true, value: { location: { pathname: "/account" } } });
+  Object.defineProperty(globalThis, "window", { configurable: true, value: { location: { pathname: "/account" },
+    addEventListener() {}, removeEventListener() {} } });
   globalThis.fetch = async () => { throw new Error("Account navigation must not start payments, research or email"); };
   const vite = await createServer({ configFile: false, appType: "custom",
     server: { middlewareMode: true, watch: null, hmr: false, ws: false },
@@ -50,6 +51,7 @@ test("mounted account and pricing share one confirmed membership without startin
     plugins: [{ name: "account-membership-test-boundaries", enforce: "pre", load(id) {
       const normalized = id.replaceAll("\\", "/");
       if (normalized.endsWith("/src/contexts/AuthContext.tsx")) return `export const useAuth=()=>({user:globalThis.${fixtureKey}.user,loading:globalThis.${fixtureKey}.loading,signOut:async()=>{}});`;
+      if (normalized.endsWith("/src/contexts/ScanContext.tsx")) return "export const useScan=()=>({clearResults:()=>{}});";
       if (normalized.endsWith("/src/contexts/MembershipContext.tsx")) return `export const useMembership=()=>({membership:globalThis.${fixtureKey}.membership,loading:globalThis.${fixtureKey}.membershipLoading,error:globalThis.${fixtureKey}.error,refresh:globalThis.${fixtureKey}.refresh});`;
       if (normalized.endsWith("/src/i18n/LanguageProvider.tsx")) return `export const useLanguage=()=>({language:globalThis.${fixtureKey}.language}); export const applyDocumentMetadata=()=>{};`;
       if (normalized.endsWith("/src/components/LanguageSwitcher.tsx") || normalized.endsWith("/src/components/FooterNav.tsx")) return "export default function Stub(){return null;}";

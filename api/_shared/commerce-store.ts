@@ -152,6 +152,25 @@ export function createCommerceStore(
     }
   }
   return {
+    async appStoreSubscription(ownerId: string, lease?: CommerceLease): Promise<boolean> {
+      return transaction(async (client) => {
+        if (lease) {
+          if (lease.ownerId !== ownerId) throw new CommerceError("provider_owner_mismatch");
+          await fence(client, lease);
+        }
+        const rows = (await client.query(`/* commerce:app-store-guard */ SELECT EXISTS(
+          SELECT 1 FROM sajda.native_commerce_subscriptions
+          WHERE namespace=$1 AND owner_id=$2 AND revoked_at IS NULL
+            AND status IN (1,3,4) AND (namespace='production')=(environment='Production')
+        ) AS blocked`, [ns, ownerId])).rows;
+        if (rows.length !== 1 || typeof rows[0].blocked !== "boolean") throw new CommerceError("billing_unavailable");
+        // This is duplicate-billing prevention, NOT an entitlement grant. A
+        // stale active/retry row cannot silently permit a second provider to
+        // bill; Apple synchronization must first confirm expiration/revocation.
+        // auto_renew=false still includes the user's remaining paid period.
+        return rows[0].blocked;
+      });
+    },
     async read(ownerId: string): Promise<CommerceCustomer | null> {
       return transaction(async (client) => {
         const result = await client.query(

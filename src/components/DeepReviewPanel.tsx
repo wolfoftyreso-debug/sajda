@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { ChevronDown, ChevronUp, ClipboardCheck, LoaderCircle, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import AiPrivacyControl from "@/components/AiPrivacyControl";
 import { useToast } from "@/hooks/use-toast";
 import { type Language } from "@/i18n/LanguageProvider";
 import {
@@ -263,11 +264,12 @@ export default function DeepReviewPanel({ candidates, theme, language, className
               <p className="mt-1 max-w-2xl text-sm leading-5 text-muted-foreground">{copy.intro}</p>
             </div>
           </div>
-          <Button onClick={handleReview} disabled={isReviewing || reviewable.length === 0} className="shrink-0 sm:min-w-40">
-            {isReviewing ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
-            {isReviewing ? copy.working : result ? copy.rerun : copy.start}
-          </Button>
         </div>
+        <AiPrivacyControl className="mt-4" />
+        <Button onClick={handleReview} disabled={isReviewing || reviewable.length === 0} className="mt-4 w-full sm:w-auto sm:min-w-40">
+          {isReviewing ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
+          {isReviewing ? copy.working : result ? copy.rerun : copy.start}
+        </Button>
         <p className="mt-4 text-xs leading-5 text-muted-foreground">
           {reviewable.length > 0 ? copy.ready(reviewable.length) : copy.noCandidates}
         </p>

@@ -4,6 +4,7 @@ import AuthenticationServices
 import CryptoKit
 import Security
 import UIKit
+import StoreKit
 
 // One bounded collector per request. Delegate callbacks and auth state share the
 // main queue; the session is invalidated on every terminal path (no retain cycle).
@@ -77,7 +78,8 @@ private final class SajdaResponseCollector: NSObject, URLSessionDataDelegate {
 public final class SajdaNativePlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenticationPresentationContextProviding {
     public let identifier = "SajdaNativePlugin"
     public let jsName = "SajdaNative"
-    public let pluginMethods: [CAPPluginMethod] = ["signIn", "signOut", "session", "request", "cancel", "shareCsv", "shareFile"].map {
+    public let pluginMethods: [CAPPluginMethod] = ["signIn", "signOut", "session", "request", "cancel", "shareCsv", "shareFile",
+        "commerceCatalog", "commercePurchase", "commerceRestore", "commerceManage", "forgetDeletedAccount"].map {
         CAPPluginMethod(name: $0, returnType: CAPPluginReturnPromise)
     }
     // Capacitor invokes plugins on its bridge queue. Every entry point below
@@ -88,6 +90,9 @@ public final class SajdaNativePlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenti
     private var authGeneration: UInt64 = 0
     private var signOutInProgress = false
     private var shareInProgress = false
+    private var commerceInProgress = false
+    private var transactionUpdates: Task<Void, Never>?
+    private var knownAccount: (id: String, token: String, generation: UInt64)?
     private var requests: [String: SajdaResponseCollector] = [:]
     private let methods: [String: Set<String>] = [
         "/api/domain-search": ["POST"], "/api/deep-review": ["POST"], "/api/reference-fx": ["GET"],
@@ -153,6 +158,7 @@ public final class SajdaNativePlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenti
         let status = SecItemDelete(try keyQuery() as CFDictionary)
         if status != errSecSuccess && status != errSecItemNotFound { throw failure("Secure sign-out could not finish.") }
         authGeneration &+= 1
+        knownAccount = nil
     }
     private func randomSecret() throws -> String {
         var bytes = [UInt8](repeating: 0, count: 32)
@@ -326,7 +332,11 @@ public final class SajdaNativePlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenti
                         if status == 401 { try self.clearToken(ifMatching: token); call.resolve(["session": NSNull()]); return }
                         guard status == 200, let data = text.data(using: .utf8),
                               let value = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { throw self.failure("Invalid app session.") }
-                        call.resolve(["session": try self.sanitizedSession(value["session"])])
+                        let session = try self.sanitizedSession(value["session"])
+                        if let user = session["user"] as? [String: Any], let id = user["id"] as? String {
+                            self.knownAccount = (id, token, generation)
+                        }
+                        call.resolve(["session": session])
                     } catch { call.reject("Your account could not be checked. Try again.") }
                 }
             } catch { call.reject("Unlock your device and finish sign-in before checking your account.") }
@@ -336,6 +346,7 @@ public final class SajdaNativePlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenti
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { call.reject("The app is not ready."); return }
             guard !self.signOutInProgress else { call.reject("Sign-out is already in progress."); return }
+            guard !self.commerceInProgress else { call.reject("Finish the App Store action before signing out."); return }
             self.signOutInProgress = true
             self.authGeneration &+= 1
             let generation = self.authGeneration
@@ -377,6 +388,7 @@ public final class SajdaNativePlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenti
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { call.reject("The app is not ready."); return }
             guard self.pendingSignIn == nil, !self.signOutInProgress else { call.reject("An account change is already in progress."); return }
+            guard !self.commerceInProgress else { call.reject("Finish the App Store action before changing accounts."); return }
             self.authGeneration &+= 1
             let generation = self.authGeneration
             // Held until the exchange has finished, not merely browser dismissal.
@@ -429,6 +441,203 @@ public final class SajdaNativePlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenti
     }
     public func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
         bridge?.viewController?.view.window ?? ASPresentationAnchor()
+    }
+
+    public override func load() {
+        // Listen from app launch, not only after opening a purchase screen.
+        transactionUpdates = Task { @MainActor [weak self] in
+            for await result in StoreKit.Transaction.updates {
+                guard !Task.isCancelled else { return }
+                guard let self = self, !self.commerceInProgress,
+                      let account = self.knownAccount else { continue }
+                do {
+                    self.commerceInProgress = true
+                    defer { self.commerceInProgress = false }
+                    _ = try await self.deliverTransaction(result, owner: account.id, token: account.token, generation: account.generation)
+                } catch {
+                    // Leave unfinished: catalog/restore/relaunch retries delivery.
+                    self.notifyListeners("commerceChanged", data: ["state": "verification_required"])
+                }
+            }
+        }
+    }
+    deinit { transactionUpdates?.cancel() }
+
+    @MainActor private func commerceAccount(_ call: CAPPluginCall) throws -> (String, String, UInt64) {
+        guard !commerceInProgress, pendingSignIn == nil, !signOutInProgress,
+              let owner = call.getString("accountId"), !owner.isEmpty, owner.utf8.count <= 200,
+              let token = try storedToken() else { throw failure("Sign in and finish any current App Store action first.") }
+        return (owner, token, authGeneration)
+    }
+    @MainActor private func commerceRequest(_ body: [String: Any], token: String, generation: UInt64) async throws -> [String: Any] {
+        guard try current(generation, token: token) else { throw failure("Your account changed.") }
+        let data = try JSONSerialization.data(withJSONObject: body)
+        return try await withCheckedThrowingContinuation { continuation in
+            perform(path: "/api/native/commerce", method: "POST", body: String(data: data, encoding: .utf8), bearer: token) { [weak self] result in
+                do {
+                    guard let self = self, try self.current(generation, token: token),
+                          case .success(let (status, text, _)) = result, status == 200,
+                          let response = text.data(using: .utf8),
+                          let value = try JSONSerialization.jsonObject(with: response) as? [String: Any],
+                          let owner = body["accountId"] as? String, value["accountId"] as? String == owner else {
+                        throw NSError(domain: "SajdaNative", code: 1)
+                    }
+                    self.knownAccount = (owner, token, generation)
+                    continuation.resume(returning: value)
+                } catch { continuation.resume(throwing: NSError(domain: "SajdaNative", code: 1)) }
+            }
+        }
+    }
+    @MainActor private func storeCatalog(owner: String, token: String, generation: UInt64) async throws -> ([String: Any], [Product]) {
+        let catalog = try await commerceRequest(["action": "catalog", "accountId": owner], token: token, generation: generation)
+        guard catalog["enabled"] as? Bool == true else { return (catalog, []) }
+        guard let accountToken = catalog["appAccountToken"] as? String, UUID(uuidString: accountToken) != nil,
+              let configured = catalog["products"] as? [[String: String]], !configured.isEmpty, configured.count <= 3,
+              configured.allSatisfy({ $0["id"] != nil && ["basic", "premium", "trading"].contains($0["plan"] ?? "") }) else {
+            throw failure("App Store products are not configured.")
+        }
+        let ids = configured.compactMap { $0["id"] }
+        let products = try await Product.products(for: ids)
+        guard Set(products.map(\.id)) == Set(ids), products.allSatisfy({
+            $0.type == .autoRenewable && $0.subscription?.subscriptionPeriod.unit == .month &&
+            $0.subscription?.subscriptionPeriod.value == 1
+        }), Set(products.compactMap { $0.subscription?.subscriptionGroupID }).count == 1,
+        try current(generation, token: token) else { throw failure("App Store monthly subscriptions are not ready.") }
+        return (catalog, products)
+    }
+    @MainActor private func deliverTransaction(_ result: VerificationResult<StoreKit.Transaction>, owner: String,
+                                              token: String, generation: UInt64) async throws -> Bool {
+        guard case .verified(let transaction) = result else { throw failure("The App Store transaction could not be verified.") }
+        let reply = try await commerceRequest(["action": "synchronize", "accountId": owner,
+            "signedTransaction": result.jwsRepresentation], token: token, generation: generation)
+        guard reply["ok"] as? Bool == true, let active = reply["hasActiveSubscription"] as? Bool, try current(generation, token: token) else {
+            throw failure("Purchase access has not been confirmed.")
+        }
+        // The signed receipt is not an entitlement. Finish only after the server
+        // checked Apple's current subscription and committed the account state.
+        await transaction.finish()
+        notifyListeners("commerceChanged", data: ["state": active ? "verified" : "no_active"])
+        return active
+    }
+    @MainActor private func synchronizeTransactions(owner: String, token: String, generation: UInt64) async throws -> Bool {
+        var seen = Set<UInt64>()
+        var active = false
+        for await result in StoreKit.Transaction.unfinished {
+            guard case .verified(let transaction) = result, seen.count < 20 else { continue }
+            if seen.insert(transaction.id).inserted {
+                active = try await deliverTransaction(result, owner: owner, token: token, generation: generation)
+            }
+        }
+        for await result in StoreKit.Transaction.currentEntitlements {
+            guard case .verified(let transaction) = result, seen.count < 20 else { continue }
+            if seen.insert(transaction.id).inserted {
+                active = try await deliverTransaction(result, owner: owner, token: token, generation: generation)
+            }
+        }
+        if seen.isEmpty {
+            let reply = try await commerceRequest(["action": "synchronize", "accountId": owner], token: token, generation: generation)
+            guard reply["ok"] as? Bool == true, let verified = reply["hasActiveSubscription"] as? Bool else {
+                throw failure("Purchase access has not been confirmed.")
+            }
+            active = verified
+        }
+        return active
+    }
+    @objc public func commerceCatalog(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { [weak self] in
+            Task { @MainActor in
+                guard let self = self else { call.reject("The app is not ready."); return }
+                do {
+                    let (owner, token, generation) = try self.commerceAccount(call)
+                    self.commerceInProgress = true
+                    defer { self.commerceInProgress = false }
+                    let (catalog, products) = try await self.storeCatalog(owner: owner, token: token, generation: generation)
+                    let configured = catalog["products"] as? [[String: String]] ?? []
+                    if catalog["enabled"] as? Bool == true {
+                        _ = try await self.synchronizeTransactions(owner: owner, token: token, generation: generation)
+                    }
+                    call.resolve(["enabled": catalog["enabled"] as? Bool ?? false,
+                        "purchasesEnabled": catalog["purchasesEnabled"] as? Bool ?? false, "accountId": owner,
+                        "products": products.map { product in
+                            ["id": product.id, "name": product.displayName, "price": product.displayPrice,
+                             "plan": configured.first(where: { $0["id"] == product.id })?["plan"] ?? ""]
+                        }])
+                } catch { call.reject("App Store plans could not be loaded. Check your account and retry."); }
+            }
+        }
+    }
+    @objc public func commercePurchase(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { [weak self] in
+            Task { @MainActor in
+                guard let self = self else { call.reject("The app is not ready."); return }
+                do {
+                    let (owner, token, generation) = try self.commerceAccount(call)
+                    self.commerceInProgress = true
+                    defer { self.commerceInProgress = false }
+                    let (catalog, products) = try await self.storeCatalog(owner: owner, token: token, generation: generation)
+                    guard catalog["purchasesEnabled"] as? Bool == true,
+                          let id = call.getString("productId"), let product = products.first(where: { $0.id == id }),
+                          let accountToken = catalog["appAccountToken"] as? String,
+                          let uuid = UUID(uuidString: accountToken), try self.current(generation, token: token) else {
+                        throw self.failure("App Store purchases are not enabled.")
+                    }
+                    switch try await product.purchase(options: [.appAccountToken(uuid)]) {
+                    case .success(let result):
+                        let active = try await self.deliverTransaction(result, owner: owner, token: token, generation: generation)
+                        call.resolve(["state": active ? "verified" : "no_active", "accountId": owner])
+                    case .pending: call.resolve(["state": "pending", "accountId": owner])
+                    case .userCancelled: call.resolve(["state": "cancelled", "accountId": owner])
+                    @unknown default: throw self.failure("The purchase is not confirmed.")
+                    }
+                } catch { call.reject("The purchase could not be confirmed. Do not buy again; restore purchases to retry verification."); }
+            }
+        }
+    }
+    @objc public func commerceRestore(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { [weak self] in
+            Task { @MainActor in
+                guard let self = self else { call.reject("The app is not ready."); return }
+                do {
+                    let (owner, token, generation) = try self.commerceAccount(call)
+                    self.commerceInProgress = true
+                    defer { self.commerceInProgress = false }
+                    let (catalog, _) = try await self.storeCatalog(owner: owner, token: token, generation: generation)
+                    guard catalog["enabled"] as? Bool == true else { throw self.failure("App Store purchases are not enabled.") }
+                    // Explicit user gesture only; never prompt for Apple sign-in at launch.
+                    try await AppStore.sync()
+                    let active = try await self.synchronizeTransactions(owner: owner, token: token, generation: generation)
+                    call.resolve(["state": active ? "verified" : "no_active", "accountId": owner])
+                } catch { call.reject("Purchases could not be restored. Use the Sajda account that originally made the purchase."); }
+            }
+        }
+    }
+    @objc public func commerceManage(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { [weak self] in
+            Task { @MainActor in
+                guard let self = self, !self.commerceInProgress,
+                      let scene = self.bridge?.viewController?.view.window?.windowScene,
+                      scene.activationState == .foregroundActive else { call.reject("Close the current dialog and retry."); return }
+                self.commerceInProgress = true
+                defer { self.commerceInProgress = false }
+                do { try await AppStore.showManageSubscriptions(in: scene); call.resolve(["ok": true]) }
+                catch { call.reject("Apple subscription settings could not open. Try again."); }
+            }
+        }
+    }
+    @objc public func forgetDeletedAccount(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { [weak self] in
+            do {
+                guard let self = self, let expected = call.getString("accountId"), let known = self.knownAccount,
+                      known.id == expected, self.pendingSignIn == nil, !self.signOutInProgress,
+                      try self.current(known.generation, token: known.token) else {
+                    throw NSError(domain: "SajdaNative", code: 1)
+                }
+                try self.clearToken(ifMatching: known.token)
+                // Local cleanup only; the server's deletion response is handled
+                // by account UI. A stale response cannot clear a replacement account.
+                call.resolve(["ok": true])
+            } catch { call.reject("Your account changed. The new account was not signed out."); }
+        }
     }
 }
 

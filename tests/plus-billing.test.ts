@@ -67,6 +67,8 @@ test("Plus billing validates server truth and protects explicit checkout, portal
       }
       assert.throws(() => client.parsePlusBilling(billing("account-b"), "account-a"), (error: { code: string }) => error.code === "account_changed");
       assert.equal(client.parsePlusBilling({ ...billing(), ready: false, price: null, canCheckout: false, canManage: true }, "account-a").canManage, true);
+      assert.throws(() => client.parsePlusBilling({ ...billing(), appStoreManaged: true }, "account-a"), (error: { code: string }) => error.code === "invalid_response");
+      assert.throws(() => client.parsePlusBilling({ ...billing(), canCheckout: false, appStoreManaged: "true" }, "account-a"), (error: { code: string }) => error.code === "invalid_response");
     });
 
     await t.test("redirects are restricted to exact HTTPS Stripe hosts for the matching action", () => {
@@ -128,6 +130,21 @@ test("Plus billing validates server truth and protects explicit checkout, portal
       reply = () => Response.json({ accountId: owner, requestId, url: "https://billing.stripe.com/p/session/fixture" });
       await click("Manage subscription"); await until(() => navigations.length === 1);
       assert.equal(posts()[0].body?.action, "portal");
+    });
+
+    await t.test("App Store members see Apple's management path without a second Stripe purchase button", async () => {
+      await mount({ ...billing(), appStoreManaged: true, canCheckout: false });
+      assert.match(text(), /This account has an App Store subscription/);
+      assert.equal(buttons("Try test checkout").length, 0);
+      assert.equal(renderer!.root.findAllByType("a").filter(node => node.props.href === "https://apps.apple.com/account/subscriptions").length, 1);
+      assert.equal(posts().length, 0);
+    });
+
+    await t.test("Apple subscription detected during checkout clears stale purchase UI and gives specific recovery", async () => {
+      await mount(); reply = () => Response.json({ code: "app_store_subscription_exists", requestId }, { status: 409 });
+      await click("Try test checkout"); await until(() => text().includes("Your subscription is managed by Apple"));
+      assert.equal(buttons("Try test checkout").length, 0); assert.equal(navigations.length, 0);
+      assert.equal(renderer!.root.findAllByType("a").filter(node => node.props.href === "https://apps.apple.com/account/subscriptions").length, 1);
     });
 
     await t.test("duplicate clicks and uncertain retries reuse one checkout request key without client price fields", async () => {

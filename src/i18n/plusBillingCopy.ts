@@ -1,6 +1,7 @@
 import type { PlusBillingErrorCode, PlusBillingStatus } from "@/lib/plusBilling";
 
 const en = {
+  appStoreManaged: "This account has an App Store subscription. Manage it with Apple instead of starting a second subscription through Stripe.", manageAppStore: "Manage Apple subscription",
   title: "Trading subscription", monthly: "/ month", priceLabel: "Monthly price", loading: "Checking billing status…", refresh: "Check billing status",
   checkout: "Subscribe to Trading", testCheckout: "Try test checkout", portal: "Manage subscription", opening: "Opening secure checkout…", openingPortal: "Opening subscription settings…",
   testMode: "Test mode — no real payment", testNote: "Use Stripe test payment details only. A test subscription does not activate a live paid plan.",
@@ -13,10 +14,12 @@ const en = {
   errors: { unavailable: "We could not confirm the billing response. Check billing status before trying again; payment may still be processing.", invalid_response: "The billing response could not be verified. No payment page was opened. Check billing status or contact us.", unauthenticated: "Sign in again to manage your subscription.", account_changed: "Your account changed. Check billing status to load the correct account's details.", rate_limited: "Too many billing requests. Wait a moment before trying again.", not_ready: "Online subscriptions are not available yet. No payment was started.",
     email_verification_required: "Confirm your email address before subscribing. Sign in again to request a new confirmation link if needed.",
     subscription_changed: "Your subscription or checkout has changed. Check billing status before continuing; no second subscription was started.",
+    app_store_subscription_exists: "Your subscription is managed by Apple. Open Apple subscription settings. No Stripe checkout was started.",
     checkout_expired: "This checkout link has expired. Check billing status, then start a new checkout if needed.",
     review_required: "Your billing account needs review before another payment can start. Contact us with the reference below; you can still manage an existing subscription." } satisfies Record<PlusBillingErrorCode, string>,
 };
 const sv: typeof en = {
+  appStoreManaged: "Kontot har ett App Store-abonnemang. Hantera det hos Apple i stället för att starta ett andra abonnemang hos Stripe.", manageAppStore: "Hantera Apple-abonnemang",
   title: "Trading-abonnemang", monthly: "/ månad", priceLabel: "Månadspris", loading: "Kontrollerar betalstatus…", refresh: "Kontrollera betalstatus",
   checkout: "Prenumerera på Trading", testCheckout: "Prova testbetalning", portal: "Hantera abonnemang", opening: "Öppnar säker betalning…", openingPortal: "Öppnar abonnemangsinställningar…",
   testMode: "Testläge — ingen riktig betalning", testNote: "Använd bara Stripes testuppgifter för betalning. Ett testabonnemang aktiverar inte ett riktigt betalt abonnemang.",
@@ -29,10 +32,12 @@ const sv: typeof en = {
   errors: { unavailable: "Vi kunde inte bekräfta betalstatus. Kontrollera den innan du försöker igen; betalningen kan fortfarande behandlas.", invalid_response: "Vi kunde inte verifiera svaret från betaltjänsten. Ingen betalningssida öppnades. Kontrollera betalstatus eller kontakta oss.", unauthenticated: "Logga in igen för att hantera abonnemanget.", account_changed: "Du har bytt konto. Kontrollera betalstatus för att hämta rätt kontos uppgifter.", rate_limited: "För många betalningsförfrågningar. Vänta en stund innan du försöker igen.", not_ready: "Det går inte att teckna abonnemang online ännu. Ingen betalning startades.",
     email_verification_required: "Bekräfta din e-postadress innan du prenumererar. Logga in igen för att begära en ny bekräftelselänk om det behövs.",
     subscription_changed: "Abonnemanget eller betalningstillfället har ändrats. Kontrollera betalstatus innan du fortsätter. Inget ytterligare abonnemang startades.",
+    app_store_subscription_exists: "Ditt abonnemang hanteras av Apple. Öppna Apples abonnemangsinställningar. Ingen Stripe-betalning startades.",
     checkout_expired: "Betalningslänken har gått ut. Kontrollera betalstatus och starta sedan en ny betalning om det behövs.",
     review_required: "Ditt betalningskonto behöver granskas innan en ny betalning kan starta. Kontakta oss och ange referensen nedan. Du kan fortfarande hantera ett befintligt abonnemang." },
 };
 const es: typeof en = {
+  appStoreManaged: "Esta cuenta tiene una suscripción del App Store. Gestiónala con Apple en lugar de contratar otra a través de Stripe.", manageAppStore: "Gestionar suscripción de Apple",
   title: "Suscripción a Trading", monthly: "/ mes", priceLabel: "Precio mensual", loading: "Comprobando el estado de facturación…", refresh: "Consultar estado de facturación",
   checkout: "Suscribirme a Trading", testCheckout: "Probar el pago de prueba", portal: "Gestionar suscripción", opening: "Abriendo el pago seguro…", openingPortal: "Abriendo los ajustes de la suscripción…",
   testMode: "Modo de prueba: no se realizan pagos reales", testNote: "Usa únicamente los datos de pago de prueba de Stripe. Una suscripción de prueba no activa un plan de pago real.",
@@ -49,11 +54,13 @@ const es: typeof en = {
     rate_limited: "Demasiadas solicitudes de facturación. Espera un momento antes de intentarlo de nuevo.", not_ready: "Las suscripciones en línea aún no están disponibles. No se ha iniciado ningún pago.",
     email_verification_required: "Confirma tu correo antes de suscribirte. Si necesitas otro enlace de confirmación, vuelve a iniciar sesión para solicitarlo.",
     subscription_changed: "Tu suscripción o sesión de pago ha cambiado. Consulta el estado de facturación antes de continuar. No se ha iniciado una segunda suscripción.",
+    app_store_subscription_exists: "Apple gestiona tu suscripción. Abre los ajustes de suscripciones de Apple. No se ha iniciado ningún pago con Stripe.",
     checkout_expired: "Este enlace de pago ha caducado. Consulta el estado de facturación e inicia un nuevo pago si es necesario.",
     review_required: "Tenemos que revisar tu cuenta de facturación antes de iniciar otro pago. Contacta con nosotros e indica la referencia que aparece abajo. Puedes seguir gestionando una suscripción existente.",
   },
 };
 const fr: typeof en = {
+  appStoreManaged: "Ce compte possède un abonnement App Store. Gérez-le auprès d’Apple au lieu de souscrire un second abonnement via Stripe.", manageAppStore: "Gérer l’abonnement Apple",
   title: "Abonnement Trading", monthly: "/ mois", priceLabel: "Tarif mensuel", loading: "Vérification de la facturation…", refresh: "Vérifier la facturation",
   checkout: "S’abonner à Trading", testCheckout: "Essayer le paiement de test", portal: "Gérer l’abonnement", opening: "Ouverture du paiement sécurisé…", openingPortal: "Ouverture des paramètres d’abonnement…",
   testMode: "Mode test : aucun paiement réel", testNote: "Utilisez uniquement les coordonnées de paiement de test de Stripe. Un abonnement de test n’active pas une offre payante réelle.",
@@ -70,11 +77,13 @@ const fr: typeof en = {
     rate_limited: "Trop de demandes de facturation. Patientez un instant avant de réessayer.", not_ready: "Les abonnements en ligne ne sont pas encore disponibles. Aucun paiement n’a été lancé.",
     email_verification_required: "Confirmez votre adresse e-mail avant de vous abonner. Reconnectez-vous pour demander un nouveau lien de confirmation si nécessaire.",
     subscription_changed: "Votre abonnement ou votre session de paiement a changé. Vérifiez la facturation avant de continuer. Aucun second abonnement n’a été créé.",
+    app_store_subscription_exists: "Votre abonnement est géré par Apple. Ouvrez les réglages des abonnements Apple. Aucun paiement Stripe n’a été lancé.",
     checkout_expired: "Ce lien de paiement a expiré. Vérifiez la facturation, puis lancez un nouveau paiement si nécessaire.",
     review_required: "Votre compte de facturation doit être vérifié avant de lancer un autre paiement. Contactez-nous en indiquant la référence ci-dessous. Vous pouvez toujours gérer un abonnement existant.",
   },
 };
 const zh: typeof en = {
+  appStoreManaged: "此账户已有 App Store 订阅。请通过 Apple 管理订阅，不要再通过 Stripe 重复订阅。", manageAppStore: "管理 Apple 订阅",
   title: "Trading 订阅", monthly: "/ 月", priceLabel: "月费", loading: "正在检查账单状态…", refresh: "检查账单状态",
   checkout: "订阅 Trading", testCheckout: "试用测试支付", portal: "管理订阅", opening: "正在打开安全支付页面…", openingPortal: "正在打开订阅设置…",
   testMode: "测试模式，不会实际扣款", testNote: "请仅使用 Stripe 测试支付信息。测试订阅不会开通正式付费方案。",
@@ -91,6 +100,7 @@ const zh: typeof en = {
     rate_limited: "账单请求过多，请稍后重试。", not_ready: "在线订阅暂未开放，未发起任何付款。",
     email_verification_required: "订阅前请先验证电子邮箱。如需新的验证链接，请重新登录并申请。",
     subscription_changed: "订阅或支付会话已改变。请先检查账单状态再继续，系统未创建第二份订阅。",
+    app_store_subscription_exists: "您的订阅由 Apple 管理。请打开 Apple 订阅设置。尚未发起 Stripe 付款。",
     checkout_expired: "支付链接已过期。请检查账单状态，如有需要再发起新的付款。",
     review_required: "再次付款前需要审核你的账单账户。请联系我们并提供下方的参考编号。你仍可管理已有订阅。",
   },

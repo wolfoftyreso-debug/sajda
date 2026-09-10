@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { Button } from "@/components/ui/button";
 import { accountAccessCopy } from "@/i18n/accountAccessCopy";
+import { requestDeadline, throwIfCancelled } from "@/lib/abort";
 
 /** A deliberate web consent step; merely visiting a URL never mints a grant. */
 export default function NativeConnect() {
@@ -15,27 +16,38 @@ export default function NativeConnect() {
   const params = new URLSearchParams(location.search);
   const challenge = params.get("challenge") ?? "";
   const state = params.get("state") ?? "";
+  const pending = useRef<ReturnType<typeof requestDeadline> | null>(null);
+  useEffect(() => {
+    setBusy(false); setError(false);
+    return () => { pending.current?.cancel(); pending.current = null; };
+  }, [user?.id, challenge, state]);
   const valid = /^[A-Za-z0-9_-]{43}$/.test(challenge) && /^[A-Za-z0-9_-]{32,128}$/.test(state);
   const copy = accountAccessCopy[language].native;
   const connect = async () => {
-    if (!valid || !user || busy) return;
+    if (!valid || !user || busy || pending.current) return;
     setBusy(true); setError(false);
+    const deadline = requestDeadline(20_000);
+    pending.current = deadline;
     try {
       const response = await fetch("/api/native/auth",{
         method:"POST",credentials:"same-origin",redirect:"error",cache:"no-store",
         headers:{"Content-Type":"application/json","X-Sajda-Account":user.id},
         body:JSON.stringify({action:"authorize",challenge,state}),
-        signal:AbortSignal.timeout(20_000),
+        signal:deadline.signal,
       });
       const value = await response.json();
+      throwIfCancelled(deadline.signal);
       if (!response.ok || typeof value.callback !== "string") throw new Error();
       const callback = new URL(value.callback);
       if (callback.protocol !== "com.hypbit.sajda:" || callback.host !== "auth"
         || callback.pathname !== "/callback" || callback.searchParams.get("state") !== state
         || !/^[A-Za-z0-9_-]{43}$/.test(callback.searchParams.get("code")??"")) throw new Error();
       window.location.assign(callback.href);
-    } catch { setError(true); }
-    finally { setBusy(false); }
+    } catch { if (pending.current === deadline) setError(true); }
+    finally {
+      deadline.dispose();
+      if (pending.current === deadline) { pending.current = null; setBusy(false); }
+    }
   };
   return <main className="mx-auto max-w-md space-y-6 px-6 py-16">
     <h1 className="text-3xl font-semibold">{copy.title}</h1>

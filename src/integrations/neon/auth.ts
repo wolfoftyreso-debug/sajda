@@ -1,4 +1,5 @@
 import { isLocalTestMode } from "@/lib/localTestMode";
+import { throwIfCancelled } from "@/lib/abort";
 import type { AccountSession } from "./account-types";
 import type { createManagedAccountClient } from "./managed-client";
 import { assertAccountSessionOwner, type AccountRequestScope } from "@/lib/accountRequestScope";
@@ -56,14 +57,14 @@ export async function accountRequest<T>(path: string, options: AccountRequestSco
   if (target.origin !== window.location.origin || target.username || target.password || !target.pathname.startsWith("/api/account/")) throw new Error("Invalid account API path.");
   // Snapshot the initiating account before an asynchronous session check.
   const { accountId, signal, body, method = "GET" } = options;
-  signal?.throwIfAborted();
+  throwIfCancelled(signal);
   const current = await readAccountSession();
-  signal?.throwIfAborted();
+  throwIfCancelled(signal);
   assertAccountSessionOwner(current?.user.id, accountId);
   if (isNativeApp) {
     const response = await nativeRequest("/api/native/account","POST",{path,method,body,accountId},signal);
     const payload = await response.json().catch(()=>null);
-    signal?.throwIfAborted();
+    throwIfCancelled(signal);
     if (!response.ok || !payload) {
       const error = new Error(payload?.error ?? "Your app account request could not be completed.");
       Object.assign(error,{status:response.status,code:payload?.code,requestId:payload?.requestId});
@@ -86,7 +87,7 @@ export async function accountRequest<T>(path: string, options: AccountRequestSco
       signal: controller.signal,
     });
     const payload = await response.json().catch(() => null);
-    signal?.throwIfAborted();
+    throwIfCancelled(signal);
     if (!response.ok || !payload) {
       const error = new Error(typeof payload?.error === "string" ? payload.error : "Your account request could not be completed. Try again.");
       Object.assign(error, { code: payload?.code, requestId: payload?.requestId, status: response.status });

@@ -3,6 +3,7 @@ import { FileText, Minus, Plus } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import AdvancedSearchCriteriaPanel from "@/components/AdvancedSearchCriteria";
+import AiPrivacyControl from "@/components/AiPrivacyControl";
 import {
   countAdvancedBriefWords,
   limitAdvancedBriefWords,
@@ -134,6 +135,7 @@ export default function AdvancedSearchBrief({
             className="mt-2 min-h-[150px] resize-y bg-background text-sm leading-6"
           />
           <p className="mt-2 text-xs leading-5 text-muted-foreground">{copy.support}</p>
+          <AiPrivacyControl className="mt-4" />
           <AdvancedSearchCriteriaPanel
             value={criteria}
             onChange={onCriteriaChange}

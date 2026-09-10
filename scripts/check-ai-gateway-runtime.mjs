@@ -1,11 +1,15 @@
 // Explicit, bounded integration probe. brief/review can each consume ONE paid
 // Gateway request from the selected project's existing allowance/credits.
 // Uses synthetic QA inputs only. Never registers a domain or changes accounts.
+// --allow-ai-sharing explicitly permits these synthetic briefs/themes/names
+// to be sent to Google Gemini through Vercel AI Gateway, not customer data.
 import assert from "node:assert/strict";
 import { runtimeFetch } from "./runtime-http.mjs";
 
 const origin = process.env.SAJDA_TEST_ORIGIN;
 const mode = process.argv[2];
+const allowAi = process.argv.includes("--allow-ai-sharing");
+if (mode !== "exact" && !allowAi) throw new Error("AI probes require --allow-ai-sharing: send the documented synthetic fixtures to Google Gemini through Vercel AI Gateway. This can consume paid allowance.");
 if (!origin || !["brief", "review", "limit", "exact"].includes(mode)) throw new Error("Set SAJDA_TEST_ORIGIN and choose brief, review, limit or exact.");
 const url = new URL(origin);
 if (url.protocol !== "https:" || !url.hostname.startsWith("sajda-") || !url.hostname.endsWith("-hypbit.vercel.app")) throw new Error("Use a linked Sajda preview, never an arbitrary host.");
@@ -21,7 +25,8 @@ const body = review ? { theme: "Svenskt kafferosteri", locale: "sv", candidates 
 try {
   const start = Date.now();
   const response = await runtimeFetch(new URL(review ? "/api/deep-review" : "/api/domain-search", origin), {
-    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ...body, ...(allowAi ? { aiConsent: { version: "2026-09-10", accepted: true } } : {}) }),
   });
   assert.equal(response.status, 200, "Product endpoint must remain usable");
   const data = await response.json();

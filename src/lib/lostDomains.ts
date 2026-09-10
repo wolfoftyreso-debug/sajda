@@ -1,4 +1,5 @@
 import { accountRequest, readAccountSession } from "@/integrations/neon/auth";
+import { throwIfCancelled } from "./abort";
 import { assertAccountSessionOwner, type AccountRequestScope } from "@/lib/accountRequestScope";
 import { isLostDomainOpportunity, type LostDomainOpportunity } from "../../shared/lost-domain-opportunity";
 import { isTradingMarketFit, type TradingMarketFit } from "../../shared/trading-market-fit";
@@ -279,9 +280,9 @@ async function request(options: AccountRequestScope, action?: LostDomainsAction)
   try {
     const payload = await accountRequest<unknown>("/api/account/lost-domains", { ...scope, ...(body ? { method: "POST", body } : {}) });
     const result = parseLostDomainsSnapshot(payload, scope.accountId);
-    scope.signal?.throwIfAborted();
+    throwIfCancelled(scope.signal);
     const session = await readAccountSession();
-    scope.signal?.throwIfAborted();
+    throwIfCancelled(scope.signal);
     if (!session || !Number.isFinite(session.expires_at) || Number(session.expires_at) <= Date.now() / 1000) throw new LostDomainsError("unauthenticated");
     assertAccountSessionOwner(session.user.id, scope.accountId);
     return result;

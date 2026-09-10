@@ -634,6 +634,7 @@ function memory() {
     syncedAt: null,
   });
   const store: CommerceStore = {
+    appStoreSubscription: async () => false,
     read: async (id) => {
       assert.equal(id, "owner");
       return customerId ? customer() : null;
@@ -764,6 +765,49 @@ test("checkout refresh/retry reuses the same pending session and never grants fr
   );
   assert.equal(fixture.stored.grant, null);
   assert.equal((await fixture.service.read("owner")).accessExpiresAt, null);
+});
+
+test("existing App Store billing prevents Stripe checkout without preventing existing Stripe portal access", async () => {
+  const fixture = memory();
+  await fixture.service.checkout("owner", randomUUID(), "https://sajda.example");
+  fixture.calls.length = 0;
+  fixture.store.appStoreSubscription = async (owner) => { assert.equal(owner, "owner"); return true; };
+  const snapshot = await fixture.service.read("owner");
+  assert.equal(snapshot.appStoreManaged, true); assert.equal(snapshot.canCheckout, false); assert.equal(snapshot.canManage, true);
+  await assert.rejects(() => fixture.service.checkout("owner", randomUUID(), "https://sajda.example"), code("app_store_subscription_exists"));
+  assert.equal(fixture.calls.includes("createCheckout"), false); assert.equal(fixture.calls.includes("createCustomer"), false);
+  assert.match(await fixture.service.portal("owner", randomUUID(), "https://sajda.example"), /^https:\/\/billing\.stripe\.com/u);
+});
+
+test("Stripe rechecks Apple billing after its customer lease and fails closed on an unavailable guard", async () => {
+  const fixture = memory(); let checks = 0;
+  fixture.store.appStoreSubscription = async (owner, lease) => {
+    assert.equal(owner, "owner"); checks++;
+    if (checks === 1) { assert.equal(lease, undefined); return false; }
+    assert.equal(lease?.ownerId, owner); return true;
+  };
+  await assert.rejects(() => fixture.service.checkout("owner", randomUUID(), "https://sajda.example"), code("app_store_subscription_exists"));
+  assert.equal(checks, 2); assert.deepEqual(fixture.calls, []);
+  fixture.store.appStoreSubscription = async () => { throw new CommerceError("billing_unavailable"); };
+  await assert.rejects(() => fixture.service.checkout("owner", randomUUID(), "https://sajda.example"), code("billing_unavailable"));
+  await assert.rejects(() => fixture.service.read("owner"), code("billing_unavailable"));
+  assert.deepEqual(fixture.calls, []);
+});
+
+test("Postgres Apple duplicate-billing guard is namespace and owner scoped, includes retry/grace and respects lease", async () => {
+  const calls: { sql: string; params: unknown[] }[] = [];
+  let valid = true;
+  const pool: CommercePool = { connect: async () => ({ release() {}, query: async (sql, params = []) => {
+    calls.push({ sql, params }); return { rows: sql.includes("commerce:app-store-guard")
+      ? [{ blocked: valid ? true : "true" }] : sql.includes("commerce:fence") ? [{ payment_hold: false }] : [] };
+  } }) };
+  const store = createCommerceStore({ ...config, namespace: "preview" }, pool);
+  assert.equal(await store.appStoreSubscription("owner"), true);
+  const query = calls.find(call => call.sql.includes("commerce:app-store-guard"))!;
+  assert.deepEqual(query.params, ["preview", "owner"]); assert.match(query.sql, /status IN \(1,3,4\)/u);
+  assert.match(query.sql, /revoked_at IS NULL/u); assert.doesNotMatch(query.sql, /auto_renew=true|verified_at|expires_at>/u);
+  valid = false; await assert.rejects(() => store.appStoreSubscription("owner"), code("billing_unavailable"));
+  assert.equal(calls.at(-1)?.sql, "ROLLBACK");
 });
 test("a previously stored open checkout cannot bypass the fixed price when configuration has changed", async () => {
   const fixture = memory();

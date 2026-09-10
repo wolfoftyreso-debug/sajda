@@ -1,5 +1,6 @@
 import { isNativeApp } from "./appSurface";
 import { nativeRequest } from "./nativeTransport";
+import { withAiPermission } from "./aiConsent";
 const allowed = new Map([
   ["/api/domain-search",["POST"]],["/api/deep-review",["POST"]],
   ["/api/reference-fx",["GET"]],["/api/fact-signals",["GET"]],
@@ -17,6 +18,7 @@ export function nativePublicPath(input: string | URL, method = "GET") {
 }
 /** Explicit transport selection. Never monkey-patch fetch or forward secrets. */
 export async function productFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  init = withAiPermission(input, init);
   if (!isNativeApp) return fetch(input,init);
   if (input instanceof Request) throw new Error("Native product requests must use a relative API path.");
   const method = init?.method ?? "GET";

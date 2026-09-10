@@ -4,7 +4,7 @@ import type { AccountSession, AccountUser } from "@/integrations/neon/account-ty
 import { accountError, getAccountAuthClient, isAccountAuthConfigured, readAccountSession } from "@/integrations/neon/auth";
 import { accountCallbackUrl, passwordRecoveryUrl } from "@/lib/authNavigation";
 import { isNativeApp } from "@/lib/appSurface";
-import { nativeSignIn, nativeSignOut } from "@/lib/nativeTransport";
+import { nativeSignIn, nativeSignOut, forgetDeletedAccount } from "@/lib/nativeTransport";
 import { useLanguage } from "@/i18n/LanguageProvider";
 
 interface AuthResult { error: Error | null }
@@ -22,6 +22,8 @@ interface AuthContextType {
   /** A one-use recovery link token is mandatory; signing in is not enough. */
   updatePassword: (password: string, recoveryToken?: string) => Promise<AuthResult>;
   signOut: () => Promise<void>;
+  /** Local cleanup only, after an owner-bound server deletion receipt. */
+  completeAccountDeletion: (expectedAccountId: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -34,6 +36,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const revision = useRef(0);
   const mounted = useRef(true);
   const channel = useRef<BroadcastChannel | null>(null);
+  const currentOwner = useRef<string | null>(null);
+  currentOwner.current = session?.user.id ?? null;
 
   const refresh = useCallback(async () => {
     const current = ++revision.current;
@@ -160,7 +164,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     channel.current?.postMessage("session-changed");
   };
 
-  return <AuthContext.Provider value={{ user: session?.user ?? null, session, loading, error, signIn, signInNative, signUp, requestPasswordReset, requestEmailVerification, updatePassword, signOut }}>{children}</AuthContext.Provider>;
+  const completeAccountDeletion = async (expectedAccountId: string) => {
+    if (!expectedAccountId || currentOwner.current !== expectedAccountId) return false;
+    // Fence outstanding refreshes before clearing the deleted identity. Never
+    // issue a generic signOut: a different tab may have installed a new cookie.
+    revision.current += 1;
+    try {
+      if (isNativeApp) await forgetDeletedAccount(expectedAccountId);
+    } finally {
+      if (mounted.current && currentOwner.current === expectedAccountId) {
+        // A focus refresh may have started while native cleanup was pending.
+        // It must not keep the same deleted identity alive, nor restore it late.
+        // A different already-restored owner is still untouched.
+        revision.current += 1;
+        currentOwner.current = null;
+        setSession(null); setError(null); setLoading(false);
+        channel.current?.postMessage("session-changed");
+      }
+    }
+    return currentOwner.current === null;
+  };
+
+  return <AuthContext.Provider value={{ user: session?.user ?? null, session, loading, error, signIn, signInNative, signUp, requestPasswordReset, requestEmailVerification, updatePassword, signOut, completeAccountDeletion }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

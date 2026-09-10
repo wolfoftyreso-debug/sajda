@@ -1,4 +1,5 @@
 import { accountRequest, readAccountSession } from "@/integrations/neon/auth";
+import { throwIfCancelled } from "./abort";
 import { assertAccountSessionOwner, type AccountRequestScope } from "@/lib/accountRequestScope";
 
 export type SwipePremiumErrorCode = "premium_required" | "unauthenticated" | "email_verification_required" | "account_changed" | "unavailable" | "invalid_response";
@@ -38,9 +39,9 @@ function safeFailure(error: unknown): Error {
 }
 
 async function confirmCurrentOwner(scope: AccountRequestScope): Promise<void> {
-  scope.signal?.throwIfAborted();
+  throwIfCancelled(scope.signal);
   const session = await readAccountSession();
-  scope.signal?.throwIfAborted();
+  throwIfCancelled(scope.signal);
   if (!session) throw new SwipePremiumError("unauthenticated");
   assertAccountSessionOwner(session.user.id, scope.accountId);
   if (!Number.isFinite(session.expires_at) || Number(session.expires_at) <= Date.now() / 1000) {

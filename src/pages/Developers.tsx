@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { throwIfCancelled } from "@/lib/abort";
 import {
   ArrowLeft,
   ArrowRight,
@@ -843,10 +844,10 @@ function DeveloperKeyAccountWorkspace({ copy, language }: { copy: DeveloperKeyCo
 
   const requestKeys = useCallback(async (method = "GET", body?: unknown, id?: string) => {
     const signal = lifetime.current?.signal;
-    signal?.throwIfAborted();
+    throwIfCancelled(signal);
     if (!localTestMode) {
       const current = await readAccountSession();
-      signal?.throwIfAborted();
+      throwIfCancelled(signal);
       if (!accountId || current?.user.id !== accountId) throw new Error(copy.requestError);
     }
     const path = `/api/developer/api-keys${id ? `?id=${encodeURIComponent(id)}` : ""}`;
@@ -859,7 +860,7 @@ function DeveloperKeyAccountWorkspace({ copy, language }: { copy: DeveloperKeyCo
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     const payload = await readApiPayload(response);
-    signal?.throwIfAborted();
+    throwIfCancelled(signal);
     if (!response.ok) throw new Error(apiErrorMessage(payload, copy.requestError));
     return payload;
   }, [accountId, localTestMode, copy.requestError]);
