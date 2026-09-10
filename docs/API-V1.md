@@ -67,39 +67,45 @@ It is CORS-enabled for the consumer search UI, but its advanced and Swipe
 fields are not the stable public developer contract. New integrations should
 use `/api/v1/public/domains`.
 
-## Protected integration API — Neon migration pending
+## Protected integration API — development and preview
 
-> The self-service API-key flow is being moved to Neon-backed Vercel APIs.
-> It is not available to new accounts until Neon Auth, ownership checks and
-> durable key storage are deployed together. The route documented below is
-> retained as a compatibility contract, not as a live self-service promise.
+> Neon-backed self-service keys are deployed and verified in development and
+> protected preview. The production key migration has not been applied. This
+> is not a production rollout or a purchasable API plan.
 
 `POST /api/v1/domains` is a narrow, authenticated domain-search API for trusted server-side
 integrations. It uses the same bounded candidate generator, authoritative
 registry verification, and transparent provider comparison as Sajda's
 anonymous search surface.
 
-The future Neon-backed control plane will let signed-in Sajda users create,
+The Neon-backed control plane lets verified, signed-in Sajda users create,
 list and revoke their own keys through the same-origin developer routes:
 
 ```text
 GET    /api/developer/api-keys
-POST   /api/developer/api-keys       { "name": "Production service" }
+POST   /api/developer/api-keys       { "name": "Preview service", "scopes": ["domains:search"], "expiresInDays": 90 }
 DELETE /api/developer/api-keys?id=<key-uuid>
-Authorization: Bearer <Neon Auth session>
 ```
+
+The browser control plane uses the genuine Sajda session cookie and matching
+`X-Sajda-Account`; mutations require the same origin. An API key cannot manage
+other keys. Native key management uses the authenticated native gateway, not
+a fabricated browser cookie or origin.
 
 `POST` returns a 256-bit opaque `sj_live_…` or `sj_test_…` key **once** as
 `apiKey`. Copy it straight to the integration's trusted server. The dashboard
 never persists the raw key in browser storage; later list responses show only
-name, safe prefix, last four characters, scope, timestamps, and revocation
-state. Sajda stores only a SHA-256 digest of the complete raw token in a
-server-only table protected by RLS with no browser policies.
+name, safe prefix, last four characters, scopes, environment, timestamps, and
+revocation state. Keys expire after 90 days by default, with a 365-day maximum.
+Sajda stores only a SHA-256 digest of the complete raw token in the server-only
+Neon table `sajda.developer_api_keys`, protected by RLS with no browser policies.
 
-Use the generated token only with `POST /api/v1/domains`. Do not put it in a
-frontend bundle, source control, URL, analytics event, support ticket, or
-client-side environment variable. The control-plane session is not a
-substitute for an integration API key.
+Use a generated key with `domains:search` for `POST /api/v1/domains` or the
+domain tools at `/api/mcp`. Other explicitly selected scopes enable the
+documented [account API](./ACCOUNT-API.md) and [MCP tools](./MCP.md); they do not
+grant paid membership or billing actions. Do not put a key in a frontend bundle,
+source control, URL, analytics event, support ticket, or client-side environment
+variable. The control-plane session is not an integration API key.
 
 The machine-readable OpenAPI 3.1 document is available at:
 
@@ -140,22 +146,28 @@ prices remain separate from availability and are not a checkout quote.
 
 ## Required deployment configuration
 
-Provision Neon through the Vercel Marketplace, then apply the provider-neutral
-migrations under `db/migrations/` to an isolated preview branch before
-Production. `DATABASE_URL` is server-only. Neon Auth provides the signed-in
-session; `VITE_NEON_AUTH_URL` may expose only the public auth endpoint, never
-the database URL or password. The self-service key route stays disabled until
-this complete server-side path is verified.
+Development and protected preview use the reviewed migrations under
+`db/migrations/`, including `0013_developer_api_keys.sql`. Production migration
+and rollout remain pending. Keep preview data isolated from production.
+`DATABASE_URL` and `BETTER_AUTH_SECRET` are server-only; browser authentication
+uses Sajda's same-origin `/api/auth` service backed by Neon. Do not publish
+database credentials or configure a direct Neon browser auth endpoint.
+Missing database/key storage fails closed rather than using an in-memory key
+or quota fallback.
 
 `SAJDA_API_KEY_HASHES` remains supported only as a server-only legacy fallback
 for integrations that were provisioned before the database key flow. It
 accepts comma- or newline-separated `client_id:sha256_hex` values and cannot
-be created, listed, or revoked from the dashboard. New integrations should
-use a self-service key.
+be created, listed, or revoked from the dashboard. It applies only to the
+legacy protected domain-search route, never private account APIs or MCP. New
+integrations should use a self-service key in a migrated environment.
 
 ## Limits and production boundary
 
-The protected Domains API allows **4 requests per key per minute** and returns:
+Protected domain search allows **4 requests per account and environment per
+minute**, shared across that owner's keys, REST `/api/v1/domains` and MCP domain
+tools. Neon stores this fixed-minute bucket durably; changing keys, adapters
+or Vercel instances does not reset it. REST returns:
 
 - `X-RateLimit-Limit`
 - `X-RateLimit-Remaining`
@@ -163,29 +175,33 @@ The protected Domains API allows **4 requests per key per minute** and returns:
 - `Retry-After` on `429`
 - `X-Request-Id` on every response
 
-Creation is additionally limited to **5 keys per signed-in user per hour** and
-**10 active keys per user**. Key creation/revocation is real; it is not a
-billing, registrar, marketplace, or transfer endpoint. The search limiter is
-still process-local and intentionally conservative, not a durable billable
-usage quota: Vercel instances do not share memory. Do not sell an SLA or paid
-usage plan until durable usage metering, entitlements, billing, webhooks, and
-operations controls are separately implemented. See `docs/API-PLATFORM.md`.
+Key-backed API traffic also shares a **120 requests per account/environment
+per minute** bucket. Key management has its own **20 requests per minute**
+bucket and a maximum of **10 active keys per account/environment**. Expired or
+revoked keys cannot authenticate. Storage failures return a safe error rather
+than permitting unmetered requests.
+
+These are durable rate limits, not monthly allowances, paid entitlements or a
+billable usage ledger. The introductory search allowance remains browser-local;
+durable free/account/monthly search quotas are not implemented. The anonymous
+public API retains its separate best-effort per-IP limit described above.
+Do not sell an SLA or paid API usage plan until usage metering, entitlements,
+billing and operations controls are separately implemented. See
+[API-PLATFORM.md](./API-PLATFORM.md).
 
 ## Local verification
 
-The local server exposes both developer search routes at:
+The loopback QA server (`npm run serve:qa`, default port 8095) executes the real
+Vercel handlers, including both developer search routes:
 
 ```text
 http://127.0.0.1:8095/api/v1/public/domains
 http://127.0.0.1:8095/api/v1/domains
 ```
 
-The public route needs no key. On `127.0.0.1`, the full-app server also exposes
-a **loopback-only, in-memory `sj_test_…` key harness** at
-`/api/developer/api-keys`. It stores only hashes, supports the same
-list/create/revoke contract, works with local `/api/v1/domains`, and erases every
-test key when the process restarts. It is deliberately unavailable to remote
-clients and is not a substitute for the future Neon-backed user key control
-plane. `SAJDA_API_KEY_HASHES` can still test legacy protected keys locally.
+The public route needs no key. Real key lifecycle tests require the development
+Neon database, reviewed migrations and genuine verified account sessions.
+The separate legacy full-app server's loopback-only, in-memory key harness is
+not evidence of persistent-key or deployed Vercel behavior.
 The anonymous `/api/local-search` route stays loopback-only and unauthenticated;
 enabling a v1 key does not widen that local route.

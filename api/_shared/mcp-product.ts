@@ -1,11 +1,10 @@
-import { createHash } from "node:crypto";
 import domainSearch, { createTrustedApiEngineRequest } from "../domain-search.js";
 import membership from "../account/membership.js";
 import savedDomains from "../account/saved-domains.js";
 import trading from "../account/lost-domains.js";
 import { AccountAccessError } from "./account-error.js";
 import { createDelegatedAccountHeaders } from "./delegated-account.js";
-import { assertApiKeyScopes, consumeApiKeyQuota } from "./developer-api-keys.js";
+import { apiKeyEngineClientId, assertApiKeyScopes, consumeApiKeyQuota } from "./developer-api-keys.js";
 import { parseNamesApiRequest } from "./names-contract.js";
 import { createRequestId } from "./public-api.js";
 import { productOperationScope, type McpOperation, type McpProductExecutor, type McpProductResult } from "./mcp-tools.js";
@@ -76,7 +75,7 @@ export function createMcpProductExecutor(dependencies: {
         retryAfterSeconds: Math.max(1, Math.ceil((quota.resetAt - Date.now()) / 1000)) };
       // Stable, non-secret owner identity shares the engine quota across this
       // account's keys. Raw bearer tokens, cookies and caller headers stop here.
-      const clientId = `mcp_${createHash("sha256").update(`${principal.environment}:${principal.userId}`).digest("hex").slice(0, 48)}`;
+      const clientId = apiKeyEngineClientId(principal);
       const request = createTrustedApiEngineRequest({ method: "POST", headers: {} }, parsed, clientId, createRequestId());
       await (dependencies.domainSearch ?? domainSearch)(request, output.response);
       return output.result();

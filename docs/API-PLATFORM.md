@@ -1,15 +1,16 @@
 # Sajda domain-search API platform — security architecture
 
-> Migration note: the Supabase-specific implementation described below is
-> historical. Do not provision or extend it. New account, API-key, quota and
-> entitlement work belongs behind Vercel Functions backed by Neon; see
-> [NEON-VERCEL.md](./NEON-VERCEL.md).
+> Current storage is Neon behind Vercel Functions. Do not provision or extend
+> the retired Supabase implementation; see [NEON-VERCEL.md](./NEON-VERCEL.md).
 
-Status: **self-service API keys are live; paid billing is not.** Signed-in
-Sajda users can create, list, and revoke server-side keys for
-`POST /api/v1/domains`. Sajda also publishes a no-key, bounded public contract
-at `POST /api/v1/public/domains`. Neither surface is a paid developer plan,
-durable quota, or billing/entitlement layer. The consumer routes
+Status: **Neon self-service keys are deployed and verified in development and
+protected preview; production key migration and paid API billing are not
+complete.** Verified Sajda account owners can create, list and revoke scoped
+server-side keys for REST and MCP. Protected search uses a durable Neon
+account/environment rate limit shared across both adapters. Sajda also
+publishes a no-key contract at `POST /api/v1/public/domains` with a separate
+best-effort per-IP limit. Neither surface is a paid developer plan, monthly
+allowance or billable usage ledger. The consumer routes
 (`/api/domain-search` and `/api/deep-review`) remain anonymous product
 features and must not be relabeled as paid access.
 
@@ -22,15 +23,17 @@ flow.
 
 | Area | Present now | Required for a paid API |
 | --- | --- | --- |
-| Vercel search | Anonymous `POST` functions with short per-instance IP throttles; documented no-key `/api/v1/public/domains`; user-managed `/api/v1/domains` keys backed by a server-only Supabase table | A durable tenant, quota, usage, and audit boundary before paid access |
-| Private workspace | Supabase user JWT validation, service-role server calls, RLS, and a user rate-limit RPC | Keep it separate from machine-to-machine API credentials |
-| Billing | Not implemented | Server-side checkout and a verified Stripe webhook, then a durable entitlement projection |
-| API keys | One-time display, SHA-256 digest-only persistence, authenticated metadata list/revocation, server-side verifier and environment prefixes | Key rotation UX, immutable audit events, durable tenant/organisation ownership, and plan-scoped permissions |
-| Usage | Function-specific user limits only | Atomic tenant/key quotas and immutable billable usage events |
+| Vercel search | Anonymous per-instance IP throttles; protected REST/MCP searches share a durable 4-per-minute account/environment bucket | Agreed plan-period limits, metering and audit before paid API access |
+| Private workspace | Verified same-origin cookie or native session; scoped API keys enter allowlisted shared handlers through trusted internal delegation | Preserve current owner and feature-entitlement checks across every adapter |
+| Billing | Trading commerce code exists; no paid developer API product or usage billing is activated | A separately reviewed API billing/entitlement design and lifecycle verification |
+| API keys | Neon digest-only storage, one-time display, exact scopes, expiry/revocation, verified ownership and environment binding | Immutable audit events and any explicitly approved organisation/plan model |
+| Usage | Durable account/environment API request and domain-search minute buckets | Account free/monthly entitlements and immutable billable usage events, if activated |
 
-The in-memory Vercel rate-limit maps are intentionally best-effort. Serverless
-instances do not share that memory, so they are unsuitable for customer plans,
-usage charging, or abuse evidence.
+The public engine's in-memory rate-limit maps remain best-effort because
+serverless instances do not share memory. Protected REST/MCP additionally use
+the durable Neon buckets; these still are not monthly quotas or billing
+records. The one-search browser trial uses local storage, not an enforceable
+account allowance. Durable free/monthly quotas remain an implementation gate.
 
 ## Product boundary
 
@@ -40,6 +43,8 @@ integration preview:
 ```text
 POST /api/v1/public/domains      published, anonymous and strictly bounded
 POST /api/v1/domains             authenticated server-side key
+POST /api/mcp                    scoped Streamable HTTP MCP, not an ordinary REST operation
+GET/POST/DELETE /api/v1/account  scoped, allowlisted account operations
 GET/POST/DELETE /api/developer/api-keys  signed-in user key control plane
 POST /api/v1/deep-reviews        planned, machine-to-machine
 GET  /api/v1/usage               planned, authenticated key metadata only
@@ -51,12 +56,14 @@ customer identity, and exposes no account data. It is deliberately safe to use
 from a browser, but it is not a substitute for a paid service.
 
 `/api/v1/domains` is a protected server-to-server domain-search contract, not a customer-paid
-API: it has self-service user key creation and immediate revocation, but no
-tenant plan, durable usage ledger, billing, or entitlement state. The dashboard
-uses a Supabase user session only to manage that user's key metadata; requests
-to `/api/v1/*` use the generated API key and are not browser-session
-authentication. Existing anonymous routes remain public product routes with
-their own conservative limits.
+API: it has self-service key creation, expiry and immediate revocation, but no
+API plan, monthly entitlement or billable usage ledger. The dashboard uses a
+verified same-origin Sajda cookie session backed by Neon; native management
+uses the native session gateway. Generated keys authenticate protected REST
+and MCP calls, not the key-management endpoint. Existing anonymous routes
+remain public product routes with their own conservative limits. Private
+saved-domain and Trading operations retain their actual owner/membership
+checks; possessing a scope does not create a feature entitlement.
 
 Use an explicit API version in both the path and response contract. Return a
 request ID (`X-Request-Id`) on every response and an ISO-8601 `checkedAt` value
@@ -102,13 +109,23 @@ audit events without changing the one-time-display promise.
 
 ## Tenants, plans, quotas, and usage
 
-The current `public.developer_api_keys` table is RLS-enabled with no browser
-policies and revoked `anon`/`authenticated` grants. It is reachable only from
-the server's service-role client; it stores no raw secret. Before introducing
-paid plans, move tenant, billing, and usage records into a reviewed private
-non-Data-API schema such as `api_internal`.
+The current `sajda.developer_api_keys` and `sajda.developer_api_quotas` Neon
+tables are RLS-enabled with no browser policies and revoked public grants.
+Only server-side database connections access them; no raw key is stored.
+The quota primary key is environment, hashed owner and bucket. PostgreSQL
+atomically applies a fixed-minute **4 domain searches** limit, shared across
+all of an owner's keys and REST/MCP calls, plus **120 API requests per minute**.
+Key management uses a separate **20-per-minute** bucket and permits at most
+**10 active keys per account/environment**. Rotation or a different Vercel
+instance cannot reset these buckets; unavailable storage fails closed.
 
-Minimum model:
+This implements rate control, not a lifetime free-search balance, monthly plan
+allowance or paid API entitlement. Neither the price catalog nor key creation
+grants those capabilities. Any future commercial model needs explicit product
+approval before implementation.
+
+Previously proposed paid-API model, not a description of deployed tables or
+an approved new pricing model:
 
 | Record | Responsibility |
 | --- | --- |
@@ -139,18 +156,19 @@ silently give a paying key unlimited service because the quota store timed out.
 
 | Actor | Authentication | Authorization |
 | --- | --- | --- |
-| Browser dashboard | Supabase user JWT | Same-origin server endpoint validates ownership; key table has no browser policy and returns only safe metadata |
-| Customer server/CLI | `Authorization: Bearer sj_live_…` or `sj_test_…` | Active key, required domain-search scope, and endpoint/environment match |
+| Browser dashboard | Same-origin Sajda cookie session backed by Neon | Fresh verified owner, matching account header and same-origin mutation checks; safe key metadata only |
+| Native app | Account-bound native session | Allowlisted native gateway and trusted internal delegation; no API-key management via an integration key |
+| Customer server/CLI/MCP client | `Authorization: Bearer sj_live_…` or `sj_test_…` | Active, unexpired key; exact scope; owner/environment binding; shared quota; underlying private-feature checks |
 | Billing provider | Raw request + verified Stripe signature | Event allowlist and idempotent event store; never browser origin/session |
 | Internal operator | Separate admin identity and audited elevated role | Least privilege; no shared super-key or production customer-key export |
 
 Require a domain-search scope and review-specific scopes per operation. Do not
 accept a Supabase publishable/anon key, a service-role key, an OpenAI key, a
 registrar credential, or a Stripe credential as a Sajda customer credential.
-Supabase's service-role/secret credentials bypass RLS and must remain
-server-side, as documented in [Supabase's API-key guidance](https://supabase.com/docs/guides/getting-started/api-keys) and [RLS guide](https://supabase.com/docs/guides/database/postgres/row-level-security).
+Database credentials and application/provider secrets remain server-only;
+none is interchangeable with a generated Sajda integration key.
 
-## Billing boundary
+## Billing boundary for any future paid API
 
 Stripe Checkout / Billing creation belongs in a server endpoint authenticated
 by the dashboard session. Price IDs, customer IDs, and plan mapping are
@@ -178,16 +196,18 @@ Stripe also supports idempotent API requests; use a server-generated
 idempotency key for Checkout/session creation and store the associated local
 intent: [Stripe idempotent requests](https://docs.stripe.com/api/idempotent_requests).
 
-There is currently **no Stripe dependency or webhook route in this repository**.
-Do not set `SAJDA_PAID_API_PREVIEW_ENABLED` in production or advertise billing
-until the webhook, database migration, contract tests, and live-mode review are
-complete.
+The repository already contains the Stripe dependency and
+`/api/billing-webhook` for Trading commerce. Their presence does not activate
+API billing, monthly search quotas or production payments. Do not advertise a
+paid API until its own approved contract, migrations, usage metering and
+billing lifecycle review are complete.
 
 ## Rate limits, idempotency, and audit
 
-- Put coarse abuse limits at Vercel/WAF and a durable per-key + per-tenant
-  limiter in the authoritative database or a dedicated rate-limit store. Do
-  not rely on `x-forwarded-for` as customer identity.
+- Preserve the current durable owner/environment limits across REST and MCP.
+  Any future per-key or organisation limiter must not let key rotation bypass
+  the owner limit. Coarse Vercel/WAF protection is additional; do not rely on
+  `x-forwarded-for` as customer identity.
 - Return `429` with `Retry-After`, a machine-readable error code, and request
   ID. Never disclose whether an unknown key ID exists.
 - For write-like or billable POSTs, require `Idempotency-Key`. Store a digest of
@@ -210,8 +230,8 @@ Use separate **Development**, **Preview**, and **Production** environments:
 | Preview | `sj_test` only | Never live charges | Protected preview plus isolated test webhook/database |
 | Production | `sj_live` only | Live Stripe only after release gate | Production database, production webhook, monitored rollback |
 
-Store `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, Supabase
-secret/service-role credentials, OpenAI keys, and registrar credentials only as
+Store `DATABASE_URL`, `BETTER_AUTH_SECRET`, `STRIPE_SECRET_KEY`,
+`STRIPE_WEBHOOK_SECRET`, AI-provider keys and registrar credentials only as
 server-side project environment variables. The current database key verifier
 does not require a separate HMAC secret because keys use 256-bit random
 secrets and SHA-256 digest-only storage.

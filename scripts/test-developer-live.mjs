@@ -1,4 +1,4 @@
-/** Real HTTP integration probe. No direct database access or provider work.
+/** Real HTTP integration probe. No direct database access.
  *
  * Explicit opt-in: SAJDA_DEVELOPER_LIVE_TEST=true
  * Required secrets: SAJDA_QA_EMAIL / SAJDA_QA_PASSWORD (never CLI arguments).
@@ -6,6 +6,9 @@
  * Non-loopback preview targets additionally require BOTH
  * SAJDA_QA_ALLOW_REMOTE_DEV=true and SAJDA_QA_APPROVED_DEV_ORIGIN=<exact origin>.
  * Never use production. Server must have SAJDA_NATIVE_ENABLED=true for this QA.
+ * Optional SAJDA_QA_EXACT_SEARCH=true also checks example.com once through REST
+ * and once through MCP, using actual registry/price sources but no AI generation.
+ * Without that separate opt-in there is no provider work.
  *
  * Only new QA credentials are created/revoked. Account/user rows, saved data,
  * subscriptions and Trading runs are not intentionally changed. Scope-denial
@@ -101,7 +104,9 @@ async function run() {
       && (expected < 400 ? result.isError !== true : result.isError === true), structured.status);
     return structured;
   }
-  const readonlyScopes = ["account:read", "saved:read", "trading:read"];
+  const exactSearch = process.env.SAJDA_QA_EXACT_SEARCH === "true";
+  let searchCalls = 0;
+  const readonlyScopes = [...(exactSearch ? ["domains:search"] : []), "account:read", "saved:read", "trading:read"];
 
   try {
     await request("browser_login", "/api/auth/sign-in/email", { method: "POST", browser: true, body: { email, password } });
@@ -116,12 +121,12 @@ async function run() {
     check("browser_saved_list_shape", Array.isArray(webSaved.data.items));
 
     keyCreateAttempted = true;
-    const created = await request("create_readonly_api_key", "/api/developer/api-keys", {
+    const created = await request(exactSearch ? "create_exact_check_key" : "create_readonly_api_key", "/api/developer/api-keys", {
       method: "POST", browser: true, body: { name: keyName, scopes: readonlyScopes, expiresInDays: 1 }, expected: 201 });
     const key = object(created.data.key);
     keyId = typeof key.id === "string" ? key.id : undefined;
     apiKey = typeof created.data.apiKey === "string" ? created.data.apiKey : undefined;
-    check("key_is_nonproduction_and_readonly", ["preview", "development"].includes(key.environment)
+    check(exactSearch ? "key_has_approved_exact_check_scopes" : "key_is_nonproduction_and_readonly", ["preview", "development"].includes(key.environment)
       && /^sj_test_[A-Za-z0-9_-]{16}_[A-Za-z0-9_-]{43}$/u.test(apiKey || "") && Boolean(keyId)
       && equivalent(key.scopes, readonlyScopes));
     check("key_has_finite_expiry", Number.isFinite(Date.parse(key.expiresAt)) && Date.parse(key.expiresAt) > Date.now()
@@ -169,6 +174,23 @@ async function run() {
     check("mcp_trading_status_is_readonly_shape", typeof object(mcpTrading.data).access === "boolean" && !("candidates" in object(mcpTrading.data)));
     const deniedTool = await mcpCall("saved_domains_remove", { domain: nonexistentDomain }, 403);
     check("readonly_mcp_scope_error", object(deniedTool.error).code === "insufficient_scope");
+
+    if (exactSearch) {
+      const input = { domains: ["example.com"], providers: ["cloudflare"], locale: "en" };
+      const validateExactResult = (step, data) => {
+        const results = Array.isArray(data.results) ? data.results : [];
+        check(step, results.length === 1 && results[0].domain === "example.com"
+          && results[0].status === "taken" && results[0].authoritative === true
+          && data.checked === 1 && Number.isFinite(Date.parse(data.checkedAt)));
+      };
+      searchCalls++;
+      const checked = await request("rest_exact_domain_check", "/api/v1/domains", {
+        method: "POST", bearer: apiKey, body: { ...input, tlds: ["com"], count: 1 } });
+      validateExactResult("rest_exact_domain_registry_evidence", checked.data);
+      searchCalls++;
+      const mcpChecked = await mcpCall("domains_check", input);
+      validateExactResult("mcp_exact_domain_registry_evidence", object(mcpChecked.data));
+    }
 
     await request("revoke_api_key", `/api/developer/api-keys?id=${encodeURIComponent(keyId)}`, { method: "DELETE", browser: true });
     keyRevoked = true;
@@ -247,7 +269,7 @@ async function run() {
     }
   }
   check("probe_credentials_cleaned_up", cleanupFailures.length === 0);
-  console.log(JSON.stringify({ event: "developer_live_test_complete", checks: passed.length, searchCalls: 0, tradingMutationCalls: 0, billingProviderCalls: 0 }));
+  console.log(JSON.stringify({ event: "developer_live_test_complete", checks: passed.length, searchCalls, tradingMutationCalls: 0, billingProviderCalls: 0 }));
 }
 
 try { await run(); }

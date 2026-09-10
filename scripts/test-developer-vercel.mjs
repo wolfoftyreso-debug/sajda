@@ -69,4 +69,5 @@ globalThis.fetch = async (input, init = {}) => {
   });
 };
 
-await import("./test-developer-live.mjs");
+await import(process.env.SAJDA_QA_SAVED_MUTATIONS === "true"
+  ? "./test-developer-saved-live.mjs" : "./test-developer-live.mjs");

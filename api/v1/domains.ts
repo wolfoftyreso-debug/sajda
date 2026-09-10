@@ -131,14 +131,15 @@ function configuredApiKeys(): ApiKeyRecord[] {
   return records;
 }
 
-async function authenticatedClient(request: VercelRequestLike): Promise<{ clientId: string; principal?: ApiKeyPrincipal } | undefined> {
+async function authenticatedClient(request: VercelRequestLike,
+  authenticate = authenticatePersistedApiKey): Promise<{ clientId: string; principal?: ApiKeyPrincipal } | undefined> {
   const entries = Object.entries(request.headers).filter(([name]) => name.toLowerCase() === "authorization");
   const authorization = entries.length === 1 && typeof entries[0][1] === "string" ? entries[0][1] : "";
   if (!authorization.startsWith("Bearer ")) return undefined;
   const token = authorization.slice("Bearer ".length);
   if (!API_KEY_TOKEN_PATTERN.test(token)) return undefined;
 
-  const persisted = await authenticatePersistedApiKey(token, ["domains:search"]);
+  const persisted = await authenticate(token, ["domains:search"]);
   if (persisted.status === "authenticated") return { clientId: persisted.clientId, principal: persisted.principal };
   if (persisted.status === "unavailable") throw new AccountAccessError("developer_keys_unavailable", 503, "API key verification is temporarily unavailable.");
   if (persisted.status === "insufficient_scope") throw new AccountAccessError("insufficient_scope", 403, "This API key does not have domain search permission.");
@@ -159,7 +160,13 @@ function isJsonRequest(request: VercelRequestLike): boolean {
   return /^application\/json(?:\s*;|$)/iu.test(headerValue(request, "content-type").trim());
 }
 
-export default async function handler(request: VercelRequestLike, response: VercelResponseLike): Promise<void> {
+/** Test seams replace persistence only; every search still enters the real engine. */
+export function createDomainsApiHandler(dependencies: {
+  authenticate?: typeof authenticatePersistedApiKey;
+  quota?: typeof consumeApiKeyQuota;
+  legacyQuota?: typeof consumeLegacyDomainsQuota;
+} = {}) {
+return async function handler(request: VercelRequestLike, response: VercelResponseLike): Promise<void> {
   const requestId = createRequestId();
 
   if (request.method !== "POST") {
@@ -177,16 +184,17 @@ export default async function handler(request: VercelRequestLike, response: Verc
   let client: Awaited<ReturnType<typeof authenticatedClient>>;
   let quota: ApiQuotaResult;
   try {
-    client = await authenticatedClient(request);
+    client = await authenticatedClient(request, dependencies.authenticate);
     if (!client) throw new AccountAccessError("invalid_api_key", 401, "Invalid API key.");
     if (client.principal) {
-      const requests = await consumeApiKeyQuota(client.principal, "requests");
+      const requests = await (dependencies.quota ?? consumeApiKeyQuota)(client.principal, "requests");
       if (!requests.allowed) {
         response.setHeader("Retry-After", Math.max(1, Math.ceil((requests.resetAt - Date.now()) / 1_000)));
         throw new AccountAccessError("rate_limited", 429, "The shared account API request limit has been reached.");
       }
     }
-    quota = client.principal ? await consumeApiKeyQuota(client.principal, "domains") : await consumeLegacyDomainsQuota(client.clientId);
+    quota = client.principal ? await (dependencies.quota ?? consumeApiKeyQuota)(client.principal, "domains")
+      : await (dependencies.legacyQuota ?? consumeLegacyDomainsQuota)(client.clientId);
   } catch (error) {
     const failure = error instanceof AccountAccessError ? error
       : new AccountAccessError("api_unavailable", 503, "The API is temporarily unavailable. Please try again.");
@@ -218,4 +226,7 @@ export default async function handler(request: VercelRequestLike, response: Verc
   } catch {
     sendJson(response, 503, { error: "Domain search is temporarily unavailable. Please try again." });
   }
+};
 }
+
+export default createDomainsApiHandler();

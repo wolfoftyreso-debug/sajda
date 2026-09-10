@@ -11,6 +11,13 @@ export type ApiKeyEnvironment = "development" | "preview" | "production";
 export interface ApiKeyPrincipal {
   userId: string; keyId: string; scopes: ApiKeyScope[]; environment: ApiKeyEnvironment;
 }
+/** Non-secret engine identity, shared by REST/MCP and unchanged by key rotation.
+ * 192 hash bits leave a 56-character ID inside the engine's 64-character cap.
+ * This identifies a throttle bucket only; it never authenticates a request.
+ */
+export function apiKeyEngineClientId(principal: Pick<ApiKeyPrincipal, "userId" | "environment">): string {
+  return `account_${createHash("sha256").update(`${principal.environment}:${principal.userId}`).digest("hex").slice(0, 48)}`;
+}
 export interface DeveloperApiKey {
   id: string; name: string; keyPrefix: string; lastFour: string;
   environment: ApiKeyEnvironment; scopes: ApiKeyScope[];
@@ -207,7 +214,7 @@ export function createDeveloperApiKeyService(deps: { pool?: DeveloperApiKeyPool;
             AND EXISTS (SELECT 1 FROM public.sajda_auth_user WHERE id = $2 AND "emailVerified" = true)
           RETURNING id::text`, [principal.keyId, principal.userId, namespace, row.secret_hash]);
         if (touched[0]?.id !== principal.keyId) return { status: "invalid" };
-        const clientId = `account_${createHash("sha256").update(`${namespace}:${principal.userId}`).digest("hex")}`;
+        const clientId = apiKeyEngineClientId(principal);
         return { status: "authenticated", principal, clientId };
       } catch { return { status: "unavailable" }; }
     },

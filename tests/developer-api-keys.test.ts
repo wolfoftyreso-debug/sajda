@@ -3,9 +3,12 @@ import { createHash, randomUUID } from "node:crypto";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
 import { AccountAccessError } from "../api/_shared/account-error";
-import { API_KEY_SCOPES, apiKeyEnvironment, assertApiKeyScopes, createDeveloperApiKeyService, parseCreateDeveloperApiKey, requireApiKey,
+import { API_KEY_SCOPES, apiKeyEngineClientId, apiKeyEnvironment, assertApiKeyScopes, createDeveloperApiKeyService, parseCreateDeveloperApiKey, requireApiKey,
   type ApiKeyPrincipal, type DeveloperApiKeyPool } from "../api/_shared/developer-api-keys";
 import developerKeys, { createDeveloperApiKeysHandler } from "../api/developer/api-keys";
+import { createDomainsApiHandler } from "../api/v1/domains";
+import { createMcpProductExecutor } from "../api/_shared/mcp-product";
+import domainSearch, { createTrustedApiEngineRequest } from "../api/domain-search";
 
 const owner = { id: "account-a", emailVerified: true };
 const other = { id: "account-b", emailVerified: true };
@@ -101,6 +104,21 @@ test("authenticated principal comes only from verified key ownership; required s
   assert.deepEqual(await f.service.authenticate(issued.apiKey), { status: "invalid" });
 });
 
+test("persisted engine identities fit the actual boundary and stay stable across keys but isolated by owner/environment", async () => {
+  const f = harness(), first = await f.service.create(owner, { name: "First" }), second = await f.service.create(owner, { name: "Second" });
+  const a = await f.service.authenticate(first.apiKey), b = await f.service.authenticate(second.apiKey);
+  if (a.status !== "authenticated" || b.status !== "authenticated") assert.fail("Fixture keys must authenticate");
+  assert.equal(a.clientId, b.clientId);
+  assert.equal(a.clientId, apiKeyEngineClientId(a.principal));
+  assert.equal(a.clientId.length, 56);
+  assert.notEqual(a.clientId, apiKeyEngineClientId({ userId: other.id, environment: "preview" }));
+  assert.notEqual(a.clientId, apiKeyEngineClientId({ userId: owner.id, environment: "production" }));
+  const request = createTrustedApiEngineRequest({ headers: {} }, {}, a.clientId);
+  assert.equal(Object.values(request.headers).includes(first.apiKey), false);
+  const identity = Object.getOwnPropertySymbols(request).map(symbol => (request as unknown as Record<symbol, unknown>)[symbol]);
+  assert.ok(identity.includes(a.clientId));
+});
+
 test("revocation, expiry, deleted ownership and verification races fail closed without cached authorization", async () => {
   const f = harness(), issued = await f.service.create(owner, { name: "Revocable", expiresInDays: 1 });
   await f.service.revoke(owner, issued.key.id);
@@ -175,8 +193,70 @@ test("operator tokens and malformed/ambiguous Authorization cannot authenticate 
 function response() {
   return { code: 200, body: undefined as unknown, headers: new Map<string, string | number>(),
     status(code: number) { this.code = code; return this; }, json(body: unknown) { this.body = body; },
+    end(body?: string) { this.body = body; },
     setHeader(name: string, value: string | number) { this.headers.set(name.toLowerCase(), value); } };
 }
+
+test("persisted keys reach the real REST and MCP search engine and share account quotas without live provider calls", async () => {
+  // Only database rows and fetch responses are fixtures. Key creation, digest
+  // authentication, scope checks, quota selection, trusted request creation,
+  // both API adapters and the complete domain engine are actual implementations.
+  const f = harness(), account = { ...owner, id: `search-owner-${randomUUID()}` };
+  const issued = await f.service.create(account, { name: "First search key" });
+  const rotated = await f.service.create(account, { name: "Rotated search key" });
+  const restricted = await f.service.create(account, { name: "No search scope", scopes: ["account:read"] });
+  const route = createDomainsApiHandler({ authenticate: f.service.authenticate, quota: f.service.consumeApiKeyQuota,
+    legacyQuota: async () => { throw new Error("Persisted credentials cannot use the operator quota"); } });
+  let mcpEngineIdentity: unknown;
+  const execute = createMcpProductExecutor({ quota: f.service.consumeApiKeyQuota, domainSearch: async (request, output) => {
+    mcpEngineIdentity = Object.getOwnPropertySymbols(request).map(symbol => (request as unknown as Record<symbol, unknown>)[symbol])
+      .find(value => typeof value === "string" && value.startsWith("account_"));
+    await domainSearch(request, output);
+  } });
+  const originalFetch = globalThis.fetch;
+  const endpoints: string[] = [];
+  globalThis.fetch = async (input, init) => {
+    const url = new URL(String(input));
+    endpoints.push(url.href);
+    assert.equal(url.protocol, "https:");
+    assert.equal(url.pathname, "/com/v1/domain/example.com", "Only the stubbed exact RDAP read is allowed");
+    assert.equal(new Headers(init?.headers).has("authorization"), false);
+    return Response.json({ objectClassName: "domain", ldhName: "EXAMPLE.COM" },
+      { headers: { "content-type": "application/rdap+json" } });
+  };
+  const call = async (token: string) => {
+    const output = response();
+    await route({ method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: { domains: ["example.com"], tlds: ["com"], providers: ["cloudflare"] } }, output);
+    return output;
+  };
+  try {
+    const first = await call(issued.apiKey);
+    assert.equal(first.code, 200, "A real persisted-key identity must pass the engine boundary, not return 503");
+    assert.equal((first.body as { engine: string }).engine, "vercel-public-registry-search");
+    const row = (first.body as { results: { domain: string; status: string }[] }).results[0];
+    assert.deepEqual([row.domain, row.status], ["example.com", "taken"]);
+    assert.equal(first.headers.has("access-control-allow-origin"), false);
+    assert.equal(first.headers.get("x-ratelimit-remaining"), "3");
+    assert.equal(JSON.stringify(first.body).includes(issued.apiKey), false);
+    const authenticated = await f.service.authenticate(rotated.apiKey, ["domains:search"]);
+    if (authenticated.status !== "authenticated") assert.fail("Fixture key must authenticate");
+    const mcp = await execute("domains_check", { domains: ["example.com"], providers: ["cloudflare"] }, authenticated.principal);
+    assert.equal(mcp.status, 200);
+    assert.equal(mcpEngineIdentity, authenticated.clientId, "REST/MCP use the same bounded owner identity inside the real engine");
+    assert.equal((mcp.data.results as { status: string }[])[0].status, "taken");
+    assert.equal((await call(rotated.apiKey)).code, 200);
+    assert.equal((await call(issued.apiKey)).code, 200);
+    // The actual engine may reuse its registry evidence cache. All four calls
+    // must still consume the durable account bucket before entering the engine.
+    assert.ok(endpoints.length >= 1 && endpoints.length <= 4);
+    const fetchedBeforeDenial = endpoints.length;
+    assert.equal((await call(rotated.apiKey)).code, 429, "Switching keys or adapters cannot reset the account domain bucket");
+    assert.equal((await execute("domains_check", { domains: ["example.com"] }, authenticated.principal)).status, 429);
+    assert.equal((await call(restricted.apiKey)).code, 403);
+    assert.equal(endpoints.length, fetchedBeforeDenial, "Quota and scope denials must occur before provider dispatch");
+  } finally { globalThis.fetch = originalFetch; }
+});
 
 test("management authenticates all methods with the verified same-origin session and never accepts bearer keys", async () => {
   for (const method of ["GET", "POST", "DELETE"]) {
