@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { MembershipProvider } from "@/contexts/MembershipContext";
 import { ScanProvider } from "@/contexts/ScanContext";
 import { LanguageProvider } from "@/i18n/LanguageProvider";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -100,6 +101,7 @@ const AppRoutes = () => {
 const App = () => (
   <LanguageProvider>
     <AuthProvider>
+      <MembershipProvider>
       <ScanProvider>
         <TooltipProvider>
           <Toaster />
@@ -109,6 +111,7 @@ const App = () => (
           </BrowserRouter>
         </TooltipProvider>
       </ScanProvider>
+      </MembershipProvider>
     </AuthProvider>
   </LanguageProvider>
 );

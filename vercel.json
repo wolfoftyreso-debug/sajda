@@ -10,6 +10,7 @@
   "functions": {
     "api/reference-fx.ts": { "maxDuration": 10 },
     "api/account/billing.ts": { "maxDuration": 30 },
+    "api/account/membership.ts": { "maxDuration": 20 },
     "api/billing-webhook.ts": { "maxDuration": 30 },
     "api/account/lost-domains.ts": { "maxDuration": 30 },
     "api/cron/lost-domains.ts": { "maxDuration": 60 },

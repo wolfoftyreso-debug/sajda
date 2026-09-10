@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { ArrowLeft, ArrowUpRight, Check, ChevronDown, Download, FileSearch, LoaderCircle, LockKeyhole, RefreshCw, Search, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+import AccountLink from "@/components/AccountLink";
+import { accountNavigationCopy } from "@/i18n/accountNavigationCopy";
 import PlusBilling from "@/components/PlusBilling";
 import TradingEvidenceSummary, { type TradingQuoteControls } from "@/components/TradingEvidenceSummary";
 import { filterTradingReport, tradingReportCsv, type TradingReportFilter } from "@/lib/tradingReport";
@@ -237,7 +239,7 @@ export default function LostDomains() {
     <div className="mx-auto w-full max-w-6xl px-4 pb-14 pt-7 sm:px-6 lg:px-8">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <Link to="/" className={link}><ArrowLeft className="h-4 w-4 shrink-0" aria-hidden="true" />{copy.back}</Link>
-        <LanguageSwitcher />
+        <div className="flex flex-wrap items-center gap-2"><AccountLink /><LanguageSwitcher /></div>
       </div>
       {!authLoading && user && <div className="mt-4 flex flex-wrap items-center justify-end gap-x-4 gap-y-2 border-t border-border pt-3">
         <p className="min-w-0 text-xs leading-5 text-muted-foreground">{copy.signedInAs} <span className="break-all font-medium text-foreground">{user.email}</span></p>
@@ -282,6 +284,7 @@ export default function LostDomains() {
         {!authLoading && (!accountId || snapshot && !snapshot.access) && <div className={`${panel} mt-5 grid gap-5 p-5 sm:p-7 md:grid-cols-[auto_minmax(0,1fr)]`}>
           <LockKeyhole className="h-6 w-6 text-primary" aria-hidden="true" />
           <div><h3 className="text-lg font-semibold">{copy.locked}</h3><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{copy.lockedBody}</p>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{accountNavigationCopy[language].oneAccount}</p>
             <div className="mt-4 flex flex-wrap gap-3">{!accountId && <Button asChild className={button}><Link to="/auth?next=%2Fplus">{copy.signIn}</Link></Button>}
               <Button asChild variant="outline" className={button}><Link to="/contact">{copy.contact}</Link></Button></div></div>
         </div>}

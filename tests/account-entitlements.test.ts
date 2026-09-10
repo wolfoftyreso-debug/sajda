@@ -203,7 +203,7 @@ test("database failure, malformed capabilities and limit errors fail closed with
   } finally { console.error = previousLog; }
 });
 
-test("database query checks only the session owner's finite, non-revoked grant (simulated Neon transport)", async () => {
+test("capabilities delegate to the shared session owner's membership read (simulated Neon transport)", async () => {
   const previousFetch = globalThis.fetch;
   const previousNeonFetch = neonConfig.fetchFunction;
   const previousEndpoint = neonConfig.fetchEndpoint;
@@ -233,11 +233,13 @@ test("database query checks only the session owner's finite, non-revoked grant (
     const owner = request.params[1];
     assert.equal(request.query.includes(owner), false, "Owner must be a bound parameter, never SQL text");
     const grant = count <= 120 ? grants.get(owner) : undefined;
-    const row = corrupt ?? { request_count: count, user_id: grant ? owner : null,
-      capability: grant ? "swipe_undo" : null,
-      active: grant ? !grant.revoked && grant.starts <= now && grant.expires > now : null };
-    const columns = ["request_count", "user_id", "capability", "active"];
-    return Response.json({ fields: columns.map(name => ({ name, dataTypeID: name === "active" ? 16 : name === "request_count" ? 23 : 25 })),
+    const active = grant && !grant.revoked && grant.starts <= now && grant.expires > now;
+    const row = corrupt ?? { request_count: count, account_id: owner, verified: true,
+      namespace: request.params[3], checked_at: new Date(now).toISOString(),
+      plan: active ? "premium" : null, access_source: active ? "operator" : null,
+      expires_at: active ? new Date(grant.expires).toISOString() : null };
+    const columns = ["request_count", "account_id", "verified", "namespace", "checked_at", "plan", "access_source", "expires_at"];
+    return Response.json({ fields: columns.map(name => ({ name, dataTypeID: name === "verified" ? 16 : name === "request_count" ? 23 : 25 })),
       rows: [columns.map(column => row[column] === null ? null : typeof row[column] === "boolean" ? row[column] ? "t" : "f" : String(row[column]))], rowCount: 1 });
   };
   globalThis.fetch = transport;
@@ -262,10 +264,10 @@ test("database query checks only the session owner's finite, non-revoked grant (
     await assert.rejects(() => getAccountCapabilities(account), error => error instanceof AccountAccessError && error.status === 429);
     count = 1;
     for (const row of [
-      { request_count: 1, user_id: "account-b", capability: "swipe_undo", active: true },
-      { request_count: 1, user_id: account.id, capability: "admin", active: true },
-      { request_count: 1, user_id: account.id, capability: "swipe_undo", active: null },
-      { request_count: 0, user_id: account.id, capability: "swipe_undo", active: true },
+      { request_count: 1, account_id: "account-b", verified: true, namespace: "development" },
+      { request_count: 1, account_id: account.id, verified: true, namespace: "development", plan: "admin" },
+      { request_count: 1, account_id: account.id, verified: true, namespace: "development", plan: "premium", expires_at: null },
+      { request_count: 0, account_id: account.id, verified: true, namespace: "development" },
     ]) {
       corrupt = row;
       await assert.rejects(() => getAccountCapabilities(account), /Invalid/u);

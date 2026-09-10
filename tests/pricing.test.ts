@@ -43,6 +43,8 @@ test("mounted pricing presents the shared prices and only truthful navigation, w
     plugins: [{ name: "pricing-test-language-boundary", enforce: "pre", load(id) {
       const normalized = id.replaceAll("\\", "/");
       if (normalized.endsWith("/src/i18n/LanguageProvider.tsx")) return `export const useLanguage=()=>({language:globalThis.${fixtureKey}}); export const applyDocumentMetadata=()=>{};`;
+      if (normalized.endsWith("/src/contexts/AuthContext.tsx")) return "export const useAuth=()=>({user:null,loading:false});";
+      if (normalized.endsWith("/src/contexts/MembershipContext.tsx")) return "export const useMembership=()=>({membership:null,loading:false,error:null,refresh:async()=>{}});";
       if (normalized.endsWith("/src/components/LanguageSwitcher.tsx")) return "export default function LanguageSwitcher(){return null;}";
     } }],
   });

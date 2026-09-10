@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+import AccountLink from "@/components/AccountLink";
 import { DEFAULT_PROVIDER_IDS } from "@/lib/providerCatalog";
 import { DEFAULT_ADVANCED_SEARCH_CRITERIA, type AdvancedSearchCriteria } from "@/lib/advancedSearchCriteria";
 import { parseDirectDomainSearch } from "@/lib/directDomainSearch";
@@ -423,7 +424,8 @@ const Index = () => {
             />
           </a>
           <a href="/pricing" className="inline-flex min-h-11 items-center rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{language === "sv" ? "Priser & nivåer" : language === "es" ? "Precios y planes" : language === "fr" ? "Tarifs et offres" : language === "zh" ? "价格与方案" : "Pricing & plans"}</a>
-          <div className="col-span-2 justify-self-end sm:col-span-1">
+          <div className="col-span-2 flex flex-wrap items-center justify-end gap-2 justify-self-end sm:col-span-1">
+            <AccountLink />
             <LanguageSwitcher />
           </div>
         </header>

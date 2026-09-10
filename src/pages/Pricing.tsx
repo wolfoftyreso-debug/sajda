@@ -6,12 +6,17 @@ import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { Button } from "@/components/ui/button";
 import { applyDocumentMetadata, useLanguage } from "@/i18n/LanguageProvider";
 import { getPricingCopy } from "@/i18n/pricingCopy";
+import { useAuth } from "@/contexts/AuthContext";
+import { useMembership } from "@/contexts/MembershipContext";
 
 const actionClass = "h-auto min-h-11 w-full whitespace-normal px-4 py-3 text-center leading-snug";
 
 export default function Pricing() {
   const { language } = useLanguage();
   const copy = getPricingCopy(language);
+  const { user, loading: authLoading } = useAuth();
+  const { membership, loading: membershipLoading, error: membershipError } = useMembership();
+  const currentMembership = user && !authLoading && !membershipLoading && !membershipError ? membership : null;
 
   useEffect(() => {
     applyDocumentMetadata(language, "/pricing");
@@ -34,6 +39,17 @@ export default function Pricing() {
           <p className="mb-3 text-sm font-semibold tracking-wide text-primary">{copy.eyebrow}</p>
           <h1 id="pricing-title" className="text-3xl font-semibold leading-tight tracking-tight sm:text-4xl lg:text-5xl">{copy.title}</h1>
           <p className="mt-5 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">{copy.lead}</p>
+          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted-foreground">{copy.hierarchy}</p>
+          <div className="mt-5">
+            {authLoading || (user && membershipLoading) ? <p role="status" className="text-sm text-muted-foreground">{copy.checkingAccess}</p> : user ? (
+              <>
+                {currentMembership ? (
+                  <p className="text-sm font-semibold" data-account-plan={currentMembership.plan}>{copy.currentLevel}: {copy.plans[currentMembership.plan].name}{currentMembership.accessSource === "operator" && <span className="mt-1 block font-normal text-muted-foreground">{copy.assignedAccess}</span>}</p>
+                ) : <p role="status" className="text-sm text-muted-foreground">{copy.unknownAccess}</p>}
+                <Link to="/account" className="mt-2 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{copy.account}<ArrowRight aria-hidden="true" className="h-4 w-4 shrink-0" /></Link>
+              </>
+            ) : <Link to="/auth?next=%2Faccount" className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{copy.signIn}<ArrowRight aria-hidden="true" className="h-4 w-4 shrink-0" /></Link>}
+          </div>
         </div>
 
         <aside className="my-8 flex min-w-0 items-start gap-3 rounded-xl border border-border bg-secondary/40 p-4 sm:my-10 sm:p-5" aria-labelledby="pricing-availability-title">
@@ -47,10 +63,13 @@ export default function Pricing() {
         <div className="grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-4">
           {PLAN_ORDER.map(id => {
             const plan = copy.plans[id];
+            const isCurrent = currentMembership?.plan === id;
+            const isIncluded = currentMembership && PLAN_ORDER.indexOf(id) < PLAN_ORDER.indexOf(currentMembership.plan);
             return (
               <article key={id} data-plan={id} aria-labelledby={`pricing-${id}`} className={`flex min-w-0 flex-col rounded-2xl border bg-card p-5 sm:p-6 ${id === "trading" ? "border-primary/50" : "border-border"}`}>
                 <p className="text-sm font-medium text-muted-foreground">{plan.audience}</p>
                 <h2 id={`pricing-${id}`} className="mt-2 text-2xl font-semibold tracking-tight">{plan.name}</h2>
+                {(isCurrent || isIncluded) && <p className="mt-2 text-sm font-semibold text-primary" data-plan-access={isCurrent ? "current" : "included"}>{isCurrent ? copy.currentLevel : copy.included}</p>}
                 <p className="mt-5 break-words text-2xl font-semibold leading-snug tracking-tight tabular-nums" data-plan-price={id}>{formatPlanMonthlyPrice(id, language)}</p>
                 <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{plan.description}</p>
                 <div className="mb-6 mt-6 border-t border-border pt-5">
@@ -60,10 +79,14 @@ export default function Pricing() {
                   </ul>
                 </div>
                 <div className="mt-auto">
-                  {id === "free" ? (
+                  {isCurrent && id !== "trading" ? (
+                    <Button asChild variant="outline" className={actionClass}><Link to="/account">{copy.account}<ArrowRight aria-hidden="true" /></Link></Button>
+                  ) : isIncluded && id !== "free" ? (
+                    <Button type="button" disabled variant="secondary" className={`${actionClass} disabled:opacity-100`}>{copy.included}</Button>
+                  ) : id === "free" ? (
                     <Button asChild className={actionClass}><Link to="/">{copy.trySearch}<ArrowRight aria-hidden="true" /></Link></Button>
                   ) : id === "trading" ? (
-                    <Button asChild variant="outline" className={actionClass}><Link to="/plus">{copy.exploreTrading}<ArrowRight aria-hidden="true" /></Link></Button>
+                    <Button asChild variant="outline" className={actionClass}><Link to="/plus">{currentMembership?.capabilities.trading ? copy.openTrading : copy.exploreTrading}<ArrowRight aria-hidden="true" /></Link></Button>
                   ) : (
                     <Button type="button" disabled variant="secondary" className={`${actionClass} disabled:opacity-100`} aria-describedby="pricing-availability-title">{copy.unavailable}</Button>
                   )}

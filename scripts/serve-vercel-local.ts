@@ -16,6 +16,7 @@ import keys from "../api/developer/api-keys";
 import verifyDomain from "../api/marketplace/verify-domain";
 import savedDomains from "../api/account/saved-domains";
 import capabilities from "../api/account/capabilities";
+import membership from "../api/account/membership";
 import lostDomains from "../api/account/lost-domains";
 import lostDomainsCron from "../api/cron/lost-domains";
 import auth from "../api/auth";
@@ -39,6 +40,7 @@ const handlers = new Map<string, Handler>([
   ["/api/developer/api-keys", keys], ["/api/marketplace/verify-domain", verifyDomain],
   ["/api/account/saved-domains", savedDomains],
   ["/api/account/capabilities", capabilities],
+  ["/api/account/membership", membership],
   ["/api/account/lost-domains", lostDomains],
   ["/api/cron/lost-domains", lostDomainsCron],
   ["/api/contact", contact],

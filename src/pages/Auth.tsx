@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { isAccountAuthConfigured, accountAuthUnavailableReason } from "@/integrations/neon/auth";
 import { passwordRecoveryToken, safeAccountPath } from "@/lib/authNavigation";
 import { useLanguage } from "@/i18n/LanguageProvider";
+import { accountNavigationCopy } from "@/i18n/accountNavigationCopy";
 import { z } from "zod";
 
 const authMessages = {
@@ -413,7 +414,7 @@ const Auth = () => {
 
   useEffect(() => {
     if (!authLoading && user && !isPasswordUpdate) {
-      navigate(nextPath);
+      navigate(nextPath, { replace: true });
     }
   }, [user, authLoading, navigate, nextPath, isPasswordUpdate]);
 
@@ -515,7 +516,7 @@ const Auth = () => {
         }
 
         toast({ title: copy.welcomeBack, description: copy.signedIn });
-        navigate(nextPath);
+        navigate(nextPath, { replace: true });
         return;
       }
 
@@ -759,6 +760,7 @@ const Auth = () => {
               <div className="mb-6 text-center">
                 <h2 className="text-xl font-semibold text-foreground">{title}</h2>
                 <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+                {(isSignIn || isSignUp) && <p className="mt-3 text-sm leading-6 text-muted-foreground">{accountNavigationCopy[language].oneAccount}</p>}
               </div>
 
               {(isSignIn || isSignUp) && (

@@ -5,6 +5,7 @@ import { hasSupabaseBrowserConfig } from "@/integrations/supabase/client";
 import { isAccountAuthConfigured } from "@/integrations/neon/auth";
 import { isLocalTestMode } from "@/lib/localTestMode";
 import { useLanguage, type Language } from "@/i18n/LanguageProvider";
+import { accountNavigationCopy } from "@/i18n/accountNavigationCopy";
 
 type FooterCopy = {
   label: string;
@@ -365,6 +366,7 @@ export default function SajdaFooter() {
               <FooterLink to="/marketplace" description={copy.marketplaceHint}>{copy.marketplace}</FooterLink>
               {user && !authDisabled ? (
                 <>
+                  <FooterLink to="/account">{accountNavigationCopy[language].account}</FooterLink>
                   <FooterLink to="/watchlist">{copy.watchlist}</FooterLink>
                   {hasSupabaseBrowserConfig && <>
                     <FooterLink to="/top-10-today">{copy.today}</FooterLink>

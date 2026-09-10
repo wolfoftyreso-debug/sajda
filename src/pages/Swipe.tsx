@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import AccountLink from "@/components/AccountLink";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SwipeWishlistPanel } from "@/components/SwipeWishlistPanel";
 import { cn } from "@/lib/utils";
@@ -877,6 +878,7 @@ const Swipe = () => {
             </Link>
           </Button>
           <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+            <AccountLink compact />
             <div data-swipe-wishlist-slot>
               <SwipeWishlistPanel
                 items={saved}

@@ -1,5 +1,5 @@
-import { useNavigate } from "react-router-dom";
-import { User, Mail, LogOut, Settings } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { User, Mail, LogOut, Settings, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -8,6 +8,8 @@ import { useEffect, useState } from "react";
 import { AccountPageSkeleton } from "@/components/PageSkeletons";
 import { checkIsAdmin } from "@/lib/adminService";
 import { useLanguage } from "@/i18n/LanguageProvider";
+import { getMembershipCopy } from "@/i18n/membershipCopy";
+import AccountMembershipPanel from "@/components/AccountMembershipPanel";
 
 const accountMessages = {
   en: {
@@ -80,6 +82,7 @@ const Account = () => {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const { language } = useLanguage();
   const copy = accountMessages[language];
+  const membershipCopy = getMembershipCopy(language);
   const dateLocale = {
     en: "en-US",
     sv: "sv-SE",
@@ -89,14 +92,15 @@ const Account = () => {
   }[language];
 
   useEffect(() => {
-    if (user) {
-      checkIsAdmin().then(setIsAdmin);
-    }
+    let active = true;
+    setIsAdmin(false);
+    if (user) void checkIsAdmin().then(value => { if (active) setIsAdmin(value); }).catch(() => { if (active) setIsAdmin(false); });
+    return () => { active = false; };
   }, [user]);
 
   useEffect(() => {
     if (!loading && !user) {
-      navigate("/auth");
+      navigate("/auth?next=%2Faccount", { replace: true });
     }
   }, [user, loading, navigate]);
 
@@ -138,20 +142,25 @@ const Account = () => {
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      {/* Content */}
-      <main className="container mx-auto px-6 py-6">
+      <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6" aria-labelledby="account-title">
+        <Link to="/" className="mb-6 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><ArrowLeft aria-hidden="true" className="h-4 w-4 shrink-0" />{membershipCopy.home}</Link>
+        <header className="mb-6">
+          <h1 id="account-title" className="text-3xl font-semibold tracking-tight">{membershipCopy.account}</h1>
+          <p className="mt-3 text-base leading-relaxed text-muted-foreground">{membershipCopy.lead}</p>
+        </header>
         <div className="space-y-6">
+          <AccountMembershipPanel />
           {/* Profile Card */}
           <div className="rounded-lg border border-border bg-card p-6">
             <div className="flex items-center gap-4">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
-                <User className="h-8 w-8 text-primary" />
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                <User aria-hidden="true" className="h-8 w-8 text-primary" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <h2 className="text-lg font-semibold text-foreground">{copy.profile}</h2>
-                <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
-                  <Mail className="h-4 w-4" />
-                  {user.email}
+                <div className="mt-1 flex min-w-0 items-start gap-2 text-sm text-muted-foreground">
+                  <Mail aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span className="min-w-0 break-all">{user.email}</span>
                 </div>
               </div>
             </div>
@@ -159,27 +168,27 @@ const Account = () => {
 
           {/* Account Info */}
           <div className="rounded-lg border border-border bg-card p-6">
-            <h3 className="mb-4 font-semibold text-foreground">{copy.accountInformation}</h3>
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">{copy.email}</span>
-                <span className="text-foreground">{user.email}</span>
+            <h2 className="mb-4 font-semibold text-foreground">{copy.accountInformation}</h2>
+            <dl className="space-y-3 text-sm">
+              <div className="grid min-w-0 gap-1 sm:grid-cols-[1fr_2fr] sm:gap-4">
+                <dt className="text-muted-foreground">{copy.email}</dt>
+                <dd className="min-w-0 break-all text-foreground sm:text-right">{user.email}</dd>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">{copy.accountCreated}</span>
-                <span className="text-foreground">
+              <div className="grid gap-1 sm:grid-cols-[1fr_2fr] sm:gap-4">
+                <dt className="text-muted-foreground">{copy.accountCreated}</dt>
+                <dd className="text-foreground sm:text-right">
                   {new Date(user.created_at).toLocaleDateString(dateLocale)}
-                </span>
+                </dd>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">{copy.lastSignIn}</span>
-                <span className="text-foreground">
+              <div className="grid gap-1 sm:grid-cols-[1fr_2fr] sm:gap-4">
+                <dt className="text-muted-foreground">{copy.lastSignIn}</dt>
+                <dd className="text-foreground sm:text-right">
                   {user.last_sign_in_at
                     ? new Date(user.last_sign_in_at).toLocaleDateString(dateLocale)
                     : copy.notAvailable}
-                </span>
+                </dd>
               </div>
-            </div>
+            </dl>
           </div>
 
           {/* Admin Link */}
