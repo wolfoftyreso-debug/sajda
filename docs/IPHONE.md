@@ -1,8 +1,8 @@
 # Sajda för iPhone: implementation och verifieringsläge
 
 Uppdaterad 2026-09-10. Ett separat produktbygge och ett Capacitor-projekt för iOS
-finns i koden. JavaScript-bygget, gränssnittet i mobil webbläsarvy och serverns
-autentiseringsgränser har testats. Ingen signerad iPhone-version eller
+finns i koden. JavaScript-bygget, Swift-kompilering i Xcode, gränssnittet i mobil
+webbläsarvy och serverns autentiseringsgränser har testats. Ingen signerad iPhone-version eller
 TestFlight-distribution har verifierats. Full funktionsparitet är ett fortsatt
 krav, inte en uppnådd release-status.
 
@@ -30,6 +30,10 @@ Appen har korta sök-, Trading- och marknadsplatsrubriker. Alla söklägen,
 återanvänds. Native sökinställningar kan öppnas utan att slå på avancerad brief.
 Swajps kortlek får den återstående skärmhöjden ovanför appnavigationen.
 Skalet reserverar safe areas och flyttar fokus vid sidbyte.
+Apphuvudet använder ett kompakt språkval med fem fullständigt namngivna
+alternativ. Webbens separata språkknappar är oförändrade. Språkbyte och
+återläsning testas genom den riktiga språkprovidern; den slutliga
+simulatorbilden visar det nya apphuvudet utan överlapp.
 
 Mer innehåller marknadsplats, utvecklarverktyg, befintliga kontofunktioner,
 paket, hjälp, support, integritet, villkor, säkerhet och driftsstatus.
@@ -120,10 +124,18 @@ På en Mac med Xcode, efter `build:native` och `sync:ios`:
 npm run open:ios
 ```
 
-`.github/workflows/ios.yml` är konfigurerad för att kompilera det faktiska
-Swift-projektet till en osignerad simulatorapp på macOS. Workflow-filen är
-ingen bekräftelse på en lyckad körning. En simulatorartefakt kan inte
-installeras som en signerad app på en fysisk iPhone.
+`.github/workflows/ios.yml` kompilerade det faktiska Swift-projektet med Xcode
+26.6 för både arm64- och x86_64-simulator i
+[GitHub-körning 34442691513](https://github.com/wolfoftyreso-debug/sajda/actions/runs/34442691513).
+Loggen bekräftar `BUILD SUCCEEDED` och en uppladdad simulatorartefakt.
+En simulatorartefakt kan inte installeras som en signerad app på en fysisk iPhone.
+Även installation, appstart och skärmbild är verifierade i
+[simulatorkörning 34442691513](https://github.com/wolfoftyreso-debug/sajda/actions/runs/34442691513):
+varje fas avslutades med status 0 och den granskade skärmbilden visar Sajdas
+paketerade sökskärm och appnavigation, inte en blank startskärm eller Safari.
+Detta verifierar inte systeminloggning, externa nätverksflöden eller en fysisk
+iPhone. Två tidigare startförsök avbröts/tidsbegränsades; separata fasloggar och
+deadlines finns nu, och kompilerad app sparas även om ett startprov misslyckas.
 
 ## Vad som har kontrollerats
 
@@ -141,16 +153,22 @@ installeras som en signerad app på en fysisk iPhone.
 - `tests/native-auth-security.test.ts` testar PKCE, förfalskad delegering,
   scopes, kanoniska API-vägar, blockerad fakturering, begränsad JSON och
   fail-closed sessioner. Dess databastransport är simulerad och gör inga
-  externa anrop. Separata HTTP-kontroller mot riktig utvecklings-Neon har också
-  verifierat serverflöden, inklusive engångskodinlösen.
+  externa anrop. En lokal 54-stegskontroll och ett slutprov med 58 kontrollpunkter
+  mot deployad Vercel-preview med riktig utvecklings-Neon har verifierat serverflöden,
+  inklusive engångskodinlösen, felaktig verifierare, återspelning och återkallning.
+  Vercel-kontrollen använde administratörens autentiserade CLI och verifierar
+  inte att en extern iPhone kan nå den skyddade preview-miljön.
+- `tests/native-language-switcher.test.ts` verifierar alla fem språk,
+  sparat språkval, tillgängligt namn, ogiltiga val och att webbens språkval
+  behåller sitt befintliga beteende.
 - Typecheck och riktad ESLint samt befintliga konto-, paket-, fakturerings-
   och Trading-komponenttester passerade under arbetet.
 
 ## Kvar före iPhone-release
 
-- Kompilera Swift-projektet på macOS och verifiera systemwebbläsare, callback,
-  Keychain, utloggning, återinloggning, kontobyte och serveråterkallelse på en
-  fysisk iPhone. JavaScript-bygge och mobil webbläsarvy verifierar inte detta.
+- Verifiera systemwebbläsare, callback, Keychain, utloggning, återinloggning,
+  kontobyte och serveråterkallelse på en fysisk iPhone. Kompilering och mobil
+  webbläsarvy verifierar inte detta.
 - StoreKit, köpåterställning och plattformsanpassad prenumerationshantering
   saknas. Native `/pricing` visar befintligt paket och att köp ännu inte
   stöds. Klient och server blockerar webbens Stripe-kassa och portal via

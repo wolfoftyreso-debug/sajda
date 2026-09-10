@@ -74,3 +74,32 @@ The common request limit is 120 requests/minute across an account's keys and pro
 Run `npx tsx --test tests/mcp-server.test.ts tests/account-api.test.ts`. The MCP suite uses a real local HTTP server and the official SDK client/transport. It verifies initialization, dated negotiation, schema discovery, protocol/media errors, origin rejection, scopes, real handler dispatch, account isolation, passive reads and preservation of idempotency keys. Persistence/provider fixtures are explicitly labelled; these tests do not claim to have contacted a live registrar or production database. The existing account, API-key, saved-domain and Trading store/PostgreSQL tests cover their underlying data boundaries.
 
 Official references: [versioned Streamable HTTP specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports), [versioned tools specification](https://modelcontextprotocol.io/specification/2025-11-25/server/tools), and [TypeScript SDK 1.x](https://github.com/modelcontextprotocol/typescript-sdk/tree/v1.x).
+
+### Deployed integration evidence
+
+The 2026-09-10 protected Vercel preview was tested against its actual development
+Neon database using the official SDK client: account/key lifecycle and passive
+MCP reads passed, followed by a separate REST → MCP → browser saved-domain
+write/read/update/remove check. The latter used one explicitly synthetic
+`.invalid` fixture and confirmed cleanup without changing pre-existing saves.
+The final preview also passed the opt-in exact-domain test: two real checks of
+`example.com` (one REST, one MCP) returned authoritative taken status. The final
+run passed 58 checkpoints, followed by 43 saved-data checkpoints. No creative
+AI generation, Trading run, manual Trading quote refresh or purchase was performed.
+See the [release evidence and remaining limits](RELEASE-2026-09-10.md).
+
+`scripts/test-developer-live.mjs` is an explicit development-only probe.
+`scripts/test-developer-saved-live.mjs` additionally requires
+`SAJDA_QA_SAVED_MUTATIONS=true`. Both require `SAJDA_DEVELOPER_LIVE_TEST=true`,
+an existing verified QA account supplied through environment secrets, and an
+explicitly approved development origin. Never run them against production.
+`scripts/test-developer-vercel.mjs` reuses the authenticated operator CLI for a
+protected preview; it runs the saved-data probe only when the extra flag is set.
+This transport does not establish external MCP connectivity or remove Vercel's
+deployment protection. No protection-bypass credential belongs in client setup.
+
+The baseline probe can also opt into `SAJDA_QA_EXACT_SEARCH=true`. This adds
+`domains:search` and performs exactly two known-domain checks of `example.com`,
+one via REST and one via MCP. It requires authoritative registry evidence and
+uses real registry/price sources, but never creative AI generation, Trading,
+registration or billing. Leave the flag unset for the no-provider baseline.
