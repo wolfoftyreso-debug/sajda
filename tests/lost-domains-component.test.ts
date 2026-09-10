@@ -46,7 +46,7 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
     .map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
   const originalFetch = globalThis.fetch;
   const sharedCsv: { filename: string; csv: string }[] = [];
-  const fixture = { owner: "account-a" as string | null, language: "en", signOut: async () => {}, billingVerified: (_owner: string) => {},
+  const fixture = { owner: "account-a" as string | null, language: "en", authLoading: false, signOut: async () => {}, billingVerified: (_owner: string) => {},
     shareCsv: async (filename: string, csv: string): Promise<{ completed: boolean }> => { sharedCsv.push({ filename, csv }); return { completed: false }; } };
   const setGlobal = (key: string, value: unknown) => Object.defineProperty(globalThis, key, { configurable: true, value });
   setGlobal("__LOST_DOMAINS_COMPONENT_TEST__", fixture);
@@ -68,7 +68,7 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
     ["/src/lib/nativeTransport.ts", `export const nativeShareCsv=(...args)=>globalThis.__LOST_DOMAINS_COMPONENT_TEST__.shareCsv(...args);
       export const readNativeSession=async()=>{const owner=globalThis.__LOST_DOMAINS_COMPONENT_TEST__.owner;return owner?{user:{id:owner,email:'qa@example.test',email_verified:true},expires_at:Math.floor(Date.now()/1000)+60}:null;};
       export const nativeRequest=async(_path,_method,options,signal)=>fetch(new URL(options.path,window.location.origin),{method:options.method,body:options.body===undefined?undefined:JSON.stringify(options.body),headers:{'x-sajda-account':options.accountId},credentials:'same-origin',signal});`],
-    ["/src/contexts/AuthContext.tsx", "export const useAuth = () => ({ loading:false, signOut:globalThis.__LOST_DOMAINS_COMPONENT_TEST__.signOut, user: globalThis.__LOST_DOMAINS_COMPONENT_TEST__.owner ? {id:globalThis.__LOST_DOMAINS_COMPONENT_TEST__.owner,email:'qa@example.test'} : null });"],
+    ["/src/contexts/AuthContext.tsx", "export const useAuth = () => ({ loading:globalThis.__LOST_DOMAINS_COMPONENT_TEST__.authLoading, signOut:globalThis.__LOST_DOMAINS_COMPONENT_TEST__.signOut, user: globalThis.__LOST_DOMAINS_COMPONENT_TEST__.owner ? {id:globalThis.__LOST_DOMAINS_COMPONENT_TEST__.owner,email:'qa@example.test'} : null });"],
     ["/src/i18n/LanguageProvider.tsx", "export const useLanguage = () => ({ language:globalThis.__LOST_DOMAINS_COMPONENT_TEST__.language }); export const applyDocumentMetadata = () => {};"],
     ["/src/components/LanguageSwitcher.tsx", "export default function LanguageSwitcher() { return null; }"],
     ["/src/components/PlusBilling.tsx", "export default function PlusBilling({onStatusVerified}) { globalThis.__LOST_DOMAINS_COMPONENT_TEST__.billingVerified=onStatusVerified; return null; }"],
@@ -106,6 +106,8 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
     const surface = await vite.ssrLoadModule("/src/lib/appSurface.ts");
     const tree = () => h(MemoryRouter, { initialEntries: ["/plus"] }, h(LostDomains));
     const text = () => label(renderer!.root);
+    const nextStep = () => renderer!.root.findByProps({ "data-testid": "trading-next-step" });
+    const startButtons = () => renderer!.root.findAllByType("button").filter(node => /^(?:Start domain scan|Start another scan)$/u.test(label(node)));
     const button = (name: string) => {
       const found = renderer!.root.findAllByType("button").find(item => label(item) === name);
       assert.ok(found, `Expected button ${name}`); return found;
@@ -115,12 +117,14 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
       assert.ok(predicate(), "Expected mounted state settles");
     };
     const click = async (name: string) => { await act(async () => { button(name).props.onClick(); await pause(); }); };
-    const mount = async (response = snapshot(), owner: string | null = "account-a", language = "en") => {
+    const mount = async (response = snapshot(), owner: string | null = "account-a", language = "en", options: {
+      authLoading?: boolean; wait?: boolean; reply?: typeof reply;
+    } = {}) => {
       if (renderer) await act(async () => { renderer!.unmount(); });
-      polls.clear(); clocks.clear(); requests.length = 0; fixture.owner = owner; fixture.language = language;
-      reply = () => Response.json(response);
+      polls.clear(); clocks.clear(); requests.length = 0; fixture.owner = owner; fixture.language = language; fixture.authLoading = options.authLoading ?? false;
+      reply = options.reply ?? (() => Response.json(response));
       await act(async () => { renderer = create(tree(), { unstable_isConcurrent: true }); await pause(); });
-      if (owner) await until(() => !/Loading your report|Laddar din rapport/u.test(text()));
+      if (owner && !fixture.authLoading && options.wait !== false) await until(() => requests.length > 0 && nextStep().props["data-state"] !== "loading");
     };
     const actionRequests = (action?: string) => requests.filter(row => row.method === "POST" && (!action || row.body?.action === action));
     const poll = async () => {
@@ -132,12 +136,196 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
     await t.test("guest sees plan limits before signup without loading private data", async () => {
       await mount(empty(), null);
       assert.equal(requests.length, 0); assert.equal(polls.size, 0);
+      assert.equal(label(renderer!.root.findByType("h1")), "Trading");
+      assert.equal(nextStep().props["data-state"], "guest");
+      const signIn = nextStep().findAllByType("a").find(node => label(node) === "Sign in with your Sajda account");
+      assert.ok(signIn, "The first action uses the existing Sajda account");
+      assert.equal(signIn.props.href, "/auth?next=%2Fplus");
+      assert.equal(startButtons().length, 0);
+      const elements = renderer!.root.findAll(node => typeof node.type === "string");
+      assert.ok(elements.indexOf(nextStep()) < elements.indexOf(renderer!.root.findByType("aside")), "Sign-in guidance precedes the sales card");
       assert.match(text(), /An account does not automatically include Trading/);
       const pricing = label(renderer!.root.findByType("aside"));
       assert.match(pricing, /What's included/);
       assert.match(pricing, /up to 24 approved source pages and 600 names/);
       assert.match(pricing, /Up to 30 priority names go through 3 review rounds at separate times/);
       assert.match(pricing, /Each account can start at most 2 new runs per day/);
+    });
+
+    await t.test("unknown account and access states never pretend that the user needs an upgrade", async () => {
+      for (const owner of [null, "account-a"]) {
+        await mount(empty(), owner, "en", { authLoading: true });
+        assert.equal(nextStep().props["data-state"], "loading");
+        assert.equal(renderer!.root.findAllByType("aside").length, 0);
+        assert.equal(startButtons().length, 0);
+        assert.doesNotMatch(label(nextStep()), /Sign in with your Sajda account|An account does not automatically include Trading/u);
+        assert.equal(requests.length, 0, "Auth must settle before any private report request");
+      }
+      const pending = deferred<Response>();
+      await mount(empty(), "account-a", "en", { wait: false, reply: () => pending.promise });
+      await until(() => requests.length === 1);
+      assert.equal(nextStep().props["data-state"], "loading");
+      assert.equal(renderer!.root.findAllByType("aside").length, 0);
+      assert.equal(startButtons().length, 0);
+      await act(async () => { pending.resolve(Response.json(empty())); await pause(); });
+      await until(() => nextStep().props["data-state"] === "ready");
+      assert.equal(renderer!.root.findAllByType("aside").length, 0);
+      assert.equal(actionRequests().length, 0);
+    });
+
+    await t.test("a first-time Trading member gets one deliberate scan action before scope details", async () => {
+      await mount(empty());
+      assert.equal(nextStep().props["data-state"], "ready");
+      assert.match(label(nextStep()), /Find domains to investigate/u);
+      assert.equal(startButtons().length, 1);
+      const start = button("Start domain scan");
+      assert.ok(nextStep().findAllByType("button").includes(start));
+      assert.equal(start.props.disabled, false);
+      assert.equal(actionRequests().length, 0);
+      const scope = renderer!.root.findAllByType("details").find(node => label(node).includes("up to 24 approved source pages and 600 names"));
+      assert.ok(scope, "Capacity and timing remain available in an explicit disclosure");
+      assert.notEqual(scope.props.open, true);
+      assert.doesNotMatch(label(nextStep()), /up to 24 approved source pages and 600 names/u);
+      const pending = deferred<Response>(); reply = () => pending.promise;
+      await act(async () => { start.props.onClick(); start.props.onClick(); await pause(); });
+      await until(() => actionRequests("start").length === 1);
+      assert.match(actionRequests("start")[0].body!.requestKey!, /^[a-f0-9-]{36}$/u);
+      const active = { ...empty(), activeRun: run("running", activeId), latestAttempt: run("running", activeId) };
+      await act(async () => { pending.resolve(Response.json(active)); await pause(); });
+      await until(() => nextStep().props["data-state"] === "running");
+      assert.equal(startButtons().length, 0);
+      assert.equal(actionRequests("start").length, 1);
+    });
+
+    await t.test("completed reports put a real results destination before starting another scan", async () => {
+      await mount();
+      assert.equal(nextStep().props["data-state"], "results");
+      const results = nextStep().findAllByType("a").find(node => node.props.href === "#trading-results");
+      assert.ok(results); assert.equal(label(results), "View results");
+      assert.equal(renderer!.root.findAllByProps({ id: "trading-results" }).length, 1);
+      assert.equal(startButtons().length, 1);
+      assert.equal(button("Start another scan").props.disabled, false);
+      assert.equal(actionRequests().length, 0, "Viewing an existing report does not crawl or change research");
+    });
+
+    await t.test("clicking a candidate opens its evidence, tracks summary toggles and forgets private disclosure state on account change", async () => {
+      await mount();
+      const domain = "private-alpha.dev";
+      const detailsId = button(domain).props["aria-controls"];
+      assert.equal(typeof detailsId, "string"); assert.ok(detailsId.length > 0);
+      const evidence = () => renderer!.root.findByProps({ id: detailsId });
+      assert.equal(evidence().type, "details");
+      assert.equal(button(domain).props["aria-expanded"], false);
+      assert.equal(evidence().props.open, false);
+
+      await click(domain);
+      assert.equal(button(domain).props["aria-expanded"], true);
+      assert.equal(evidence().props.open, true);
+      await click(domain);
+      assert.equal(button(domain).props["aria-expanded"], false);
+      assert.equal(evidence().props.open, false);
+      await click(domain);
+      await act(async () => { evidence().props.onToggle({ currentTarget: { open: false } }); await pause(); });
+      assert.equal(button(domain).props["aria-expanded"], false, "Closing the native details summary keeps the domain button in sync");
+      assert.equal(evidence().props.open, false);
+      assert.equal(actionRequests().length, 0, "Inspecting evidence never triggers a scan, price check or purchase");
+
+      await click(domain);
+      const pending = deferred<Response>(); reply = () => pending.promise;
+      fixture.owner = "account-b";
+      await act(async () => { renderer!.update(tree()); await pause(); });
+      await until(() => requests.some(request => request.owner === "account-b"));
+      assert.equal(renderer!.root.findAllByType("button").some(node => label(node) === domain), false, "Old account evidence disappears before the new report loads");
+      assert.equal(renderer!.root.findAllByProps({ id: detailsId }).length, 0);
+      await act(async () => { pending.resolve(Response.json(snapshot("account-b", domain))); await pause(); });
+      await until(() => nextStep().props["data-state"] === "results");
+      assert.equal(button(domain).props["aria-expanded"], false, "Even the same domain in another account starts with its evidence closed");
+      assert.equal(renderer!.root.findByProps({ id: button(domain).props["aria-controls"] }).props.open, false);
+      assert.equal(actionRequests().length, 0);
+    });
+
+    await t.test("registered-only reports open checked domains without presenting them as opportunities", async () => {
+      const response = snapshot();
+      response.candidates[0].registryStatus = "registered";
+      response.candidates[0].reviewStatus = "registered";
+      await mount(response);
+      assert.equal(nextStep().props["data-state"], "results");
+      const results = nextStep().findAllByType("a").find(node => node.props.href === "#trading-results");
+      assert.ok(results); assert.equal(label(results), "View checked domains");
+      const diagnostics = renderer!.root.findAllByType("details").find(node => node.findAllByType("summary").some(summary => label(summary).startsWith("All other checked domains")));
+      assert.ok(diagnostics); assert.equal(diagnostics.props.open, true);
+      assert.equal(renderer!.root.findAllByType("ol").some(node => label(node).includes("private-alpha.dev")), false);
+      assert.match(text(), /private-alpha\.devRegistered/u);
+      assert.equal(actionRequests().length, 0);
+    });
+
+    await t.test("active, waiting and interrupted scans always lead to the actual progress section", async () => {
+      await mount(running());
+      assert.equal(nextStep().props["data-state"], "running");
+      const progress = () => nextStep().findAllByType("a").find(node => node.props.href === "#trading-progress");
+      assert.ok(progress()); assert.equal(label(progress()!), "Follow scan progress");
+      assert.equal(renderer!.root.findAllByProps({ id: "trading-progress" }).length, 1);
+      assert.equal(startButtons().length, 0);
+      assert.equal(actionRequests().length, 0);
+
+      const waiting = running();
+      Object.assign(waiting.activeRun!, { verificationRound: 1, verificationMaxRounds: 3, nextCheckAt: new Date(Date.now() + 60_000).toISOString() });
+      await mount(waiting);
+      assert.equal(nextStep().props["data-state"], "waiting");
+      assert.ok(progress()); assert.equal(startButtons().length, 0);
+      await poll();
+      await until(() => requests.length === 2 && polls.size === 1);
+      assert.equal(actionRequests().length, 0, "Waiting checks status, without creating or advancing a run early");
+
+      await mount(running());
+      reply = () => Response.json({ code: "lost_domains_unavailable", requestId }, { status: 503 });
+      await poll();
+      await until(() => nextStep().props["data-state"] === "paused");
+      assert.ok(progress()); assert.equal(startButtons().length, 0);
+      assert.equal(polls.size, 0);
+      const resume = renderer!.root.findByProps({ id: "trading-progress" }).findAllByType("button").find(node => label(node) === "Resume checks");
+      assert.ok(resume); assert.equal(resume.props.disabled, false);
+      assert.equal(actionRequests("start").length, 0);
+    });
+
+    await t.test("confirmed lack of access and unavailable engines have explicit non-start states", async () => {
+      await mount(empty("account-a", false));
+      assert.equal(nextStep().props["data-state"], "locked");
+      assert.equal(renderer!.root.findAllByType("aside").length, 1);
+      assert.equal(startButtons().length, 0);
+      assert.equal(actionRequests().length, 0);
+      for (const response of [{ ...empty(), enabled: false }, { ...empty(), sourcesAvailable: 0 }]) {
+        await mount(response);
+        assert.equal(nextStep().props["data-state"], "unavailable");
+        assert.equal(renderer!.root.findAllByType("aside").length, 0);
+        assert.ok(startButtons().every(node => node.props.disabled), "Unavailable engines cannot be started");
+        assert.equal(button("Refresh status").props.disabled, false);
+        assert.equal(actionRequests().length, 0);
+      }
+    });
+
+    await t.test("an unknown permission failure offers status recovery without a false paywall", async () => {
+      await mount(empty(), "account-a", "en", {
+        reply: () => Response.json({ code: "lost_domains_unavailable", requestId }, { status: 503 }),
+      });
+      assert.equal(nextStep().props["data-state"], "error");
+      assert.equal(renderer!.root.findAllByType("aside").length, 0);
+      assert.equal(startButtons().length, 0);
+      assert.equal(button("Refresh status").props.disabled, false);
+      reply = () => Response.json(empty());
+      await click("Refresh status");
+      await until(() => nextStep().props["data-state"] === "ready");
+      assert.equal(actionRequests().length, 0);
+
+      await mount();
+      reply = () => Response.json({ code: "lost_domains_unavailable", requestId }, { status: 503 });
+      await click("Refresh status");
+      await until(() => renderer!.root.findAllByProps({ role: "alert" }).length > 0);
+      assert.equal(nextStep().props["data-state"], "results");
+      assert.match(text(), /private-alpha\.dev/u, "The saved report remains available when status refresh fails");
+      assert.ok(nextStep().findAllByType("a").some(node => node.props.href === "#trading-results"));
+      assert.equal(renderer!.root.findAllByType("aside").length, 0);
+      assert.equal(actionRequests().length, 0);
     });
 
     await t.test("a Plus report loads without automatically starting work", async () => {
@@ -173,16 +361,19 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
       await mount();
       assert.equal(renderer!.root.findAllByType("aside").length,0,"An active account does not see the sales card before work");
       assert.match(text(),/Account and Trading subscription/);
+      const originalNextStep = label(nextStep());
       const input=renderer!.root.findByType("input");
       await act(async()=>{input.props.onChange({target:{value:"no-match"}});await pause();});
       assert.match(text(),/0 \/ 1 checks match this selection/);
       assert.doesNotMatch(text(),/private-alpha\.dev/);
       assert.equal(button("Export CSV").props.disabled,true);
+      assert.equal(label(nextStep()), originalNextStep, "An empty filter does not erase the existing report's main results action or counts");
       await act(async()=>{input.props.onChange({target:{value:""}});await pause();});
       assert.match(text(),/private-alpha\.dev/);assert.equal(button("Export CSV").props.disabled,false);
       const status=renderer!.root.findAllByType("select")[0];
       await act(async()=>{status.props.onChange({target:{value:"registered"}});await pause();});
       assert.match(text(),/0 \/ 1 checks match this selection/);
+      assert.equal(label(nextStep()), originalNextStep, "Status filters do not relabel the unfiltered report as empty");
       assert.equal(actionRequests().length,0,"Filtering and exporting never initiate crawling");
     });
 
@@ -453,7 +644,7 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
     await t.test("two same-batch start clicks send one immutable request; uncertain retry keeps its UUID", async () => {
       await mount();
       const pending = deferred<Response>(); reply = request => request.method === "POST" ? pending.promise : Response.json(snapshot());
-      const start = button("Start a new review");
+      const start = button("Start another scan");
       await act(async () => { start.props.onClick(); start.props.onClick(); await pause(); });
       await until(() => actionRequests("start").length === 1);
       const key = actionRequests("start")[0].body!.requestKey;
@@ -483,7 +674,7 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
       await mount(response);
       assert.match(text(), /Your first report is being prepared/);
       assert.doesNotMatch(text(), /No completed report yet|Start a review when the engine/);
-      assert.equal(button("Start a new review").props.disabled, true);
+      assert.equal(startButtons().length, 0, "An active scan does not offer another scan action");
     });
 
     await t.test("verified billing queues one server permission reload after an in-flight workspace GET", async () => {
@@ -559,7 +750,7 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
       await act(async () => { renderer!.update(tree()); await pause(); });
       const leave = button("Sign out");
       await act(async () => { leave.props.onClick(); leave.props.onClick(); await pause(); });
-      assert.equal(calls, 1); assert.equal(button("Start a new review").props.disabled, true);
+      assert.equal(calls, 1); assert.equal(button("Start another scan").props.disabled, true);
       assert.equal(button("Refresh status").props.disabled, true);
       await act(async () => { pending.resolve(); await pause(); });
       await until(() => text().includes("Sign out"));
@@ -574,7 +765,7 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
     await t.test("409 joins the existing durable run by GET without creating another key or another start", async () => {
       await mount();
       reply = request => request.method === "POST" ? Response.json({ code: "run_in_progress", requestId }, { status: 409 }) : Response.json(running());
-      await click("Start a new review");
+      await click("Start another scan");
       await until(() => text().includes("Current review") && polls.size === 1);
       assert.equal(actionRequests("start").length, 1);
       assert.deepEqual(requests.map(row => row.method), ["GET", "POST", "GET"]);
@@ -597,7 +788,7 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
       await mount();
       const pending = deferred<Response>();
       reply = request => request.method === "POST" ? pending.promise : Response.json(snapshot(request.owner!, "private-bravo.dev"));
-      await click("Start a new review");
+      await click("Start another scan");
       await until(() => actionRequests("start").length === 1);
       const signal = actionRequests("start")[0].signal;
       fixture.owner = "account-b";

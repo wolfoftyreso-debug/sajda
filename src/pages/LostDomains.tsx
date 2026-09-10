@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, ArrowUpRight, Check, ChevronDown, Download, FileSearch, LoaderCircle, LockKeyhole, RefreshCw, Search, Square } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUpRight, Check, Download, FileSearch, LoaderCircle, RefreshCw, Search, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import AccountLink from "@/components/AccountLink";
-import { accountNavigationCopy } from "@/i18n/accountNavigationCopy";
+import { tradingWorkspaceCopy } from "@/i18n/tradingWorkspaceCopy";
 import PlusBilling from "@/components/PlusBilling";
 import { isNativeApp } from "@/lib/appSurface";
 import { nativeShareCsv } from "@/lib/nativeTransport";
@@ -29,6 +29,7 @@ export default function LostDomains() {
   const { user, loading: authLoading, signOut } = useAuth();
   const { language } = useLanguage();
   const copy = getLostDomainsCopy(language);
+  const ux = tradingWorkspaceCopy[language];
   const accountId = user?.id ?? null;
   const [data, setData] = useState<OwnedData | null>(null);
   const [busy, setBusy] = useState<"load" | LostDomainsAction["action"] | null>(null);
@@ -177,6 +178,17 @@ export default function LostDomains() {
   const priorityCount=(report?.candidates??[]).filter(row=>isFreshReviewCandidate(row,now)&&row.opportunity?.tier==="priority_review").length;
   const changedCount=(report?.candidates??[]).filter(row=>row.observationHistory?.registryChanged).length;
   const strongFitCount=filterTradingReport(report?.candidates??[],"","strong_fit","").length;
+  const reviewCount = freshReviewCandidates(report?.candidates ?? [], now).length;
+  const waiting = Boolean(activeRun?.nextCheckAt && Date.parse(activeRun.nextCheckAt) > now);
+  // Unknown membership is neither guest access nor a failed subscription.
+  const workspaceState = authLoading || accountId && !snapshot && !error ? "loading"
+    : !accountId ? "guest" : !snapshot ? "error" : !snapshot.access ? "locked"
+    : !snapshot.enabled || !snapshot.sourcesAvailable ? "unavailable"
+    : activeRun ? paused ? "paused" : waiting ? "waiting" : "running"
+    : report?.latestRun ? "results" : "ready";
+  const showAccessOptions = !authLoading && (!accountId || snapshot?.access === false);
+  const canStart = snapshot?.access && snapshot.enabled && snapshot.sourcesAvailable > 0 && !activeRun;
+  const primaryLink = `${button} inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:w-auto`;
   async function exportReport() {
     if(!report?.latestRun || !snapshot?.access || data?.owner!==accountId || !filtered.length || exportPending.current) return;
     const owner=accountId;
@@ -259,35 +271,46 @@ export default function LostDomains() {
         <Link to="/" className={link}><ArrowLeft className="h-4 w-4 shrink-0" aria-hidden="true" />{copy.back}</Link>
         <div className="flex flex-wrap items-center gap-2"><AccountLink /><LanguageSwitcher /></div>
       </div>}
-      {!authLoading && user && <div className="mt-4 flex flex-wrap items-center justify-end gap-x-4 gap-y-2 border-t border-border pt-3">
-        <p className="min-w-0 text-xs leading-5 text-muted-foreground">{copy.signedInAs} <span className="break-all font-medium text-foreground">{user.email}</span></p>
-        <Button variant="outline" className={button} disabled={signingOut} onClick={() => void leaveAccount()}>{signingOut ? copy.signingOut : copy.signOut}</Button>
-        {signOutError && <p role="alert" className="w-full text-right text-sm leading-6 text-destructive">{copy.signOutFailed}</p>}
-      </div>}
-      <header className={`grid gap-8 border-b border-border ${isNativeApp ? "pb-6" : snapshot?.access ? "pb-6 pt-6" : "pb-10 pt-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:gap-12"}`}>
+      <header className={isNativeApp ? "pb-5" : "pb-5 pt-6"}>
         <div className="min-w-0">
-          {!isNativeApp && <p className="text-sm font-semibold tracking-wide text-primary">{copy.eyebrow}</p>}
-          <h1 className={isNativeApp ? "text-2xl font-semibold tracking-tight" : "mt-4 max-w-3xl text-3xl font-semibold leading-[1.12] tracking-[-0.045em] [overflow-wrap:anywhere] min-[375px]:text-4xl sm:text-5xl"}>{isNativeApp ? "Trading" : snapshot?.access ? (tradingText(copy.locale, "Trading workspace")) : copy.title}</h1>
-          <p className={isNativeApp ? "mt-3 max-w-2xl text-sm leading-6 text-muted-foreground" : "mt-5 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg"}>{isNativeApp ? nativeCopy[language].tradingHelp : copy.intro}</p>
-          <a href="#plus-method" className={`${link} mt-5`}>{copy.readMore}<ChevronDown className="h-4 w-4" aria-hidden="true" /></a>
+          <h1 className="text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">Trading</h1>
+          <p className="mt-3 max-w-2xl text-base leading-7 text-muted-foreground">{ux.intro}</p>
         </div>
-        {!snapshot?.access && <aside className={`${panel} self-start p-5 sm:p-6`} aria-label={isNativeApp ? nativeCopy[language].membership : copy.priceLabel}>
-          {!isNativeApp && <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{copy.category}</p>}
-          <PlusBilling accountId={accountId} language={language} fallback={copy} disabled={signingOut} onStatusVerified={billingStatusVerified} />
-          {!isNativeApp && <div className="mt-6 border-t border-border pt-4"><h2 className="text-sm font-semibold">{copy.included}</h2>
-            <ul className="mt-3 space-y-3">{copy.features.map(feature => <li key={feature} className="flex items-start gap-2 text-sm leading-6 text-muted-foreground"><Check className="mt-1 h-4 w-4 shrink-0 text-primary" aria-hidden="true" /><span>{feature}</span></li>)}</ul>
-            <p className="mt-4 text-sm leading-6 text-muted-foreground">{copy.limits}</p>
-          </div>}
-        </aside>}
       </header>
 
-      <section className="py-9" aria-labelledby="plus-workspace-title">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div><p className="text-xs font-semibold uppercase tracking-[0.1em] text-primary">Lost Domains</p>
-            <h2 id="plus-workspace-title" className="mt-2 text-2xl font-semibold tracking-tight">{copy.workspace}</h2></div>
-          {!authLoading && accountId && <Button variant="outline" className={button} disabled={Boolean(busy) || signingOut} onClick={() => void request()}>
-            <RefreshCw className="h-4 w-4 shrink-0" aria-hidden="true" />{copy.reload}</Button>}
-        </div>
+      <section className="pb-8" aria-labelledby="plus-workspace-title">
+        <section data-testid="trading-next-step" data-state={workspaceState} className={`${panel} border-primary/25 bg-primary/[0.035] p-5 sm:p-7`} aria-labelledby="plus-workspace-title">
+          <p className="text-xs font-semibold uppercase tracking-wider text-primary">{ux.nextStep}</p>
+          <h2 id="plus-workspace-title" className="mt-2 text-2xl font-semibold leading-tight tracking-tight">
+            {({ loading: ux.accessLoading, guest: ux.guestTitle, error: ux.accessErrorTitle, locked: ux.accessTitle,
+              unavailable: ux.unavailableTitle, ready: ux.readyTitle, running: ux.runningTitle, waiting: ux.waitingTitle,
+              paused: ux.pausedTitle, results: reviewCount ? ux.resultsTitle : ux.noCandidatesTitle })[workspaceState]}
+          </h2>
+          {workspaceState === "loading" ? <div className="mt-4 flex items-center gap-3 text-sm text-muted-foreground" role="status"><LoaderCircle className="h-5 w-5 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden="true" />{copy.load}</div>
+            : <>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
+                {workspaceState === "guest" ? ux.guestBody : workspaceState === "locked" ? copy.lockedBody
+                  : workspaceState === "unavailable" ? !snapshot?.enabled ? copy.disabled : copy.noSources
+                  : workspaceState === "results" ? reviewCount ? ux.resultsBody : ux.noCandidatesBody
+                  : activeRun ? waiting ? copy.waitingNote : ux.runningBody
+                  : workspaceState === "ready" ? ux.readyBody : null}
+              </p>
+              {activeRun && waiting && activeRun.nextCheckAt && <p className="mt-2 text-sm font-medium">{copy.waitingForCheck}: <time dateTime={activeRun.nextCheckAt}>{time(activeRun.nextCheckAt)}</time></p>}
+              {report?.latestRun && !activeRun && <p className="mt-2 text-sm font-medium">{report.candidates.length} {tradingText(copy.locale, "Domains in this report")} · {reviewCount} {copy.reviews}</p>}
+              <div className="mt-5 flex flex-col flex-wrap gap-3 sm:flex-row sm:items-center">
+                {workspaceState === "guest" && <Link className={primaryLink} to="/auth?next=%2Fplus">{ux.signIn}<ArrowUpRight className="h-4 w-4 shrink-0" aria-hidden="true" /></Link>}
+                {workspaceState === "locked" && <a className={primaryLink} href="#trading-access">{ux.accessOptions}<ArrowDown className="h-4 w-4 shrink-0" aria-hidden="true" /></a>}
+                {snapshot?.access && activeRun && <a className={primaryLink} href="#trading-progress">{ux.viewProgress}<ArrowDown className="h-4 w-4 shrink-0" aria-hidden="true" /></a>}
+                {snapshot?.access && report?.latestRun && !activeRun && <a className={primaryLink} href="#trading-results">{reviewCount ? ux.viewResults : ux.viewChecked}<ArrowDown className="h-4 w-4 shrink-0" aria-hidden="true" /></a>}
+                {canStart && <Button variant={report?.latestRun ? "outline" : "default"} className={`${button} sm:min-w-52`} onClick={start} disabled={Boolean(busy) || signingOut}>
+                  {busy === "start" ? <LoaderCircle className="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Search className="h-4 w-4 shrink-0" aria-hidden="true" />}
+                  {busy === "start" ? copy.pending : startKey.current ? copy.retryStart : report?.latestRun ? ux.newScan : ux.start}
+                </Button>}
+                {accountId && <Button variant={workspaceState === "error" || workspaceState === "unavailable" && !report ? "default" : "ghost"} className={button} disabled={Boolean(busy) || signingOut} onClick={() => void request()}><RefreshCw className="h-4 w-4 shrink-0" aria-hidden="true" />{copy.reload}</Button>}
+              </div>
+              {workspaceState === "ready" && <p className="mt-3 max-w-2xl text-xs leading-5 text-muted-foreground">{ux.timing}</p>}
+            </>}
+        </section>
 
         {error && <div className="mt-5 rounded-xl border border-destructive/25 bg-destructive/5 p-4" role="alert">
           <p className="text-sm font-medium leading-6">{copy.errors[error.code]}</p>
@@ -296,29 +319,8 @@ export default function LostDomains() {
           {["unauthenticated", "account_changed"].includes(error.code) && <Link className={`${link} mt-2`} to="/auth?next=%2Fplus">{copy.signIn}</Link>}
         </div>}
 
-        {(authLoading || busy === "load" && !snapshot) && <div className={`${panel} mt-5 flex items-center gap-3 p-6`} role="status">
-          <LoaderCircle className="h-5 w-5 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden="true" /><p>{copy.load}</p></div>}
-
-        {!authLoading && (!accountId || snapshot && !snapshot.access) && <div className={`${panel} mt-5 grid gap-5 p-5 sm:p-7 md:grid-cols-[auto_minmax(0,1fr)]`}>
-          <LockKeyhole className="h-6 w-6 text-primary" aria-hidden="true" />
-          <div><h3 className="text-lg font-semibold">{copy.locked}</h3><p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{copy.lockedBody}</p>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{accountNavigationCopy[language].oneAccount}</p>
-            <div className="mt-4 flex flex-wrap gap-3">{!accountId && <Button asChild className={button}><Link to="/auth?next=%2Fplus">{copy.signIn}</Link></Button>}
-              <Button asChild variant="outline" className={button}><Link to="/contact">{copy.contact}</Link></Button></div></div>
-        </div>}
-
         {snapshot?.access && <div className="mt-5 space-y-5">
-          {!snapshot.enabled && <p className="rounded-xl border border-border bg-secondary/50 p-4 text-sm leading-6" role="status">{copy.disabled}</p>}
-          {snapshot.enabled && !snapshot.sourcesAvailable && <p className="rounded-xl border border-border bg-secondary/50 p-4 text-sm leading-6" role="status">{copy.noSources}</p>}
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <p className="max-w-2xl text-xs leading-5 text-muted-foreground">{copy.limits}<span className="mt-1 block font-medium">{snapshot.sourcesAvailable} {tradingText(copy.locale, "approved source pages available now.")}</span></p>
-            <Button className={button} onClick={start} disabled={Boolean(busy || activeRun || !snapshot.enabled || !snapshot.sourcesAvailable) || signingOut}>
-              {busy === "start" ? <LoaderCircle className="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <Search className="h-4 w-4 shrink-0" aria-hidden="true" />}
-              {busy === "start" ? copy.pending : startKey.current ? copy.retryStart : copy.start}
-            </Button>
-          </div>
-
-          {activeRun && <section className={`${panel} p-5 sm:p-6`} aria-labelledby="plus-run-title" aria-busy={busy === "advance"}>
+          {activeRun && <section id="trading-progress" tabIndex={-1} className={`${panel} scroll-mt-6 p-5 outline-none sm:p-6`} aria-labelledby="plus-run-title" aria-busy={busy === "advance"}>
             <div className="flex flex-wrap items-center justify-between gap-3"><h3 id="plus-run-title" className="font-semibold">{copy.currentRun}</h3>
               <p className="inline-flex items-center gap-2 text-sm font-medium text-primary" role="status">
                 {busy === "advance" && <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />}{copy.status[activeRun.status]}</p></div>
@@ -351,16 +353,18 @@ export default function LostDomains() {
             {snapshot.latestAttempt.status === "failed" ? copy.failedAttempt : copy.cancelledAttempt}
           </p>}
 
-          {report?.latestRun ? <section aria-labelledby="plus-report-title" className={`${panel} overflow-hidden`}>
+          {report?.latestRun ? <section id="trading-results" tabIndex={-1} aria-labelledby="plus-report-title" className={`${panel} scroll-mt-6 overflow-hidden outline-none`}>
             <header className="border-b border-border p-5 sm:p-6">
               <div className="flex flex-wrap items-center justify-between gap-3"><h3 id="plus-report-title" className="text-xl font-semibold tracking-tight">{copy.report}</h3>
                 <span className="text-sm text-muted-foreground">{copy.status[report.latestRun.status]}</span></div>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{copy.reportNote}</p>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{ux.domainHint}</p>
               {report.latestRun.status === "partial" && <p className="mt-3 rounded-lg bg-secondary/60 p-3 text-sm leading-6" role="status">{copy.partialReport}</p>}
               {!!report.candidatesOmitted && <p className="mt-3 rounded-lg border border-border bg-secondary/60 p-3 text-sm leading-6" role="status">{tradingOmittedRows(language, report.candidatesOmitted)}</p>}
               <p className="mt-2 text-xs text-muted-foreground">{copy.completed}: <time dateTime={report.latestRun.completedAt ?? report.latestRun.updatedAt}>{time(report.latestRun.completedAt ?? report.latestRun.updatedAt)}</time></p>
               {!!report.latestRun.verificationCount && <p className="mt-2 text-xs text-muted-foreground">{tradingText(copy.locale, "Final rechecks")}: {report.latestRun.completedVerificationCount ?? 0} / {report.latestRun.verificationCount}</p>}
-              <dl className="mt-5 grid grid-cols-2 gap-5 lg:grid-cols-5">
+              <details className="mt-4 border-t border-border pt-1">
+              <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{ux.filters}</summary>
+              <dl className="mt-3 grid grid-cols-2 gap-5 lg:grid-cols-5">
                 <Metric label={tradingText(copy.locale, "Domains in this report")} value={String(report.candidates.length)} />
                 <Metric label={tradingText(copy.locale, "Strong current signals")} value={String(priorityCount)} />
                 <Metric label={tradingText(copy.locale, "Strong name fit")} value={String(strongFitCount)} />
@@ -378,17 +382,13 @@ export default function LostDomains() {
               <p className="mt-3 text-xs text-muted-foreground" role="status">{filtered.length} / {report.candidates.length} {tradingText(copy.locale, "checks match this selection. Export includes observation time and unverified registrability.")}</p>
               {filter==="strong_fit" && <p className="mt-2 text-xs leading-5 text-muted-foreground">{tradingText(copy.locale, "Strong name fit describes the words and extension. Check registry status separately; this filter can also include registered domains.")}</p>}
               {exportFailed&&<p role="alert" className="mt-2 text-sm text-destructive">{tradingText(copy.locale, "Export could not be created. Your report is preserved. Try again.")}</p>}
+              </details>
             </header>
             <div className="p-5 sm:p-6">
-              <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{copy.reviewWarning}</p>
-              <p className="mt-2 text-xs text-muted-foreground">{report.candidates.some(row=>row.registrar?.status==="checked")
-                ? (tradingText(copy.locale, "Registrar responses are timestamped observations. Sajda has not reserved or purchased any domain."))
-                : `${copy.confirmed}: ${copy.zeroConfirmed}`}</p>
-              {candidates.length ? <ol className="mt-6 space-y-4">{candidates.map((candidate, index) => <Candidate key={candidate.domain} candidate={candidate} index={index} copy={copy} time={time} quote={quoteControls(candidate)} />)}</ol>
-                : <div className="py-10 text-center"><FileSearch className="mx-auto h-7 w-7 text-muted-foreground" aria-hidden="true" /><h4 className="mt-3 font-semibold">{copy.none}</h4><p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{copy.noneBody}</p></div>}
-              {diagnostics.length > 0 && <details key={`${filter}-${query}-${tld}`} open={filter!=="all"||Boolean(query)||Boolean(tld)} className="mt-5 border-t border-border pt-4">
-                <summary className="min-h-11 cursor-pointer py-3 font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{copy.diagnostics} ({diagnostics.length})</summary>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">{copy.diagnosticsBody}</p>
+              {candidates.length ? <ol className="space-y-4">{candidates.map((candidate, index) => <Candidate key={candidate.domain} candidate={candidate} index={index} copy={copy} time={time} quote={quoteControls(candidate)} />)}</ol>
+                : <h4 className="text-sm font-medium leading-6 text-muted-foreground">{copy.none}</h4>}
+              {diagnostics.length > 0 && <details key={`${filter}-${query}-${tld}`} open={!candidates.length||filter!=="all"||Boolean(query)||Boolean(tld)} className="mt-3 border-t border-border pt-2">
+                <summary className="min-h-11 cursor-pointer py-3 font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{ux.checkedDomains} ({diagnostics.length})</summary>
                 <ul className="mt-3 divide-y divide-border">{visibleDiagnostics.map(row => <li key={row.domain}><details className="py-2">
                   <summary className="min-h-11 cursor-pointer py-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                     <span className="break-all font-medium">{row.domain}</span><span className="ml-3 text-muted-foreground">{isFreshReviewCandidate(row, now) ? copy.freshOverflow : copy.diagnosticStates[row.reviewStatus]}</span>
@@ -402,6 +402,16 @@ export default function LostDomains() {
                   {visibleDiagnostics.length<diagnostics.length && <Button variant="outline" className={button} onClick={()=>setDiagnosticsLimit(limit=>limit+DIAGNOSTICS_BATCH_SIZE)}>{tradingShowMore(language, Math.min(DIAGNOSTICS_BATCH_SIZE, diagnostics.length - visibleDiagnostics.length))}</Button>}
                 </div>
               </details>}
+              <details className="mt-5 border-t border-border pt-2">
+                <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{ux.resultNotes}</summary>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{copy.reviewWarning}</p>
+                <p className="mt-2 text-xs text-muted-foreground">{report.candidates.some(row=>row.registrar?.status==="checked")
+                  ? (tradingText(copy.locale, "Registrar responses are timestamped observations. Sajda has not reserved or purchased any domain."))
+                  : `${copy.confirmed}: ${copy.zeroConfirmed}`}</p>
+                <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">{copy.noneBody}</p>
+                <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">{copy.diagnosticsBody}</p>
+                <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">{copy.reportNote}</p>
+              </details>
               {attributedSources.length > 0 && <div className="mt-5 border-t border-border pt-4 text-xs leading-5 text-muted-foreground">
                 <p>{copy.sourceAttribution} {copy.sourceLicense} <a className="font-medium text-primary underline underline-offset-2" href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">CC BY-SA 3.0</a>. {copy.sourceIndependence}</p>
                 <div className="mt-1 flex flex-wrap gap-x-4">{attributedSources.map((url, index) => <a key={url} className={link} href={url} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">{copy.source}{attributedSources.length > 1 ? ` ${index + 1}` : ""}<ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></a>)}</div>
@@ -409,22 +419,46 @@ export default function LostDomains() {
               <p className="mt-5 text-xs leading-5 text-muted-foreground">{copy.scoreNote}</p>
             </div>
           </section> : <div className={`${panel} p-7 text-center sm:p-10`}>
-            <FileSearch className="mx-auto h-7 w-7 text-muted-foreground" aria-hidden="true" /><h3 className="mt-4 text-lg font-semibold">{activeRun ? copy.firstRun : copy.empty}</h3><p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{activeRun ? copy.firstRunBody : copy.emptyBody}</p>
+            <FileSearch className="mx-auto h-7 w-7 text-muted-foreground" aria-hidden="true" /><h3 className="mt-4 text-lg font-semibold">{activeRun ? copy.firstRun : copy.empty}</h3><p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{activeRun ? copy.firstRunBody : ux.emptyHint}</p>
           </div>}
+          <details className={`${panel} p-5`}>
+            <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{ux.settings}</summary>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{copy.limits}</p>
+            <p className="mt-2 text-sm font-medium">{snapshot.sourcesAvailable} {tradingText(copy.locale, "approved source pages available now.")}</p>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">{copy.progressNote}</p>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">{copy.deepSchedule}</p>
+          </details>
         </div>}
       </section>
+
+      {showAccessOptions && <aside id="trading-access" tabIndex={-1} className={`${panel} mb-8 scroll-mt-6 p-5 outline-none sm:p-6`} aria-label={isNativeApp ? nativeCopy[language].membership : copy.priceLabel}>
+        <h2 className="mb-4 text-lg font-semibold">{ux.accessOptions}</h2>
+        <div className="max-w-xl"><PlusBilling accountId={accountId} language={language} fallback={copy} disabled={signingOut} onStatusVerified={billingStatusVerified} /></div>
+        {!accountId && <p className="mt-4 max-w-2xl text-sm leading-6 text-muted-foreground">{copy.lockedBody}</p>}
+        {!isNativeApp && <details className="mt-5 border-t border-border pt-1"><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{copy.included}</summary>
+          <ul className="mt-3 space-y-3">{copy.features.map(feature => <li key={feature} className="flex items-start gap-2 text-sm leading-6 text-muted-foreground"><Check className="mt-1 h-4 w-4 shrink-0 text-primary" aria-hidden="true" /><span>{feature}</span></li>)}</ul>
+          <p className="mt-4 text-sm leading-6 text-muted-foreground">{copy.limits}</p>
+        </details>}
+      </aside>}
 
       {snapshot?.access && <details className={`${panel} mb-8 p-5`}><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{tradingText(copy.locale, "Account and Trading subscription")}</summary>
         <div className="max-w-xl pt-4"><PlusBilling accountId={accountId} language={language} fallback={copy} disabled={signingOut} onStatusVerified={billingStatusVerified}/></div>
       </details>}
 
-      <section id="plus-method" className="scroll-mt-8 border-t border-border pt-9" aria-labelledby="plus-method-title">
-        <h2 id="plus-method-title" className="max-w-2xl text-2xl font-semibold leading-9 tracking-tight sm:text-3xl">{copy.methodTitle}</h2>
+      {!authLoading && user && <details className={`${panel} mb-8 p-5`}>
+        <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{copy.signedInAs} <span className="break-all">{user.email}</span></summary>
+        <Button variant="outline" className={`${button} mt-3`} disabled={signingOut} onClick={() => void leaveAccount()}>{signingOut ? copy.signingOut : copy.signOut}</Button>
+        {signOutError && <p role="alert" className="mt-3 text-sm leading-6 text-destructive">{copy.signOutFailed}</p>}
+      </details>}
+
+      <details id="plus-method" className="scroll-mt-8 border-t border-border pt-2">
+        <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{copy.readMore}</summary>
+        <h2 className="mt-4 max-w-2xl text-2xl font-semibold leading-9 tracking-tight">{copy.methodTitle}</h2>
         <ol className="mt-7 grid gap-6 md:grid-cols-3">{copy.steps.map((step, index) => <li key={step.title} className="min-w-0">
           <span className="text-sm font-semibold text-primary">0{index + 1}</span><h3 className="mt-3 text-lg font-semibold">{step.title}</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">{step.body}</p></li>)}</ol>
         <div className="mt-8 grid gap-4 rounded-2xl bg-secondary/50 p-5 sm:grid-cols-[auto_minmax(0,1fr)] sm:p-6"><Check className="h-5 w-5 text-primary" aria-hidden="true" /><div><h3 className="font-semibold">{copy.target}</h3><p className="mt-2 text-sm leading-6 text-muted-foreground">{copy.targetBody}</p></div></div>
         <p className="mt-5 text-xs leading-6 text-muted-foreground">{copy.caution}</p>
-      </section>
+      </details>
     </div>
   </main>;
 }
@@ -434,9 +468,11 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 function Candidate({ candidate, index, copy, time,quote }: { candidate: LostDomainAssessment; index: number; copy: LostDomainsCopy; time: (value: string) => string;quote?:TradingQuoteControls }) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const detailsId = useId();
   return <li className="rounded-xl border border-border p-4 sm:p-5">
     <div className="flex flex-wrap items-start justify-between gap-4">
-      <div className="min-w-0"><p className="text-xs font-medium text-muted-foreground">{String(index + 1).padStart(2, "0")}</p><h4 className="mt-1 break-all text-xl font-semibold tracking-tight sm:text-2xl">{candidate.domain}</h4>
+      <div className="min-w-0"><p className="text-xs font-medium text-muted-foreground">{String(index + 1).padStart(2, "0")}</p><h4 className="mt-1 break-all text-xl font-semibold tracking-tight sm:text-2xl"><button type="button" aria-expanded={detailsOpen} aria-controls={detailsId} onClick={() => setDetailsOpen(open => !open)} className="min-h-11 text-left text-primary underline decoration-primary/30 underline-offset-4 hover:decoration-primary focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{candidate.domain}</button></h4>
         <NameFitBadge candidate={candidate} language={copy.locale}/>
         <p className="mt-2 text-xs font-medium leading-5 text-muted-foreground">{copy.registryNotFound}</p></div>
       {candidate.dossier ? <dl className="flex flex-wrap gap-x-5 gap-y-3"><div><dt className="text-xs text-muted-foreground">{tradingText(copy.locale, "Fresh check types")}</dt><dd className="mt-1 text-sm font-semibold">{candidate.dossier.coverage.observedFamilies} / 4</dd></div>
@@ -447,7 +483,7 @@ function Candidate({ candidate, index, copy, time,quote }: { candidate: LostDoma
     {candidate.dossier && <p className="mt-3 text-sm font-medium">{candidate.dossier.status==="ready_for_price_review" && !(Date.parse(candidate.dossier.validUntil ?? "")>Date.now())
       ? (tradingText(copy.locale, "Evidence expired — a fresh check is required"))
       : ({ready_for_price_review: tradingText(copy.locale, "Technically ready for price review — not a purchase confirmation"), monitor: tradingText(copy.locale, "More checks required"), reject: tradingText(copy.locale, "Excluded from acquisition review"), incomplete: tradingText(copy.locale, "Evidence is missing")})[candidate.dossier.status]}</p>}
-    <details className="mt-3 border-t border-border pt-2">
+    <details id={detailsId} open={detailsOpen} onToggle={event => setDetailsOpen(event.currentTarget.open)} className="mt-3 border-t border-border pt-2">
       <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{copy.evidence}</summary>
       <Observations candidate={candidate} copy={copy} time={time} quote={quote} />
     </details>
