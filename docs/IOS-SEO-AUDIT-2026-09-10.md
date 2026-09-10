@@ -122,9 +122,12 @@ tests. Execution results for this revision are recorded below when complete.
 
 ### Local integrated results
 
-- Final `npm run check`: PASS; **922 passed, 3 explicitly skipped, 0 failed**.
+- Final `npm run check`: PASS; **923 passed, 3 explicitly skipped, 0 failed**.
   Lint, application/API type checks, 67 five-language dictionary contracts,
   SEO policy, server-only Neon boundaries and UI contracts passed.
+  The skipped cases require opt-in live PostgreSQL configuration: account
+  membership, AI allowance and contact persistence. No new database mutation
+  tests or real email delivery were performed in this iOS/SEO pass.
 - `npm run build:vercel`: PASS with preview/noindex policy and the documented
   Vercel canonical. All 22 initial HTML pages, structured data, assets and
   internal crawl graph passed the strengthened static checker.
@@ -197,6 +200,38 @@ letters and encoded/leading slashes could reach the same SEO HTML without
 the middleware marker. Normal preview noindex remained present throughout;
 no public indexing was activated. The final server-only correction and
 expanded HTTP regression are separate from the already-verified native code.
+
+### Final protected website deployment
+
+Runtime commit `99c045d61bd8271b62c8b667ac47f45c4d3b014d` passed
+[Verify CI 34505852636](https://github.com/wolfoftyreso-debug/sajda/actions/runs/34505852636)
+and the final full local suite (923 pass, 3 skip, zero failures).
+Vercel preview `dpl_69Meu3hsNfoSeSfsBAryAQsf3Kdy` reached READY:
+[immutable candidate](https://sajda-p9ycrkiwb-hypbit.vercel.app).
+
+- **All 36 deployed HTTP checks passed:** 22 complete SEO documents and 14
+  routing/indexing checks, including encoded namespace letters, encoded
+  separators and leading encoded slashes. The application-specific noindex
+  header marker was present on every parameterized variant under test.
+- Native auth/account negative GET regression passed again: 401/405, JSON,
+  private/no-store; no SEO middleware marker on either API route.
+- No 5xx records were returned by the bounded final-deployment log query
+  covering the audit requests. This is not long-term production monitoring.
+- The fixed alias now points to this candidate:
+  [Sajda test preview](https://sajda-test-hypbit.vercel.app).
+  The updated home page was opened and visually inspected in the browser.
+  It remains Vercel-protected; another visitor may need Vercel authorization.
+  Alias HTTP checks also returned the final `/assets/index-CdN6WjQ5.js` on
+  home and SEO routes; the leading-encoded-slash query retained HTTP noindex
+  and the middleware marker after aliasing.
+- The last change is server middleware/tests/documentation only. Native code
+  is unchanged from the successful second Debug/Release/simulator run above.
+  No production deployment, DNS change, indexing activation, purchase,
+  research run or account mutation was performed.
+
+Temporary local QA servers were stopped and the browser's mobile viewport
+override was reset. The test preview is a review release, not App Store or
+unrestricted public-commercial approval.
 
 ## Next five highest-value release actions
 

@@ -1,10 +1,17 @@
 # Sajda för iPhone: implementation och verifieringsläge
 
 Uppdaterad 2026-09-10. Ett separat produktbygge och ett Capacitor-projekt för iOS
-finns i koden. JavaScript-bygget, Swift-kompilering i Xcode, gränssnittet i mobil
-webbläsarvy och serverns autentiseringsgränser har testats. Ingen signerad iPhone-version eller
+finns i koden. JavaScript-bygget, Swift-kompilering i Debug och Release, faktisk
+installation och start i iPhone-simulator, gränssnittet i mobil webbläsarvy och
+serverns autentiseringsgränser har testats. Ingen signerad iPhone-version eller
 TestFlight-distribution har verifierats. Full funktionsparitet är ett fortsatt
 krav, inte en uppnådd release-status.
+
+Senaste appverifiering: [iPhone CI 34504372547](https://github.com/wolfoftyreso-debug/sajda/actions/runs/34504372547),
+nativekod `d873c11`. Simulatorbilden är manuellt visuellt kontrollerad; detta
+verifierar inte inloggning, betalning eller delning på fysisk iPhone.
+Se [fullständig iOS-/SEO-revision](IOS-SEO-AUDIT-2026-09-10.md) för testbevis,
+aktuell preview och kvarvarande releasekrav.
 
 Första iOS-bygget kräver iOS 17.4 eller senare. Capacitors äldre basnivå räcker
 inte i sig som kompatibilitetslöfte för produktens gemensamma webb-API:er.

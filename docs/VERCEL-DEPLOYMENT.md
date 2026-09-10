@@ -1,5 +1,12 @@
 # Public Vercel deployment
 
+Current verification (2026-09-10): the reviewed release is the **protected**
+[test preview](https://sajda-test-hypbit.vercel.app), runtime `99c045d`.
+This document describes the public deployment architecture, not evidence that
+anonymous visitors or external iPhones can bypass preview protection. Website
+indexing remains deliberately disabled. See the [iOS/SEO revision](IOS-SEO-AUDIT-2026-09-10.md)
+for the final deployed checks and explicit launch gates.
+
 This is the fastest supported public deployment path for Sajda. It runs
 the Vite app as static files and `api/domain-search.ts` as a Vercel Node
 function. Search is public by default; persistent product workflows are being
