@@ -15,6 +15,9 @@ import {
 import type { AdvancedSearchCriteria } from "@/lib/advancedSearchCriteria";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { readSearchSession, writeSearchSession } from "@/lib/searchSession";
+import { useAuth } from "@/contexts/AuthContext";
+import { searchRefinementCopy } from "@/i18n/searchRefinementCopy";
+import type { NamingGeneration, SearchRefinement } from "../../shared/search-refinement";
 
 export interface DiscoveredDomain {
   domain: string;
@@ -43,6 +46,8 @@ export interface ModeTargets {
 }
 
 export interface StartScanOptions {
+  refinement?: SearchRefinement;
+  mode?: ScanMode;
   advanced?: boolean;
   brief?: string;
   criteria?: AdvancedSearchCriteria;
@@ -56,7 +61,7 @@ export interface StartScanOptions {
 
 /** One browser trial search is available before Neon-backed accounts launch. */
 export interface AnonymousSearchAccess {
-  kind: "free";
+  kind: "free" | "account";
   complete: () => void;
   release: () => void;
 }
@@ -95,6 +100,8 @@ interface ScanContextType {
   scanMode: ScanMode;
   searchKeyword: string;
   briefAnalysis: AnonymousBriefAnalysis | null;
+  generation: NamingGeneration | null;
+  lastSearchOptions: StartScanOptions | null;
   anonymousSearchAccessReady: boolean;
   anonymousSearchCanStart: boolean;
   freeSearchAvailable: boolean;
@@ -102,7 +109,7 @@ interface ScanContextType {
   setSelectedTLDs: (tlds: string[]) => void;
   setScanMode: (mode: ScanMode) => void;
   setSearchKeyword: (keyword: string) => void;
-  startScan: (options?: StartScanOptions) => Promise<void>;
+  startScan: (options?: StartScanOptions) => Promise<boolean>;
   stopScan: () => void;
   clearResults: () => void;
   deleteDomain: (domainName: string) => Promise<void>;
@@ -170,6 +177,10 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [scanMode, setScanMode] = useState<ScanMode>("medium");
   const [searchKeyword, setSearchKeyword] = useState("");
   const [briefAnalysis, setBriefAnalysis] = useState<AnonymousBriefAnalysis | null>(null);
+  const [generation, setGeneration] = useState<NamingGeneration | null>(null);
+  // Memory only: a reload must not resurrect a private brief or attribute an
+  // old result snapshot to newly typed inputs. Refinement needs this context.
+  const [lastSearchOptions, setLastSearchOptions] = useState<StartScanOptions | null>(null);
   const [freeSearchConsumed, setFreeSearchConsumed] = useState(() => hasCompletedFreeSearch());
   const [freeSearchGateOpen, setFreeSearchGateOpen] = useState(false);
 
@@ -179,10 +190,12 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { toast } = useToast();
   const { language, t } = useLanguage();
+  const { user, loading: authLoading } = useAuth();
+  const verifiedAccount = !authLoading && user?.email_verified === true;
 
-  const anonymousSearchAccessReady = true;
+  const anonymousSearchAccessReady = !authLoading;
   const freeSearchAvailable = !freeSearchConsumed;
-  const anonymousSearchCanStart = freeSearchAvailable;
+  const anonymousSearchCanStart = !authLoading && (verifiedAccount || freeSearchAvailable);
 
   const clearTimer = useCallback(() => {
     if (!timerIntervalRef.current) return;
@@ -217,6 +230,11 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const closeFreeSearchGate = useCallback(() => setFreeSearchGateOpen(false), []);
 
   const requestAnonymousSearchAccess = useCallback((): AnonymousSearchAccess | null => {
+    if (authLoading) return null;
+    // A verified free account may iterate under the existing public API rate
+    // limit. This removes a browser onboarding gate, never grants paid access
+    // or bypasses the separate durable AI allowance.
+    if (verifiedAccount) return { kind: "account", complete: () => {}, release: () => {} };
     const reservation: FreeSearchReservation | null = reserveFreeSearch();
     if (!reservation) {
       setFreeSearchConsumed(hasCompletedFreeSearch());
@@ -232,13 +250,15 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
       },
       release: () => reservation.release(),
     };
-  }, []);
+  }, [authLoading, verifiedAccount]);
 
   const clearResults = useCallback(() => {
     setDomains([]);
     writeSearchSession([]);
     setRestoredResults(false);
     setBriefAnalysis(null);
+    setGeneration(null);
+    setLastSearchOptions(null);
   }, []);
 
   const deleteDomain = useCallback(async (domainName: string) => {
@@ -270,9 +290,9 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const startScan = useCallback(async (options: StartScanOptions = {}) => {
     // React state updates are asynchronous; the ref closes the double-submit
     // window before the next render.
-    if (isScanning || activeAccessRef.current) return;
+    if (isScanning || activeAccessRef.current) return false;
     const access = requestAnonymousSearchAccess();
-    if (!access) return;
+    if (!access) return false;
 
     const requestId = activeRequestRef.current + 1;
     activeRequestRef.current = requestId;
@@ -280,7 +300,8 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const controller = new AbortController();
     requestControllerRef.current = controller;
 
-    const modeConfig = getScanModeConfig(scanMode, true);
+    const operationMode = options.mode ?? scanMode;
+    const modeConfig = getScanModeConfig(operationMode, true);
     const requestedTLDs = Array.from(new Set(
       (options.tlds ?? [])
         .filter((tld): tld is string => typeof tld === "string")
@@ -304,11 +325,10 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setDomainsScanned(0);
     setTimeRemaining(modeConfig.durationSeconds);
     setActiveTLDScans(new Map(currentTLDs.map((tld) => [tld, 0])));
-    setBriefAnalysis(null);
     startTimer();
 
     try {
-      const targets = getModeTargets(scanMode);
+      const targets = getModeTargets(operationMode);
       const resultLimit = exactDomains.length || targets.finalShow;
       const response = await runAnonymousSearch(
         currentTLDs,
@@ -321,16 +341,17 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
           criteria: options.criteria,
           providers: options.providers,
           domains: exactDomains,
-          creativeMode: scanMode,
+          creativeMode: operationMode,
+          refinement: options.refinement,
           signal: controller.signal,
         },
       );
 
-      if (activeRequestRef.current !== requestId) return;
+      if (activeRequestRef.current !== requestId) return false;
 
       const seenDomains = new Set<string>();
       const localDomains = response.results
-        .map((result) => convertAnonymousSearchResultToDomain(result, scanMode))
+        .map((result) => convertAnonymousSearchResultToDomain(result, operationMode))
         .filter((domain) => domain.status !== "taken" || exactDomainSet.has(domain.domain.toLowerCase()))
         .filter((domain) => {
           const normalized = domain.domain.toLowerCase();
@@ -354,10 +375,23 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const hasVerifiedResult = localDomains.some((result) => result.availabilityVerified && result.status !== "unknown");
       if (hasVerifiedResult) access.complete();
       else access.release();
+      // Keep a useful previous shortlist if a new direction yields no usable
+      // names. A failed/empty iteration should not destroy the user's work.
+      const preserveVerifiedResults = !hasVerifiedResult && domains.some(domain => domain.availabilityVerified && domain.status !== "unknown");
+      if (localDomains.length === 0 || preserveVerifiedResults) {
+        setIsScanning(false); setScanPhase("idle"); setPendingDomains([]);
+        setActiveTLDScans(new Map()); setTimeRemaining(0);
+        toast({ title: t(preserveVerifiedResults && localDomains.length ? "toast.searchFailed" : "search.noMatches"),
+          description: preserveVerifiedResults && localDomains.length ? searchRefinementCopy[language].checksUnavailable : t("search.noMatchesDescription") });
+        return false;
+      }
       setDomains(localDomains);
       writeSearchSession(localDomains);
       setRestoredResults(false);
       setBriefAnalysis(response.briefAnalysis ?? null);
+      setGeneration(response.generation ?? null);
+      setLastSearchOptions({ ...options, mode: operationMode, theme: currentKeyword, tlds: currentTLDs, brief: advancedBrief,
+        domains: exactDomains, providers: options.providers ? [...options.providers] : undefined });
       setDomainsScanned(response.results.length);
       setIsScanning(false);
       setScanPhase("idle");
@@ -372,8 +406,9 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
             ? t("toast.resultsShown", { count: localDomains.length })
             : t("toast.resultsLimited", { checked: response.results.length, count: localDomains.length }),
       });
+      return true;
     } catch (error) {
-      if (activeRequestRef.current !== requestId) return;
+      if (activeRequestRef.current !== requestId) return false;
       clearTimer();
       activeAccessRef.current = null;
       requestControllerRef.current = null;
@@ -387,8 +422,9 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
         description: error instanceof Error ? error.message : t("toast.unexpected"),
         variant: "destructive",
       });
+      return false;
     }
-  }, [clearTimer, isScanning, language, requestAnonymousSearchAccess, scanMode, searchKeyword, selectedTLDs, startTimer, t, toast]);
+  }, [clearTimer, domains, isScanning, language, requestAnonymousSearchAccess, scanMode, searchKeyword, selectedTLDs, startTimer, t, toast]);
 
   return (
     <ScanContext.Provider value={{
@@ -404,6 +440,8 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
       scanMode,
       searchKeyword,
       briefAnalysis,
+      generation,
+      lastSearchOptions,
       anonymousSearchAccessReady,
       anonymousSearchCanStart,
       freeSearchAvailable,

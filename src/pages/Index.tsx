@@ -12,6 +12,11 @@ import AdvancedSearchBrief from "@/components/AdvancedSearchBrief";
 import HeroOfferCarousel, { HeroOfferHeading } from "@/components/HeroOfferCarousel";
 import DeepReviewPanel from "@/components/DeepReviewPanel";
 import SearchResultHelp from "@/components/SearchResultHelp";
+import SearchRefinement from "@/components/SearchRefinement";
+import AiPrivacyControl from "@/components/AiPrivacyControl";
+import { aiPrivacyCopy } from "@/i18n/aiPrivacyCopy";
+import { searchRefinementCopy, refinementText } from "@/i18n/searchRefinementCopy";
+import { FIRST_RESULTS_COUNT, getVisibleSearchResults, nextSearchResultCount } from "@/lib/searchRefinement";
 import { countAdvancedBriefWords } from "@/lib/advancedSearchBrief";
 import FooterNav from "@/components/FooterNav";
 import Top10Banner from "@/components/Top10Banner";
@@ -46,6 +51,8 @@ const Index = () => {
     scanMode,
     searchKeyword,
     briefAnalysis,
+    generation,
+    lastSearchOptions,
     setSelectedTLDs,
     setScanMode,
     setSearchKeyword,
@@ -67,7 +74,8 @@ const Index = () => {
   const [advancedBrief, setAdvancedBrief] = useState("");
   const [advancedCriteria, setAdvancedCriteria] = useState<AdvancedSearchCriteria>(DEFAULT_ADVANCED_SEARCH_CRITERIA);
   const [selectedProviderIds, setSelectedProviderIds] = useState<string[]>(DEFAULT_PROVIDER_IDS);
-  const [lastExactDomains, setLastExactDomains] = useState<string[]>([]);
+  const lastExactDomains = lastSearchOptions?.domains ?? [];
+  const [visibleResultCount, setVisibleResultCount] = useState(FIRST_RESULTS_COUNT);
   const searchControlsRef = useRef<HTMLDivElement>(null);
   const advancedSearchRef = useRef<HTMLDivElement>(null);
 
@@ -79,6 +87,7 @@ const Index = () => {
   const watchlistLifetime = useRef<AbortController | null>(null);
   const [watchlistAccountId, setWatchlistAccountId] = useState<string | null>(null);
   const { language, t } = useLanguage();
+  const refinementCopy = searchRefinementCopy[language];
   const anonymousSearchMode = isAnonymousSearchMode();
   const modeTargets = getModeTargets(scanMode, anonymousSearchMode);
   const presentationLanguage = language as string;
@@ -128,9 +137,9 @@ const Index = () => {
         shortThemePlaceholder: "Kort tema för sökningen (valfritt)",
         briefReady: "Din långa beskrivning används för att extrahera namnspår innan registry-kontrollerna körs.",
         briefRequired: "Lägg till minst ett ord i din beskrivning för att starta den avancerade sökningen.",
-        analysisHeading: "Analys av din beskrivning",
+        analysisHeading: "Nyckelord ur beskrivningen",
         analysisAssisted: "Strukturerad briefgranskning",
-        analysisLocal: "Privat lokal analys",
+        analysisLocal: "Regelbaserat urval",
         analysisKeywords: "Utvalda ord",
         analysisConcepts: "Namnspår",
       }
@@ -140,9 +149,9 @@ const Index = () => {
           shortThemePlaceholder: "Un tema breve para la búsqueda (opcional)",
           briefReady: "Tu descripción extensa se usa para extraer direcciones de nombres antes de las comprobaciones en el registro.",
           briefRequired: "Añade al menos una palabra a tu descripción para iniciar la búsqueda avanzada.",
-          analysisHeading: "Análisis de la descripción",
+          analysisHeading: "Palabras clave de la descripción",
           analysisAssisted: "Revisión estructurada de la descripción",
-          analysisLocal: "Análisis local privado",
+          analysisLocal: "Selección basada en reglas",
           analysisKeywords: "Palabras seleccionadas",
           analysisConcepts: "Direcciones de nombres",
         }
@@ -152,9 +161,9 @@ const Index = () => {
             shortThemePlaceholder: "Un thème court pour la recherche (facultatif)",
             briefReady: "Votre description détaillée sert à extraire des pistes de noms avant les vérifications auprès du registre.",
             briefRequired: "Ajoutez au moins un mot à votre description pour lancer la recherche avancée.",
-            analysisHeading: "Analyse de la description",
+            analysisHeading: "Mots-clés de la description",
             analysisAssisted: "Analyse structurée du brief",
-            analysisLocal: "Analyse locale privée",
+            analysisLocal: "Sélection fondée sur des règles",
             analysisKeywords: "Mots sélectionnés",
             analysisConcepts: "Pistes de noms",
           }
@@ -164,9 +173,9 @@ const Index = () => {
               shortThemePlaceholder: "搜索的简短主题（可选）",
               briefReady: "系统会先从你的详细说明中提取命名方向，再进行注册局核验。",
               briefRequired: "请在说明中至少添加一个词，以开始高级搜索。",
-              analysisHeading: "说明分析",
+              analysisHeading: "说明中的关键词",
               analysisAssisted: "结构化说明分析",
-              analysisLocal: "本地私密分析",
+              analysisLocal: "基于规则的提取",
               analysisKeywords: "选定的词",
               analysisConcepts: "命名方向",
             }
@@ -175,9 +184,9 @@ const Index = () => {
         shortThemePlaceholder: "A short search theme (optional)",
         briefReady: "Your longer brief is used to extract naming directions before registry checks run.",
         briefRequired: "Add at least one word to your brief to start an advanced search.",
-        analysisHeading: "Brief analysis",
+        analysisHeading: "Keywords from your brief",
         analysisAssisted: "Structured brief review",
-        analysisLocal: "Private local analysis",
+        analysisLocal: "Rule-based extraction",
         analysisKeywords: "Selected words",
         analysisConcepts: "Naming directions",
       };
@@ -233,9 +242,6 @@ const Index = () => {
       // Reflect the exact domains in the visible extension selector while the
       // request itself uses the override immediately (state updates are async).
       setSelectedTLDs(directDomainSearch.tlds);
-      setLastExactDomains(directDomainSearch.domains);
-    } else {
-      setLastExactDomains([]);
     }
 
     void startScan({
@@ -246,7 +252,7 @@ const Index = () => {
       domains: isExactDomainSearch ? directDomainSearch.domains : undefined,
       tlds: isExactDomainSearch ? directDomainSearch.tlds : undefined,
       theme: isExactDomainSearch ? directDomainSearch.fallbackTheme : undefined,
-    }).then(() => setIsEditingSearch(false));
+    }).then((completed) => { if (completed) setIsEditingSearch(false); });
   };
 
   // Responses and mutations are scoped to the account that initiated them.
@@ -398,6 +404,10 @@ const Index = () => {
 
     return result;
   }, [anonymousSearchMode, domains, sortBy, filters]);
+
+  useEffect(() => setVisibleResultCount(FIRST_RESULTS_COUNT), [domains, sortBy, filters]);
+  const visibleDomains = lastExactDomains.length > 0 ? filteredAndSortedDomains
+    : getVisibleSearchResults(filteredAndSortedDomains, visibleResultCount);
 
   // Count active filters
   const activeFilterCount = useMemo(() => {
@@ -606,6 +616,12 @@ const Index = () => {
                   </p>
                 </div>
               )}
+              {!advancedSearch && !isExactDomainSearch && <details className="mx-2 mt-4 border-t border-border pt-2">
+                <summary className="min-h-11 cursor-pointer rounded-lg py-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  {aiPrivacyCopy[language].title}
+                </summary>
+                <AiPrivacyControl />
+              </details>}
             </div>
           </section>
         )}
@@ -736,17 +752,18 @@ const Index = () => {
         </div>
 
         {briefAnalysis && (
-          <section className="mb-8 rounded-2xl border border-border bg-card p-4 sm:p-5" aria-labelledby="brief-analysis-heading">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 id="brief-analysis-heading" className="text-base font-semibold text-foreground">
+          <details className="mb-4 rounded-2xl border border-border bg-card px-4 sm:px-5">
+            <summary className="min-h-11 cursor-pointer rounded-lg py-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <h2 className="inline text-sm font-semibold text-foreground">
                 {advancedCopy.analysisHeading}
               </h2>
+            </summary>
+            <div className="pb-4">
               {briefAnalysis.mode && (
                 <Badge variant="secondary" className="text-xs font-medium">
                   {briefAnalysis.mode === "ai" ? advancedCopy.analysisAssisted : advancedCopy.analysisLocal}
                 </Badge>
               )}
-            </div>
             {briefAnalysis.summary && (
               <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{briefAnalysis.summary}</p>
             )}
@@ -778,16 +795,8 @@ const Index = () => {
                 )}
               </div>
             )}
-          </section>
-        )}
-
-        {domains.length > 0 && (
-          <DeepReviewPanel
-            candidates={domains}
-            theme={searchKeyword}
-            language={language}
-            className="mb-8"
-          />
+            </div>
+          </details>
         )}
 
         {/* Section Header + Filters */}
@@ -827,11 +836,15 @@ const Index = () => {
           </div>
         )}
 
+        {generation && domains.length > 0 && <div className="mb-4 text-sm" role="status">
+          <p className="font-medium text-foreground">{generation.source === "ai" ? refinementCopy.modeAi : refinementCopy.modeLocal}</p>
+          <p className="mt-1 text-muted-foreground">{generation.source === "ai" ? refinementCopy.modeAiNote : generation.fallbackReason === "ai_unavailable" ? refinementCopy.modeAiUnavailableNote : refinementCopy.modeLocalNote}</p>
+        </div>}
         <SearchResultHelp language={language} enabled={!isScanning && domains.length > 0} />
 
         {/* Domain Grid */}
         <section className="grid grid-cols-1 gap-4 lg:grid-cols-2" aria-label={t("search.results")}>
-          {filteredAndSortedDomains.map((domain, index) => (
+          {visibleDomains.map((domain, index) => (
             <div
               key={domain.domain}
               className="animate-in fade-in slide-in-from-bottom-4"
@@ -840,7 +853,7 @@ const Index = () => {
               <DomainCard
                 {...domain}
                 registrarUrl={domain.registrarUrl}
-                selectedProviderIds={anonymousSearchMode ? selectedProviderIds : undefined}
+                selectedProviderIds={anonymousSearchMode ? lastSearchOptions?.providers ?? selectedProviderIds : undefined}
                 checkMethod={domain.checkMethod}
                 isInWatchlist={watchlistAccountId === accountId && watchlistDomains.has(domain.domain)}
                 onSaveToWatchlist={() => handleSaveToWatchlist(domain)}
@@ -854,6 +867,32 @@ const Index = () => {
             </div>
           ))}
         </section>
+
+        {filteredAndSortedDomains.length > 0 && !lastExactDomains.length && <div className="my-5 text-center">
+          <p className="text-sm text-muted-foreground" role="status">{refinementText(refinementCopy.shown, { shown: visibleDomains.length, total: filteredAndSortedDomains.length })}</p>
+          {visibleDomains.length < filteredAndSortedDomains.length && <>
+            <Button type="button" variant="outline" className="mt-3 min-h-11" onClick={() => setVisibleResultCount(count => nextSearchResultCount(count, filteredAndSortedDomains.length))}>
+              {refinementText(refinementCopy.showMore, { count: Math.min(FIRST_RESULTS_COUNT, filteredAndSortedDomains.length - visibleDomains.length) })}
+            </Button>
+            <p className="mt-2 text-xs text-muted-foreground">{refinementCopy.showMoreHint}</p>
+          </>}
+        </div>}
+
+        {domains.length > 0 && lastSearchOptions && !lastExactDomains.length && <div className="my-6">
+          <SearchRefinement key={domains.map(domain => domain.domain).join(",")} language={language}
+            previousNames={domains.map(domain => domain.domain)} candidateNames={visibleDomains.map(domain => domain.domain)}
+            busy={isScanning} disabled={authLoading} onRefine={async (refinement) => {
+              const complete = await startScan({ ...lastSearchOptions, refinement });
+              if (!complete) throw new Error("Refinement did not complete.");
+            }} />
+          <details className="mt-3 rounded-xl border border-border px-4">
+            <summary className="min-h-11 cursor-pointer rounded py-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{aiPrivacyCopy[language].title}</summary>
+            <AiPrivacyControl className="mb-4" />
+          </details>
+        </div>}
+
+        {domains.length > 0 && <DeepReviewPanel candidates={domains}
+          theme={lastSearchOptions?.theme ?? searchKeyword} language={language} className="my-8" />}
 
         {/* Empty filtered state */}
         {domains.length > 0 && filteredAndSortedDomains.length === 0 && (

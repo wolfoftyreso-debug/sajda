@@ -52,13 +52,6 @@ test("real Postgres allowance transactions, limits and exact fixture cleanup", {
     "SELECT coalesce(sum(request_count), 0) AS total FROM public.sajda_ai_allowance_counters WHERE namespace = $1 AND identity_hash = $2 AND usage_day = $3::date",
     [namespace, hash, day],
   )).rows[0].total);
-  const ageOwnIp = async (index: number) => {
-    const updated = await pool.query(
-      "UPDATE public.sajda_ai_allowance_counters SET last_request_at = clock_timestamp() - interval '61 seconds' WHERE namespace = $1 AND identity_hash = $2 AND usage_day = $3::date",
-      [namespace, hashes[index], day],
-    );
-    assert.equal(updated.rowCount, 1, "Only this run's existing HMAC fixture can be aged");
-  };
   try {
     day = (await pool.query("SELECT to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS day")).rows[0].day;
     const baseline = await pool.query("SELECT count(*)::integer AS count FROM public.sajda_ai_allowance_counters WHERE namespace = $1 AND usage_day = $2::date", [namespace, day]);
@@ -71,7 +64,7 @@ test("real Postgres allowance transactions, limits and exact fixture cleanup", {
     const pair = await Promise.all([request(0), request(1)]);
     check("parallel reservations both allowed", pair.map(result => result.allowed), [true, true]);
     check("third concurrent reservation denied", (await request(2)).reason, "concurrency_limit");
-    check("same IP minute denied", (await request(0)).reason, "ip_minute_limit");
+    check("same IP also obeys global concurrency", (await request(0)).reason, "concurrency_limit");
     check("denials do not consume global quota", await ownCount("global"), 2);
     const active = await pool.query("SELECT count(*)::integer AS count, max(extract(epoch FROM expires_at - clock_timestamp())) AS remaining FROM public.sajda_ai_allowance_leases WHERE namespace = $1 AND expires_at > clock_timestamp()", [namespace]);
     check("exactly two persisted live leases", active.rows[0].count, 2);
@@ -81,12 +74,10 @@ test("real Postgres allowance transactions, limits and exact fixture cleanup", {
     await pair[0].release();
     check("idempotent release preserves counters", await ownCount("global"), 2);
     for (const expected of [2, 3]) {
-      await ageOwnIp(0);
       const allowed = await request(0);
-      check(`same IP allowed request ${expected}`, allowed.allowed, true);
+      check(`same IP immediately allowed request ${expected}`, allowed.allowed, true);
       await allowed.release();
     }
-    await ageOwnIp(0);
     check("fourth IP request denied", (await request(0)).reason, "ip_daily_limit");
     check("IP counter stops at three", await ownCount(hashes[0]), 3);
 

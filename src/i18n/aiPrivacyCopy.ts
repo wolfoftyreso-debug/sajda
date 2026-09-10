@@ -1,7 +1,7 @@
 export const aiPrivacyCopy = {
   en: {
     title: "Optional AI assistance", off: "Off", on: "On",
-    disclosure: "With your permission, Sajda sends your advanced search brief and its language, or your Top 10 domain names and search theme, to Google Gemini through Vercel AI Gateway. Gemini helps interpret your brief or write short name-review notes. Text you enter may contain personal information; leave out sensitive or confidential details.",
+    disclosure: "With your permission, Sajda sends your search theme, project brief, language and naming criteria, plus feedback and up to 50 previous domain names (including up to five favorites), to Google Gemini through Vercel AI Gateway to generate new name ideas. A Top 10 review sends those ten names and the theme for short review notes. Leave out sensitive or confidential information. AI does not verify availability or prices.",
     choice: "Without permission, Sajda uses its own non-AI analysis. Exact domain checks, search and ranking still work; registry and registrar checks still use external services.",
     allow: "Allow sharing with Google Gemini", decline: "Keep AI off", revoke: "Turn off AI sharing",
     persistence: "This choice applies to future requests in this browser or app on this device. You can change it here or in Account. Turning it off cannot recall data already sent. Changing this setting does not start a search.",
@@ -9,7 +9,7 @@ export const aiPrivacyCopy = {
   },
   sv: {
     title: "Valfri AI-hjälp", off: "Av", on: "På",
-    disclosure: "Med ditt tillstånd skickar Sajda din avancerade sökbeskrivning och dess språk, eller dina tio högst rankade domännamn och söktemat, till Google Gemini via Vercel AI Gateway. Gemini hjälper till att tolka beskrivningen eller skriva korta namnkommentarer. Text du skriver kan innehålla personuppgifter. Utelämna känsliga eller konfidentiella uppgifter.",
+    disclosure: "Med ditt tillstånd skickar Sajda ditt söktema, din projektbeskrivning, språk och namnkriterier samt återkoppling och upp till 50 tidigare domännamn (inklusive upp till fem favoriter) till Google Gemini via Vercel AI Gateway för att skapa nya namnförslag. En Top 10-granskning skickar de tio namnen och temat för korta kommentarer. Utelämna känsliga eller konfidentiella uppgifter. AI verifierar inte tillgänglighet eller priser.",
     choice: "Utan tillstånd använder Sajda sin egen analys utan AI. Exakta domänkontroller, sökning och rangordning fungerar fortfarande. Kontroller hos domänregister och registratorer använder fortfarande externa tjänster.",
     allow: "Tillåt delning med Google Gemini", decline: "Behåll AI avstängt", revoke: "Stäng av AI-delning",
     persistence: "Valet gäller framtida förfrågningar i den här webbläsaren eller appen på denna enhet. Du kan ändra det här eller under Konto. När du stänger av kan redan skickade uppgifter inte tas tillbaka. Ändringen startar ingen sökning.",
@@ -17,7 +17,7 @@ export const aiPrivacyCopy = {
   },
   es: {
     title: "Ayuda de IA opcional", off: "Desactivada", on: "Activada",
-    disclosure: "Con tu permiso, Sajda envía tu descripción de búsqueda avanzada y su idioma, o los diez dominios mejor clasificados y el tema de búsqueda, a Google Gemini a través de Vercel AI Gateway. Gemini ayuda a interpretar la descripción o a redactar breves comentarios sobre los nombres. El texto puede contener datos personales; no incluyas información sensible o confidencial.",
+    disclosure: "Con tu permiso, Sajda envía el tema, la descripción del proyecto, el idioma y los criterios, junto con tus comentarios y hasta 50 dominios anteriores (incluidos hasta cinco favoritos), a Google Gemini mediante Vercel AI Gateway para generar nombres nuevos. La revisión Top 10 envía esos diez nombres y el tema para redactar comentarios breves. No incluyas información sensible o confidencial. La IA no verifica la disponibilidad ni los precios.",
     choice: "Sin permiso, Sajda utiliza su propio análisis sin IA. Las comprobaciones de dominios exactos, la búsqueda y la clasificación siguen funcionando. Las consultas a registros y registradores siguen utilizando servicios externos.",
     allow: "Permitir el envío a Google Gemini", decline: "Mantener la IA desactivada", revoke: "Desactivar el envío a la IA",
     persistence: "La elección se aplica a futuras solicitudes en este navegador o aplicación de este dispositivo. Puedes cambiarla aquí o en Cuenta. Desactivarla no permite recuperar datos ya enviados. Cambiar esta opción no inicia una búsqueda.",
@@ -25,7 +25,7 @@ export const aiPrivacyCopy = {
   },
   fr: {
     title: "Assistance IA facultative", off: "Désactivée", on: "Activée",
-    disclosure: "Avec votre accord, Sajda envoie votre description de recherche avancée et sa langue, ou vos dix noms de domaine les mieux classés et le thème de recherche, à Google Gemini via Vercel AI Gateway. Gemini aide à interpréter la description ou à rédiger de courts commentaires sur les noms. Votre texte peut contenir des données personnelles : n’incluez pas d’informations sensibles ou confidentielles.",
+    disclosure: "Avec votre accord, Sajda transmet le thème, le brief, la langue et les critères, ainsi que vos retours et jusqu’à 50 domaines précédents (dont cinq favoris au maximum), à Google Gemini via Vercel AI Gateway pour proposer de nouveaux noms. La revue Top 10 transmet ces dix noms et le thème pour de courts commentaires. N’incluez pas d’informations sensibles ou confidentielles. L’IA ne vérifie ni la disponibilité ni les prix.",
     choice: "Sans votre accord, Sajda utilise sa propre analyse sans IA. La vérification de domaines précis, la recherche et le classement restent disponibles. Les vérifications auprès des registres et des bureaux d’enregistrement utilisent toujours des services externes.",
     allow: "Autoriser le partage avec Google Gemini", decline: "Laisser l’IA désactivée", revoke: "Désactiver le partage avec l’IA",
     persistence: "Ce choix s’applique aux futures demandes de ce navigateur ou de cette application sur cet appareil. Vous pouvez le modifier ici ou dans Compte. Le désactiver ne permet pas de rappeler les données déjà envoyées. Cette modification ne lance aucune recherche.",
@@ -33,7 +33,7 @@ export const aiPrivacyCopy = {
   },
   zh: {
     title: "可选 AI 辅助", off: "已关闭", on: "已开启",
-    disclosure: "经你同意，Sajda 会将高级搜索说明及其语言，或排名前十的域名和搜索主题，通过 Vercel AI Gateway 发送给 Google Gemini。Gemini 用于理解说明或撰写简短的名称点评。你输入的文字可能包含个人信息，请勿填写敏感或机密信息。",
+    disclosure: "经你同意，Sajda 会通过 Vercel AI Gateway 向 Google Gemini 发送搜索主题、项目说明、语言、命名条件、反馈及最多 50 个先前的域名（其中最多五个为你喜欢的名称），以生成新名称。Top 10 点评会发送这十个名称及主题。请勿填写敏感或机密信息。AI 不会核验域名可用性或价格。",
     choice: "未经同意，Sajda 将使用自身的非 AI 分析。精确域名查询、搜索和排名仍可使用；域名注册局和注册商查询仍会使用外部服务。",
     allow: "允许向 Google Gemini 发送数据", decline: "保持 AI 关闭", revoke: "关闭 AI 数据共享",
     persistence: "此选择适用于此设备上当前浏览器或应用的后续请求。你可以在此处或“账户”中更改。关闭后无法撤回已经发送的数据。更改设置不会启动搜索。",

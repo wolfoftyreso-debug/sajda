@@ -1,5 +1,12 @@
 # Vercel AI Gateway — Sajda
 
+> Historical deployment evidence for 8 September. The 11 September refinement
+> replaces AI brief extraction with one contextual candidate-generation call.
+> Current permission, input categories, naming limits and fallback semantics are
+> documented in [AI privacy](AI-PRIVACY.md). `AI_GATEWAY_NAMING_MODEL` is explicitly
+> configured for Preview/Development; the old brief/review observations below
+> are not evidence for the new naming operation.
+
 ## Implemented and deployed
 
 Sajda's optional brief analysis and Deep Review editorial notes now use the

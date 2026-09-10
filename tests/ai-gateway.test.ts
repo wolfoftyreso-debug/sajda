@@ -12,7 +12,7 @@ function harness() {
   const logs: Record<string, string | number>[] = [];
   const state = { reserves: 0, releases: 0, tokens: 0 };
   const deps = {
-    env: { AI_GATEWAY_ENABLED: "true", AI_GATEWAY_BRIEF_MODEL: "google/gemini-2.5-flash-lite", AI_GATEWAY_REVIEW_MODEL: "google/gemini-2.5-flash-lite" } as NodeJS.ProcessEnv,
+    env: { AI_GATEWAY_ENABLED: "true", AI_GATEWAY_BRIEF_MODEL: "google/gemini-2.5-flash-lite", AI_GATEWAY_REVIEW_MODEL: "google/gemini-2.5-flash-lite", AI_GATEWAY_NAMING_MODEL: "google/gemini-3.1-flash-lite" } as NodeJS.ProcessEnv,
     fetch: (async (url, init) => { calls.push({ url: String(url), init }); return Response.json(completed()); }) as typeof fetch,
     token: async () => { state.tokens++; return "private-oidc-fixture"; },
     reserve: async () => { state.reserves++; return { allowed: true, reason: "allowed" as const, release: async () => { state.releases++; } }; },
@@ -33,9 +33,10 @@ test("Gateway uses request-time OIDC, fixed endpoint, bounded structured output 
   const request = createGatewayRequester(h.deps);
   assert.ok(await request(h.options));
   assert.ok(await request({ ...h.options, task: "review" }));
-  assert.equal(h.state.tokens, 2);
-  assert.equal(h.state.reserves, 2);
-  assert.equal(h.state.releases, 2);
+  assert.ok(await request({ ...h.options, task: "naming" }));
+  assert.equal(h.state.tokens, 3);
+  assert.equal(h.state.reserves, 3);
+  assert.equal(h.state.releases, 3);
   for (const [i, call] of h.calls.entries()) {
     assert.equal(call.url, "https://ai-gateway.vercel.sh/v1/responses");
     assert.equal(call.init?.redirect, "error");
@@ -43,7 +44,8 @@ test("Gateway uses request-time OIDC, fixed endpoint, bounded structured output 
     const body = JSON.parse(String(call.init?.body));
     assert.equal(body.store, false);
     assert.equal(body.stream, false);
-    assert.equal(body.max_output_tokens, i === 0 ? 600 : 1_400);
+    assert.equal(body.max_output_tokens, [600, 1_400, 1_800][i]);
+    assert.equal(body.model, i === 2 ? "google/gemini-3.1-flash-lite" : "google/gemini-2.5-flash-lite");
     assert.equal(body.text.format.strict, true);
     assert.equal(body.providerOptions.gateway.disallowPromptTraining, true);
     assert.equal(body.providerOptions.gateway.zeroDataRetention, true);
@@ -66,6 +68,11 @@ test("missing, declined, stale or ambiguous AI permission never obtains credenti
 });
 
 test("disabled/missing/unapproved model and oversized input never authenticate, reserve or fetch", async () => {
+  for (const model of ["", "unreviewed/expensive-model"]) {
+    const h = harness(); h.deps.env.AI_GATEWAY_NAMING_MODEL = model;
+    assert.equal(await createGatewayRequester(h.deps)({ ...h.options, task: "naming" }), undefined);
+    assert.deepEqual(h.state, { reserves: 0, releases: 0, tokens: 0 });
+  }
   for (const env of [{ AI_GATEWAY_ENABLED: "false" }, { AI_GATEWAY_BRIEF_MODEL: "" }, { AI_GATEWAY_BRIEF_MODEL: "unreviewed/expensive-model" }]) {
     const h = harness(); Object.assign(h.deps.env, env);
     assert.equal(await createGatewayRequester(h.deps)(h.options), undefined);

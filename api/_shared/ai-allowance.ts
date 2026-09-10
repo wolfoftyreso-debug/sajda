@@ -4,7 +4,7 @@ import { Pool } from "pg";
 
 type RequestHeaders = Record<string, string | string[] | undefined>;
 type AllowanceReason = "allowed" | "disabled" | "not_configured" | "missing_identity"
-  | "daily_limit" | "ip_daily_limit" | "ip_minute_limit" | "concurrency_limit" | "storage_unavailable";
+  | "daily_limit" | "ip_daily_limit" | "concurrency_limit" | "storage_unavailable";
 
 export interface AiAllowance {
   allowed: boolean;
@@ -162,20 +162,16 @@ export function createAiAllowanceReserver(dependencies: {
           WHERE namespace = $1 AND expires_at <= $3::timestamptz ORDER BY expires_at LIMIT 100
         )`, [namespace, day, instant]);
       const counters = await client.query(`/* ai:counters */
-        SELECT identity_hash, request_count, last_request_at, usage_day::text AS day
+        SELECT identity_hash, request_count, usage_day::text AS day
         FROM public.sajda_ai_allowance_counters
-        WHERE namespace = $1 AND usage_day BETWEEN $2::date - 1 AND $2::date
+        WHERE namespace = $1 AND usage_day = $2::date
           AND identity_hash IN ('global', $3)`, [namespace, day, identityHash]);
       const today = (identity: string) => counters.rows.find(row => row.day === day && row.identity_hash === identity);
       const globalCount = integer(today("global")?.request_count ?? 0);
       const ipCount = integer(today(identityHash)?.request_count ?? 0);
-      // Include yesterday so the rolling minute cannot be bypassed at midnight.
-      const recentIpRows = counters.rows.filter(row => row.identity_hash === identityHash);
-      const lastRequest = recentIpRows.length ? Math.max(...recentIpRows.map(row => timestamp(row.last_request_at))) : -Infinity;
       let reason: AllowanceReason | undefined;
       if (globalCount >= configured.dailyLimit) reason = "daily_limit";
       else if (ipCount >= IP_DAILY_REQUESTS) reason = "ip_daily_limit";
-      else if (now - lastRequest < 60_000) reason = "ip_minute_limit";
       else {
         const leases = await client.query("/* ai:active */ SELECT count(*)::integer AS active FROM public.sajda_ai_allowance_leases WHERE namespace = $1 AND expires_at > $2::timestamptz", [namespace, instant]);
         if (integer(leases.rows[0]?.active) >= MAX_CONCURRENT_REQUESTS) reason = "concurrency_limit";

@@ -53,8 +53,7 @@ class MemoryDatabase implements AiAllowancePool {
         } else if (operation === "counters") {
           const [namespace, day, identity] = values as string[];
           for (const row of counters!.values()) {
-            if (row.namespace === namespace && Date.parse(row.day) <= Date.parse(day)
-              && Date.parse(row.day) >= Date.parse(day) - 86_400_000
+            if (row.namespace === namespace && row.day === day
               && (row.identity_hash === "global" || row.identity_hash === identity)) rows.push({ ...row });
           }
         } else if (operation === "active") {
@@ -169,34 +168,35 @@ test("default global cap is 50 and configured cap never exceeds 100", async () =
   }
 });
 
-test("all AI task instances share three IP requests per UTC day and one per rolling minute", async () => {
+test("all AI task instances share three rapid IP requests per UTC day and deny the fourth", async () => {
   const { database, environment, reserve } = setup();
   const otherTask = createAiAllowanceReserver({ environment: () => environment, pool: () => database });
+  const instant = database.now;
   for (let index = 0; index < 3; index += 1) {
     const allowed = await (index % 2 ? otherTask : reserve)(headers());
     assert.equal(allowed.allowed, true);
     await allowed.release();
-    if (index < 2) {
-      database.now += 59_999;
-      assert.equal((await otherTask(headers())).reason, "ip_minute_limit");
-      database.now += 1;
-    }
   }
-  database.now += 60_000;
   assert.equal((await otherTask(headers())).reason, "ip_daily_limit");
+  assert.equal(database.now, instant);
+  assert.equal(database.leases.size, 0);
+  assert.ok([...database.counters.values()].every(row => row.request_count === 3));
 });
 
-test("midnight resets the daily cap but not the previous rolling minute", async () => {
+test("UTC midnight resets the daily cap without delaying the next naming request", async () => {
   const { database, reserve } = setup();
   database.now = Date.parse("2026-09-08T23:59:45.000Z");
-  await (await reserve(headers())).release();
-  database.now += 30_000;
-  assert.equal((await reserve(headers())).reason, "ip_minute_limit");
-  database.now += 30_000;
-  const nextDay = await reserve(headers());
-  assert.equal(nextDay.allowed, true);
-  await nextDay.release();
+  for (let day = 0; day < 2; day += 1) {
+    for (let request = 0; request < 3; request += 1) {
+      const allowed = await reserve(headers());
+      assert.equal(allowed.allowed, true);
+      await allowed.release();
+    }
+    assert.equal((await reserve(headers())).reason, "ip_daily_limit");
+    database.now += 30_000;
+  }
   assert.equal([...database.counters.values()].filter(row => row.identity_hash === "global").length, 2);
+  assert.ok([...database.counters.values()].every(row => row.request_count === 3));
 });
 
 test("parallel callers cannot reserve more than two global leases", async () => {
@@ -210,6 +210,32 @@ test("parallel callers cannot reserve more than two global leases", async () => 
   assert.equal(next.allowed, true);
   assert.equal(database.leases.size, 2);
   await Promise.all([...results.map(row => row.release()), next.release()]);
+});
+
+test("rapid requests from the same IP still obey two concurrent leases and the daily cap", async () => {
+  const { database, reserve } = setup();
+  const results = await Promise.all(Array.from({ length: 3 }, () => reserve(headers())));
+  assert.equal(results.filter(result => result.allowed).length, 2);
+  assert.equal(results.filter(result => result.reason === "concurrency_limit").length, 1);
+  assert.equal(database.leases.size, 2);
+  assert.ok([...database.counters.values()].every(row => row.request_count === 2));
+  await results.find(result => result.allowed)!.release();
+  const third = await reserve(headers());
+  assert.equal(third.allowed, true);
+  assert.equal(database.leases.size, 2);
+  assert.equal((await reserve(headers())).reason, "ip_daily_limit");
+  assert.ok([...database.counters.values()].every(row => row.request_count === 3));
+  await Promise.all([...results.map(result => result.release()), third.release()]);
+});
+
+test("concurrent refinement requests consume the last IP allowance exactly once", async () => {
+  const { database, reserve } = setup();
+  for (let request = 0; request < 2; request += 1) await (await reserve(headers())).release();
+  const results = await Promise.all([reserve(headers()), reserve(headers())]);
+  assert.equal(results.filter(result => result.allowed).length, 1);
+  assert.equal(results.filter(result => result.reason === "ip_daily_limit").length, 1);
+  assert.ok([...database.counters.values()].every(row => row.request_count === 3));
+  await Promise.all(results.map(result => result.release()));
 });
 
 test("a concurrent race for the last daily request consumes it exactly once", async () => {
@@ -254,7 +280,15 @@ test("uncertain commit denies the request and conservatively retains consumed qu
   assert.equal(database.counters.size, 2);
   assert.equal(database.leases.size, 1);
   database.fail = "";
-  assert.equal((await reserve(headers())).reason, "ip_minute_limit");
+  for (let request = 0; request < 2; request += 1) {
+    const retry = await reserve(headers());
+    assert.equal(retry.allowed, true);
+    assert.equal(database.leases.size, 2);
+    await retry.release();
+  }
+  assert.equal((await reserve(headers())).reason, "ip_daily_limit");
+  assert.ok([...database.counters.values()].every(row => row.request_count === 3));
+  assert.equal(database.leases.size, 1);
 });
 
 test("release failure is safe, does not refund and expires without manual intervention", async () => {
@@ -285,11 +319,20 @@ test("development, preview and production use separate namespaces and HMAC ident
 });
 
 test("equivalent IPv6 and IPv4-mapped representations cannot gain another allowance", async () => {
-  const { reserve } = setup();
-  await (await reserve(headers("192.0.2.1"))).release();
-  assert.equal((await reserve(headers("::ffff:192.0.2.1"))).reason, "ip_minute_limit");
-  await (await reserve(headers("2001:0db8:0000:0000:0000:0000:0000:0001"))).release();
-  assert.equal((await reserve(headers("2001:db8::1"))).reason, "ip_minute_limit");
+  const { database, reserve } = setup();
+  for (const aliases of [
+    ["192.0.2.1", "::ffff:192.0.2.1"],
+    ["2001:0db8:0000:0000:0000:0000:0000:0001", "2001:db8::1"],
+  ]) {
+    for (let request = 0; request < 3; request += 1) {
+      const allowed = await reserve(headers(aliases[request % 2]));
+      assert.equal(allowed.allowed, true);
+      await allowed.release();
+    }
+    assert.equal((await reserve(headers(aliases[1]))).reason, "ip_daily_limit");
+  }
+  assert.equal(database.counters.size, 3);
+  assert.equal([...database.counters.values()].find(row => row.identity_hash === "global")?.request_count, 6);
 });
 
 test("cleanup is bounded and migration is additive with server-only table privileges", async () => {

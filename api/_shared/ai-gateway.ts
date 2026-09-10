@@ -11,6 +11,7 @@ const MAX_RESPONSE_BYTES = 32_768;
 const TASK_LIMITS = {
   brief: { modelVariable: "AI_GATEWAY_BRIEF_MODEL", tokens: 600, timeout: 4_000 },
   review: { modelVariable: "AI_GATEWAY_REVIEW_MODEL", tokens: 1_400, timeout: 5_500 },
+  naming: { modelVariable: "AI_GATEWAY_NAMING_MODEL", tokens: 1_800, timeout: 6_500 },
 } as const;
 
 export interface AiRequestContext {

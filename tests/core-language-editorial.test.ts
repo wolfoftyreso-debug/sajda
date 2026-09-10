@@ -33,6 +33,80 @@ test("English is the editorial reference and saved domains never imply monitorin
   assert.equal(translate("sv", "domain.available"), "Ledig");
 });
 
+test("creative modes do not promise a fixed batch and account search copy stays accurate", () => {
+  const scopes = { en: "multiple naming directions", sv: "flera namnspår", es: "distintas ideas de nombres",
+    fr: "plusieurs pistes de noms", zh: "多种命名方向" };
+  const bounds = { en: "Up to 50", sv: "Upp till 50", es: "Hasta 50", fr: "Jusqu’à 50", zh: "最多 50" };
+  for (const language of languages) {
+    for (const mode of ["light", "medium", "heavy", "deep"] as const) {
+      assert.equal(translate(language, `mode.${mode}.scope`), scopes[language]);
+      assert.doesNotMatch(translate(language, `mode.${mode}.scope`), /\d/u);
+    }
+    assert.ok(translate(language, "search.target", { count: 50 }).startsWith(bounds[language]));
+    assert.doesNotMatch(translate(language, "search.registryNotice"), /DAS/u);
+  }
+  assert.equal(translate("en", "rationale.modeNote.public"), "Search results are not saved to your account automatically.");
+  assert.equal(translate("sv", "rationale.modeNote.public"), "Sökresultaten sparas inte automatiskt på ditt konto.");
+});
+
+test("free-search gate offers verified-account continuation, not a paid entitlement", async () => {
+  const key = "__SAJDA_FREE_GATE_EDITORIAL_LOCALE__";
+  const original = Object.getOwnPropertyDescriptor(globalThis, key);
+  const vite = await createServer({
+    configFile: false, appType: "custom",
+    server: { middlewareMode: true, watch: null, hmr: false, ws: false },
+    resolve: { alias: { "@": path.resolve("src") } },
+    optimizeDeps: { noDiscovery: true, include: [] }, esbuild: { jsx: "automatic" },
+    plugins: [{ name: "free-gate-editorial-fixtures", enforce: "pre", load(id) {
+      const file = id.replaceAll("\\", "/");
+      if (file.endsWith("/src/i18n/LanguageProvider.tsx")) return `export const useLanguage=()=>({language:globalThis.${key}});`;
+      if (file.endsWith("/src/contexts/ScanContext.tsx")) return "export const useScan=()=>({freeSearchGateOpen:true,closeFreeSearchGate:()=>{}});";
+      if (file.endsWith("/src/integrations/neon/auth.ts")) return "export let isAccountAuthConfigured=true; export const setConfigured=value=>{isAccountAuthConfigured=value};";
+      if (file.endsWith("/src/components/ui/dialog.tsx")) return `import {createElement as h} from 'react';
+        const element=tag=>props=>h(tag,null,props.children);
+        export const Dialog=element('section'),DialogContent=element('div'),DialogDescription=element('p'),
+          DialogFooter=element('footer'),DialogHeader=element('header'),DialogTitle=element('h2');`;
+    } }],
+  });
+  let renderer: ReactTestRenderer | undefined;
+  const bodyEvidence = {
+    en: ["verify your email", "limits still apply", "no subscription is required"],
+    sv: ["bekräfta din e-postadress", "Gränser för sökningar och AI", "Inget abonnemang krävs"],
+    es: ["verifica tu correo", "límites de búsqueda e IA", "No necesitas una suscripción"],
+    fr: ["confirmez votre adresse e-mail", "limites de recherche et d’IA", "Aucun abonnement n’est nécessaire"],
+    zh: ["验证邮箱", "额度限制", "无需订阅"],
+  };
+  try {
+    const { default: FreeSearchGate } = await vite.ssrLoadModule("/src/components/FreeSearchGate.tsx");
+    const { setConfigured } = await vite.ssrLoadModule("/src/integrations/neon/auth.ts");
+    const mount = async () => {
+      if (renderer) await act(async () => renderer!.unmount());
+      await act(async () => { renderer = create(h(MemoryRouter, { initialEntries: ["/?state=ready"] }, h(FreeSearchGate))); });
+    };
+    for (const language of languages) {
+      Object.defineProperty(globalThis, key, { configurable: true, value: language });
+      setConfigured(true);
+      await mount();
+      const content = text(renderer!.root);
+      for (const phrase of bodyEvidence[language]) assert.ok(content.includes(phrase), `${language}: ${phrase}`);
+      assert.doesNotMatch(content, /Premium|Trading|unlimited|does not unlock more|ger inte fler|no desbloquea más|ne débloque pas|不会增加/u);
+      const links = renderer!.root.findAllByType("a");
+      assert.equal(links.length, 2);
+      assert.equal(links[0].props.href, "/auth?next=%2F%3Fstate%3Dready");
+      assert.equal(links[1].props.href, "/auth?next=%2F%3Fstate%3Dready&mode=signup");
+      setConfigured(false);
+      await mount();
+      assert.equal(renderer!.root.findAllByType("a").length, 0);
+      assert.equal(renderer!.root.findAllByType("button").length, 1);
+      assert.ok(text(renderer!.root.findByType("h2")).trim());
+    }
+  } finally {
+    if (renderer) await act(async () => renderer!.unmount());
+    await vite.close();
+    if (original) Object.defineProperty(globalThis, key, original); else Reflect.deleteProperty(globalThis, key);
+  }
+});
+
 test("Trading and pricing metadata are localized without overriding market routes", () => {
   const original = Object.getOwnPropertyDescriptor(globalThis, "document");
   const fixture = { title: "", documentElement: { lang: "" }, querySelector: () => null };
@@ -135,7 +209,11 @@ test("search cards, review grammar and result trends render in all five language
       assert.equal(renderer!.root.findAllByType("a").length, 1);
       assert.equal(renderer!.root.findAllByType("a")[0].props.href, "/swipe");
       const cardText = text(renderer!.root);
-      assert.match(cardText, /100/u); assert.match(cardText, /50/u);
+      assert.match(cardText, /100/u);
+      assert.doesNotMatch(cardText, /50/u, "the naming card must work for both AI and rule-generated batches");
+      const namingDirections = { en: "Multiple naming directions", sv: "Flera namnspår", es: "Distintas ideas de nombres",
+        fr: "Plusieurs pistes de noms", zh: "多种命名方向" };
+      assert.ok(cardText.includes(namingDirections[language]));
       assert.doesNotMatch(cardText, /baraja|kurerat|语境/u);
       await mount(h(StatsCard, { title: "Fixture", value: 5, icon: () => null, trend: { value: 10, isPositive: true } }));
       assert.ok(text(renderer!.root).includes(trendWords[language]));

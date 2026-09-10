@@ -4,6 +4,14 @@ Prepared 2026-09-10 against source commit `27d04ce`. Scope: the native iPhone sh
 
 Status vocabulary: **SOURCE** means observed in the implementation/schema; **CONDITIONAL** means the path requires configuration, entitlement or user action; **UNKNOWN** requires deployment/provider/operator evidence. Table categories are engineering descriptions, not preselected Apple questionnaire answers. Optional consent does not by itself make a disclosure optional.
 
+Update 2026-09-11: the optional AI naming input now includes theme, full project
+brief, language, criteria and explicit refinement feedback (up to 50 prior names
+including up to 5 favorites), not just advanced-brief interpretation. Consent
+version is `2026-09-11` and older choices require a fresh opt-in. Feedback and
+the original brief remain in page memory, not persisted search snapshots or a
+new learning database. This supersedes the earlier AI-input row below; see the
+current [AI data inventory and permission contract](AI-PRIVACY.md).
+
 ## Architecture and scope
 
 - The app bundles the product UI separately from website SEO pages. Native requests use the configured HTTPS Sajda API origin; the website uses same-origin APIs. Both reach Vercel Functions and application-owned Neon PostgreSQL tables. Better Auth is a library running there, not a separate identity-hosting recipient. [Native shell](../src/app/NativeApp.tsx), [transport](../src/lib/nativeTransport.ts), [native plugin](../ios/App/App/SajdaNativePlugin.swift), [auth factory](../api/_shared/account-server.ts).

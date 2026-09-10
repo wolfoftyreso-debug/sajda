@@ -3,6 +3,7 @@ import { productFetch } from "./productFetch";
 import type { RegistrarOffer } from "@/lib/registrarOffer";
 import { translate, type Language } from "@/i18n/LanguageProvider";
 import type { AdvancedSearchCriteria } from "@/lib/advancedSearchCriteria";
+import { parseNamingGeneration, type NamingGeneration, type SearchRefinement } from "../../shared/search-refinement";
 
 /**
  * Stable API identifiers for the four basic creative-search cards. They stay
@@ -39,12 +40,14 @@ export interface AnonymousBriefAnalysis {
 
 export interface AnonymousSearchResponse {
   results: AnonymousSearchResult[];
+  generation?: NamingGeneration;
   briefAnalysis?: AnonymousBriefAnalysis;
   /** Present when the server applied a basic creative-search mode. */
   creativeMode?: AnonymousCreativeMode;
 }
 
 export interface AnonymousSearchOptions {
+  refinement?: SearchRefinement;
   /** Cancelling a search cancels the actual request, not just its UI. */
   signal?: AbortSignal;
   advanced?: boolean;
@@ -102,6 +105,7 @@ export async function runAnonymousSearch(
         minLength: options.swipe === true ? options.minLength : undefined,
         maxLength: options.swipe === true ? options.maxLength : undefined,
         creativeMode: options.creativeMode,
+        refinement: options.refinement,
       }),
       signal: controller.signal,
     });
@@ -111,6 +115,7 @@ export async function runAnonymousSearch(
       briefAnalysis?: unknown;
       analysis?: unknown;
       creativeMode?: unknown;
+      generation?: unknown;
     };
     if (!response.ok) throw new Error(payload.error || translate(language, "toast.searchFailed"));
     if (!Array.isArray(payload.results)) throw new Error(translate(language, "toast.invalidResponse"));
@@ -118,6 +123,7 @@ export async function runAnonymousSearch(
       results: payload.results.filter(isAnonymousSearchResult),
       briefAnalysis: normaliseBriefAnalysis(payload.briefAnalysis ?? payload.analysis),
       creativeMode: normaliseCreativeMode(payload.creativeMode),
+      generation: parseNamingGeneration(payload.generation),
     };
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {

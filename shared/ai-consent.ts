@@ -1,5 +1,5 @@
 /** Bump when recipients, data categories or purposes change. Never infer consent. */
-export const AI_CONSENT_VERSION = "2026-09-10" as const;
+export const AI_CONSENT_VERSION = "2026-09-11" as const;
 export type AiConsent = { version: typeof AI_CONSENT_VERSION; accepted: true };
 
 export function hasCurrentAiConsent(value: unknown): value is AiConsent {

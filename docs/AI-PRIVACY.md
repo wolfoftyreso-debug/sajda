@@ -1,6 +1,6 @@
 # AI data sharing and permission
 
-Implemented 2026-09-10. This documents the actual transport and permission boundary, not a claim of legal or App Store approval.
+Updated 2026-09-11. This documents the actual transport and permission boundary, not a claim of legal or App Store approval.
 
 ## Data and recipients
 
@@ -8,21 +8,27 @@ Only two operations can currently call third-party AI:
 
 | Action | Input sent | Purpose |
 | --- | --- | --- |
-| Advanced creative search | Normalized brief text and requested output language | Interpret themes and naming directions |
+| Creative search and refinement | Theme, project brief, language, criteria, explicit rejection reasons and up to 50 previous names (including up to 5 favorites) | Generate candidate labels across descriptive, evocative, compound and invented naming directions |
 | Deep Review | Search theme, output language and deterministic Top 10 domain names | Write concise editorial notes; cannot alter ranking |
 
 Both use Google Gemini through Vercel AI Gateway. Gateway inference is restricted to the `google` and `vertex` providers, so a provider fallback cannot silently add an undisclosed recipient. Credentials, account email, payment details and account IDs are not prompt fields. Users can nevertheless type personal or confidential data into a brief or theme; the disclosure says not to do so.
 
 The existing gateway requests `store: false`, `disallowPromptTraining: true` and `zeroDataRetention: true`. These are configuration controls, not a verified assertion that no operational metadata is retained anywhere. No universal retention or deletion guarantee is displayed in the consent UI. Production provider agreements, actual routing settings and privacy declarations still need operator verification.
 
-Exact availability checks, normal creative generation, Swipe, deterministic ranking, local logo SVGs and local marketplace descriptions do not call AI. Registry and registrar lookups still use external services. "AI off" never means all processing stays on the device.
+Exact availability checks, Swipe, deterministic ranking, local logo SVGs and local marketplace descriptions do not call AI. Creative search without permission uses server-side rules. Registry and registrar lookups still use external services. "AI off" never means all processing stays on the device.
+
+Creative generation makes at most one Gateway request per search, with an allowlisted model, 1,800 output tokens and a 6.5-second provider deadline inside the bounded search runtime. It accepts at most 24 distinct labels for independent registry verification. The model cannot supply availability, prices, ratings or valuations. Fewer returned names are not padded with rule-generated names and mislabelled as AI. Unusable or unavailable AI output falls back to local rules, with the source and fallback reason in the response.
+
+Naming, refinement and review share a durable allowance: three requests per IP per UTC day, 50 requests per environment per UTC day by default (configurable up to 100), and at most two concurrent requests with 20-second leases. Completed requests can follow immediately; there is no per-minute wait. Failed attempts still consume quota. Database uncertainty fails closed, and signing in does not bypass these limits. This removes a delay, not a daily spending cap.
+
+The original search and feedback remain in the active page's memory for refinement. The original brief and feedback are not added to persistent result storage or a new server learning database. Explicit refinement starts a new search; showing the next ten cached results does not. The previous list remains visible if refinement fails or returns no results. Favorites selected for refinement are style references, not saved account domains.
 
 ## Consent contract
 
-The product endpoints `/api/domain-search` (advanced creative briefs only) and `/api/deep-review` accept:
+The product endpoints `/api/domain-search` (creative searches only) and `/api/deep-review` accept:
 
 ```json
-{"aiConsent":{"version":"2026-09-10","accepted":true}}
+{"aiConsent":{"version":"2026-09-11","accepted":true}}
 ```
 
 Missing consent selects non-AI processing. Declined, malformed, extra-field or outdated supplied consent returns HTTP 400 with `code: ai_consent_invalid`. The gateway independently refuses credential lookup, AI allowance reservation and provider transport without this exact current permission. Exact domain checks never call AI, even with permission.
@@ -33,13 +39,13 @@ Users can revoke in the search/review controls, Account, or the signed-out Legal
 
 ## API and MCP
 
-The stable `/api/v1/public/domains`, `/api/v1/domains` and MCP `domains_search`/`domains_check` contracts do not accept advanced briefs and never invoke third-party AI. Their strict schemas reject `advanced`, `brief` and `aiConsent`. Do not invent AI support in these interfaces. A future AI tool must publish the same versioned disclosure and require explicit informed permission from the affected user; API-key possession alone is insufficient.
+The stable `/api/v1/public/domains`, `/api/v1/domains` and MCP `domains_search`/`domains_check` contracts do not accept advanced briefs and never invoke third-party AI. Their strict schemas reject `advanced`, `brief`, `refinement` and `aiConsent`. The new refinement contract is for the web/native product transport, not an undocumented API/MCP feature. A future AI tool must publish the same versioned disclosure and require explicit informed permission from the affected user; API-key possession alone is insufficient.
 
 ## Evidence and limits
 
 Tests cover strict consent parsing; real endpoint rejection; local review with AI configured but no permission and zero external calls; gateway refusal before credential/quota access; five-language mounted opt-in/decline/revoke controls; persisted choice; cross-tab revocation; and actual web/native product-transport branches with mocked provider boundaries. No paid provider call, email or account mutation is needed for these tests.
 
-The existing opt-in runtime probe `scripts/check-ai-gateway-runtime.mjs` now requires `--allow-ai-sharing` for AI modes. That flag permits sending only its documented synthetic fixtures to Google Gemini through Vercel and may consume paid allowance. The exact-domain probe defaults to no AI. This revision did not run an external provider probe.
+The opt-in runtime probe `scripts/check-ai-gateway-runtime.mjs` requires `--allow-ai-sharing` for AI modes. Run with `node --import tsx`. That flag permits sending only its documented synthetic fixtures to Google Gemini through Vercel and may consume paid allowance. The `refinement` mode performs two bounded naming requests and verifies that prior labels are excluded. The exact-domain probe defaults to no AI. Runtime evidence is recorded separately; the existence of this script does not prove a provider call succeeded.
 
 Physical-device accessibility, production privacy-policy operator review and App Store privacy declarations remain release gates. Consent implementation is not a substitute for them.
 
