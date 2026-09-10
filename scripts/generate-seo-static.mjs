@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createServer } from "vite";
 import {
   SEO_PAGES,
   canonicalUrl,
@@ -43,135 +44,6 @@ function safeJson(value) {
     .replace(/\u2029/g, "\\u2029");
 }
 
-function seoStyles() {
-  return `<style data-sajda-seo-static>
-    .sajda-seo-page { max-width: 960px; margin: 0 auto; padding: 40px 24px 72px; color: #111b33; background: #f7faff; font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif; }
-    .sajda-seo-skip { position: absolute; left: -9999px; }
-    .sajda-seo-skip:focus { left: 24px; top: 16px; z-index: 2; padding: 10px 14px; border-radius: 8px; background: #fff; color: #111b33; box-shadow: 0 4px 18px rgba(20, 43, 80, .16); }
-    .sajda-seo-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding-bottom: 26px; border-bottom: 1px solid #d7e3f6; }
-    .sajda-seo-brand { color: #1477e8; font-size: 1.35rem; font-weight: 800; letter-spacing: -.04em; text-decoration: none; }
-    .sajda-seo-nav { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 12px 18px; font-size: .9rem; }
-    .sajda-seo-nav a, .sajda-seo-links a { color: #225a9d; text-decoration: none; }
-    .sajda-seo-nav a:hover, .sajda-seo-links a:hover { text-decoration: underline; }
-    .sajda-seo-hero { padding: 70px 0 44px; }
-    .sajda-seo-eyebrow { margin: 0 0 12px; color: #1477e8; font-size: .78rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
-    .sajda-seo-page h1 { max-width: 800px; margin: 0; color: #111b33; font-size: clamp(2.15rem, 5vw, 4.2rem); line-height: 1.02; letter-spacing: -.065em; }
-    .sajda-seo-lead { max-width: 700px; margin: 22px 0 0; color: #506785; font-size: clamp(1.05rem, 2vw, 1.3rem); line-height: 1.65; }
-    .sajda-seo-action { display: inline-flex; align-items: center; margin-top: 28px; padding: 13px 18px; border-radius: 12px; background: #1477e8; color: #fff; font-weight: 800; text-decoration: none; box-shadow: 0 10px 24px rgba(20, 119, 232, .21); }
-    .sajda-seo-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
-    .sajda-seo-card, .sajda-seo-method { border: 1px solid #d7e3f6; border-radius: 18px; background: rgba(255, 255, 255, .82); padding: 24px; }
-    .sajda-seo-card h2, .sajda-seo-links h2, .sajda-seo-method h2 { margin: 0 0 10px; font-size: 1.12rem; letter-spacing: -.03em; }
-    .sajda-seo-card p, .sajda-seo-method p { margin: 0; color: #506785; line-height: 1.65; }
-    .sajda-seo-links { margin-top: 18px; padding: 26px 0; border-top: 1px solid #d7e3f6; }
-    .sajda-seo-links ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 24px; margin: 14px 0 0; padding: 0; list-style: none; }
-    .sajda-seo-method { margin-top: 18px; background: #ecf5ff; }
-    .sajda-seo-footer { margin-top: 38px; color: #70839d; font-size: .84rem; }
-    @media (max-width: 640px) { .sajda-seo-page { padding: 24px 18px 52px; } .sajda-seo-header { align-items: flex-start; flex-direction: column; } .sajda-seo-nav { justify-content: flex-start; } .sajda-seo-hero { padding: 48px 0 32px; } .sajda-seo-grid, .sajda-seo-links ul { grid-template-columns: 1fr; } }
-  </style>`;
-}
-
-function breadcrumbJsonLd(page, canonical) {
-  // Only emit locations that exist today. Some page copy has a conceptual
-  // category (for example "Toppdomäner"), but that category does not have a
-  // public canonical URL yet and must not be invented in structured data.
-  const items = [
-    {
-      "@type": "ListItem",
-      position: 1,
-      name: "Sajda",
-      item: canonicalUrl("/se", canonicalOrigin),
-    },
-  ];
-
-  if (page.path !== "/se") {
-    items.push({
-      "@type": "ListItem",
-      position: 2,
-      name: page.breadcrumb.at(-1),
-      item: canonical,
-    });
-  }
-
-  return {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: items,
-  };
-}
-
-function pageJsonLd(page, canonical) {
-  return {
-    "@context": "https://schema.org",
-    "@type": "WebPage",
-    name: page.h1,
-    description: page.description,
-    url: canonical,
-    inLanguage: "sv-SE",
-    isPartOf: {
-      "@type": "WebSite",
-      name: "Sajda",
-      url: canonicalOrigin,
-    },
-  };
-}
-
-function renderStaticContent(page) {
-  const navigation = [
-    { label: "Sök domän", path: "/se/sok-doman" },
-    { label: "Hitta namn", path: "/se/domannamn-generator" },
-    { label: "Företagsnamn", path: "/se/foretagsnamn-generator" },
-    { label: "Domänändelser", path: "/se/toppdomaner" },
-    { label: "Domänguide", path: "/se/guide" },
-    { label: ".se eller .com", path: "/se/guide/se-eller-com" },
-    { label: "Så fungerar Sajda", path: "/se/sa-fungerar-sajda" },
-  ];
-
-  const cards = page.sections
-    .map(
-      (section) => `<article class="sajda-seo-card">
-        <h2>${escapeHtml(section.heading)}</h2>
-        <p>${escapeHtml(section.body)}</p>
-      </article>`,
-    )
-    .join("\n");
-
-  const links = page.links
-    .map(
-      (link) => `<li><a href="${escapeHtml(link.path)}">${escapeHtml(link.label)} <span aria-hidden="true">→</span></a></li>`,
-    )
-    .join("\n");
-
-  return `<main class="sajda-seo-page" id="sajda-seo-content">
-    <a class="sajda-seo-skip" href="#sajda-seo-main">Hoppa till innehållet</a>
-    <header class="sajda-seo-header">
-      <a class="sajda-seo-brand" href="/se" aria-label="Sajda, svensk startsida">sajda</a>
-      <nav class="sajda-seo-nav" aria-label="Sajda navigation">
-        ${navigation
-          .map((link) => `<a href="${escapeHtml(link.path)}">${escapeHtml(link.label)}</a>`)
-          .join("\n")}
-      </nav>
-    </header>
-    <section class="sajda-seo-hero" id="sajda-seo-main">
-      <p class="sajda-seo-eyebrow">Sajda · domänbeslut</p>
-      <h1>${escapeHtml(page.h1)}</h1>
-      <p class="sajda-seo-lead">${escapeHtml(page.lead)}</p>
-      <a class="sajda-seo-action" href="${escapeHtml(page.actionPath)}">${escapeHtml(page.actionLabel)} <span aria-hidden="true">→</span></a>
-    </section>
-    <section class="sajda-seo-grid" aria-label="Om denna sida">
-      ${cards}
-    </section>
-    <section class="sajda-seo-links" aria-labelledby="sajda-seo-next">
-      <h2 id="sajda-seo-next">Fortsätt i Sajda</h2>
-      <ul>${links}</ul>
-    </section>
-    <aside class="sajda-seo-method" aria-labelledby="sajda-seo-method-title">
-      <h2 id="sajda-seo-method-title">Metod och aktualitet</h2>
-      <p>Sajda använder registry- och leverantörskällor när en domän kan kontrolleras. Status, pris och villkor kan ändras efter kontrollen, så bekräfta alltid underlaget hos den leverantör du väljer innan köp.</p>
-    </aside>
-    <footer class="sajda-seo-footer">Sajda hjälper dig att hitta och undersöka domänalternativ. Du fattar det slutliga köpbeslutet.</footer>
-  </main>`;
-}
-
 function replaceRequired(html, expression, replacement, label) {
   if (!expression.test(html)) {
     throw new Error(`Could not find ${label} in the Vite HTML shell.`);
@@ -180,15 +52,14 @@ function replaceRequired(html, expression, replacement, label) {
   return html.replace(expression, replacement);
 }
 
-function renderPageHtml(shell, page) {
+function renderPageHtml(shell, page, markup, records) {
   const canonical = canonicalUrl(page.path, canonicalOrigin);
-  const alternate = `<link rel="alternate" hreflang="sv-SE" href="${escapeHtml(canonical)}" />`;
-  const jsonLd = [pageJsonLd(page, canonical), breadcrumbJsonLd(page, canonical)]
-    .map((item) => `<script type="application/ld+json">${safeJson(item)}</script>`)
+  const alternate = `<link rel="alternate" hreflang="sv-SE" href="${escapeHtml(canonical)}" data-sajda-seo-document />`;
+  const jsonLd = records
+    .map((item) => `<script type="application/ld+json" data-sajda-seo-document>${safeJson(item)}</script>`)
     .join("\n");
   const staticHead = [
     alternate,
-    seoStyles(),
     jsonLd,
   ].join("\n");
 
@@ -253,7 +124,7 @@ function renderPageHtml(shell, page) {
   html = replaceRequired(
     html,
     /<div\s+id=(['"])root\1><\/div>/i,
-    `<div id="root">${renderStaticContent(page)}</div>`,
+    `<div id="root">${markup}</div>`,
     "the React root",
   );
 
@@ -265,8 +136,8 @@ function validateRenderedPage(page, html) {
   const requiredFragments = [
     `<title>${escapeHtml(page.title)}</title>`,
     `<link rel="canonical" href="${escapeHtml(canonical)}" />`,
-    `<link rel="alternate" hreflang="sv-SE" href="${escapeHtml(canonical)}" />`,
-    `<h1>${escapeHtml(page.h1)}</h1>`,
+    `<link rel="alternate" hreflang="sv-SE" href="${escapeHtml(canonical)}" data-sajda-seo-document />`,
+    escapeHtml(page.h1),
     '<script type="module" crossorigin src="/assets/',
     '<link rel="stylesheet" crossorigin href="/assets/',
   ];
@@ -275,7 +146,7 @@ function validateRenderedPage(page, html) {
     throw new Error(`Static SEO validation failed for ${page.path}.`);
   }
 
-  if ((html.match(/application\/ld\+json/g) || []).length !== 2) {
+  if ((html.match(/application\/ld\+json/g) || []).length !== (page.path === "/se" ? 1 : 2)) {
     throw new Error(`Static SEO structured-data validation failed for ${page.path}.`);
   }
 }
@@ -311,16 +182,37 @@ async function main() {
     throw new Error(`Cannot generate SEO pages because ${outputLabel}/index.html does not exist. Run Vite first.`, { cause: error });
   }
 
-  await Promise.all(
-    SEO_PAGES.map(async (page) => {
-      const filename = `${page.path.slice(1)}.html`;
-      const target = resolve(outputDirectory, filename);
-      const html = renderPageHtml(shell, page);
+  // A stable build policy also travels with the interactive shell. Client-side
+  // navigation may never infer indexability from a preview hostname or erase an
+  // explicit production noindex choice.
+  shell = shell.replace(/<meta\s+name="sajda-seo-indexing"[^>]*>\s*/giu, "");
+  shell = replaceRequired(shell, /<\/head>/i,
+    `<meta name="sajda-seo-indexing" content="${noindex ? "noindex" : "index"}" />\n</head>`, "the head closing tag");
+  shell = shell.replace(/https:\/\/sajda\.dev\//g, `${canonicalOrigin}/`);
+  await writeFile(shellPath, shell, "utf8");
+
+  const renderer = await createServer({
+    configFile: false, root: projectRoot, mode: "production", appType: "custom",
+    optimizeDeps: { noDiscovery: true, include: [] },
+    resolve: { alias: { "@": resolve(projectRoot, "src") } },
+    server: { middlewareMode: true, hmr: false, watch: null },
+  });
+  try {
+    const { renderSeoPage, seoDocuments, seoStructuredData } = await renderer.ssrLoadModule("/scripts/render-seo-page.tsx");
+    await Promise.all(SEO_PAGES.map(async page => {
+      const document = seoDocuments.find(item => item.path === page.path);
+      for (const key of ["title", "description", "h1"]) {
+        if (!document || document[key] !== page[key]) throw new Error(`Static/client SEO ${key} mismatch for ${page.path}.`);
+      }
+      const target = resolve(outputDirectory, `${page.path.slice(1)}.html`);
+      const html = renderPageHtml(shell, page, renderSeoPage(page.path), seoStructuredData(document, canonicalOrigin));
       validateRenderedPage(page, html);
       await mkdir(dirname(target), { recursive: true });
       await writeFile(target, html, "utf8");
-    }),
-  );
+    }));
+  } finally {
+    await renderer.close();
+  }
 
   await Promise.all([
     writeFile(resolve(outputDirectory, "sitemap.xml"), sitemapXml(), "utf8"),

@@ -76,7 +76,8 @@ test("native product routes, navigation, sign-in and payment boundaries", async 
       }
       await mount(h(More), "/more");
       const destinations = renderer!.root.findAllByType("a").map(link => link.props.href);
-      for (const route of ["/marketplace", "/developers", "/pricing", "/history", "/my-domains", "/top-10-today", "/help", "/contact", "/legal#privacy", "/legal#terms", "/security", "/status"]) assert.ok(destinations.includes(route), route);
+      for (const route of ["/marketplace", "/developers", "/pricing", "/help", "/contact", "/legal#privacy", "/legal#terms", "/security", "/status"]) assert.ok(destinations.includes(route), route);
+      for (const unsupported of ["/history", "/my-domains", "/top-10-today"]) assert.equal(destinations.includes(unsupported), false, `Do not advertise unavailable legacy feature ${unsupported}`);
       assert.equal(destinations.some(route => /^\/(story|se|install)(\/|$)/u.test(route)), false);
     });
 

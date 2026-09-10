@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowLeft,
@@ -16,12 +15,6 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SEO_CANONICAL_ORIGIN } from "@/lib/seoCanonicalOrigin";
-
-const PAGE_PATH = "/se/sa-fungerar-sajda";
-const PAGE_TITLE = "Så fungerar Sajda — underlag för ditt domänval | Sajda";
-const PAGE_DESCRIPTION = "Se hur Sajda hittar, kontrollerar och jämför domännamn. Status, priskällor och osäkerhet visas så att du kan välja själv.";
-
 const process = [
   {
     icon: Search,
@@ -70,77 +63,7 @@ const pricePrinciples = [
   "När Sajda saknar ett färskt pris pekar tjänsten vidare i stället för att fylla ut en siffra.",
 ] as const;
 
-function setHeadAttribute(selector: string, attribute: string, value: string): () => void {
-  const existing = document.head.querySelector<HTMLElement>(selector);
-  const previous = existing?.getAttribute(attribute);
-
-  if (existing) {
-    existing.setAttribute(attribute, value);
-    return () => {
-      if (previous === null) existing.removeAttribute(attribute);
-      else existing.setAttribute(attribute, previous);
-    };
-  }
-
-  const tagName = selector.startsWith("link") ? "link" : "meta";
-  const created = document.createElement(tagName);
-  if (tagName === "link") created.setAttribute("rel", "canonical");
-  else if (selector.includes("description")) created.setAttribute("name", "description");
-  else created.setAttribute("name", "robots");
-  created.setAttribute(attribute, value);
-  document.head.appendChild(created);
-  return () => created.remove();
-}
-
-function setMetaContent(attribute: "name" | "property", key: string, content: string): () => void {
-  const selector = `meta[${attribute}='${key}']`;
-  const existing = document.head.querySelector<HTMLMetaElement>(selector);
-  const previous = existing?.content;
-
-  if (existing) {
-    existing.content = content;
-    return () => {
-      existing.content = previous ?? "";
-    };
-  }
-
-  const created = document.createElement("meta");
-  created.setAttribute(attribute, key);
-  created.content = content;
-  document.head.appendChild(created);
-  return () => created.remove();
-}
-
-/**
- * Swedish public trust page. It deliberately stays independent from the
- * SEO-page manifest so it can be integrated as a dedicated canonical route.
- */
 export default function SajdaMethodology() {
-  useEffect(() => {
-    const previousTitle = document.title;
-    const description = document.querySelector<HTMLMetaElement>("meta[name='description']");
-    const previousDescription = description?.content;
-    const cleanups = [
-      setHeadAttribute("link[rel='canonical']", "href", `${SEO_CANONICAL_ORIGIN}${PAGE_PATH}`),
-      setHeadAttribute("meta[name='robots']", "content", "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"),
-      setMetaContent("property", "og:title", PAGE_TITLE),
-      setMetaContent("property", "og:description", PAGE_DESCRIPTION),
-      setMetaContent("property", "og:url", `${SEO_CANONICAL_ORIGIN}${PAGE_PATH}`),
-      setMetaContent("property", "og:locale", "sv_SE"),
-      setMetaContent("name", "twitter:title", PAGE_TITLE),
-      setMetaContent("name", "twitter:description", PAGE_DESCRIPTION),
-    ];
-
-    document.title = PAGE_TITLE;
-    description?.setAttribute("content", PAGE_DESCRIPTION);
-
-    return () => {
-      document.title = previousTitle;
-      if (description && previousDescription) description.setAttribute("content", previousDescription);
-      cleanups.reverse().forEach((cleanup) => cleanup());
-    };
-  }, []);
-
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-20 border-b border-border/80 bg-card/95 backdrop-blur-xl">

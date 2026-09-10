@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpRight, Check, Copy, Download, ExternalLink, FileCode2, Link2, ShieldCheck } from "lucide-react";
 import { useLanguage, type Language } from "@/i18n/LanguageProvider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { isNativeApp } from "@/lib/appSurface";
+import { nativeShareFile } from "@/lib/nativeTransport";
+import { nativeExportCopy } from "@/app/nativeExportCopy";
 
 export interface SaleLandingGeneratorProps {
   /** The exact domain being offered for sale, for example `example.com`. */
@@ -492,6 +495,8 @@ export default function SaleLandingGenerator({
   const { language } = useLanguage();
   const strings = saleLandingCopy[language];
   const [downloadStatus, setDownloadStatus] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const exportPending = useRef(false);
   const [copied, setCopied] = useState(false);
   const [configuredListingUrl, setConfiguredListingUrl] = useState(listingUrl);
 
@@ -521,9 +526,18 @@ export default function SaleLandingGenerator({
     [isListingDeployable, language, resolvedContactUrl, resolvedDescription, resolvedDomain, resolvedListingUrl, resolvedPrice],
   );
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
+    if (!isListingDeployable || exportPending.current) return;
+    exportPending.current = true; setExporting(true); setDownloadStatus("");
+    let objectUrl: string | undefined;
+    try {
+    if (isNativeApp) {
+      const result = await nativeShareFile("index.html", downloadDocument);
+      setDownloadStatus(result.completed ? nativeExportCopy[language].completed : nativeExportCopy[language].cancelled);
+      return;
+    }
     const blob = new Blob([downloadDocument], { type: "text/html;charset=utf-8" });
-    const objectUrl = URL.createObjectURL(blob);
+    objectUrl = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = objectUrl;
     anchor.download = "index.html";
@@ -531,8 +545,10 @@ export default function SaleLandingGenerator({
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
-    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+    const url = objectUrl; window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     setDownloadStatus(strings.downloaded);
+    } catch { if (objectUrl) URL.revokeObjectURL(objectUrl); setDownloadStatus(nativeExportCopy[language].failed); }
+    finally { exportPending.current = false; setExporting(false); }
   };
 
   const handleCopyLink = async () => {
@@ -700,12 +716,12 @@ export default function SaleLandingGenerator({
           <p className="mt-5 text-sm leading-6 text-muted-foreground">{strings.disclosure}</p>
 
           <div className="mt-auto pt-6">
-            <Button type="button" onClick={handleDownload} className="w-full" disabled={!isListingDeployable}>
+            <Button type="button" onClick={() => void handleDownload()} className="h-auto min-h-11 w-full whitespace-normal py-3" disabled={!isListingDeployable || exporting} aria-busy={exporting}>
               <Download className="h-4 w-4" aria-hidden="true" />
-              {strings.download}
+              {isNativeApp ? `${nativeExportCopy[language].action} HTML` : strings.download}
             </Button>
             <p className="mt-3 text-center text-xs leading-5 text-muted-foreground">{strings.downloadHint}</p>
-            <p className="sr-only" aria-live="polite" role="status">{downloadStatus}</p>
+            <p className="mt-3 text-center text-sm leading-6 text-muted-foreground" aria-live="polite" role="status">{downloadStatus}</p>
           </div>
         </aside>
       </div>

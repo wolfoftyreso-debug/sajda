@@ -63,6 +63,7 @@ export interface SeoProductPage {
   faqs: Array<{
     question: string;
     answer: string;
+    source?: { title: string; url: string; reviewedAt: string };
   }>;
   related: SeoProductPageId[];
 }
@@ -407,6 +408,7 @@ export const seoProductPages: Record<SeoProductPageId, SeoProductPage> = {
     faqs: [
       { question: "Måste en .app-domän användas av en app?", answer: "Nej, men ändelsen blir mest begriplig när den har en tydlig koppling till produkten eller tjänsten. Låt användningen avgöra, inte bara utseendet på adressen." },
       { question: "Kan jag testa .app och .com tillsammans?", answer: "Ja. Välj båda i Sajdas arbetsyta och kontrollera varje adress som en egen möjlighet innan du bestämmer dig." },
+      { question: "Behöver en webbplats på .app HTTPS?", answer: "Ja. Google Registry har lagt hela .app på webbläsarnas förinlästa HSTS-lista. Webbplatsen behöver därför fungerande HTTPS, även om den bara ska omdirigera besökaren. Kontrollera att ditt webbhotell ordnar ett giltigt certifikat innan du publicerar.", source: { title: "Google Registry: .app", url: "https://www.registry.google/domains/app/", reviewedAt: "2026-09-10" } },
     ],
     related: ["top-domains", "tld-ai", "tld-dev", "tld-com", "company-generator"],
   }),
@@ -425,6 +427,7 @@ export const seoProductPages: Record<SeoProductPageId, SeoProductPage> = {
     faqs: [
       { question: "När passar .dev?", answer: "När utvecklare, teknisk dokumentation eller en digital byggprocess är central för projektet. För en bred konsumentprodukt kan en annan ändelse vara lättare att läsa i sitt sammanhang." },
       { question: "Kan ett vanligt företag använda .dev?", answer: "Ja, men ändelsen bör hjälpa snarare än förvirra målgruppen. Pröva hur adressen kommer att användas i kommunikation, e-post och produktens egna gränssnitt." },
+      { question: "Fungerar .dev utan HTTPS?", answer: "Nej, inte för webbplatser i webbläsare som använder HSTS-listan. Google Registry har lagt hela .dev på den förinlästa listan, vilket kräver HTTPS. Ordna ett giltigt certifikat hos webbhotellet och räkna inte med att en vanlig HTTP-omdirigering räcker.", source: { title: "Google Registry: .dev", url: "https://www.registry.google/domains/dev/", reviewedAt: "2026-09-10" } },
     ],
     related: ["top-domains", "tld-app", "tld-ai", "tld-com", "domain-generator"],
   }),

@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { selectSimulatorTarget } from "../scripts/ios-simulator-target.mjs";
 
 // Command-harness contracts only: execute the actual embedded Node helper with
 // harmless local child processes. These tests do not run bash, Xcode or simctl,
@@ -63,4 +64,45 @@ test("iOS smoke command-harness contract: short deadline terminates a hanging ch
   assert.equal(result.finished.status, null);
   assert.equal(result.finished.signal, "SIGKILL");
   assert.equal(result.finished.error, "ETIMEDOUT");
+});
+
+const oldRuntime = "com.apple.CoreSimulator.SimRuntime.iOS-26-2";
+const activeRuntime = "com.apple.CoreSimulator.SimRuntime.iOS-26-5";
+const phoneType = "com.apple.CoreSimulator.SimDeviceType.iPhone-17";
+const inventory = () => ({
+  runtimes: [
+    { identifier: oldRuntime, version: "26.2", isAvailable: true },
+    { identifier: activeRuntime, version: "26.5", isAvailable: true },
+  ],
+  devicetypes: [{ identifier: phoneType, name: "iPhone 17" }],
+  devices: {
+    [oldRuntime]: [{ name: "iPhone 17", deviceTypeIdentifier: phoneType, isAvailable: true }],
+    [activeRuntime]: [{ name: "iPhone 17", deviceTypeIdentifier: phoneType, isAvailable: true }],
+  },
+});
+
+test("iOS smoke runtime selection follows the active SDK instead of first enumeration order", () => {
+  assert.deepEqual(selectSimulatorTarget(inventory(), "26.5"), {
+    runtimeIdentifier: activeRuntime, deviceTypeIdentifier: phoneType, runtimeVersion: "26.5", deviceName: "iPhone 17",
+  });
+  assert.equal(selectSimulatorTarget(inventory(), "26.5.1").runtimeIdentifier, activeRuntime);
+});
+
+test("iOS smoke runtime selection refuses unavailable, wrong-platform and unmatched runtimes", () => {
+  assert.throws(() => selectSimulatorTarget(inventory(), "27.0"), /No available iPhone runtime matches/u);
+  assert.throws(() => selectSimulatorTarget(inventory(), "latest"), /Unknown iOS Simulator SDK/u);
+  const unavailable = inventory(); unavailable.runtimes[1].isAvailable = false;
+  assert.throws(() => selectSimulatorTarget(unavailable, "26.5"), /No available iPhone runtime matches/u);
+  const missingPhone = inventory(); missingPhone.devices[activeRuntime][0].isAvailable = false;
+  assert.throws(() => selectSimulatorTarget(missingPhone, "26.5"), /No available iPhone runtime matches/u);
+  const noPhones = inventory(); noPhones.devicetypes[0].identifier = "com.apple.CoreSimulator.SimDeviceType.iPad-Pro";
+  assert.throws(() => selectSimulatorTarget(noPhones, "26.5"), /No available iPhone runtime matches/u);
+});
+
+test("iOS smoke source contract creates only a job-owned simulator and retains explicit boot deadlines", () => {
+  assert.match(script, /xcrun --sdk iphonesimulator --show-sdk-version/u);
+  assert.match(script, /xcrun simctl create "Sajda CI Smoke"/u);
+  assert.match(script, /run_step boot-ready 900 xcrun simctl bootstatus/u);
+  assert.match(script, /run_step delete 30 xcrun simctl delete "\$SAJDA_SIMULATOR_ID"/u);
+  assert.doesNotMatch(script, /simctl (?:erase|delete|shutdown) all/u);
 });

@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { hasSupabaseBrowserConfig } from "@/integrations/supabase/client";
 import { MarketplaceHeader } from "@/pages/Marketplace";
+import { marketplacePublicUrl } from "@/lib/appSurface";
 import { formatMarketplacePrice, interpolateMarketplace, marketplaceCopy } from "@/lib/marketplaceCopy";
 import { getMarketplaceListing, type MarketplaceListing } from "@/lib/marketplaceListings";
 import {
@@ -357,8 +358,7 @@ function toLegacyListing(listing: MarketplaceListing): ListingDetail {
 }
 
 function listingUrlFor(id: string): string {
-  if (typeof window === "undefined") return `/marketplace/${id}`;
-  return new URL(`/marketplace/${id}`, window.location.origin).toString();
+  return marketplacePublicUrl(id);
 }
 
 function ListingSummary({ listing, signedIn }: { listing: ListingDetail; signedIn: boolean }) {

@@ -10,6 +10,7 @@ import NativeShell from "./NativeShell";
 import NativeMore from "./NativeMore";
 import NativeHelp from "./NativeHelp";
 import NativeMembership from "./NativeMembership";
+import NativeRouteBoundary from "./NativeRouteBoundary";
 const NativeAuth = lazy(() => import("./NativeAuth"));
 
 /** Separate dependency graph: no public landing pages or website footer. */
@@ -17,7 +18,7 @@ export default function NativeApp() {
   return <AppProviders><BrowserRouter><NativeShell>
     <LanguageRouteSync />
     <RouteScrollRestoration />
-    <Suspense fallback={<RouteLoading className="min-h-48" />}>
+    <NativeRouteBoundary><Suspense fallback={<RouteLoading className="min-h-48" />}>
       <ProductRoutes authElement={<NativeAuth />}>
         <Route path="/pricing" element={<NativeMembership />} />
         <Route path="/more" element={<NativeMore />} />
@@ -26,7 +27,7 @@ export default function NativeApp() {
         <Route path="/native.html" element={<Navigate to="/" replace />} />
         <Route path="/app" element={<Navigate to="/" replace />} />
       </ProductRoutes>
-    </Suspense>
+    </Suspense></NativeRouteBoundary>
     <FreeSearchGate />
   </NativeShell></BrowserRouter></AppProviders>;
 }

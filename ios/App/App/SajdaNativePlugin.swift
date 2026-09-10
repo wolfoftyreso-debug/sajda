@@ -3,6 +3,7 @@ import Capacitor
 import AuthenticationServices
 import CryptoKit
 import Security
+import UIKit
 
 // One bounded collector per request. Delegate callbacks and auth state share the
 // main queue; the session is invalidated on every terminal path (no retain cycle).
@@ -76,7 +77,7 @@ private final class SajdaResponseCollector: NSObject, URLSessionDataDelegate {
 public final class SajdaNativePlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenticationPresentationContextProviding {
     public let identifier = "SajdaNativePlugin"
     public let jsName = "SajdaNative"
-    public let pluginMethods: [CAPPluginMethod] = ["signIn", "signOut", "session", "request", "cancel"].map {
+    public let pluginMethods: [CAPPluginMethod] = ["signIn", "signOut", "session", "request", "cancel", "shareCsv", "shareFile"].map {
         CAPPluginMethod(name: $0, returnType: CAPPluginReturnPromise)
     }
     // Capacitor invokes plugins on its bridge queue. Every entry point below
@@ -86,6 +87,7 @@ public final class SajdaNativePlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenti
     private var exchangeRequestID: String?
     private var authGeneration: UInt64 = 0
     private var signOutInProgress = false
+    private var shareInProgress = false
     private var requests: [String: SajdaResponseCollector] = [:]
     private let methods: [String: Set<String>] = [
         "/api/domain-search": ["POST"], "/api/deep-review": ["POST"], "/api/reference-fx": ["GET"],
@@ -95,11 +97,22 @@ public final class SajdaNativePlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenti
     private func failure(_ message: String) -> NSError {
         NSError(domain: "SajdaNative", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
     }
+    private static func validAPIHost(_ host: String) -> Bool {
+        let host = host.lowercased()
+        guard host.utf8.count <= 253, host != "localhost",
+              ![".localhost", ".local", ".internal"].contains(where: { host.hasSuffix($0) }) else { return false }
+        let labels = host.split(separator: ".", omittingEmptySubsequences: false)
+        // A public DNS name, never an IPv4/IPv6 literal or local-network name.
+        return labels.count >= 2 && labels.allSatisfy {
+            !$0.isEmpty && $0.utf8.count <= 63 && !$0.hasPrefix("-") && !$0.hasSuffix("-") &&
+            $0.range(of: "^[a-z0-9-]+$", options: .regularExpression) != nil
+        } && labels.last?.range(of: "[a-z]", options: .regularExpression) != nil
+    }
     private func apiOrigin() throws -> URL {
         guard let file = Bundle.main.url(forResource: "sajda-native-config", withExtension: "json", subdirectory: "public"),
               let json = try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: String],
               let value = json["apiOrigin"], let url = URL(string: value),
-              url.scheme == "https", url.host != nil, url.user == nil, url.password == nil,
+              url.scheme == "https", let host = url.host, Self.validAPIHost(host), url.user == nil, url.password == nil,
               url.port == nil, url.query == nil, url.fragment == nil,
               url.path.isEmpty || url.path == "/" else { throw failure("App backend is not configured.") }
         return url
@@ -243,6 +256,60 @@ public final class SajdaNativePlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenti
         DispatchQueue.main.async { [weak self] in
             if let id = call.getString("id") { self?.requests[id]?.cancel() }
             call.resolve()
+        }
+    }
+    // WKWebView does not route generated blob downloads to Files. Only our
+    // three text artifact formats can enter this bounded system share sheet.
+    @objc public func shareCsv(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { call.reject("The app is not ready."); return }
+            self.shareGeneratedFile(call, csvOnly: true)
+        }
+    }
+    @objc public func shareFile(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { call.reject("The app is not ready."); return }
+            self.shareGeneratedFile(call, csvOnly: false)
+        }
+    }
+    private func shareGeneratedFile(_ call: CAPPluginCall, csvOnly: Bool) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        guard !shareInProgress,
+              let filename = call.getString("filename"),
+              filename.range(of: "^[A-Za-z0-9][A-Za-z0-9_-]{0,119}\\.(csv|svg|html)$", options: .regularExpression) != nil,
+              !csvOnly || filename.hasSuffix(".csv"),
+              let content = call.getString(csvOnly ? "csv" : "content"), !content.isEmpty, content.utf8.count <= 4_000_000,
+              let presenter = bridge?.viewController,
+              let window = presenter.view.window,
+              window.windowScene?.activationState == .foregroundActive,
+              presenter.presentedViewController == nil else {
+            call.reject("The file cannot be shared right now. Close any open dialog and retry."); return
+        }
+        // The caller provides content, never a path, URL or executable to load.
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("sajda-export-" + UUID().uuidString, isDirectory: true)
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+            let file = directory.appendingPathComponent(filename, isDirectory: false)
+            try Data(content.utf8).write(to: file, options: [.atomic, .completeFileProtection])
+            shareInProgress = true
+            let sheet = UIActivityViewController(activityItems: [file], applicationActivities: nil)
+            // iPad requires an explicit popover anchor, even for a web UI.
+            sheet.popoverPresentationController?.sourceView = presenter.view
+            sheet.popoverPresentationController?.sourceRect = CGRect(x: presenter.view.bounds.midX, y: presenter.view.bounds.maxY - 1, width: 1, height: 1)
+            sheet.popoverPresentationController?.permittedArrowDirections = []
+            sheet.completionWithItemsHandler = { [weak self] _, completed, _, error in
+                DispatchQueue.main.async {
+                    try? FileManager.default.removeItem(at: directory)
+                    self?.shareInProgress = false
+                    if error != nil { call.reject("The file could not be shared. Try again.") }
+                    else { call.resolve(["completed": completed]) }
+                }
+            }
+            presenter.present(sheet, animated: true)
+        } catch {
+            try? FileManager.default.removeItem(at: directory)
+            shareInProgress = false
+            call.reject("The file could not be prepared for sharing. Try again.")
         }
     }
     @objc public func session(_ call: CAPPluginCall) {

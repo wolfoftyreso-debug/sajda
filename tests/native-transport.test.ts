@@ -10,6 +10,8 @@ interface Transport {
   readNativeSession(): Promise<unknown>;
   nativeSignIn(): Promise<unknown>;
   nativeSignOut(): Promise<unknown>;
+  nativeShareCsv(filename: string, csv: string): Promise<{ completed: boolean }>;
+  nativeShareFile(filename: string, content: string): Promise<{ completed: boolean }>;
   nativeRequest(path: string, method: string, body?: unknown, signal?: AbortSignal): Promise<Response>;
 }
 
@@ -37,17 +39,23 @@ test("native transport validates the bridge boundary and fences authentication c
   const originalFetch = globalThis.fetch;
   const requests: RequestOptions[] = [];
   const cancellations: string[] = [];
+  const shares: { filename: string; csv: string }[] = [];
+  const files: { filename: string; content: string }[] = [];
   const fixture = {
     onSession: async (): Promise<unknown> => ({ session: session() }),
     onSignIn: async (): Promise<unknown> => ({ ok: true }),
     onSignOut: async (): Promise<unknown> => ({ ok: true }),
     onRequest: async (_options: RequestOptions): Promise<unknown> => response(),
     onCancel: async (_id: string): Promise<void> => {},
+    onShareCsv: async (): Promise<unknown> => ({ completed: true }),
+    onShareFile: async (): Promise<unknown> => ({ completed: true }),
     async session() { return fixture.onSession(); },
     async signIn() { return fixture.onSignIn(); },
     async signOut() { return fixture.onSignOut(); },
     async request(options: RequestOptions) { requests.push(options); return fixture.onRequest(options); },
     async cancel({ id }: { id: string }) { cancellations.push(id); return fixture.onCancel(id); },
+    async shareCsv(options: { filename: string; csv: string }) { shares.push(options); return fixture.onShareCsv(); },
+    async shareFile(options: { filename: string; content: string }) { files.push(options); return fixture.onShareFile(); },
   };
   Object.defineProperty(globalThis, key, { configurable: true, value: fixture });
   globalThis.fetch = async () => { throw new Error("Native transport tests must not call live services"); };
@@ -70,6 +78,54 @@ test("native transport validates the bridge boundary and fences authentication c
   try {
     const transport = await vite.ssrLoadModule("/src/lib/nativeTransport.ts") as Transport;
     assert.equal(transport.nativeAvailable, true);
+
+    await t.test("only bounded generated CSV, SVG and HTML artifacts reach file sharing", async () => {
+      for (const [filename, content] of [["report.csv", "domain"], ["example-dev-logo-study.svg", '<svg xmlns="http://www.w3.org/2000/svg"/>'], ["index.html", "<!doctype html><p>For sale</p>"]]) {
+        fixture.onShareFile = async () => ({ completed: true, path: "must-not-leak" });
+        assert.deepEqual(await transport.nativeShareFile(filename, content), { completed: true });
+        assert.deepEqual(files.at(-1), { filename, content });
+      }
+      fixture.onShareFile = async () => ({ completed: false });
+      assert.deepEqual(await transport.nativeShareFile("index.html", "<p>For sale</p>"), { completed: false });
+      const count = files.length;
+      for (const filename of ["../index.html", "/index.html", "https://example.com/report.svg", "payload.js", "report.svg.html", "app.mobileconfig", "x".repeat(121) + ".svg"])
+        await assert.rejects(transport.nativeShareFile(filename, "body"));
+      for (const content of ["", "a".repeat(4_000_001), "å".repeat(2_000_001)]) await assert.rejects(transport.nativeShareFile("index.html", content));
+      assert.equal(files.length, count);
+      fixture.onShareFile = async () => ({ completed: "yes" });
+      await assert.rejects(transport.nativeShareFile("index.html", "body"));
+    });
+
+    await t.test("generated CSV uses the OS share sheet and cancellation is not failure", async () => {
+      const filename = "sajda-research-10000000-0000-4000-8000-000000000001.csv";
+      const csv = '\uFEFF"domain","status"\r\n"name.dev","unverified"';
+      for (const completed of [true, false]) {
+        fixture.onShareCsv = async () => ({ completed, internalPath: "/must-not-leak" });
+        assert.deepEqual(await transport.nativeShareCsv(filename, csv), { completed });
+        assert.deepEqual(shares.at(-1), { filename, csv });
+      }
+    });
+
+    await t.test("CSV sharing rejects filesystem paths, oversized UTF-8 and malformed completion", async () => {
+      const count = shares.length;
+      for (const filename of ["../report.csv", "/report.csv", "report.csv", "sajda-research-report.csv/secret", "sajda-research-.csv", "sajda-research-report.html", "sajda-research-a\n.csv"]) {
+        await assert.rejects(transport.nativeShareCsv(filename, "domain"));
+      }
+      for (const csv of ["", "a".repeat(4_000_001), "å".repeat(2_000_001)]) await assert.rejects(transport.nativeShareCsv("sajda-research-report.csv", csv));
+      assert.equal(shares.length, count);
+      for (const invalid of [null, {}, { completed: "true" }]) {
+        fixture.onShareCsv = async () => invalid;
+        await assert.rejects(transport.nativeShareCsv("sajda-research-report.csv", "domain"));
+      }
+    });
+
+    await t.test("a delayed CSV share result cannot update a different account", async () => {
+      const pending = deferred(); fixture.onShareCsv = () => pending.promise;
+      const share = transport.nativeShareCsv("sajda-research-report.csv", "domain");
+      const rejected = assert.rejects(share);
+      await transport.nativeSignOut(); pending.resolve({ completed: true }); await rejected;
+      fixture.onShareCsv = async () => ({ completed: true });
+    });
 
     await t.test("sanitizer keeps only verified, unexpired account fields", () => {
       const now = Date.parse("2026-09-10T10:00:00.000Z");

@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ["ios/**", "src/**", "native.html", "capacitor.config.ts", "vite.native.config.ts", "scripts/build-native.mjs", "scripts/smoke-ios.sh", "package*.json", ".github/workflows/ios.yml"]
+    paths: ["ios/**", "src/**", "shared/**", "native.html", "capacitor.config.ts", "vite.native.config.ts", "scripts/build-native.mjs", "scripts/smoke-ios.sh", "scripts/ios-simulator-target.mjs", "package*.json", ".github/workflows/ios.yml"]
 permissions:
   contents: read
 concurrency:
@@ -12,7 +12,7 @@ concurrency:
 jobs:
   simulator:
     runs-on: macos-26
-    timeout-minutes: 25
+    timeout-minutes: 35
     env:
       # Build configuration only, not a credential or protection bypass.
       # This does not claim that this protected preview accepts native traffic.
@@ -28,10 +28,12 @@ jobs:
       - run: npm run sync:ios
       - name: Compile actual iOS app without distribution signing
         run: xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath ios/App/build CODE_SIGNING_ALLOWED=NO build
+      - name: Compile Release configuration without distribution signing
+        run: xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator -configuration Release -destination 'generic/platform=iOS Simulator' -derivedDataPath ios/App/build CODE_SIGNING_ALLOWED=NO build
       - name: Package simulator app with preserved permissions
         run: ditto -c -k --keepParent ios/App/build/Build/Products/Debug-iphonesimulator/App.app ios/App/build/Sajda-Simulator.zip
       - name: Boot the app in a real iPhone simulator
-        timeout-minutes: 12
+        timeout-minutes: 20
         run: bash scripts/smoke-ios.sh
       - name: Simulator app artifact (not installable on a physical iPhone)
         if: always()

@@ -2,11 +2,17 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, renameSync, copyFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { isIP } from "node:net";
 export function nativeApiOrigin(value) {
   if (!value) throw new Error("Set SAJDA_NATIVE_API_ORIGIN to the verified HTTPS backend origin.");
   const url = new URL(value);
+  const host = url.hostname.toLowerCase();
+  const labels = host.split(".");
   if (url.protocol !== "https:" || url.username || url.password || url.pathname !== "/" || url.search || url.hash
-    || url.port || /^(localhost|127\.|10\.|192\.168\.|\[)/i.test(url.hostname)) {
+    || url.port || isIP(host) || host.startsWith("[") || host.length > 253 || labels.length < 2
+    || !labels.every(label => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/u.test(label))
+    || !/[a-z]/u.test(labels.at(-1) ?? "")
+    || /(?:^|\.)(?:localhost|local|internal|invalid|test)$/u.test(host)) {
     throw new Error("The native API origin must be a public HTTPS origin without a path, port, or credentials.");
   }
   return url.origin;

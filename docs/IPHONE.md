@@ -39,8 +39,9 @@ alternativ. Webbens separata språkknappar är oförändrade. Språkbyte och
 återläsning testas genom den riktiga språkprovidern; den slutliga
 simulatorbilden visar det nya apphuvudet utan överlapp.
 
-Mer innehåller marknadsplats, utvecklarverktyg, befintliga kontofunktioner,
-paket, hjälp, support, integritet, villkor, säkerhet och driftsstatus.
+Mer innehåller marknadsplats, utvecklarverktyg, konto, paket, hjälp, support,
+integritet, villkor, säkerhet och driftsstatus. Ej migrerade legacyfunktioner
+visas inte längre som menyalternativ på Neon-vägen.
 `/how-it-works` går till kort apphjälp. Webbsidor som `/story`, `/se/...` och
 `/install` är inte appskärmar. Appen visar en ärlig felsida om sådana adresser
 öppnas direkt.
@@ -110,6 +111,14 @@ byggkonfiguration, inte en credential eller en genväg förbi deploymentskydd.
 
 `capacitor.config.ts` har `webDir: "dist-native"` och saknar `server.url` och
 `allowNavigation`. iOS kör de paketerade produktfilerna.
+
+Trading-CSV, SVG-logotyper och fristående HTML-säljsidor använder nu appens
+systemdialog för att dela eller spara filer. Bryggan accepterar endast dessa
+tre filtyper, säkra basfilnamn och högst 4 MB UTF-8-data; den läser inte
+godtyckliga filer eller URL:er. Filerna lagras temporärt med iOS-filskydd och
+städas efter avslutad dialog. Verifiering på fysisk iPhone återstår.
+En skärmspecifik felgräns behåller appnavigationen vid renderings-/laddningsfel.
+Se [den aktuella iOS- och SEO-revisionen](IOS-SEO-AUDIT-2026-09-10.md).
 
 ```powershell
 npm run dev:native -- --host 127.0.0.1 --port 8096 --strictPort

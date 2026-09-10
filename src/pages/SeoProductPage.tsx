@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -16,8 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { storeSearchEntryPreset } from "@/lib/searchEntryPreset";
-import { SEO_CANONICAL_ORIGIN } from "@/lib/seoCanonicalOrigin";
-import { useLanguage } from "@/i18n/LanguageProvider";
+import { seoBreadcrumbs, seoDocumentForPath } from "@/lib/seoDocuments";
 import {
   getSeoProductPage,
   seoProductPages,
@@ -26,35 +25,6 @@ import {
 
 interface SeoProductPageProps {
   pageId: SeoProductPageId;
-}
-
-function setHeadAttribute(
-  selector: string,
-  attribute: string,
-  value: string,
-): () => void {
-  const element = document.head.querySelector<HTMLElement>(selector);
-  const previous = element?.getAttribute(attribute);
-
-  if (element) {
-    element.setAttribute(attribute, value);
-    return () => {
-      if (previous === null) element.removeAttribute(attribute);
-      else element.setAttribute(attribute, previous);
-    };
-  }
-
-  const [tagName, rawAttribute] = selector.startsWith("link")
-    ? ["link", "rel=canonical"]
-    : ["meta", selector.match(/\[(.+?)\]/)?.[1] ?? ""];
-  const created = document.createElement(tagName);
-  for (const part of rawAttribute.split("][")) {
-    const [name, rawValue] = part.split("[").join("").split("]").join("").split("=");
-    if (name && rawValue) created.setAttribute(name, rawValue.replace(/["']/g, ""));
-  }
-  created.setAttribute(attribute, value);
-  document.head.appendChild(created);
-  return () => created.remove();
 }
 
 const signalIcons = {
@@ -136,6 +106,7 @@ function EntryField({ pageId }: SeoProductPageProps) {
           Fortsätt i Sajdas arbetsyta
         </h2>
         <form className="mt-5" onSubmit={submit} noValidate>
+          <noscript><p>Aktivera JavaScript för att använda domänsökningen. Ingen text skickas från det här formuläret utan JavaScript.</p></noscript>
           <label htmlFor={`${page.id}-search`} className="block text-sm font-semibold text-foreground">{page.field.label}</label>
           <Input
             id={`${page.id}-search`}
@@ -181,36 +152,7 @@ function EntryField({ pageId }: SeoProductPageProps) {
 
 export default function SeoProductPage({ pageId }: SeoProductPageProps) {
   const page = getSeoProductPage(pageId);
-  const { language } = useLanguage();
-
-  useEffect(() => {
-    const previousTitle = document.title;
-    const description = document.querySelector<HTMLMetaElement>("meta[name='description']");
-    const previousDescription = description?.content;
-    const canonical = `${SEO_CANONICAL_ORIGIN}${page.path}`;
-    const restoreHead = [
-      setHeadAttribute("link[rel='canonical']", "href", canonical),
-      setHeadAttribute("meta[property='og:title']", "content", page.title),
-      setHeadAttribute("meta[property='og:description']", "content", page.description),
-      setHeadAttribute("meta[property='og:url']", "content", canonical),
-      setHeadAttribute("meta[property='og:locale']", "content", "sv_SE"),
-      setHeadAttribute("meta[name='twitter:title']", "content", page.title),
-      setHeadAttribute("meta[name='twitter:description']", "content", page.description),
-      setHeadAttribute("meta[name='robots']", "content", "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"),
-    ];
-    document.title = page.title;
-    description?.setAttribute("content", page.description);
-    const reapplyMetadata = window.requestAnimationFrame(() => {
-      document.title = page.title;
-      description?.setAttribute("content", page.description);
-    });
-    return () => {
-      window.cancelAnimationFrame(reapplyMetadata);
-      document.title = previousTitle;
-      if (description && previousDescription) description.setAttribute("content", previousDescription);
-      restoreHead.reverse().forEach((restore) => restore());
-    };
-  }, [language, page.description, page.path, page.title]);
+  const breadcrumbs = seoBreadcrumbs(seoDocumentForPath(page.path)!);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -246,13 +188,14 @@ export default function SeoProductPage({ pageId }: SeoProductPageProps) {
             <div className="relative z-10 max-w-3xl">
               <nav aria-label="Brödsmulor" className="mb-5">
                 <ol className="flex flex-wrap items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-                  <li>
-                    <Link to="/se" className="rounded-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                      Sajda Sverige
-                    </Link>
-                  </li>
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/70" aria-hidden="true" />
-                  <li aria-current="page" className="text-foreground">{page.eyebrow}</li>
+                  {breadcrumbs.map((item, index) => (
+                    <li key={item.path} className="inline-flex items-center gap-1.5" aria-current={index === breadcrumbs.length - 1 ? "page" : undefined}>
+                      {index > 0 && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/70" aria-hidden="true" />}
+                      {index === breadcrumbs.length - 1 ? <span className="text-foreground">{item.name}</span> : (
+                        <Link to={item.path} className="rounded-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{item.name}</Link>
+                      )}
+                    </li>
+                  ))}
                 </ol>
               </nav>
               <p className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-card/85 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.15em] text-primary shadow-sm">
@@ -347,6 +290,10 @@ export default function SeoProductPage({ pageId }: SeoProductPageProps) {
                       <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg border border-border bg-background text-primary transition-transform group-open:rotate-45" aria-hidden="true">+</span>
                     </summary>
                     <p className="pb-4 text-sm leading-6 text-muted-foreground">{faq.answer}</p>
+                    {faq.source && <p className="pb-4 text-xs leading-5 text-muted-foreground">
+                      Källa: <a href={faq.source.url} className="text-primary underline underline-offset-2">{faq.source.title}</a>
+                      {" · Kontrollerad "}<time dateTime={faq.source.reviewedAt}>{faq.source.reviewedAt}</time>
+                    </p>}
                   </details>
                 ))}
               </div>

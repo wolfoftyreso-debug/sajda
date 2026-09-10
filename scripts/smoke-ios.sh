@@ -18,16 +18,18 @@ run_step() {
   ' "$@"
 }
 
-SAJDA_SIMULATOR_ID=$(xcrun simctl list devices available --json | node -e '
-let data=""; process.stdin.on("data",chunk=>data+=chunk); process.stdin.on("end",()=>{
-  const device=Object.entries(JSON.parse(data).devices)
-    .filter(([runtime])=>runtime.includes(".iOS-"))
-    .flatMap(([,devices])=>devices).find(device=>device.isAvailable && device.name.startsWith("iPhone"));
-  if(!device) process.exit(1); process.stdout.write(device.udid);
-});')
-trap 'run_step shutdown 30 xcrun simctl shutdown "$SAJDA_SIMULATOR_ID" || true' EXIT
+SAJDA_SIMULATOR_TARGET=$(xcrun simctl list --json | node scripts/ios-simulator-target.mjs "$(xcrun --sdk iphonesimulator --show-sdk-version)")
+printf '%s\n' "$SAJDA_SIMULATOR_TARGET"
+SAJDA_SIMULATOR_RUNTIME=$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).runtimeIdentifier)' "$SAJDA_SIMULATOR_TARGET")
+SAJDA_SIMULATOR_TYPE=$(node -e 'process.stdout.write(JSON.parse(process.argv[1]).deviceTypeIdentifier)' "$SAJDA_SIMULATOR_TARGET")
+# A fresh device avoids migrating stale pre-created runner device state. Only
+# this newly created, job-owned simulator is shut down/deleted by the trap.
+SAJDA_SIMULATOR_ID=$(xcrun simctl create "Sajda CI Smoke" "$SAJDA_SIMULATOR_TYPE" "$SAJDA_SIMULATOR_RUNTIME")
+trap 'run_step shutdown 30 xcrun simctl shutdown "$SAJDA_SIMULATOR_ID" || true; run_step delete 30 xcrun simctl delete "$SAJDA_SIMULATOR_ID" || true' EXIT
 run_step boot 30 xcrun simctl boot "$SAJDA_SIMULATOR_ID"
-run_step boot-ready 420 xcrun simctl bootstatus "$SAJDA_SIMULATOR_ID" -b
+# First boot runs Apple's system migrations on hosted runners. Allow that
+# bounded setup time; never treat a timeout as a successful app boot.
+run_step boot-ready 900 xcrun simctl bootstatus "$SAJDA_SIMULATOR_ID" -b
 run_step install 120 xcrun simctl install "$SAJDA_SIMULATOR_ID" ios/App/build/Build/Products/Debug-iphonesimulator/App.app
 run_step launch 45 xcrun simctl launch "$SAJDA_SIMULATOR_ID" com.hypbit.sajda
 sleep 10

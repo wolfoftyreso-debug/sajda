@@ -45,7 +45,9 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
   const originals = new Map(["window", "__LOST_DOMAINS_COMPONENT_TEST__", "IS_REACT_ACT_ENVIRONMENT"]
     .map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
   const originalFetch = globalThis.fetch;
-  const fixture = { owner: "account-a" as string | null, language: "en", signOut: async () => {}, billingVerified: (_owner: string) => {} };
+  const sharedCsv: { filename: string; csv: string }[] = [];
+  const fixture = { owner: "account-a" as string | null, language: "en", signOut: async () => {}, billingVerified: (_owner: string) => {},
+    shareCsv: async (filename: string, csv: string): Promise<{ completed: boolean }> => { sharedCsv.push({ filename, csv }); return { completed: false }; } };
   const setGlobal = (key: string, value: unknown) => Object.defineProperty(globalThis, key, { configurable: true, value });
   setGlobal("__LOST_DOMAINS_COMPONENT_TEST__", fixture);
   setGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -62,6 +64,10 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
     clearInterval: (id: number) => clocks.delete(id),
   });
   const mocks = new Map([
+    ["/src/lib/appSurface.ts", "export let isNativeApp=false; export const setNative=(value)=>{isNativeApp=value;};"],
+    ["/src/lib/nativeTransport.ts", `export const nativeShareCsv=(...args)=>globalThis.__LOST_DOMAINS_COMPONENT_TEST__.shareCsv(...args);
+      export const readNativeSession=async()=>{const owner=globalThis.__LOST_DOMAINS_COMPONENT_TEST__.owner;return owner?{user:{id:owner,email:'qa@example.test',email_verified:true},expires_at:Math.floor(Date.now()/1000)+60}:null;};
+      export const nativeRequest=async(_path,_method,options,signal)=>fetch(new URL(options.path,window.location.origin),{method:options.method,body:options.body===undefined?undefined:JSON.stringify(options.body),headers:{'x-sajda-account':options.accountId},credentials:'same-origin',signal});`],
     ["/src/contexts/AuthContext.tsx", "export const useAuth = () => ({ loading:false, signOut:globalThis.__LOST_DOMAINS_COMPONENT_TEST__.signOut, user: globalThis.__LOST_DOMAINS_COMPONENT_TEST__.owner ? {id:globalThis.__LOST_DOMAINS_COMPONENT_TEST__.owner,email:'qa@example.test'} : null });"],
     ["/src/i18n/LanguageProvider.tsx", "export const useLanguage = () => ({ language:globalThis.__LOST_DOMAINS_COMPONENT_TEST__.language }); export const applyDocumentMetadata = () => {};"],
     ["/src/components/LanguageSwitcher.tsx", "export default function LanguageSwitcher() { return null; }"],
@@ -97,6 +103,7 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
   };
   try {
     const { default: LostDomains } = await vite.ssrLoadModule("/src/pages/LostDomains.tsx");
+    const surface = await vite.ssrLoadModule("/src/lib/appSurface.ts");
     const tree = () => h(MemoryRouter, { initialEntries: ["/plus"] }, h(LostDomains));
     const text = () => label(renderer!.root);
     const button = (name: string) => {
@@ -139,6 +146,27 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
       assert.match(text(), /availability unconfirmed/);
       assert.match(text(), /0 — provider check unavailable/);
       assert.equal(actionRequests().length, 0); assert.equal(polls.size, 0);
+    });
+
+    await t.test("iOS report export uses generated CSV without blob navigation or false cancellation error", async () => {
+      surface.setNative(true);
+      try {
+        await mount();
+        const pending = deferred<{ completed: boolean }>();
+        fixture.shareCsv = async (filename, csv) => { sharedCsv.push({ filename, csv }); return pending.promise; };
+        const before = sharedCsv.length;
+        await act(async () => { button("Export CSV").props.onClick(); button("Export CSV").props.onClick(); await pause(); });
+        assert.equal(sharedCsv.length, before + 1, "A double tap presents only one share sheet");
+        assert.equal(sharedCsv.at(-1)!.filename, `sajda-research-${reportId}.csv`);
+        assert.ok(sharedCsv.at(-1)!.csv.startsWith("\uFEFF"));
+        assert.match(sharedCsv.at(-1)!.csv, /private-alpha\.dev/u);
+        assert.equal(button("Export CSV").props.disabled, true);
+        assert.equal(button("Export CSV").props["aria-busy"], true);
+        await act(async () => { pending.resolve({ completed: false }); await pause(); });
+        assert.equal(button("Export CSV").props.disabled, false);
+        assert.equal(renderer!.root.findAllByProps({ role: "alert" }).length, 0);
+        assert.equal(actionRequests().length, 0, "Export does not start or alter research");
+      } finally { surface.setNative(false); }
     });
 
     await t.test("Trading report filters change only the visible report and keep subscription below the workspace", async () => {

@@ -8,6 +8,7 @@ import RouteScrollRestoration from "@/components/RouteScrollRestoration";
 import FreeSearchGate from "@/components/FreeSearchGate";
 import { LanguageRouteSync } from "@/i18n/LanguageProvider";
 import RouteLoading from "@/components/RouteLoading";
+import WebSeoMetadata from "@/components/WebSeoMetadata";
 const Install = lazy(() => import("./pages/Install"));
 const Auth = lazy(() => import("./pages/Auth"));
 const NativeConnect = lazy(() => import("./pages/NativeConnect"));
@@ -23,6 +24,7 @@ const AppRoutes = () => {
   return (
     <>
       <LanguageRouteSync />
+      <WebSeoMetadata />
       <RouteScrollRestoration />
       <Suspense fallback={<RouteLoading className="min-h-screen bg-background" />}>
         <ProductRoutes authElement={<Auth />}>

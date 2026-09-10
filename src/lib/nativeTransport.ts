@@ -7,6 +7,8 @@ interface NativeBridge {
   session(): Promise<unknown>;
   request(options: { path: string; method: string; body?: string; id: string }): Promise<unknown>;
   cancel(options: { id: string }): Promise<void>;
+  shareCsv(options: { filename: string; csv: string }): Promise<unknown>;
+  shareFile(options: { filename: string; content: string }): Promise<unknown>;
 }
 const bridge = registerPlugin<NativeBridge>("SajdaNative");
 let authGeneration = 0;
@@ -84,6 +86,28 @@ export async function readNativeSession() {
   if (generation !== authGeneration) throw staleAccount();
   if (!record(result)) throw invalidResponse();
   return sanitizeNativeSession(result.session);
+}
+/** Export only generated CSV through the OS share sheet, never arbitrary files. */
+export async function nativeShareCsv(filename: string, csv: string): Promise<{ completed: boolean }> {
+  if (!nativeAvailable) throw new Error("CSV sharing requires the iOS app.");
+  if (!/^sajda-research-[a-zA-Z0-9-]{1,100}\.csv$/u.test(filename)
+    || typeof csv !== "string" || !csv.length || csv.length > 4_000_000
+    || new TextEncoder().encode(csv).length > 4_000_000) throw invalidResponse();
+  const generation = authGeneration;
+  const result = await bridge.shareCsv({ filename, csv });
+  if (generation !== authGeneration) throw staleAccount();
+  if (!record(result) || typeof result.completed !== "boolean") throw invalidResponse();
+  return { completed: result.completed };
+}
+/** The fixed generated-artifact allowlist is repeated at the native boundary. */
+export async function nativeShareFile(filename: string, content: string): Promise<{ completed: boolean }> {
+  if (!nativeAvailable) throw new Error("File sharing requires the iOS app.");
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,119}\.(?:csv|svg|html)$/u.test(filename)
+    || typeof content !== "string" || !content.length || content.length > 4_000_000
+    || new TextEncoder().encode(content).length > 4_000_000) throw invalidResponse();
+  const result = await bridge.shareFile({ filename, content });
+  if (!record(result) || typeof result.completed !== "boolean") throw invalidResponse();
+  return { completed: result.completed };
 }
 export async function nativeRequest(path: string, method: string, body?: unknown, signal?: AbortSignal): Promise<Response> {
   if (!nativeAvailable) throw new Error("This operation requires the iOS app.");

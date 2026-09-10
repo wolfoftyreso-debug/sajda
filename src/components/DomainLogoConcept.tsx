@@ -10,6 +10,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useLanguage } from "@/i18n/LanguageProvider";
+import { isNativeApp } from "@/lib/appSurface";
+import { nativeShareFile } from "@/lib/nativeTransport";
+import { nativeExportCopy } from "@/app/nativeExportCopy";
 import {
   createProceduralLogoConcept,
   downloadProceduralLogoConcept,
@@ -159,6 +162,9 @@ const DomainLogoConcept = ({ domain, className }: DomainLogoConceptProps) => {
   const [concept, setConcept] = useState<ProceduralLogoConcept | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [usedCount, setUsedCount] = useState(readLocalUsage);
+  const [exportStatus, setExportStatus] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const exportPending = useRef(false);
   const usedCountRef = useRef(usedCount);
   const remaining = Math.max(0, DAILY_BETA_LIMIT - usedCount);
   const remainingLabel = useMemo(() => replace(copy.remaining, {
@@ -194,6 +200,18 @@ const DomainLogoConcept = ({ domain, className }: DomainLogoConceptProps) => {
 
   const stopSwipePointer = (event: ReactPointerEvent<HTMLButtonElement>) => {
     event.stopPropagation();
+  };
+  const exportConcept = async () => {
+    if (!concept || exportPending.current) return;
+    exportPending.current = true; setExporting(true); setExportStatus("");
+    try {
+      if (isNativeApp) {
+        const basename = concept.domain.replace(/[^a-z0-9-]+/giu, "-").slice(0, 96).replace(/^-+|-+$/gu, "") || "sajda";
+        const result = await nativeShareFile(`${basename}-logo-study.svg`, concept.svg);
+        setExportStatus(result.completed ? nativeExportCopy[language].completed : nativeExportCopy[language].cancelled);
+      } else downloadProceduralLogoConcept(concept);
+    } catch { setExportStatus(nativeExportCopy[language].failed); }
+    finally { exportPending.current = false; setExporting(false); }
   };
 
   return (
@@ -259,10 +277,12 @@ const DomainLogoConcept = ({ domain, className }: DomainLogoConceptProps) => {
             <Button
               type="button"
               variant="outline"
-              onClick={() => downloadProceduralLogoConcept(concept)}
+              onClick={() => void exportConcept()}
+              disabled={exporting}
+              aria-busy={exporting}
             >
               <Download className="h-4 w-4" aria-hidden="true" />
-              {copy.download}
+              {isNativeApp ? `${nativeExportCopy[language].action} SVG` : copy.download}
             </Button>
           )}
           <Button type="button" onClick={createVariation} disabled={remaining <= 0}>
@@ -270,6 +290,7 @@ const DomainLogoConcept = ({ domain, className }: DomainLogoConceptProps) => {
             {copy.variation}
           </Button>
         </DialogFooter>
+        {exportStatus && <p role="status" className="text-sm leading-6 text-muted-foreground">{exportStatus}</p>}
       </DialogContent>
     </Dialog>
   );

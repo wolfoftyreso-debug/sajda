@@ -7,6 +7,7 @@ import AccountLink from "@/components/AccountLink";
 import { accountNavigationCopy } from "@/i18n/accountNavigationCopy";
 import PlusBilling from "@/components/PlusBilling";
 import { isNativeApp } from "@/lib/appSurface";
+import { nativeShareCsv } from "@/lib/nativeTransport";
 import { nativeCopy } from "@/app/nativeCopy";
 import TradingEvidenceSummary, { type TradingQuoteControls } from "@/components/TradingEvidenceSummary";
 import { tradingText, tradingLocale, tradingRunCapacity, tradingOmittedRows, tradingShowMore } from "@/i18n/tradingEvidenceCopy";
@@ -41,6 +42,8 @@ export default function LostDomains() {
   const [filter,setFilter]=useState<TradingReportFilter>("all");
   const [tld,setTld]=useState("");
   const [exportFailed,setExportFailed]=useState(false);
+  const [exporting,setExporting]=useState(false);
+  const exportPending=useRef(false);
   const [diagnosticsLimit,setDiagnosticsLimit]=useState(DIAGNOSTICS_BATCH_SIZE);
   const [quoteBusyDomain,setQuoteBusyDomain]=useState<string|null>(null);
   const [quoteErrorDomain,setQuoteErrorDomain]=useState<string|null>(null);
@@ -74,7 +77,7 @@ export default function LostDomains() {
     setSigningOut(false); setSignOutError(false);
     setBillingRefreshOwner(null);
     setData(null); setError(null); setBusy(null); setPaused(false);
-    setQuery("");setFilter("all");setTld("");setExportFailed(false);
+    setQuery("");setFilter("all");setTld("");setExportFailed(false);setExporting(false);
     setDiagnosticsLimit(DIAGNOSTICS_BATCH_SIZE);
     return () => { lifetime.current?.abort(); activeRequest.current?.abort(); };
   }, [accountId]);
@@ -174,15 +177,28 @@ export default function LostDomains() {
   const priorityCount=(report?.candidates??[]).filter(row=>isFreshReviewCandidate(row,now)&&row.opportunity?.tier==="priority_review").length;
   const changedCount=(report?.candidates??[]).filter(row=>row.observationHistory?.registryChanged).length;
   const strongFitCount=filterTradingReport(report?.candidates??[],"","strong_fit","").length;
-  function exportReport() {
-    if(!report?.latestRun || !snapshot?.access || data?.owner!==accountId || !filtered.length) return;
+  async function exportReport() {
+    if(!report?.latestRun || !snapshot?.access || data?.owner!==accountId || !filtered.length || exportPending.current) return;
+    const owner=accountId;
+    const signal=lifetime.current?.signal;
+    const isCurrent=()=>ownerRef.current===owner&&!signal?.aborted;
+    exportPending.current=true;setExporting(true);setExportFailed(false);
     let url:string|undefined;
     try {
-      url=URL.createObjectURL(new Blob(["\uFEFF",tradingReportCsv(filtered)],{type:"text/csv;charset=utf-8"}));
-      const anchor=document.createElement("a");anchor.href=url;anchor.download=`sajda-research-${report.latestRun.id}.csv`;
+      const filename=`sajda-research-${report.latestRun.id}.csv`;
+      const csv="\uFEFF"+tradingReportCsv(filtered);
+      if(isNativeApp){
+        // WKWebView cannot save blob downloads with the website anchor flow.
+        // The user chooses whether and where to share/save in the iOS sheet.
+        await nativeShareCsv(filename,csv);
+        return;
+      }
+      url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
+      const anchor=document.createElement("a");anchor.href=url;anchor.download=filename;
       anchor.click();setExportFailed(false);
       const objectUrl=url;window.setTimeout(()=>URL.revokeObjectURL(objectUrl),1000);
-    } catch { if(url) URL.revokeObjectURL(url);setExportFailed(true); }
+    } catch { if(url) URL.revokeObjectURL(url);if(isCurrent())setExportFailed(true); }
+    finally {exportPending.current=false;if(isCurrent())setExporting(false);}
   }
   const attributedSources = [...new Set((report?.candidates ?? []).flatMap(row => {
     try { const url = new URL(row.sourceUrl); return url.protocol === "https:" && url.hostname === "awesome-selfhosted.net" ? [url.href] : []; }
@@ -357,7 +373,7 @@ export default function LostDomains() {
                   {([['all',tradingText(copy.locale, "All checks")],['price_review',tradingText(copy.locale, "Ready for price review")],['acquisition_review',tradingText(copy.locale, "Acquisition evidence complete")],['priority',tradingText(copy.locale, "Strong technical signals")],['strong_fit',tradingText(copy.locale, "Strong name fit")],['changed',tradingText(copy.locale, "Registry changed")],['unregistered',tradingText(copy.locale, "Registry absent")],['registered',tradingText(copy.locale, "Registered")],['unknown',tradingText(copy.locale, "Unknown status")],['excluded',tradingText(copy.locale, "Excluded")]] as const).map(([value,label])=><option value={value} key={value}>{label}</option>)}
                 </select></label>
                 <label className="min-w-0 text-xs font-medium">{tradingText(copy.locale, "Extension")}<select value={tld} onChange={event=>setTld(event.target.value)} className="mt-1 block min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm font-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><option value="">{tradingText(copy.locale, "All extensions")}</option>{tlds.map(value=><option key={value} value={value}>.{value}</option>)}</select></label>
-                <Button variant="outline" className={`${button} self-end`} onClick={exportReport} disabled={!filtered.length||signingOut}><Download className="h-4 w-4 shrink-0" aria-hidden="true" />{tradingText(copy.locale, "Export CSV")}</Button>
+                <Button variant="outline" className={`${button} self-end`} onClick={()=>void exportReport()} disabled={!filtered.length||signingOut||exporting} aria-busy={exporting}>{exporting?<LoaderCircle className="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden="true" />:<Download className="h-4 w-4 shrink-0" aria-hidden="true" />}{tradingText(copy.locale, "Export CSV")}</Button>
               </div>
               <p className="mt-3 text-xs text-muted-foreground" role="status">{filtered.length} / {report.candidates.length} {tradingText(copy.locale, "checks match this selection. Export includes observation time and unverified registrability.")}</p>
               {filter==="strong_fit" && <p className="mt-2 text-xs leading-5 text-muted-foreground">{tradingText(copy.locale, "Strong name fit describes the words and extension. Check registry status separately; this filter can also include registered domains.")}</p>}

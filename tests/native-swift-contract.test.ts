@@ -42,7 +42,7 @@ test("source-only Swift contract: the active scene installs the custom native pl
 
 test("source-only Swift contract: all bridge entry points first hop to the main queue", () => {
   const entries = [...swift.matchAll(/@objc public func (\w+)\(_ call: CAPPluginCall\)/gu)].map(match => match[1]);
-  assert.deepEqual(entries.sort(), ["cancel", "request", "session", "signIn", "signOut"]);
+  assert.deepEqual(entries.sort(), ["cancel", "request", "session", "shareCsv", "shareFile", "signIn", "signOut"]);
   for (const name of entries) {
     assert.match(swift, new RegExp(`@objc public func ${name}\\(_ call: CAPPluginCall\\)\\s*\\{\\s*DispatchQueue\\.main\\.async\\s*\\{`, "u"));
   }
@@ -54,6 +54,41 @@ test("source-only Swift contract: all bridge entry points first hop to the main 
     ["private func perform(", "private func current("],
     ["private func current(", "private func isoDate("],
   ]) assert.match(section(start, end), /dispatchPrecondition\(condition:\s*\.onQueue\(\.main\)\)/u);
+});
+
+test("source-only Swift contract: app backend uses a bounded public DNS hostname, not an IP or LAN name", () => {
+  const validator = section("private static func validAPIHost(", "private func keyQuery(");
+  assert.match(validator, /host\.utf8\.count <= 253/u);
+  assert.match(validator, /"\.localhost", "\.local", "\.internal"/u);
+  assert.match(validator, /labels\.count >= 2/u);
+  assert.match(validator, /omittingEmptySubsequences: false/u);
+  assert.match(validator, /\$0\.utf8\.count <= 63/u);
+  assert.ok(validator.includes('labels.last?.range(of: "[a-z]"'));
+  assert.match(validator, /url\.scheme == "https", let host = url\.host, Self\.validAPIHost\(host\)/u);
+});
+
+test("source-only Swift contract: artifact export permits only CSV/SVG/HTML and preserves CSV compatibility", () => {
+  const csv = section("@objc public func shareCsv(", "@objc public func shareFile(");
+  const file = section("@objc public func shareFile(", "private func shareGeneratedFile(");
+  assert.match(csv, /self\.shareGeneratedFile\(call, csvOnly: true\)/u);
+  assert.match(file, /self\.shareGeneratedFile\(call, csvOnly: false\)/u);
+  const share = section("private func shareGeneratedFile(", "@objc public func session(");
+  assert.match(share, /dispatchPrecondition\(condition: \.onQueue\(\.main\)\)/u);
+  assert.match(share, /!shareInProgress/u);
+  assert.match(share, /content\.utf8\.count <= 4_000_000/u);
+  assert.ok(share.includes('^[A-Za-z0-9][A-Za-z0-9_-]{0,119}\\\\.(csv|svg|html)$'));
+  assert.match(share, /!csvOnly \|\| filename\.hasSuffix\("\.csv"\)/u);
+  assert.match(share, /call\.getString\(csvOnly \? "csv" : "content"\)/u);
+  assert.match(share, /window\.windowScene\?\.activationState == \.foregroundActive/u);
+  assert.match(share, /presenter\.presentedViewController == nil/u);
+  assert.match(share, /temporaryDirectory\.appendingPathComponent\("sajda-export-" \+ UUID\(\)\.uuidString/u);
+  assert.match(share, /options: \[\.atomic, \.completeFileProtection\]/u);
+  assert.match(share, /UIActivityViewController\(activityItems: \[file\], applicationActivities: nil\)/u);
+  assert.match(share, /popoverPresentationController\?\.sourceView = presenter\.view/u);
+  assert.match(share, /popoverPresentationController\?\.sourceRect = CGRect/u);
+  assert.equal([...share.matchAll(/removeItem\(at: directory\)/gu)].length, 2, "success/cancel and failure clean only this request's unique directory");
+  assert.match(share, /call\.resolve\(\["completed": completed\]\)/u);
+  assert.doesNotMatch(share, /call\.getString\("(?:path|url|directory)"\)/u);
 });
 
 test("source-only Swift contract: streaming response collector caps bytes before append and invalidates every finish", () => {
