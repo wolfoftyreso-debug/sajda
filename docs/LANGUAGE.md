@@ -53,3 +53,17 @@ blocked storage, manual English, remounts, device changes, listener cleanup,
 Swedish routes and server-side English fallback. Native contract tests verify
 the language declarations. Simulated preferences are not evidence of a physical
 iPhone changing its Settings language; that remains a device QA step.
+
+Verified 2026-09-10 for source `89914b9`: 38 targeted checks passed, and the
+full suite passed 841 tests with 3 intentional skips. Web and native bundles
+built; GitHub Verify passed and Xcode compilation passed. At this check the
+simulator-start job was still running, so no changed-device-locale simulator
+result is claimed. In the actual local browser, selecting English, visiting
+the Swedish search page, returning through its link and reloading all preserved
+the English choice. The test tab was restored afterward.
+
+Preview `sajda-ej6rmdoxx-hypbit.vercel.app` was deployed and its actual served
+entry bundle contains the new device-language negotiation. HTML uses English
+fallback; `/se/sok-doman` retains Swedish HTML and preview noindex. Health
+returned 200. The stable test alias points to this preview, still protected by
+Vercel; no production configuration or live user data was changed.
