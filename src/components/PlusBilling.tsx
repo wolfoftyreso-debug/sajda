@@ -6,6 +6,9 @@ import { getPlusBillingCopy } from "@/i18n/plusBillingCopy";
 import type { LostDomainsCopy } from "@/i18n/lostDomainsCopy";
 import { getPlusBilling, openPlusBilling, PlusBillingError, type PlusBillingAction, type PlusBillingSnapshot } from "@/lib/plusBilling";
 import { formatPlusMonthlyPrice } from "../../shared/plus-plan";
+import { isNativeApp } from "@/lib/appSurface";
+import NativePurchaseNotice from "@/app/NativePurchaseNotice";
+import AccountMembershipPanel from "@/components/AccountMembershipPanel";
 
 const button = "h-auto min-h-11 w-full whitespace-normal px-4 py-3 text-center";
 export default function PlusBilling({ accountId, language, fallback, disabled = false, onStatusVerified }: { accountId: string | null; language: string; fallback: LostDomainsCopy; disabled?: boolean; onStatusVerified?: (accountId: string) => void }) {
@@ -27,7 +30,7 @@ export default function PlusBilling({ accountId, language, fallback, disabled = 
     if (disabled) { request.current?.abort(); request.current = null; setBusy(null); }
   }, [disabled]);
   const load = useCallback(async () => {
-    if (!accountId || request.current || disabled) return;
+    if (isNativeApp || !accountId || request.current || disabled) return;
     const controller = new AbortController(); request.current = controller;
     const current = () => mounted.current && !controller.signal.aborted && owner.current === accountId && request.current === controller;
     setBusy("load"); setError(null);
@@ -43,7 +46,7 @@ export default function PlusBilling({ accountId, language, fallback, disabled = 
   }, [accountId, disabled, onStatusVerified]);
   useEffect(() => { if (accountId) void load(); }, [accountId, load]);
   async function open(action: PlusBillingAction) {
-    if (!accountId || request.current || disabled || !snapshot || !(action === "checkout" ? snapshot.ready && snapshot.canCheckout : snapshot.canManage)) return;
+    if (isNativeApp || !accountId || request.current || disabled || !snapshot || !(action === "checkout" ? snapshot.ready && snapshot.canCheckout : snapshot.canManage)) return;
     const controller = new AbortController(); request.current = controller;
     const current = () => mounted.current && !controller.signal.aborted && owner.current === accountId && request.current === controller;
     setBusy(action); setError(null);
@@ -63,6 +66,7 @@ export default function PlusBilling({ accountId, language, fallback, disabled = 
     } finally { if (current()) { request.current = null; setBusy(null); } }
   }
   const price = snapshot?.ready ? snapshot.price : null;
+  if (isNativeApp) return <div className="space-y-4">{accountId && <AccountMembershipPanel />}<NativePurchaseNotice /></div>;
   return <div aria-label={copy.title}>
     <p className="mt-5 text-sm text-muted-foreground">{copy.priceLabel}</p>
     <p className="mt-1 text-2xl font-semibold tracking-tight [overflow-wrap:anywhere]">{formatPlusMonthlyPrice(language)}</p>

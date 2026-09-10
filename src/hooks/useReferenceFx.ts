@@ -1,4 +1,5 @@
 import { useEffect, useSyncExternalStore } from "react";
+import { productFetch } from "@/lib/productFetch";
 import { normaliseReferenceFx, REFERENCE_FX_CACHE_MS, type ReferenceFx } from "../../shared/reference-fx";
 
 let snapshot: ReferenceFx | null = null;
@@ -13,7 +14,7 @@ async function refresh() {
   if (Date.now() < expiresAt) return;
   if (!pending) pending = (async () => {
     try {
-      const response = await fetch("/api/reference-fx", { credentials: "omit", signal: AbortSignal.timeout(7_000) });
+      const response = await productFetch("/api/reference-fx", { credentials: "omit", signal: AbortSignal.timeout(7_000) });
       const payload = response.ok ? await response.json() : null;
       snapshot = normaliseReferenceFx(payload?.referenceFx);
     } catch { snapshot = null; }

@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { isAnonymousSearchMode } from "@/lib/anonymousSearchMode";
 import { useLanguage, type Language } from "@/i18n/LanguageProvider";
+import { isNativeApp } from "@/lib/appSurface";
 
 const footerMessages: Record<Language, {
   navigation: string;
@@ -62,7 +63,7 @@ const FooterNav = () => {
   const { language } = useLanguage();
   const copy = footerMessages[language];
 
-  if (isAnonymousSearchMode()) return null;
+  if (isNativeApp || isAnonymousSearchMode()) return null;
 
   const navItems = [
     {

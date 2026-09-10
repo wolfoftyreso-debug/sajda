@@ -3,6 +3,8 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import type { AccountSession, AccountUser } from "@/integrations/neon/account-types";
 import { accountError, getAccountAuthClient, isAccountAuthConfigured, readAccountSession } from "@/integrations/neon/auth";
 import { accountCallbackUrl, passwordRecoveryUrl } from "@/lib/authNavigation";
+import { isNativeApp } from "@/lib/appSurface";
+import { nativeSignIn, nativeSignOut } from "@/lib/nativeTransport";
 
 interface AuthResult { error: Error | null }
 
@@ -12,6 +14,7 @@ interface AuthContextType {
   loading: boolean;
   error: Error | null;
   signIn: (email: string, password: string) => Promise<AuthResult>;
+  signInNative: () => Promise<AuthResult>;
   signUp: (email: string, password: string, redirectPath?: string) => Promise<AuthResult>;
   requestPasswordReset: (email: string, redirectPath?: string) => Promise<AuthResult>;
   requestEmailVerification: (email: string, redirectPath?: string) => Promise<AuthResult>;
@@ -87,6 +90,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (failure) { return { error: accountError(failure, "The sign-in service is temporarily unavailable.") }; }
   };
 
+  const signInNative = async (): Promise<AuthResult> => {
+    try {
+      await nativeSignIn();
+      const restored = await refresh();
+      return { error: restored.error ?? (restored.session ? null : new Error("Your app session could not be verified.")) };
+    } catch (failure) { return { error: accountError(failure,"App sign-in was not completed. Try again.") }; }
+  };
+
   const signUp = async (email: string, password: string, redirectPath?: string): Promise<AuthResult> => {
     try {
       const client = await getAccountAuthClient();
@@ -131,6 +142,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    if (isNativeApp) {
+      await nativeSignOut();
+      revision.current += 1;
+      setSession(null); setError(null);
+      return;
+    }
     const client = await getAccountAuthClient();
     const result = await client.signOut({});
     if (result.error) throw accountError(result.error, "Sign-out failed. Please try again.");
@@ -140,7 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     channel.current?.postMessage("session-changed");
   };
 
-  return <AuthContext.Provider value={{ user: session?.user ?? null, session, loading, error, signIn, signUp, requestPasswordReset, requestEmailVerification, updatePassword, signOut }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user: session?.user ?? null, session, loading, error, signIn, signInNative, signUp, requestPasswordReset, requestEmailVerification, updatePassword, signOut }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

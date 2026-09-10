@@ -868,7 +868,7 @@ const Swipe = () => {
   const cardOpacity = exitDirection ? 0 : Math.max(0.55, 1 - Math.abs(dragOffset) / 620);
 
   return (
-    <div className="relative h-[100dvh] overflow-hidden bg-background">
+    <div className="sajda-swipe-viewport relative h-[100dvh] overflow-hidden bg-background">
       <main className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-hidden px-3 py-3 sm:px-6 sm:py-5">
         <header className="flex shrink-0 items-center justify-between gap-2" aria-label={copy.deck}>
           <Button asChild variant="ghost" size="sm" className="-ml-2 h-10 text-muted-foreground">

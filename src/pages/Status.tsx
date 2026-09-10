@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { productFetch } from "@/lib/productFetch";
 import { ArrowLeft, CheckCircle2, CircleAlert, LoaderCircle, RefreshCw, Server } from "lucide-react";
 import { Link } from "react-router-dom";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
@@ -171,7 +172,7 @@ export default function Status() {
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), 6000);
       try {
-        const response = await fetch(endpoint.path, { method: endpoint.method, cache: "no-store", signal: controller.signal });
+        const response = await productFetch(endpoint.path, { method: endpoint.method, cache: "no-store", signal: controller.signal });
         // A catch-all SPA can return HTML with 200 for a broken API route.
         // Check the actual response contract before displaying green status.
         let valid = response.ok;

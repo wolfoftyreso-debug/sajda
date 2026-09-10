@@ -12,6 +12,20 @@ const providerIds = [
 ];
 
 const tlds = ["com", "net", "org", "app", "dev", "ai", "xyz", "info", "biz", "se", "nu"];
+const apiKeyScopes = ["domains:search", "account:read", "saved:read", "saved:write", "trading:read", "trading:run", "trading:quote"];
+const accountApiErrors = Object.fromEntries([
+  ["400", "Invalid documented resource, fields or pagination."], ["401", "API key missing, invalid, revoked, expired, or bound to another environment."],
+  ["403", "Required scope, active membership, verified account, or request origin is not allowed."], ["405", "Method not supported for this resource; inspect Allow."],
+  ["409", "The request key conflicts with a different candidate or current account state."], ["413", "Body exceeds 8 KiB, or the product action limit."],
+  ["415", "Send application/json for mutations."], ["429", "Shared account request or product budget exhausted."],
+  ["503", "Account verification, database, engine or provider is unavailable."],
+].map(([status, description]) => [status, { description,
+  headers: { "X-Request-Id": { $ref: "#/components/headers/RequestId" },
+    ...(status === "429" ? { "Retry-After": { schema: { type: "integer", minimum: 1 } } } : {}),
+    ...(status === "405" ? { Allow: { schema: { type: "string" } } } : {}),
+    ...(status === "401" ? { "WWW-Authenticate": { schema: { type: "string", example: "Bearer realm=\"sajda-api\", error=\"invalid_token\"" } } } : {}),
+  }, content: { "application/json": { schema: { $ref: "#/components/schemas/AccountApiError" } } },
+}]));
 
 export const openApiDocument = {
   openapi: "3.1.0",
@@ -22,14 +36,20 @@ export const openApiDocument = {
       "A small public surface for bounded, registry-checked domain search and source-attributed domain-market context.",
       "Availability is confirmed only when a configured registry source returns authoritative evidence. A result marked unknown is not an availability claim.",
       "POST /api/v1/public/domains and GET public endpoints require no API key. POST /api/v1/domains is a protected server-to-server integration route.",
-      "The self-service API-key control plane is being migrated to Neon-backed Vercel APIs. Until that release passes verification, POST /api/v1/domains is a protected compatibility route rather than a public self-service promise. Billing, marketplace transfers, and registrar credentials are not part of this API.",
+      "Verified accounts can create scoped, expiring keys in the same-origin developer dashboard backed by Neon Postgres. Account integrations use /api/v1/account and share saved domains, membership and Trading state with the website. The legacy operator key only authorizes its existing domain-search compatibility route.",
+      "Remote MCP is available separately at /api/mcp through Streamable HTTP (server 1.0.0, tested protocol 2025-11-25, SDK 1.30.0). It accepts scoped bearer keys on every request and is not an ordinary REST action. OAuth discovery/login is not implemented. Billing, marketplace transfers, automatic purchases and registrar credentials are not part of these integration interfaces.",
     ].join(" "),
   },
   servers: [{ url: "/", description: "Same origin as the deployed Sajda application." }],
+  externalDocs: { url: "/developers#mcp", description: "Sajda MCP connection and scoped API guide." },
+  "x-sajda-mcp": { endpoint: "/api/mcp", transport: "streamable-http", serverVersion: "1.0.0", sdkVersion: "1.30.0",
+    testedProtocolVersions: ["2025-11-25", "2025-06-18", "2025-03-26"], authentication: "scoped-bearer-api-key", oauth: false,
+    stateless: true, toolDiscovery: "tools/list", requestBodyLimitBytes: 16384 },
   tags: [
     { name: "Public domains", description: "Anonymous, CORS-enabled and rate-bounded domain search." },
     { name: "Integration domains", description: "Server-to-server domain search using a user-managed Sajda API key." },
-    { name: "Developer keys", description: "Reserved for the Neon-backed, same-origin control plane; not enabled for new accounts yet." },
+    { name: "Developer keys", description: "Same-origin, verified-session key management backed by Neon Postgres. Requires the key migration and account authentication configuration in this deployment." },
+    { name: "Account integration", description: "Scoped, account-owned state shared by the website, API and MCP. No payment or automatic purchase actions." },
     { name: "Facts", description: "Read-only, source-attributed historical market context." },
   ],
   paths: {
@@ -177,6 +197,8 @@ export const openApiDocument = {
         tags: ["Integration domains"],
         summary: "Search domains with registry verification",
         operationId: "searchDomainsV1",
+        description: "Scoped account keys require domains:search and use durable shared account request/search limits. The legacy operator hash allow-list remains a domain-search-only compatibility path.",
+        "x-sajda-required-scopes": ["domains:search"],
         security: [{ SajdaApiKey: [] }],
         parameters: [
           {
@@ -239,7 +261,47 @@ export const openApiDocument = {
         },
       },
     },
+    "/api/v1/account": {
+      get: {
+        tags: ["Account integration"], summary: "Read membership, saved domains or existing Trading state", operationId: "readAccountResourceV1",
+        security: [{ SajdaApiKey: [] }],
+        description: "Choose resource. Required scopes: membership=account:read; saved-domains=saved:read; trading and trading-status=trading:read. Trading reports also require active Trading membership. No read starts or advances work. The account comes only from the verified key. Unknown query fields are rejected. Limit: 120 requests/minute across this account's keys and protocols, plus existing product limits. No cross-origin CORS.",
+        "x-sajda-resource-scopes": { membership: "account:read", "saved-domains": "saved:read", trading: "trading:read", "trading-status": "trading:read" },
+        parameters: [
+          { in: "query", name: "resource", required: true, schema: { type: "string", enum: ["membership", "saved-domains", "trading", "trading-status"] } },
+          { in: "query", name: "cursor", description: "Only for saved-domains. Use nextCursor from the prior page; each page has up to 100 items.", schema: { type: "string", pattern: "^[1-9][0-9]{0,18}$" } },
+          { in: "query", name: "offset", description: "Only for trading. Offset into the current report; restart pagination if its run changes.", schema: { type: "integer", minimum: 0, maximum: 10000, default: 0 } },
+          { in: "query", name: "limit", description: "Only for trading.", schema: { type: "integer", minimum: 1, maximum: 100, default: 25 } },
+        ],
+        responses: { "200": { description: "The selected product's account-owned response. trading-status omits candidate details.",
+          content: { "application/json": { schema: { anyOf: ["AccountMembershipResponse", "SavedDomainListResponse", "TradingStatusResponse", "TradingReportResponse"].map(name => ({ $ref: `#/components/schemas/${name}` })) } } },
+        }, ...accountApiErrors },
+      },
+      post: {
+        tags: ["Account integration"], summary: "Save a domain or explicitly change a Trading run", operationId: "writeAccountResourceV1",
+        security: [{ SajdaApiKey: [] }],
+        description: "resource=saved-domains accepts SaveDomainRequest and requires saved:write. resource=trading accepts TradingActionRequest: start/advance/cancel require trading:run; refresh_quote requires trading:quote. Start and quote actions require a caller-generated UUID requestKey reused on retries, including after timeout. Quote keys bind one run/domain. Each advance may perform new provider work and is not idempotent. Membership, ownership, kill switch and durable product budgets remain enforced. Maximum body 8 KiB; Trading action body 1 KiB. No automatic purchases or billing changes.",
+        "x-sajda-action-scopes": { save: "saved:write", start: "trading:run", advance: "trading:run", cancel: "trading:run", refresh_quote: "trading:quote" },
+        parameters: [{ in: "query", name: "resource", required: true, schema: { type: "string", enum: ["saved-domains", "trading"] } }],
+        requestBody: { required: true, content: { "application/json": { schema: { oneOf: [
+          { $ref: "#/components/schemas/SaveDomainRequest" }, { $ref: "#/components/schemas/TradingActionRequest" },
+        ] } } } },
+        responses: { "200": { description: "Saved-domain receipt or latest Trading run/access status. The previous completed report remains available.",
+          content: { "application/json": { schema: { oneOf: [{ $ref: "#/components/schemas/SavedDomainMutationResponse" }, { $ref: "#/components/schemas/TradingStatusResponse" }] } } },
+        }, ...accountApiErrors },
+      },
+      delete: {
+        tags: ["Account integration"], summary: "Remove a saved domain", operationId: "removeSavedDomainV1", security: [{ SajdaApiKey: [] }],
+        "x-sajda-required-scopes": ["saved:write"],
+        description: "Removes only this account's saved domain. Repeating the removal of an absent domain succeeds. Does not cancel a registration or registrar service.",
+        parameters: [{ in: "query", name: "resource", required: true, schema: { type: "string", const: "saved-domains" } }],
+        requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/RemoveDomainRequest" } } } },
+        responses: { "200": { description: "Idempotent removal confirmed.", content: { "application/json": { schema: { $ref: "#/components/schemas/SavedDomainMutationResponse" } } } }, ...accountApiErrors },
+      },
+    },
     "/api/developer/api-keys": {
+      parameters: [{ in: "header", name: "X-Sajda-Account", required: true, schema: { type: "string" },
+        description: "Initiating account ID race guard; must match the current verified cookie session. This header is not a credential." }],
       get: {
         tags: ["Developer keys"],
         summary: "List your API key metadata",
@@ -247,7 +309,7 @@ export const openApiDocument = {
         security: [{ SajdaSession: [] }],
         description: "Returns only the authenticated user's safe key metadata. Raw API keys and stored hashes are never returned.",
         responses: {
-          "200": { content: { "application/json": { schema: { $ref: "#/components/schemas/DeveloperApiKeyListResponse" } } } },
+          "200": { description: "Safe key metadata, supported scopes and limits.", content: { "application/json": { schema: { $ref: "#/components/schemas/DeveloperApiKeyListResponse" } } } },
           "401": { $ref: "#/components/responses/Unauthorized" },
           "503": { $ref: "#/components/responses/ServerError" },
         },
@@ -263,7 +325,7 @@ export const openApiDocument = {
           content: { "application/json": { schema: { $ref: "#/components/schemas/DeveloperApiKeyCreateRequest" } } },
         },
         responses: {
-          "201": { content: { "application/json": { schema: { $ref: "#/components/schemas/DeveloperApiKeyCreationResponse" } } } },
+          "201": { description: "The newly created secret, shown only once, and its safe metadata.", content: { "application/json": { schema: { $ref: "#/components/schemas/DeveloperApiKeyCreationResponse" } } } },
           "400": { $ref: "#/components/responses/BadRequest" },
           "401": { $ref: "#/components/responses/Unauthorized" },
           "409": { $ref: "#/components/responses/Conflict" },
@@ -286,7 +348,7 @@ export const openApiDocument = {
           schema: { type: "string", format: "uuid" },
         }],
         responses: {
-          "200": { content: { "application/json": { schema: { $ref: "#/components/schemas/DeveloperApiKeySingleResponse" } } } },
+          "200": { description: "Revoked key metadata.", content: { "application/json": { schema: { $ref: "#/components/schemas/DeveloperApiKeySingleResponse" } } } },
           "400": { $ref: "#/components/responses/BadRequest" },
           "401": { $ref: "#/components/responses/Unauthorized" },
           "404": { $ref: "#/components/responses/NotFound" },
@@ -358,13 +420,11 @@ export const openApiDocument = {
         type: "http",
         scheme: "bearer",
         bearerFormat: "Sajda API key",
-        description: "User-managed opaque server key. Sajda stores only its SHA-256 digest and safe display metadata; create it in the signed-in developer control plane and keep it out of browser code.",
+        description: "Account-owned opaque bearer key with explicit scopes, expiry and deployment environment. Sajda stores only a SHA-256 digest and safe metadata. Create it in the verified-session developer dashboard and keep it in integration secrets. Revoked/expired/cross-environment keys fail authentication. This is not OAuth.",
       },
       SajdaSession: {
-        type: "http",
-        scheme: "bearer",
-        bearerFormat: "Sajda user session",
-        description: "Same-origin Sajda user session. Use only for the browser developer dashboard; never substitute it for an integration API key.",
+        type: "apiKey", in: "cookie", name: "__Secure-sajda.session_token",
+        description: "Direct requests require the secure HttpOnly same-origin website session with verified email. Local HTTP uses sajda.session_token. Key management also requires the matching X-Sajda-Account race guard and same Origin on writes. Integration API keys cannot manage keys. The native app uses its separate authenticated native account gateway.",
       },
     },
     schemas: {
@@ -376,11 +436,11 @@ export const openApiDocument = {
           name: { type: "string", maxLength: 80, example: "Production service" },
           keyPrefix: { type: "string", example: "sj_live_AbCdEfGhIjKlMnOp_" },
           lastFour: { type: "string", example: "Q8x_" },
-          environment: { type: "string", enum: ["test", "live"] },
-          scopes: { type: "array", items: { type: "string", enum: ["names:search"] } },
+          environment: { type: "string", enum: ["development", "preview", "production"] },
+          scopes: { type: "array", minItems: 1, uniqueItems: true, items: { type: "string", enum: apiKeyScopes } },
           createdAt: { type: "string", format: "date-time" },
           lastUsedAt: { type: ["string", "null"], format: "date-time" },
-          expiresAt: { type: ["string", "null"], format: "date-time" },
+          expiresAt: { type: "string", format: "date-time" },
           revokedAt: { type: ["string", "null"], format: "date-time" },
         },
         additionalProperties: false,
@@ -388,13 +448,23 @@ export const openApiDocument = {
       DeveloperApiKeyCreateRequest: {
         type: "object",
         additionalProperties: false,
-        properties: { name: { type: "string", minLength: 1, maxLength: 80, example: "Production service" } },
+        required: ["name"],
+        properties: {
+          name: { type: "string", minLength: 1, maxLength: 80, example: "Production service" },
+          scopes: { type: "array", minItems: 1, maxItems: 7, uniqueItems: true, default: ["domains:search"], items: { type: "string", enum: apiKeyScopes } },
+          expiresInDays: { type: "integer", minimum: 1, maximum: 365, default: 90 },
+        },
       },
       DeveloperApiKeyListResponse: {
         type: "object",
-        required: ["keys", "requestId"],
+        required: ["keys", "scopes", "limits", "requestId"],
         properties: {
           keys: { type: "array", items: { $ref: "#/components/schemas/DeveloperApiKeyMetadata" } },
+          scopes: { type: "array", items: { type: "string", enum: apiKeyScopes } },
+          limits: { type: "object", additionalProperties: false,
+            required: ["maxActiveKeys", "defaultExpiryDays", "maxExpiryDays", "requestsPerMinute", "domainsPerMinute"],
+            properties: { maxActiveKeys: { const: 10 }, defaultExpiryDays: { const: 90 }, maxExpiryDays: { const: 365 },
+              requestsPerMinute: { const: 120 }, domainsPerMinute: { const: 4 } } },
           requestId: { type: "string" },
         },
         additionalProperties: false,
@@ -413,10 +483,82 @@ export const openApiDocument = {
         required: ["key", "apiKey", "requestId"],
         properties: {
           key: { $ref: "#/components/schemas/DeveloperApiKeyMetadata" },
-          apiKey: { type: "string", pattern: "^sj_(?:test|live)_[A-Za-z0-9_-]{16}_[A-Za-z0-9_-]{43}$", writeOnly: true },
+          apiKey: { type: "string", pattern: "^sj_(?:test|live)_[A-Za-z0-9_-]{16}_[A-Za-z0-9_-]{43}$", readOnly: true,
+            description: "Returned only in the creation response. It cannot be retrieved again and must be treated as a secret." },
           requestId: { type: "string" },
         },
         additionalProperties: false,
+      },
+      AccountApiError: {
+        type: "object", required: ["code", "error", "requestId"], additionalProperties: false,
+        properties: { code: { type: "string" }, error: { type: "string" }, requestId: { type: "string" } },
+      },
+      AccountMembershipResponse: {
+        type: "object", required: ["accountId", "requestId", "membership"], additionalProperties: false,
+        properties: { accountId: { type: "string" }, requestId: { type: "string" }, membership: {
+          type: "object", required: ["plan", "accessSource", "expiresAt", "capabilities"], additionalProperties: false,
+          properties: { plan: { type: "string", enum: ["free", "premium", "trading"] },
+            accessSource: { type: "string", enum: ["free", "operator", "subscription"] }, expiresAt: { type: ["string", "null"], format: "date-time" },
+            capabilities: { type: "object", required: ["save_domains", "swipe_undo", "trading"], additionalProperties: false,
+              properties: { save_domains: { type: "boolean" }, swipe_undo: { type: "boolean" }, trading: { type: "boolean" } } } },
+        } },
+      },
+      SaveDomainRequest: {
+        type: "object", required: ["domain"], additionalProperties: false,
+        description: "Research snapshot only; supplied prices and valuations are notes, not live quotes.",
+        properties: { domain: { type: "string", minLength: 3, maxLength: 253, description: "Domain only, not a URL. Normalized to lowercase ASCII for the owner-scoped upsert." },
+          registrarPrice: { type: "number", minimum: 0, maximum: 1e12, default: 0 }, estimatedValue: { type: "number", minimum: 0, maximum: 1e12, default: 0 },
+          confidenceScore: { type: "number", minimum: 0, maximum: 100, default: 0 }, rationale: { type: "string", maxLength: 4000, default: "" } },
+      },
+      RemoveDomainRequest: {
+        type: "object", required: ["domain"], additionalProperties: false,
+        properties: { domain: { type: "string", minLength: 3, maxLength: 253 } },
+      },
+      SavedDomainListResponse: {
+        type: "object", required: ["items", "nextCursor", "requestId"], additionalProperties: false,
+        properties: { items: { type: "array", maxItems: 100, items: { type: "object", additionalProperties: false,
+          required: ["id", "domain", "registrar_price", "estimated_value", "confidence_score", "rationale", "created_at", "updated_at"],
+          properties: { id: { type: "string" }, domain: { type: "string" }, registrar_price: { type: "number" }, estimated_value: { type: "number" },
+            confidence_score: { type: "number" }, rationale: { type: "string" }, created_at: { type: "string", format: "date-time" }, updated_at: { type: "string", format: "date-time" } } } },
+          nextCursor: { type: ["string", "null"] }, requestId: { type: "string" } },
+      },
+      SavedDomainMutationResponse: {
+        type: "object", required: ["ok", "requestId"], additionalProperties: false,
+        properties: { ok: { const: true }, requestId: { type: "string" }, item: { type: "object", additionalProperties: false,
+          required: ["id", "domain"], properties: { id: { type: "string" }, domain: { type: "string" } } } },
+      },
+      TradingActionRequest: {
+        oneOf: [
+          { type: "object", additionalProperties: false, required: ["action", "requestKey"],
+            properties: { action: { const: "start" }, requestKey: { type: "string", format: "uuid", description: "Reuse for retries of this intended run." } } },
+          { type: "object", additionalProperties: false, required: ["action", "runId"],
+            properties: { action: { type: "string", enum: ["advance", "cancel"] }, runId: { type: "string", format: "uuid" } } },
+          { type: "object", additionalProperties: false, required: ["action", "runId", "domain", "requestKey"],
+            properties: { action: { const: "refresh_quote" }, runId: { type: "string", format: "uuid" }, domain: { type: "string", minLength: 3, maxLength: 253, description: "Canonical server-approved candidate from this report." },
+              requestKey: { type: "string", format: "uuid", description: "Reuse for retries of the same run/domain. A different target with this key conflicts." } } },
+        ],
+      },
+      TradingRun: {
+        type: ["object", "null"], additionalProperties: true,
+        properties: { id: { type: "string", format: "uuid" }, status: { type: "string" }, createdAt: { type: "string", format: "date-time" },
+          updatedAt: { type: "string", format: "date-time" }, completedAt: { type: ["string", "null"], format: "date-time" },
+          sourceCount: { type: "integer" }, candidateCount: { type: "integer" }, completedCount: { type: "integer" }, failedCount: { type: "integer" } },
+      },
+      TradingStatusResponse: {
+        type: "object", required: ["access", "enabled", "accountId", "requestId", "sourcesAvailable", "activeRun", "latestRun", "latestAttempt"],
+        properties: { access: { type: "boolean" }, enabled: { type: "boolean" }, accountId: { type: "string" }, requestId: { type: "string" },
+          sourcesAvailable: { type: "integer" }, quoteRefreshEnabled: { type: "boolean" },
+          activeRun: { $ref: "#/components/schemas/TradingRun" }, latestRun: { $ref: "#/components/schemas/TradingRun" }, latestAttempt: { $ref: "#/components/schemas/TradingRun" } },
+        additionalProperties: true,
+      },
+      TradingReportResponse: {
+        allOf: [{ $ref: "#/components/schemas/TradingStatusResponse" }, { type: "object", required: ["candidates", "totalCandidates", "nextOffset"],
+          properties: { candidates: { type: "array", maxItems: 100, items: { type: "object", required: ["domain"], additionalProperties: true,
+            description: "Existing product assessment, retaining evidence timestamps, uncertainty, provenance, risk and registrar currency.",
+            properties: { domain: { type: "string" }, evidence: { type: "array", items: { type: "object", additionalProperties: true } } } } },
+            totalCandidates: { type: "integer", minimum: 0 }, nextOffset: { type: ["integer", "null"], minimum: 0 },
+            candidatesOmitted: { type: "integer", minimum: 0 }, quoteUpdates: { type: "object", additionalProperties: true } },
+        }],
       },
       DomainsRequest: {
         type: "object",
@@ -581,6 +723,7 @@ export const openApiDocument = {
         properties: {
           error: { type: "string" },
           code: { type: "string", example: "invalid_request" },
+          requestId: { type: "string" },
         },
         additionalProperties: false,
       },
@@ -600,7 +743,7 @@ export const openApiDocument = {
       NotFound: { description: "The requested resource was not found for the authenticated caller.", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
       MethodNotAllowed: { description: "Only POST is supported.", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
       UnsupportedMediaType: { description: "Content-Type must be application/json.", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
-      RateLimited: { description: "The per-key, in-memory bootstrap quota was exceeded.", headers: { "Retry-After": { schema: { type: "integer" } } }, content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+      RateLimited: { description: "The account's shared persistent request/search limit or product budget was exceeded. Only legacy operator domain keys retain their compatibility quota.", headers: { "Retry-After": { schema: { type: "integer" } } }, content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
       ServerError: { description: "An unexpected server error occurred.", content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
     },
   },

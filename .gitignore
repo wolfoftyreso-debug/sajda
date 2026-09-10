@@ -10,6 +10,13 @@ lerna-debug.log*
 node_modules
 dist
 dist-vercel
+dist-native
+ios/App/App/public
+ios/App/App/capacitor.config.json
+ios/App/App/config.xml
+ios/App/Pods
+ios/App/build
+ios/App/DerivedData
 dist-ssr
 *.local
 .env

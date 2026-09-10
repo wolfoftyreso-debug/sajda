@@ -6,6 +6,8 @@ import LanguageSwitcher from "@/components/LanguageSwitcher";
 import AccountLink from "@/components/AccountLink";
 import { accountNavigationCopy } from "@/i18n/accountNavigationCopy";
 import PlusBilling from "@/components/PlusBilling";
+import { isNativeApp } from "@/lib/appSurface";
+import { nativeCopy } from "@/app/nativeCopy";
 import TradingEvidenceSummary, { type TradingQuoteControls } from "@/components/TradingEvidenceSummary";
 import { filterTradingReport, tradingReportCsv, type TradingReportFilter } from "@/lib/tradingReport";
 import { useAuth } from "@/contexts/AuthContext";
@@ -237,29 +239,29 @@ export default function LostDomains() {
 
   return <main className="min-h-screen bg-background text-foreground">
     <div className="mx-auto w-full max-w-6xl px-4 pb-14 pt-7 sm:px-6 lg:px-8">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      {!isNativeApp && <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <Link to="/" className={link}><ArrowLeft className="h-4 w-4 shrink-0" aria-hidden="true" />{copy.back}</Link>
         <div className="flex flex-wrap items-center gap-2"><AccountLink /><LanguageSwitcher /></div>
-      </div>
+      </div>}
       {!authLoading && user && <div className="mt-4 flex flex-wrap items-center justify-end gap-x-4 gap-y-2 border-t border-border pt-3">
         <p className="min-w-0 text-xs leading-5 text-muted-foreground">{copy.signedInAs} <span className="break-all font-medium text-foreground">{user.email}</span></p>
         <Button variant="outline" className={button} disabled={signingOut} onClick={() => void leaveAccount()}>{signingOut ? copy.signingOut : copy.signOut}</Button>
         {signOutError && <p role="alert" className="w-full text-right text-sm leading-6 text-destructive">{copy.signOutFailed}</p>}
       </div>}
-      <header className={`grid gap-8 border-b border-border pt-6 ${snapshot?.access ? "pb-6" : "pb-10 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:gap-12"}`}>
+      <header className={`grid gap-8 border-b border-border ${isNativeApp ? "pb-6" : snapshot?.access ? "pb-6 pt-6" : "pb-10 pt-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:gap-12"}`}>
         <div className="min-w-0">
-          <p className="text-sm font-semibold tracking-wide text-primary">{copy.eyebrow}</p>
-          <h1 className="mt-4 max-w-3xl text-3xl font-semibold leading-[1.12] tracking-[-0.045em] [overflow-wrap:anywhere] min-[375px]:text-4xl sm:text-5xl">{snapshot?.access ? (isSwedish?"Trading-arbetsyta":"Trading workspace") : copy.title}</h1>
-          <p className="mt-5 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">{copy.intro}</p>
+          {!isNativeApp && <p className="text-sm font-semibold tracking-wide text-primary">{copy.eyebrow}</p>}
+          <h1 className={isNativeApp ? "text-2xl font-semibold tracking-tight" : "mt-4 max-w-3xl text-3xl font-semibold leading-[1.12] tracking-[-0.045em] [overflow-wrap:anywhere] min-[375px]:text-4xl sm:text-5xl"}>{isNativeApp ? "Trading" : snapshot?.access ? (isSwedish?"Trading-arbetsyta":"Trading workspace") : copy.title}</h1>
+          <p className={isNativeApp ? "mt-3 max-w-2xl text-sm leading-6 text-muted-foreground" : "mt-5 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg"}>{isNativeApp ? nativeCopy[language].tradingHelp : copy.intro}</p>
           <a href="#plus-method" className={`${link} mt-5`}>{copy.readMore}<ChevronDown className="h-4 w-4" aria-hidden="true" /></a>
         </div>
-        {!snapshot?.access && <aside className={`${panel} self-start p-5 sm:p-6`} aria-label={copy.priceLabel}>
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{copy.category}</p>
+        {!snapshot?.access && <aside className={`${panel} self-start p-5 sm:p-6`} aria-label={isNativeApp ? nativeCopy[language].membership : copy.priceLabel}>
+          {!isNativeApp && <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">{copy.category}</p>}
           <PlusBilling accountId={accountId} language={language} fallback={copy} disabled={signingOut} onStatusVerified={billingStatusVerified} />
-          <div className="mt-6 border-t border-border pt-4"><h2 className="text-sm font-semibold">{copy.included}</h2>
+          {!isNativeApp && <div className="mt-6 border-t border-border pt-4"><h2 className="text-sm font-semibold">{copy.included}</h2>
             <ul className="mt-3 space-y-3">{copy.features.map(feature => <li key={feature} className="flex items-start gap-2 text-sm leading-6 text-muted-foreground"><Check className="mt-1 h-4 w-4 shrink-0 text-primary" aria-hidden="true" /><span>{feature}</span></li>)}</ul>
             <p className="mt-4 text-sm leading-6 text-muted-foreground">{copy.limits}</p>
-          </div>
+          </div>}
         </aside>}
       </header>
 

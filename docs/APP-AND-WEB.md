@@ -3,6 +3,12 @@
 Produktkrav från användaren, 2026-09-10. Detta är den beslutade målbilden,
 inte en rapport om en redan byggd eller publicerad iPhone-app.
 
+Den första implementationen finns nu: separat produktingång, iOS-projekt,
+native autentisering/API-transport samt en kontoanknuten API/MCP-grund.
+Se [iPhone: implementation och verifieringsläge](IPHONE.md) för byggkommandon,
+genomförda kontroller och kvarstående releasehinder. Full funktionsparitet,
+signerad iPhone-app och TestFlight har inte verifierats.
+
 ## En motor, fyra ingångar
 
 Sajda ska vara både en webbplats och en iPhone-app samt erbjuda ett API och en
@@ -93,7 +99,10 @@ Säkerhets- och releasekrav:
 - Testa verklig discovery och verktygsanrop, felaktig/återkallad åtkomst,
   korsanvändaråtkomst, kvoter, timeout och dubblettanrop före publicering.
 
-## Verifierat nuläge i koden
+## Utgångsläge före uppdelningen
+
+Följande är den historiska kodgenomgång som motiverade arbetet. Den beskriver
+inte status efter implementationen; aktuell appstatus finns i [IPHONE.md](IPHONE.md).
 
 - `src/App.tsx` blandar produkt-, konto-, SEO- och företagssidor; samma
   `SajdaFooter` används på nästan alla rutter.

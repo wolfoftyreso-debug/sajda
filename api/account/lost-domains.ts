@@ -5,7 +5,7 @@ import { lostDomainsHeaders, lostDomainsFailure, lostDomainsEnabled, parseLostDo
 import { limitLostDomainsAccount } from "../_shared/lost-domains-rate.js";
 import { lostDomainsService } from "../_shared/lost-domains-service.js";
 
-export const config = { maxDuration: 30 };
+export const config = { maxDuration: 60 };
 
 export function createLostDomainsHandler(dependencies: {
   authorize?: typeof requireAccount;

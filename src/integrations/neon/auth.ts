@@ -2,6 +2,8 @@ import { isLocalTestMode } from "@/lib/localTestMode";
 import type { AccountSession } from "./account-types";
 import type { createManagedAccountClient } from "./managed-client";
 import { assertAccountSessionOwner, type AccountRequestScope } from "@/lib/accountRequestScope";
+import { isNativeApp } from "@/lib/appSurface";
+import { readNativeSession, nativeRequest } from "@/lib/nativeTransport";
 
 export const isAccountAuthConfigured = import.meta.env.VITE_ACCOUNT_AUTH_ENABLED === "true" && !isLocalTestMode();
 export const accountAuthUnavailableReason = isLocalTestMode() ? "local_test" : "not_configured";
@@ -30,6 +32,7 @@ export function accountError(error: unknown, fallback: string): Error {
 
 export async function readAccountSession(): Promise<AccountSession | null> {
   if (!isAccountAuthConfigured) return null;
+  if (isNativeApp) return readNativeSession();
   const client = await getAccountAuthClient();
   const result = await client.getSession({ query: { disableCookieCache: true } });
   if (result.error) throw accountError(result.error, "Could not restore your account session.");
@@ -57,6 +60,17 @@ export async function accountRequest<T>(path: string, options: AccountRequestSco
   const current = await readAccountSession();
   signal?.throwIfAborted();
   assertAccountSessionOwner(current?.user.id, accountId);
+  if (isNativeApp) {
+    const response = await nativeRequest("/api/native/account","POST",{path,method,body,accountId},signal);
+    const payload = await response.json().catch(()=>null);
+    signal?.throwIfAborted();
+    if (!response.ok || !payload) {
+      const error = new Error(payload?.error ?? "Your app account request could not be completed.");
+      Object.assign(error,{status:response.status,code:payload?.code,requestId:payload?.requestId});
+      throw error;
+    }
+    return payload as T;
+  }
   const controller = new AbortController();
   const abort = () => controller.abort();
   signal?.addEventListener("abort", abort, { once: true });

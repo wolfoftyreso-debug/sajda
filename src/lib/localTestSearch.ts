@@ -1,4 +1,5 @@
 import { getAnonymousSearchEndpoint, isAnonymousSearchMode } from "@/lib/anonymousSearchMode";
+import { productFetch } from "./productFetch";
 import type { RegistrarOffer } from "@/lib/registrarOffer";
 import { translate, type Language } from "@/i18n/LanguageProvider";
 import type { AdvancedSearchCriteria } from "@/lib/advancedSearchCriteria";
@@ -84,7 +85,7 @@ export async function runAnonymousSearch(
   options.signal?.addEventListener("abort", cancel, { once: true });
   const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
   try {
-    const response = await fetch(getAnonymousSearchEndpoint(), {
+    const response = await productFetch(getAnonymousSearchEndpoint(), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

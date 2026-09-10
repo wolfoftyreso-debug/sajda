@@ -1,0 +1,18 @@
+.sajda-native-shell {
+  --native-header-height: calc(3.5rem + env(safe-area-inset-top, 0px));
+  --native-navigation-height: calc(4rem + env(safe-area-inset-bottom, 0px));
+  min-height: 100dvh;
+  padding-bottom: var(--native-navigation-height);
+  background: hsl(var(--background));
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+.sajda-native-header { padding-top: env(safe-area-inset-top, 0px); }
+.sajda-native-navigation { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.sajda-native-content { min-width: 0; }
+.sajda-native-content [id] { scroll-margin-top: 1rem; }
+.sajda-native-swipe .sajda-native-content { height: calc(100dvh - var(--native-header-height) - var(--native-navigation-height)); }
+.sajda-native-swipe .sajda-swipe-viewport { height: 100%; }
+@media (prefers-reduced-motion: reduce) {
+  .sajda-native-shell *, .sajda-native-shell *::before, .sajda-native-shell *::after { scroll-behavior: auto; }
+}

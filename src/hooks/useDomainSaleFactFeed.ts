@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { productFetch } from "@/lib/productFetch";
 import { normalizeDomainMarketFactFeed, type DomainMarketFactFeed } from "@/lib/domainSaleFacts";
 
 const FACT_SIGNAL_ENDPOINT = "/api/fact-signals";
@@ -20,7 +21,7 @@ export function useDomainSaleFactFeed(enabled = true): DomainMarketFactFeed | un
 
     const controller = new AbortController();
 
-    void fetch(FACT_SIGNAL_ENDPOINT, {
+    void productFetch(FACT_SIGNAL_ENDPOINT, {
       headers: { Accept: "application/json" },
       signal: controller.signal,
     })

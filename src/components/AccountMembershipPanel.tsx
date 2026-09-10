@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { useMembership } from "@/contexts/MembershipContext";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { formatMembershipExpiry, getMembershipCopy } from "@/i18n/membershipCopy";
+import { isNativeApp } from "@/lib/appSurface";
+import { nativeCopy } from "@/app/nativeCopy";
 
 const actionClass = "h-auto min-h-11 justify-start whitespace-normal px-4 py-3 text-left leading-snug";
 
@@ -51,7 +53,7 @@ export default function AccountMembershipPanel() {
       )}
       <div className="mt-5 border-t border-border pt-5">
         <p className="text-sm leading-relaxed text-muted-foreground">{copy.sameAccount}</p>
-        <Link to="/pricing" className="mt-2 inline-flex min-h-11 items-center gap-2 font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{copy.comparePlans}<ArrowRight aria-hidden="true" className="h-4 w-4 shrink-0" /></Link>
+        <Link to="/pricing" className="mt-2 inline-flex min-h-11 items-center gap-2 font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{isNativeApp ? nativeCopy[language].membership : copy.comparePlans}<ArrowRight aria-hidden="true" className="h-4 w-4 shrink-0" /></Link>
       </div>
     </section>
   );

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -26,8 +26,11 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
-import { hasSupabaseBrowserConfig } from "@/integrations/supabase/client";
+import { isAccountAuthConfigured, readAccountSession } from "@/integrations/neon/auth";
 import { isLocalTestMode } from "@/lib/localTestMode";
+import { isNativeApp } from "@/lib/appSurface";
+import { productFetch } from "@/lib/productFetch";
+import { nativeRequest } from "@/lib/nativeTransport";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLanguage, type Language } from "@/i18n/LanguageProvider";
 
@@ -737,6 +740,7 @@ type DeveloperApiKey = {
   lastUsedAt: string | null;
   expiresAt: string | null;
   revokedAt: string | null;
+  scopes: string[];
 };
 
 type IssuedApiKey = {
@@ -771,6 +775,7 @@ function parseDeveloperApiKey(value: unknown): DeveloperApiKey | undefined {
     lastUsedAt: readTimestamp(record.lastUsedAt),
     expiresAt: readTimestamp(record.expiresAt),
     revokedAt: readTimestamp(record.revokedAt),
+    scopes: Array.isArray(record.scopes) ? record.scopes.filter((value): value is string => typeof value === "string") : ["domains:search"],
   };
 }
 
@@ -803,9 +808,27 @@ function maskedKey(key: DeveloperApiKey): string {
   return "••••••••";
 }
 
-function DeveloperKeyWorkspace({ copy, language }: { copy: DeveloperKeyCopy; language: Language }) {
-  const { user, session, loading: authLoading } = useAuth();
+const permissionScopes = ["domains:search", "account:read", "saved:read", "saved:write", "trading:read", "trading:run", "trading:quote"] as const;
+const permissionCopy = {
+  en: { title: "Permissions", expiry: "Expires after", expires: "Expires", expired: "Expired", days: "days", hint: "Choose only the access this integration needs. Trading still requires an active Trading plan.", labels: ["Search domains", "Read account and plan", "Read saved domains", "Save and remove domains", "Read Trading reports", "Start and cancel Trading research", "Refresh registrar quotes"] },
+  sv: { title: "Behörigheter", expiry: "Upphör efter", expires: "Upphör", expired: "Utgången", days: "dagar", hint: "Välj endast den åtkomst integrationen behöver. Trading kräver fortfarande en aktiv Trading-plan.", labels: ["Sök domäner", "Läs konto och plan", "Läs sparade domäner", "Spara och ta bort domäner", "Läs Trading-rapporter", "Starta och avbryt Trading-analyser", "Uppdatera registrarpriser"] },
+  es: { title: "Permisos", expiry: "Caduca después de", expires: "Caduca", expired: "Caducada", days: "días", hint: "Selecciona solo el acceso que necesita esta integración. Trading requiere un plan Trading activo.", labels: ["Buscar dominios", "Leer cuenta y plan", "Leer dominios guardados", "Guardar y eliminar dominios", "Leer informes de Trading", "Iniciar y cancelar análisis de Trading", "Actualizar precios del registrador"] },
+  fr: { title: "Autorisations", expiry: "Expire après", expires: "Expiration", expired: "Expirée", days: "jours", hint: "Choisissez uniquement les accès nécessaires. Trading exige toujours un abonnement Trading actif.", labels: ["Rechercher des domaines", "Lire le compte et l’abonnement", "Lire les domaines enregistrés", "Enregistrer et supprimer des domaines", "Lire les rapports Trading", "Lancer et annuler les analyses Trading", "Actualiser les prix du bureau d’enregistrement"] },
+  zh: { title: "权限", expiry: "有效期", expires: "到期时间", expired: "已到期", days: "天", hint: "仅选择此集成所需的权限。Trading 仍然需要有效的 Trading 套餐。", labels: ["搜索域名", "读取账户与套餐", "读取已保存的域名", "保存和删除域名", "读取 Trading 报告", "启动和取消 Trading 研究", "刷新注册商报价"] },
+};
+
+function DeveloperKeyWorkspace(props: { copy: DeveloperKeyCopy; language: Language }) {
+  const { user } = useAuth();
+  // Remount all secret-bearing state on account changes, including sign-out.
+  return <DeveloperKeyAccountWorkspace key={isLocalTestMode() ? "local-test" : user?.id ?? "anonymous"} {...props} />;
+}
+
+function DeveloperKeyAccountWorkspace({ copy, language }: { copy: DeveloperKeyCopy; language: Language }) {
+  const { user, loading: authLoading } = useAuth();
   const localTestMode = isLocalTestMode();
+  const accountId = user?.id;
+  const permissions = permissionCopy[language];
+  const lifetime = useRef<AbortController>();
   const [keys, setKeys] = useState<DeveloperApiKey[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -815,10 +838,34 @@ function DeveloperKeyWorkspace({ copy, language }: { copy: DeveloperKeyCopy; lan
   const [isCreating, setIsCreating] = useState(false);
   const [revokingId, setRevokingId] = useState<string>();
   const [issuedKey, setIssuedKey] = useState<IssuedApiKey>();
+  const [selectedScopes, setSelectedScopes] = useState<string[]>(["domains:search"]);
+  const [expiresInDays, setExpiresInDays] = useState(90);
+
+  const requestKeys = useCallback(async (method = "GET", body?: unknown, id?: string) => {
+    const signal = lifetime.current?.signal;
+    signal?.throwIfAborted();
+    if (!localTestMode) {
+      const current = await readAccountSession();
+      signal?.throwIfAborted();
+      if (!accountId || current?.user.id !== accountId) throw new Error(copy.requestError);
+    }
+    const path = `/api/developer/api-keys${id ? `?id=${encodeURIComponent(id)}` : ""}`;
+    const response = import.meta.env.VITE_SAJDA_SURFACE === "native"
+      ? await nativeRequest("/api/native/account","POST",{path,method,body,accountId},signal)
+      : await fetch(path, {
+      method, credentials: "same-origin", cache: "no-store", redirect: "error", signal,
+      headers: { Accept: "application/json", ...(!localTestMode && accountId ? { "X-Sajda-Account": accountId } : {}),
+        ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    const payload = await readApiPayload(response);
+    signal?.throwIfAborted();
+    if (!response.ok) throw new Error(apiErrorMessage(payload, copy.requestError));
+    return payload;
+  }, [accountId, localTestMode, copy.requestError]);
 
   const loadKeys = useCallback(async () => {
-    const accessToken = session?.access_token;
-    if (!accessToken && !localTestMode) {
+    if (!accountId && !localTestMode) {
       setKeys([]);
       return;
     }
@@ -826,22 +873,21 @@ function DeveloperKeyWorkspace({ copy, language }: { copy: DeveloperKeyCopy; lan
     setIsLoading(true);
     setRequestError(undefined);
     try {
-      const response = await fetch("/api/developer/api-keys", {
-        headers: { Accept: "application/json", ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
-      });
-      const payload = await readApiPayload(response);
-      if (!response.ok) throw new Error(apiErrorMessage(payload, copy.requestError));
+      const payload = await requestKeys();
       const rawKeys = Array.isArray(payload.keys) ? payload.keys : [];
       setKeys(rawKeys.map(parseDeveloperApiKey).filter((key): key is DeveloperApiKey => Boolean(key)));
     } catch (error) {
-      setRequestError(error instanceof Error && error.message ? error.message : copy.requestError);
+      if (!lifetime.current?.signal.aborted) setRequestError(error instanceof Error && error.message ? error.message : copy.requestError);
     } finally {
-      setIsLoading(false);
+      if (!lifetime.current?.signal.aborted) setIsLoading(false);
     }
-  }, [copy.requestError, localTestMode, session?.access_token]);
+  }, [accountId, copy.requestError, localTestMode, requestKeys]);
 
   useEffect(() => {
+    const controller = new AbortController();
+    lifetime.current = controller;
     void loadKeys();
+    return () => controller.abort();
   }, [loadKeys]);
 
   const createKey = async (event: FormEvent<HTMLFormElement>) => {
@@ -851,58 +897,43 @@ function DeveloperKeyWorkspace({ copy, language }: { copy: DeveloperKeyCopy; lan
       setNameError(copy.nameRequired);
       return;
     }
-    const accessToken = session?.access_token;
-    if (!accessToken && !localTestMode) return;
+    if ((!accountId && !localTestMode) || !selectedScopes.length) return;
 
     setIsCreating(true);
     setNameError(undefined);
     setRequestError(undefined);
     try {
-      const response = await fetch("/api/developer/api-keys", {
-        method: "POST",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        },
-        body: JSON.stringify({ name }),
-      });
-      const payload = await readApiPayload(response);
+      const payload = await requestKeys("POST", localTestMode ? { name } : { name, scopes: selectedScopes, expiresInDays });
       const metadata = parseDeveloperApiKey(payload.key);
       const rawKey = readString(payload.apiKey);
-      if (!response.ok || !metadata || !rawKey) throw new Error(apiErrorMessage(payload, copy.requestError));
+      if (!metadata || !rawKey) throw new Error(apiErrorMessage(payload, copy.requestError));
 
       setKeys((current) => [metadata, ...current.filter((key) => key.id !== metadata.id)]);
       setKeyName("");
       setIsCreateOpen(false);
       setIssuedKey({ metadata, rawKey });
     } catch (error) {
-      setNameError(error instanceof Error && error.message ? error.message : copy.requestError);
+      if (!lifetime.current?.signal.aborted) setNameError(error instanceof Error && error.message ? error.message : copy.requestError);
     } finally {
-      setIsCreating(false);
+      if (!lifetime.current?.signal.aborted) setIsCreating(false);
     }
   };
 
   const revokeKey = async (key: DeveloperApiKey) => {
-    const accessToken = session?.access_token;
-    if ((!accessToken && !localTestMode) || key.revokedAt) return;
+    if ((!accountId && !localTestMode) || key.revokedAt) return;
     if (!window.confirm(copy.revokeConfirm)) return;
 
     setRevokingId(key.id);
     setRequestError(undefined);
     try {
-      const response = await fetch(`/api/developer/api-keys?id=${encodeURIComponent(key.id)}`, {
-        method: "DELETE",
-        headers: { Accept: "application/json", ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
-      });
-      const payload = await readApiPayload(response);
+      const payload = await requestKeys("DELETE", undefined, key.id);
       const revokedKey = parseDeveloperApiKey(payload.key);
-      if (!response.ok || !revokedKey) throw new Error(apiErrorMessage(payload, copy.requestError));
+      if (!revokedKey) throw new Error(apiErrorMessage(payload, copy.requestError));
       setKeys((current) => current.map((entry) => entry.id === revokedKey.id ? revokedKey : entry));
     } catch (error) {
-      setRequestError(error instanceof Error && error.message ? error.message : copy.requestError);
+      if (!lifetime.current?.signal.aborted) setRequestError(error instanceof Error && error.message ? error.message : copy.requestError);
     } finally {
-      setRevokingId(undefined);
+      if (!lifetime.current?.signal.aborted) setRevokingId(undefined);
     }
   };
 
@@ -917,7 +948,7 @@ function DeveloperKeyWorkspace({ copy, language }: { copy: DeveloperKeyCopy; lan
               <p className="mt-4 leading-7 text-muted-foreground sm:text-lg">{localTestMode ? copy.localLead : copy.lead}</p>
               <p className="mt-3 text-sm font-bold leading-6 text-foreground sm:text-base">{copy.benefitLine}</p>
             </div>
-            {(user && !authLoading) || localTestMode ? <Button type="button" onClick={() => setIsCreateOpen(true)} className="shrink-0"><Plus className="h-4 w-4" />{localTestMode ? copy.createTest : copy.create}</Button> : null}
+            {(user && !authLoading) || localTestMode ? <Button type="button" onClick={() => { setSelectedScopes(["domains:search"]); setExpiresInDays(90); setIsCreateOpen(true); }} className="shrink-0"><Plus className="h-4 w-4" />{localTestMode ? copy.createTest : copy.create}</Button> : null}
           </div>
         </div>
 
@@ -946,12 +977,14 @@ function DeveloperKeyWorkspace({ copy, language }: { copy: DeveloperKeyCopy; lan
               {!authLoading && !isLoading && !keys.length ? <p className="mt-5 rounded-xl border border-dashed border-border bg-background px-4 py-5 text-sm leading-6 text-muted-foreground">{copy.empty}</p> : null}
               {!authLoading && !isLoading && keys.length ? <ul className="mt-5 grid gap-3">{keys.map((key) => {
                 const isRevoking = revokingId === key.id;
+                const expired = Boolean(key.expiresAt && Date.parse(key.expiresAt) <= Date.now());
                 return <li key={key.id} className={`rounded-xl border p-4 ${key.revokedAt ? "border-border bg-muted/35 opacity-75" : "border-border bg-background"}`}>
                   <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h4 className="font-semibold">{key.name}</h4><span className="rounded-full border border-primary/15 bg-primary/5 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-primary">{key.environment}</span>{key.revokedAt ? <span className="rounded-full border border-destructive/20 bg-destructive/5 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-destructive">{copy.revoked}</span> : null}</div><code className="mt-2 block break-all text-xs font-semibold text-muted-foreground">{maskedKey(key)}</code></div>
+                    <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h4 className="font-semibold">{key.name}</h4><span className="rounded-full border border-primary/15 bg-primary/5 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-primary">{key.environment}</span>{key.revokedAt || expired ? <span className="rounded-full border border-destructive/20 bg-destructive/5 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em] text-destructive">{key.revokedAt ? copy.revoked : permissions.expired}</span> : null}</div><code className="mt-2 block break-all text-xs font-semibold text-muted-foreground">{maskedKey(key)}</code></div>
                     {!key.revokedAt ? <Button type="button" variant="outline" size="sm" onClick={() => void revokeKey(key)} disabled={isRevoking}>{isRevoking ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}{isRevoking ? copy.revoking : copy.revoke}</Button> : null}
                   </div>
-                  <dl className="mt-4 grid gap-2 border-t border-border pt-3 text-xs text-muted-foreground sm:grid-cols-2"><div><dt className="font-bold uppercase tracking-[0.1em]">{copy.created}</dt><dd className="mt-1 font-medium text-foreground">{formatKeyDate(key.createdAt, language)}</dd></div><div><dt className="font-bold uppercase tracking-[0.1em]">{copy.lastUsed}</dt><dd className="mt-1 font-medium text-foreground">{key.lastUsedAt ? formatKeyDate(key.lastUsedAt, language) : copy.neverUsed}</dd></div></dl>
+                  <p className="mt-3 break-words text-xs leading-5 text-muted-foreground" aria-label={permissions.title}>{key.scopes.join(" · ")}</p>
+                  <dl className="mt-4 grid gap-2 border-t border-border pt-3 text-xs text-muted-foreground sm:grid-cols-3"><div><dt className="font-bold uppercase tracking-[0.1em]">{copy.created}</dt><dd className="mt-1 font-medium text-foreground">{formatKeyDate(key.createdAt, language)}</dd></div><div><dt className="font-bold uppercase tracking-[0.1em]">{copy.lastUsed}</dt><dd className="mt-1 font-medium text-foreground">{key.lastUsedAt ? formatKeyDate(key.lastUsedAt, language) : copy.neverUsed}</dd></div><div><dt className="font-bold uppercase tracking-[0.1em]">{permissions.expires}</dt><dd className="mt-1 font-medium text-foreground">{formatKeyDate(key.expiresAt, language)}</dd></div></dl>
                 </li>;
               })}</ul> : null}
             </div>
@@ -967,11 +1000,26 @@ function DeveloperKeyWorkspace({ copy, language }: { copy: DeveloperKeyCopy; lan
       </div>
 
       <Dialog open={isCreateOpen} onOpenChange={(open) => { setIsCreateOpen(open); if (!open) { setNameError(undefined); setKeyName(""); } }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-xl">
           <DialogHeader><DialogTitle>{localTestMode ? copy.createTestTitle : copy.createTitle}</DialogTitle><DialogDescription>{copy.createLead}</DialogDescription></DialogHeader>
           <form onSubmit={(event) => void createKey(event)} className="space-y-5">
             <div className="space-y-2"><Label htmlFor="developer-key-name">{copy.nameLabel}</Label><Input id="developer-key-name" autoFocus value={keyName} onChange={(event) => { setKeyName(event.target.value); setNameError(undefined); }} placeholder={copy.namePlaceholder} maxLength={80} disabled={isCreating} />{nameError ? <p role="alert" className="text-sm text-destructive">{nameError}</p> : null}</div>
-            <DialogFooter><Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)} disabled={isCreating}>{copy.cancel}</Button><Button type="submit" disabled={isCreating}>{isCreating ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}{isCreating ? copy.creating : localTestMode ? copy.createTestAction : copy.createAction}</Button></DialogFooter>
+            {!localTestMode ? <>
+              <fieldset className="space-y-3" disabled={isCreating}>
+                <legend className="mb-2 text-sm font-semibold">{permissions.title}</legend>
+                <p className="text-xs leading-5 text-muted-foreground">{permissions.hint}</p>
+                <div className="grid gap-2">{permissionScopes.map((scope, index) => <label key={scope} className={`flex cursor-pointer items-start gap-3 rounded-lg border px-3 py-2.5 text-sm ${selectedScopes.includes(scope) ? "border-primary/30 bg-primary/5" : "border-border"}`}>
+                  <input type="checkbox" value={scope} checked={selectedScopes.includes(scope)} onChange={(event) => setSelectedScopes(current => event.target.checked ? [...current, scope] : current.filter(value => value !== scope))} className="mt-0.5 h-4 w-4 shrink-0 accent-primary" />
+                  <span className="min-w-0"><span className="block font-medium">{permissions.labels[index]}</span><code className="text-xs text-muted-foreground">{scope}</code></span>
+                </label>)}</div>
+              </fieldset>
+              <div className="space-y-2"><Label htmlFor="developer-key-expiry">{permissions.expiry}</Label>
+                <select id="developer-key-expiry" value={expiresInDays} onChange={(event) => setExpiresInDays(Number(event.target.value))} disabled={isCreating} className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                  {[7, 30, 90, 180, 365].map(days => <option key={days} value={days}>{days} {permissions.days}</option>)}
+                </select>
+              </div>
+            </> : null}
+            <DialogFooter><Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)} disabled={isCreating}>{copy.cancel}</Button><Button type="submit" disabled={isCreating || (!localTestMode && !selectedScopes.length)}>{isCreating ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}{isCreating ? copy.creating : localTestMode ? copy.createTestAction : copy.createAction}</Button></DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
@@ -987,10 +1035,79 @@ function DeveloperKeyWorkspace({ copy, language }: { copy: DeveloperKeyCopy; lan
   );
 }
 
+const mcpCopy = {
+  en: { title: "Connect your tools to Sajda.", lead: "Use MCP to search domains, work with your saved list and read Trading research from the same Sajda account.",
+    auth: "Create a key with only the permissions your integration needs. Store it in your MCP client's secret settings and send it as a Bearer header on every request.",
+    protocol: "Streamable HTTP · protocol 2025-11-25 · server 1.0.0",
+    compatibility: "Use a client that supports configured Bearer headers. OAuth sign-in is not available.",
+    behavior: "Reading status or a report never starts research. Start, advance, stop and quote refresh are explicit tools. Trading still requires an active plan; no tool purchases a domain.",
+    rest: "The same account operations are available through the scoped REST API.", permission: "Choose access", reference: "Open API reference", keys: "Manage API keys" },
+  sv: { title: "Anslut dina verktyg till Sajda.", lead: "Använd MCP för att söka domäner, arbeta med din sparade lista och läsa Trading-analyser från samma Sajda-konto.",
+    auth: "Skapa en nyckel med de behörigheter integrationen behöver. Spara den i MCP-klientens hemliga inställningar och skicka den som Bearer-header vid varje anrop.",
+    protocol: "Streamable HTTP · protokoll 2025-11-25 · server 1.0.0",
+    compatibility: "Använd en klient med stöd för konfigurerade Bearer-headers. OAuth-inloggning är inte tillgänglig.",
+    behavior: "Status och rapporter startar aldrig analyser. Start, fortsättning, stopp och prisuppdatering är uttryckliga verktyg. Trading kräver fortfarande en aktiv plan; inget verktyg köper domäner.",
+    rest: "Samma kontofunktioner finns i REST-API:t med avgränsade behörigheter.", permission: "Välj åtkomst", reference: "Öppna API-referensen", keys: "Hantera API-nycklar" },
+  es: { title: "Conecta tus herramientas a Sajda.", lead: "Usa MCP para buscar dominios, trabajar con tu lista guardada y leer análisis de Trading de la misma cuenta de Sajda.",
+    auth: "Crea una clave con los permisos que necesita tu integración. Guárdala en la configuración de secretos de tu cliente MCP y envíala como cabecera Bearer en cada solicitud.",
+    protocol: "Streamable HTTP · protocolo 2025-11-25 · servidor 1.0.0",
+    compatibility: "Usa un cliente compatible con cabeceras Bearer configuradas. El inicio de sesión OAuth no está disponible.",
+    behavior: "Leer el estado o un informe nunca inicia una investigación. Iniciar, avanzar, detener y actualizar precios son herramientas explícitas. Trading requiere un plan activo; ninguna herramienta compra dominios.",
+    rest: "Las mismas operaciones de cuenta están disponibles en la API REST con permisos definidos.", permission: "Elige el acceso", reference: "Abrir referencia API", keys: "Gestionar claves API" },
+  fr: { title: "Connectez vos outils à Sajda.", lead: "Utilisez MCP pour rechercher des domaines, gérer votre liste et lire les analyses Trading du même compte Sajda.",
+    auth: "Créez une clé avec les autorisations nécessaires. Conservez-la dans les paramètres secrets de votre client MCP et envoyez-la en en-tête Bearer à chaque requête.",
+    protocol: "Streamable HTTP · protocole 2025-11-25 · serveur 1.0.0",
+    compatibility: "Utilisez un client acceptant des en-têtes Bearer configurés. La connexion OAuth n’est pas disponible.",
+    behavior: "Lire le statut ou un rapport ne lance jamais une analyse. Lancer, avancer, arrêter et actualiser un prix sont des outils explicites. Trading exige un abonnement actif ; aucun outil n’achète de domaine.",
+    rest: "Les mêmes opérations sont disponibles dans l’API REST avec des autorisations précises.", permission: "Choisir les accès", reference: "Ouvrir la référence API", keys: "Gérer les clés API" },
+  zh: { title: "将你的工具连接到 Sajda。", lead: "通过 MCP 搜索域名、管理收藏并读取同一 Sajda 账户的 Trading 研究报告。",
+    auth: "创建仅含所需权限的密钥，将其保存在 MCP 客户端的机密设置中，并在每次请求中通过 Bearer 请求头发送。",
+    protocol: "Streamable HTTP · 协议 2025-11-25 · 服务版本 1.0.0",
+    compatibility: "请使用支持配置 Bearer 请求头的客户端。目前不提供 OAuth 登录。",
+    behavior: "读取状态或报告不会启动研究。启动、推进、停止和刷新报价均需显式调用工具。Trading 仍需有效套餐；所有工具均不会购买域名。",
+    rest: "相同的账户操作也可通过带权限控制的 REST API 使用。", permission: "选择权限", reference: "打开 API 参考", keys: "管理 API 密钥" },
+};
+
+function DeveloperMcpSection({ language, origin, copyLabel, copiedLabel }: { language: Language; origin: string; copyLabel: string; copiedLabel: string }) {
+  const copy = mcpCopy[language];
+  return <section id="mcp" className="scroll-mt-24 border-y border-border/80 bg-card">
+    <div className="mx-auto grid w-full max-w-7xl gap-8 px-5 py-12 sm:px-7 sm:py-16 lg:grid-cols-2 lg:gap-14">
+      <div>
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">MCP</p>
+        <h2 className="mt-3 text-balance text-3xl font-semibold tracking-[-0.04em]">{copy.title}</h2>
+        <p className="mt-4 leading-7 text-muted-foreground">{copy.lead}</p>
+        <p className="mt-4 text-sm leading-6 text-muted-foreground">{copy.auth}</p>
+        <div className="mt-6 overflow-hidden rounded-xl border border-border bg-secondary/40 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <code className="min-w-0 break-all text-sm font-semibold">{origin}/api/mcp</code>
+            <CopyButton code={`${origin}/api/mcp`} copyLabel={copyLabel} copiedLabel={copiedLabel} className="border-border bg-card text-foreground" />
+          </div>
+          <p className="mt-3 text-xs leading-5 text-muted-foreground">{copy.protocol}</p>
+        </div>
+        <p className="mt-4 text-sm leading-6 text-muted-foreground">{copy.compatibility}</p>
+      </div>
+      <div>
+        <h3 className="text-sm font-bold">{copy.permission}</h3>
+        <dl className="mt-3 divide-y divide-border">
+          {permissionScopes.map((scope, index) => <div key={scope} className="flex flex-wrap items-baseline justify-between gap-x-5 gap-y-1 py-2.5">
+            <dt><code className="text-xs font-semibold text-primary">{scope}</code></dt>
+            <dd className="text-sm text-muted-foreground">{permissionCopy[language].labels[index]}</dd>
+          </div>)}
+        </dl>
+        <p className="mt-5 text-sm leading-6 text-muted-foreground">{copy.behavior}</p>
+        <p className="mt-4 text-sm leading-6 text-muted-foreground">{copy.rest} <code className="break-all text-xs">/api/v1/account?resource=membership</code></p>
+        <a href={`${origin}/api/openapi`} target="_blank" rel="noreferrer" className="mt-4 inline-flex items-center gap-2 text-sm font-bold text-primary">
+          {copy.reference}<ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+        </a>
+      </div>
+    </div>
+  </section>;
+}
+
 export default function Developers() {
   const { language } = useLanguage();
   const keyCopy = developerKeyCopy[language];
-  const keyPortalEnabled = isLocalTestMode() || hasSupabaseBrowserConfig;
+  const keyPortalEnabled = isLocalTestMode() || isAccountAuthConfigured;
   const accessCopy = {
     en: {
       liveLabel: "Public API",
@@ -1027,7 +1144,8 @@ export default function Developers() {
   const [publicResponse, setPublicResponse] = useState<string>();
   const [publicRequestState, setPublicRequestState] = useState<"idle" | "loading" | "success" | "error">("idle");
 
-  const origin = typeof window === "undefined" ? "https://sajda.dev" : window.location.origin;
+  const origin = isNativeApp ? import.meta.env.VITE_NATIVE_API_ORIGIN?.trim() ?? ""
+    : typeof window === "undefined" ? "https://sajda.dev" : window.location.origin;
   const domainsRequest = useMemo(() => `curl --request POST "${origin}/api/v1/domains" \\
   --header "Authorization: Bearer $SAJDA_API_KEY" \\
   --header "Content-Type: application/json" \\
@@ -1060,7 +1178,7 @@ export default function Developers() {
     setPublicRequestState("loading");
     setPublicResponse(undefined);
     try {
-      const response = await fetch("/api/v1/public/domains", {
+      const response = await productFetch("/api/v1/public/domains", {
         method: "POST",
         headers: { Accept: "application/json", "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1090,6 +1208,15 @@ export default function Developers() {
     { method: "POST", path: "/api/v1/domains", description: copy.protectedDomains, status: copy.statusKey, audience: copy.audienceApproved, href: "#api-v1", tone: "protected" as const },
   ];
 
+  if (isNativeApp) return <div className="min-h-screen bg-background text-foreground">
+    <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-5 pt-6 sm:px-7">
+      <h1 className="text-xl font-semibold">{mcpCopy[language].keys}</h1>
+      <a href="#mcp" className="text-sm font-semibold text-primary">MCP<ArrowRight className="ml-2 inline h-4 w-4" aria-hidden="true" /></a>
+    </div>
+    {keyPortalEnabled ? <DeveloperKeyWorkspace copy={keyCopy} language={language} /> : null}
+    <DeveloperMcpSection language={language} origin={origin} copyLabel={copy.copy} copiedLabel={copy.copied} />
+  </div>;
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-30 border-b border-border/80 bg-card/95 backdrop-blur-xl">
@@ -1101,6 +1228,7 @@ export default function Developers() {
             <a href="#overview" className="transition-colors hover:text-foreground">{copy.navOverview}</a>
             <a href="#public" className="transition-colors hover:text-foreground">{copy.navPublic}</a>
             <a href="#api-v1" className="transition-colors hover:text-foreground">{copy.navV1}</a>
+            <a href="#mcp" className="transition-colors hover:text-foreground">MCP</a>
             {keyPortalEnabled ? <a href="#access" className="transition-colors hover:text-foreground">{copy.navAccess}</a> : null}
           </nav>
           <div className="flex items-center gap-2 sm:gap-4">
@@ -1175,6 +1303,8 @@ export default function Developers() {
         </section>
 
         <section id="api-v1" className="scroll-mt-24"><div className="mx-auto grid w-full max-w-7xl gap-10 px-5 py-14 sm:px-7 sm:py-20 lg:grid-cols-[minmax(0,0.74fr)_minmax(26rem,1.1fr)] lg:gap-16"><div><div className="flex flex-wrap items-center gap-3"><p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">{copy.apiLabel}</p><span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-700"><LockKeyhole className="h-3.5 w-3.5" aria-hidden="true" />{copy.serverOnly}</span></div><h2 className="mt-3 max-w-xl text-balance text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">{copy.apiTitle}</h2><p className="mt-4 max-w-xl leading-7 text-muted-foreground sm:text-lg">{copy.apiLead}</p><a href="/api/openapi" target="_blank" rel="noreferrer" className="mt-7 inline-flex items-center gap-2 text-sm font-bold text-primary hover:text-primary/75"><Braces className="h-4 w-4" aria-hidden="true" />{copy.contractLabel}<ArrowUpRight className="h-4 w-4" aria-hidden="true" /></a></div><CodeExample label={`${copy.endpointLabel} · POST /api/v1/domains`} code={domainsRequest} copyLabel={copy.copy} copiedLabel={copy.copied} /></div></section>
+
+        <DeveloperMcpSection language={language} origin={origin} copyLabel={copy.copy} copiedLabel={copy.copied} />
 
         <section className="border-y border-border/80 bg-secondary/45"><div className="mx-auto w-full max-w-7xl px-5 py-14 sm:px-7 sm:py-20"><div className="max-w-2xl"><p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">{copy.boundariesLabel}</p><h2 className="mt-3 text-balance text-3xl font-semibold tracking-[-0.04em] sm:text-4xl">{copy.boundariesTitle}</h2></div><div className="mt-8 grid gap-3 lg:grid-cols-3">{copy.boundaries.map((boundary, index) => { const Icon = [CheckCircle2, Server, KeyRound][index] ?? CheckCircle2; return <article key={boundary.title} className="sajda-surface p-5 sm:p-6"><span className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary"><Icon className="h-5 w-5" aria-hidden="true" /></span><h3 className="mt-5 text-lg font-bold tracking-[-0.025em]">{boundary.title}</h3><p className="mt-3 text-sm leading-6 text-muted-foreground">{boundary.body}</p></article>; })}</div></div></section>
 

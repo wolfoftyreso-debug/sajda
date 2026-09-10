@@ -1,3 +1,5 @@
+import { isNativeApp } from "./appSurface";
+
 export type LocalAvailabilityStatus = "available" | "taken" | "unknown";
 export type LocalCheckMethod = "rdap" | "whois" | "none";
 
@@ -22,7 +24,7 @@ function isSupportedDomain(value: string): value is string {
 }
 
 export function canUseLocalAvailabilityVerifier(): boolean {
-  return typeof window !== "undefined" && LOCAL_HOSTS.has(window.location.hostname);
+  return !isNativeApp && typeof window !== "undefined" && LOCAL_HOSTS.has(window.location.hostname);
 }
 
 export async function verifyAvailabilityLocally(domains: string[]): Promise<Map<string, LocalAvailabilityResult>> {

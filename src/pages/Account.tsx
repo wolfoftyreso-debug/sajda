@@ -10,6 +10,8 @@ import { checkIsAdmin } from "@/lib/adminService";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { getMembershipCopy } from "@/i18n/membershipCopy";
 import AccountMembershipPanel from "@/components/AccountMembershipPanel";
+import { isNativeApp } from "@/lib/appSurface";
+import { nativeCopy } from "@/app/nativeCopy";
 
 const accountMessages = {
   en: {
@@ -150,6 +152,7 @@ const Account = () => {
         </header>
         <div className="space-y-6">
           <AccountMembershipPanel />
+          {isNativeApp && <Link to="/more" className="flex min-h-14 flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card p-4 font-semibold text-primary focus-visible:ring-2 focus-visible:ring-ring">{nativeCopy[language].more}<span className="text-sm font-normal text-muted-foreground">{nativeCopy[language].marketplace} · API · {nativeCopy[language].help}</span></Link>}
           {/* Profile Card */}
           <div className="rounded-lg border border-border bg-card p-6">
             <div className="flex items-center gap-4">

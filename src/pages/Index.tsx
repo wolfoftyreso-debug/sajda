@@ -29,6 +29,8 @@ import { DEFAULT_PROVIDER_IDS } from "@/lib/providerCatalog";
 import { DEFAULT_ADVANCED_SEARCH_CRITERIA, type AdvancedSearchCriteria } from "@/lib/advancedSearchCriteria";
 import { parseDirectDomainSearch } from "@/lib/directDomainSearch";
 import { consumeSearchEntryPreset } from "@/lib/searchEntryPreset";
+import { isNativeApp } from "@/lib/appSurface";
+import { nativeCopy } from "@/app/nativeCopy";
 
 const Index = () => {
   const {
@@ -411,7 +413,7 @@ const Index = () => {
   return (
     <div className="sajda-canvas min-h-screen pb-1">
       <main className={`mx-auto w-full px-4 sm:px-6 ${domains.length === 0 && !isScanning ? "max-w-5xl py-5 sm:py-6" : "max-w-[1280px] py-5 sm:py-6"}`}>
-        <header className="grid min-h-10 grid-cols-[1fr_auto] items-center gap-3 border-b border-border/80 pb-4 sm:grid-cols-[1fr_auto_auto]" aria-label="Sajda">
+        {!isNativeApp && <header className="grid min-h-10 grid-cols-[1fr_auto] items-center gap-3 border-b border-border/80 pb-4 sm:grid-cols-[1fr_auto_auto]" aria-label="Sajda">
           <a
             href="/"
             className="inline-flex items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
@@ -428,8 +430,8 @@ const Index = () => {
             <AccountLink />
             <LanguageSwitcher />
           </div>
-        </header>
-        {!anonymousSearchMode && (
+        </header>}
+        {!isNativeApp && !anonymousSearchMode && (
           <div className="mb-6">
             <Top10Banner />
           </div>
@@ -437,8 +439,8 @@ const Index = () => {
 
         {/* Setup Section */}
         {!isScanning && (domains.length === 0 || isEditingSearch) && (
-          <section className="mx-auto max-w-5xl pb-4 pt-8 sm:pb-6 sm:pt-10" aria-labelledby="search-heading">
-            <div className="mx-auto max-w-[44rem] text-center">
+          <section className={`mx-auto max-w-5xl pb-4 sm:pb-6 ${isNativeApp ? "pt-1" : "pt-8 sm:pt-10"}`} aria-labelledby="search-heading">
+            {isNativeApp ? <h1 id="search-heading" className="text-2xl font-semibold tracking-tight">{nativeCopy[language].search}</h1> : <div className="mx-auto max-w-[44rem] text-center">
               <h1 id="search-heading" className="text-balance text-3xl font-semibold leading-[1.08] tracking-[-0.04em] text-foreground sm:text-5xl">
                 {t("search.heading")}
               </h1>
@@ -447,10 +449,10 @@ const Index = () => {
                   ? t("search.intro")
                   : t("search.introLegacy")}
               </p>
-            </div>
+            </div>}
 
             <div ref={searchControlsRef} className="sajda-search-shell mt-6 overflow-hidden rounded-[1.5rem] border p-2.5 sm:p-3 md:p-4">
-              {anonymousSearchMode && <HeroOfferHeading language={language} />}
+              {!isNativeApp && anonymousSearchMode && <HeroOfferHeading language={language} />}
 
               <form onSubmit={(event) => { event.preventDefault(); handleStartSearch(); }} className="sajda-main-search-row relative z-10 grid gap-2 rounded-[1.125rem] border p-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-stretch sm:p-2" role="search">
                 <label htmlFor="domain-theme" className="sr-only">
@@ -485,7 +487,7 @@ const Index = () => {
                 </Button>
               </form>
 
-              {anonymousSearchMode && (
+              {!isNativeApp && anonymousSearchMode && (
                 <div className="sajda-search-paths relative z-10">
                   <HeroOfferCarousel
                     language={language}
@@ -517,6 +519,14 @@ const Index = () => {
                 </div>
               )}
 
+              {isNativeApp && anonymousSearchMode && <details className="mx-2 mt-4 rounded-xl border border-border bg-background px-4 py-1">
+                <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{language === "sv" ? "Sökinställningar" : language === "es" ? "Opciones de búsqueda" : language === "fr" ? "Options de recherche" : language === "zh" ? "搜索选项" : "Search options"}</summary>
+                <div className="space-y-6 pb-4 pt-2">
+                  {!isExactDomainSearch && <><TLDSelector selectedTLDs={selectedTLDs} onToggleTLD={handleToggleTLD} disabled={isScanning} /><ScanModeSelector selectedMode={scanMode} onModeChange={setScanMode} disabled={isScanning} /></>}
+                  <ProviderSelector selectedProviderIds={selectedProviderIds} onProviderIdsChange={setSelectedProviderIds} disabled={isScanning} />
+                </div>
+              </details>}
+
               {anonymousSearchMode && !isExactDomainSearch && (
                 <div ref={advancedSearchRef}>
                   <AdvancedSearchBrief
@@ -528,7 +538,7 @@ const Index = () => {
                     criteria={advancedCriteria}
                     onCriteriaChange={setAdvancedCriteria}
                   >
-                    <div className="space-y-8">
+                    {!isNativeApp && <div className="space-y-8">
                       <TLDSelector
                         selectedTLDs={selectedTLDs}
                         onToggleTLD={handleToggleTLD}
@@ -554,7 +564,7 @@ const Index = () => {
                           ? advancedCopy.briefReady
                           : advancedCopy.briefRequired}
                       </p>
-                    </div>
+                    </div>}
                   </AdvancedSearchBrief>
                 </div>
               )}

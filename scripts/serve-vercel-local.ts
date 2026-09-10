@@ -23,6 +23,10 @@ import auth from "../api/auth";
 import contact from "../api/contact";
 import billing from "../api/account/billing";
 import billingWebhook from "../api/billing-webhook";
+import mcp from "../api/mcp";
+import accountApi from "../api/v1/account";
+import nativeAuth from "../api/native/auth";
+import nativeAccount from "../api/native/account";
 
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 const root = resolve(projectRoot, "dist-vercel");
@@ -32,6 +36,8 @@ if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error("Inv
 type ResponseAdapter = ServerResponse & { status(code: number): ResponseAdapter; json(body: unknown): void };
 type Handler = (req: IncomingMessage, res: ResponseAdapter) => unknown;
 const handlers = new Map<string, Handler>([
+  ["/api/mcp",mcp], ["/api/v1/account",accountApi],
+  ["/api/native/auth",nativeAuth], ["/api/native/account",nativeAccount],
   ["/api/domain-search", search], ["/api/deep-review", deepReview], ["/api/health", health],
   ["/api/v1/public/domains", publicDomains], ["/api/v1/domains", protectedDomains],
   ["/api/v1/public/names", publicDomains], ["/api/v1/names", protectedDomains],
@@ -72,7 +78,7 @@ const server = createServer(async (req, rawRes) => {
       // boundary (with a hard size cap), while invoking the real handlers.
       const request = req as IncomingMessage & { body?: unknown; query?: Record<string, string> };
       request.query = Object.fromEntries(url.searchParams);
-      if (path.startsWith("/api/account/") && ["POST", "DELETE"].includes(req.method || "")) {
+      if ((path.startsWith("/api/account/") || path === "/api/developer/api-keys") && ["POST", "DELETE"].includes(req.method || "")) {
         const chunks: Buffer[] = [];
         let size = 0;
         for await (const chunk of req) {
@@ -80,7 +86,7 @@ const server = createServer(async (req, rawRes) => {
           if (size > 16_384) { res.status(413).json({ code: "request_too_large" }); return; }
           chunks.push(Buffer.from(chunk));
         }
-        request.body = Buffer.concat(chunks).toString("utf8");
+        request.body = chunks.length ? Buffer.concat(chunks).toString("utf8") : undefined;
       }
       await handler(request, res); return;
     }

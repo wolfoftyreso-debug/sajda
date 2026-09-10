@@ -1,6 +1,7 @@
 import { AccountAccessError } from "./account-error.js";
 import { accountRequestOrigin, accountWebHeaders, requireSameOrigin, type AccountHeaders } from "./account-origin.js";
 import { getAccountAuth } from "./account-server.js";
+import { readDelegatedAccount, verifyDelegatedUser } from "./delegated-account.js";
 
 export { AccountAccessError } from "./account-error.js";
 export interface VerifiedAccount { id: string; emailVerified: boolean }
@@ -28,6 +29,14 @@ export async function requireAccount(
   headers: AccountHeaders = {},
   options: { verifiedEmail?: boolean; method?: string } = {},
 ): Promise<VerifiedAccount> {
+  const delegated = readDelegatedAccount(headers, options.method);
+  if (delegated) {
+    try { return await verifyDelegatedUser(delegated, options.verifiedEmail); }
+    catch (error) {
+      if (error instanceof AccountAccessError) throw error;
+      throw new AccountAccessError("auth_unavailable", 503, "Account verification is temporarily unavailable. Try again.");
+    }
+  }
   const cookie = headers.cookie;
   if (typeof cookie !== "string" || cookie.length > 8192
     || !/(?:^|;\s*)(?:__Secure-)?sajda\.session_token=[^;\s]+/u.test(cookie)

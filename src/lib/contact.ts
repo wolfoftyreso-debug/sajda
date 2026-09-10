@@ -1,4 +1,5 @@
 import type { Language } from "@/i18n/LanguageProvider";
+import { productFetch } from "./productFetch";
 
 export const CONTACT_EMAIL = "dev@hypbit.com";
 export const CONTACT_LIMITS = { name: 80, email: 254, subject: 120, message: 5000, website: 200 } as const;
@@ -76,7 +77,7 @@ export async function sendContactSubmission(submission: ContactSubmission, signa
   signal?.addEventListener("abort", cancel, { once: true });
   const timer = setTimeout(cancel, 30_000);
   try {
-    const response = await fetch("/api/contact", {
+    const response = await productFetch("/api/contact", {
       method: "POST", credentials: "same-origin", redirect: "error", cache: "no-store",
       headers: { "Content-Type": "application/json" }, body: JSON.stringify(submission), signal: controller.signal,
     });

@@ -6,6 +6,8 @@
 node_modules
 dist
 dist-vercel
+dist-native
+ios
 /public
 coverage
 *.log

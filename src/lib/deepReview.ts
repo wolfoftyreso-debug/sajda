@@ -1,4 +1,5 @@
 import type { Language } from "@/i18n/LanguageProvider";
+import { productFetch } from "./productFetch";
 import { rankReviewCandidates, type ReviewScoreBreakdown } from "../../api/_shared/deep-review-ranking";
 
 /**
@@ -133,7 +134,7 @@ export async function runDeepReview(
   // The Vercel ceiling is 20s; a failed/slow request still has a local fallback.
   const timeout = window.setTimeout(() => controller.abort(), 18_000);
   try {
-    const response = await fetch("/api/deep-review", {
+    const response = await productFetch("/api/deep-review", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

@@ -8,11 +8,15 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "functions": {
+    "api/mcp.ts": { "maxDuration": 60 },
+    "api/v1/account.ts": { "maxDuration": 60 },
+    "api/native/auth.ts": { "maxDuration": 20 },
+    "api/native/account.ts": { "maxDuration": 60 },
     "api/reference-fx.ts": { "maxDuration": 10 },
     "api/account/billing.ts": { "maxDuration": 30 },
     "api/account/membership.ts": { "maxDuration": 20 },
     "api/billing-webhook.ts": { "maxDuration": 30 },
-    "api/account/lost-domains.ts": { "maxDuration": 30 },
+    "api/account/lost-domains.ts": { "maxDuration": 60 },
     "api/cron/lost-domains.ts": { "maxDuration": 60 },
     "api/account/capabilities.ts": {
       "maxDuration": 20
@@ -52,6 +56,11 @@
     }
   },
   "headers": [
+    { "source": "/connect/native", "headers": [
+      { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+      { "key": "Cache-Control", "value": "private, no-store" },
+      { "key": "Referrer-Policy", "value": "no-referrer" }
+    ] },
     {
       "source": "/pricing",
       "headers": [
@@ -344,6 +353,7 @@
       "source": "/api/auth/:authAction*",
       "destination": "/api/auth?authAction=:authAction*"
     },
+    { "source": "/connect/native", "destination": "/" },
     { "source": "/plus", "destination": "/" },
     { "source": "/pricing", "destination": "/" },
     {

@@ -9,6 +9,9 @@
     "npm": ">=11"
   },
   "overrides": {
+    "xcode": {
+      "uuid": "11.1.1"
+    },
     "lodash": "^4.18.1",
     "yaml": "^2.9.0"
   },
@@ -22,6 +25,11 @@
     "db:check": "node --env-file-if-exists=.env.local scripts/migrate-neon.mjs --check",
     "db:apply": "node --env-file-if-exists=.env.local scripts/migrate-neon.mjs --apply",
     "dev": "vite",
+    "dev:native": "vite --config vite.native.config.ts",
+    "build:native": "node scripts/build-native.mjs",
+    "generate:native-assets": "node scripts/generate-native-assets.mjs",
+    "sync:ios": "cap sync ios",
+    "open:ios": "cap open ios",
     "start:local": "npm run build:local && npm run serve:full",
     "serve:full": "node --env-file-if-exists=.env.local infra/local-server/full-app-server.mjs",
     "start:local-search": "node infra/local-server/server.mjs",
@@ -47,7 +55,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/core": "8.5.1",
+    "@capacitor/ios": "8.5.1",
     "@fontsource/plus-jakarta-sans": "^5.2.8",
+    "@modelcontextprotocol/sdk": "1.30.0",
     "@neondatabase/serverless": "^1.1.0",
     "@radix-ui/react-collapsible": "^1.1.11",
     "@radix-ui/react-dialog": "^1.1.14",
@@ -85,7 +96,9 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@capacitor/cli": "8.5.1",
     "@eslint/js": "^9.32.0",
+    "@resvg/resvg-js": "2.6.2",
     "@tailwindcss/typography": "^0.5.16",
     "@types/node": "^22.16.5",
     "@types/pg": "^8.23.1",

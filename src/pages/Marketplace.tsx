@@ -17,6 +17,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { formatMarketplacePrice, interpolateMarketplace, marketplaceCopy } from "@/lib/marketplaceCopy";
 import { hasSupabaseBrowserConfig } from "@/integrations/supabase/client";
+import { isNativeApp } from "@/lib/appSurface";
+import { nativeCopy } from "@/app/nativeCopy";
 import {
   createMarketplaceListing,
   getMarketplaceListings,
@@ -41,6 +43,7 @@ const initialForm: ListingForm = {
 };
 
 function MarketplaceHeader({ backLabel }: { backLabel?: string }) {
+  if (isNativeApp) return null;
   return (
     <header className="border-b border-border/80 bg-card">
       <div className="mx-auto flex min-h-[4.75rem] w-full max-w-7xl items-center justify-between gap-4 px-5 sm:px-7">
@@ -141,14 +144,14 @@ export default function Marketplace() {
 
       <main>
         <section className="sajda-canvas border-b border-border/70">
-          <div className="mx-auto w-full max-w-5xl px-5 py-12 text-center sm:px-7 sm:py-16 lg:py-20">
+          <div className={isNativeApp ? "mx-auto w-full max-w-5xl px-4 py-6" : "mx-auto w-full max-w-5xl px-5 py-12 text-center sm:px-7 sm:py-16 lg:py-20"}>
             <div className="mx-auto max-w-3xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-card/90 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-primary shadow-sm">
+              {!isNativeApp && <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-card/90 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.14em] text-primary shadow-sm">
                 <Store className="h-3.5 w-3.5" aria-hidden="true" />
                 {copy.eyebrow}
-              </div>
-              <h1 className="mt-6 max-w-3xl text-balance text-4xl font-semibold leading-[1.03] tracking-[-0.055em] text-foreground sm:text-6xl">
-                {persistentMarketplace ? copy.title : copy.createTitle}
+              </div>}
+              <h1 className={isNativeApp ? "text-2xl font-semibold tracking-tight" : "mt-6 max-w-3xl text-balance text-4xl font-semibold leading-[1.03] tracking-[-0.055em] text-foreground sm:text-6xl"}>
+                {isNativeApp ? nativeCopy[language].marketplace : persistentMarketplace ? copy.title : copy.createTitle}
               </h1>
               <p className="mx-auto mt-6 max-w-2xl text-pretty text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">{persistentMarketplace ? copy.lead : copy.emptyBody}</p>
               {!persistentMarketplace && (

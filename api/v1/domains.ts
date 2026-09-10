@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import domainSearchHandler, { createTrustedApiEngineRequest } from "../domain-search.js";
-import { authenticatePersistedApiKey } from "../_shared/developer-api-keys.js";
+import { authenticatePersistedApiKey, consumeApiKeyQuota, consumeLegacyDomainsQuota, type ApiKeyPrincipal } from "../_shared/developer-api-keys.js";
+import { AccountAccessError } from "../_shared/account-error.js";
 import { NAMES_API_MAX_BODY_BYTES, parseNamesApiRequest } from "../_shared/names-contract.js";
 import { createRequestId, withMachineErrorCode } from "../_shared/public-api.js";
 
@@ -32,11 +33,6 @@ interface ApiKeyRecord {
   hash: Buffer;
 }
 
-interface ApiRateLimitEntry {
-  startedAt: number;
-  count: number;
-}
-
 interface ApiQuotaResult {
   allowed: boolean;
   remaining: number;
@@ -48,7 +44,6 @@ const API_REQUESTS_PER_MINUTE = 4;
 const API_KEY_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{2,63}$/u;
 const API_KEY_HASH_PATTERN = /^[a-f0-9]{64}$/u;
 const API_KEY_TOKEN_PATTERN = /^[A-Za-z0-9_-]{32,256}$/u;
-const apiRateLimits = new Map<string, ApiRateLimitEntry>();
 
 export const config = { maxDuration: 30 };
 
@@ -136,20 +131,19 @@ function configuredApiKeys(): ApiKeyRecord[] {
   return records;
 }
 
-async function authenticatedClientId(request: VercelRequestLike): Promise<string | undefined> {
-  const authorization = headerValue(request, "authorization");
+async function authenticatedClient(request: VercelRequestLike): Promise<{ clientId: string; principal?: ApiKeyPrincipal } | undefined> {
+  const entries = Object.entries(request.headers).filter(([name]) => name.toLowerCase() === "authorization");
+  const authorization = entries.length === 1 && typeof entries[0][1] === "string" ? entries[0][1] : "";
   if (!authorization.startsWith("Bearer ")) return undefined;
   const token = authorization.slice("Bearer ".length);
   if (!API_KEY_TOKEN_PATTERN.test(token)) return undefined;
 
-  // New keys use a public lookup segment and a server-only hash. The verifier
-  // reads exactly one active-key candidate and compares a fixed-length digest.
-  // No key material, browser session, or provider credential reaches the
-  // domain engine. An unavailable database does not accidentally authorize a
-  // new key; the legacy static hash list is still checked below for existing
-  // operator integrations during the migration window.
-  const persisted = await authenticatePersistedApiKey(token);
-  if (persisted.status === "authenticated") return persisted.clientId;
+  const persisted = await authenticatePersistedApiKey(token, ["domains:search"]);
+  if (persisted.status === "authenticated") return { clientId: persisted.clientId, principal: persisted.principal };
+  if (persisted.status === "unavailable") throw new AccountAccessError("developer_keys_unavailable", 503, "API key verification is temporarily unavailable.");
+  if (persisted.status === "insufficient_scope") throw new AccountAccessError("insufficient_scope", 403, "This API key does not have domain search permission.");
+  // Recognizable persisted keys never fall through into an operator allowlist.
+  if (persisted.status !== "not_applicable") return undefined;
 
   const candidateHash = createHash("sha256").update(token, "utf8").digest();
   let authenticatedId: string | undefined;
@@ -158,26 +152,7 @@ async function authenticatedClientId(request: VercelRequestLike): Promise<string
     // so a valid prefix/position does not alter the comparison work.
     if (timingSafeEqual(candidateHash, configured.hash)) authenticatedId = configured.id;
   }
-  return authenticatedId;
-}
-
-function takeApiQuota(clientId: string): ApiQuotaResult {
-  const now = Date.now();
-  for (const [key, value] of apiRateLimits) {
-    if (now - value.startedAt >= 60_000) apiRateLimits.delete(key);
-  }
-
-  const existing = apiRateLimits.get(clientId);
-  const startedAt = existing?.startedAt ?? now;
-  const resetAt = startedAt + 60_000;
-  const count = existing?.count ?? 0;
-  if (count >= API_REQUESTS_PER_MINUTE) {
-    return { allowed: false, remaining: 0, resetAt };
-  }
-
-  const nextCount = count + 1;
-  apiRateLimits.set(clientId, { startedAt, count: nextCount });
-  return { allowed: true, remaining: API_REQUESTS_PER_MINUTE - nextCount, resetAt };
+  return authenticatedId ? { clientId: authenticatedId } : undefined;
 }
 
 function isJsonRequest(request: VercelRequestLike): boolean {
@@ -199,14 +174,26 @@ export default async function handler(request: VercelRequestLike, response: Verc
     return;
   }
 
-  const clientId = await authenticatedClientId(request);
-  if (!clientId) {
+  let client: Awaited<ReturnType<typeof authenticatedClient>>;
+  let quota: ApiQuotaResult;
+  try {
+    client = await authenticatedClient(request);
+    if (!client) throw new AccountAccessError("invalid_api_key", 401, "Invalid API key.");
+    if (client.principal) {
+      const requests = await consumeApiKeyQuota(client.principal, "requests");
+      if (!requests.allowed) {
+        response.setHeader("Retry-After", Math.max(1, Math.ceil((requests.resetAt - Date.now()) / 1_000)));
+        throw new AccountAccessError("rate_limited", 429, "The shared account API request limit has been reached.");
+      }
+    }
+    quota = client.principal ? await consumeApiKeyQuota(client.principal, "domains") : await consumeLegacyDomainsQuota(client.clientId);
+  } catch (error) {
+    const failure = error instanceof AccountAccessError ? error
+      : new AccountAccessError("api_unavailable", 503, "The API is temporarily unavailable. Please try again.");
     setApiResponseHeaders(response, requestId);
-    sendJson(response, 401, { error: "Invalid API key." });
+    sendJson(response, failure.status, { error: failure.message, code: failure.code });
     return;
   }
-
-  const quota = takeApiQuota(clientId);
   setApiResponseHeaders(response, requestId, quota);
   if (!quota.allowed) {
     response.setHeader("Retry-After", String(Math.max(1, Math.ceil((quota.resetAt - Date.now()) / 1_000))));
@@ -214,17 +201,21 @@ export default async function handler(request: VercelRequestLike, response: Verc
     return;
   }
 
+  let body: ReturnType<typeof parseNamesApiRequest>;
   try {
-    const body = parseNamesApiRequest(await readJson(request));
+    body = parseNamesApiRequest(await readJson(request));
+  } catch (error) {
+    const status = error instanceof Error && /body is too large/iu.test(error.message) ? 413 : 400;
+    sendJson(response, status, { error: status === 413 ? "The request body is too large." : "Send a valid domain search request." });
+    return;
+  }
+  try {
     // Deliberately pass only the sanitized payload into the public engine. It
     // gets a server-only Symbol identity for its own per-client quota; the raw
     // Authorization value never reaches that engine or any provider adapter.
-    const engineRequest = createTrustedApiEngineRequest({ method: "POST", headers: {} }, body, clientId, requestId);
+    const engineRequest = createTrustedApiEngineRequest({ method: "POST", headers: {} }, body, client.clientId, requestId);
     await domainSearchHandler(engineRequest, response);
-  } catch (error) {
-    const status = error instanceof Error && /body is too large/iu.test(error.message) ? 413 : 400;
-    sendJson(response, status, {
-      error: error instanceof Error ? error.message : "The API request could not be completed.",
-    });
+  } catch {
+    sendJson(response, 503, { error: "Domain search is temporarily unavailable. Please try again." });
   }
 }

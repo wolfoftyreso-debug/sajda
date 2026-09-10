@@ -5,14 +5,18 @@ import { openApiDocument } from "../api/_shared/openapi-document.mjs";
 import { createVercelBuildEnvironment } from "../scripts/build-vercel.mjs";
 import { assertPublicBrowserBundle } from "../scripts/check-neon-build.mjs";
 
-const appRoutes = ["/auth", "/contact", "/plus", "/pricing", "/story", "/how-it-works", "/developers", "/legal", "/security", "/status", "/marketplace", "/marketplace/:listingId", "/swipe", "/watchlist", "/my-domains", "/history", "/account", "/install", "/top-10-today", "/admin"];
+const appRoutes = ["/auth", "/connect/native", "/contact", "/plus", "/pricing", "/story", "/how-it-works", "/developers", "/legal", "/security", "/status", "/marketplace", "/marketplace/:listingId", "/swipe", "/watchlist", "/my-domains", "/history", "/account", "/install", "/top-10-today", "/admin"];
 
 test("Plus is private/noindex and bounded worker functions do not activate a crawl schedule", async () => {
   const config = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
   const headers = config.headers.find(entry => entry.source === "/plus").headers;
   assert.ok(headers.some(header => header.key === "X-Robots-Tag" && header.value === "noindex, nofollow"));
   assert.ok(headers.some(header => header.key === "Cache-Control" && header.value.includes("no-store")));
-  assert.equal(config.functions["api/account/lost-domains.ts"].maxDuration, 30);
+  for (const path of ["api/account/lost-domains.ts", "api/mcp.ts", "api/v1/account.ts", "api/native/account.ts"]) {
+    assert.equal(config.functions[path].maxDuration, 60, `${path} retains headroom for the same bounded Trading work`);
+    const handler = await readFile(new URL(`../${path}`, import.meta.url), "utf8");
+    assert.match(handler, /export const config = \{ maxDuration: 60 \}/u, `${path} matches its Vercel duration`);
+  }
   assert.equal(config.functions["api/cron/lost-domains.ts"].maxDuration, 60);
   assert.equal(config.crons, undefined, "Source review and scheduling activation remain explicit pilot gates");
 });
