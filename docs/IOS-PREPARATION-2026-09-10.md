@@ -39,6 +39,9 @@ This is **not App Store approval or production commercial signoff**.
 
 Detailed contracts: [account deletion](ACCOUNT-DELETION.md),
 [AI privacy](AI-PRIVACY.md), [native commerce](APP-STORE-COMMERCE.md).
+The [technical app-data inventory](APP-PRIVACY-INVENTORY.md) maps actual source
+paths, recipients and unresolved retention questions for the later App Store
+declaration; it is not a prefilled privacy questionnaire or legal signoff.
 
 ## Verified development database changes
 
@@ -110,6 +113,65 @@ verification levels.
 - Actual macOS Xcode Debug and Release compilation passed for that commit in
   [iPhone CI run 34529230637](https://github.com/wolfoftyreso-debug/sajda/actions/runs/34529230637).
   Compilation is not signing, a physical-device test or an Apple sandbox purchase.
+
+### Final application verification
+
+Application commit `27d04ce98647cc96e0e166d9849d233584c4c24e`:
+
+- Second full local check passed with the same 1,007 pass / five opt-in skips /
+  zero failures. Standalone lint was clean; final web/native builds and iOS
+  sync passed. The native entry is `native-Ckk98Ttp.js`.
+- [Verify CI 34530555136](https://github.com/wolfoftyreso-debug/sajda/actions/runs/34530555136)
+  independently passed the complete suite, 70 English-source dictionary
+  contracts and production-dependency audit (zero vulnerabilities).
+- Final Vercel preview `dpl_6vh4dgcaL7NsJXmg2ykiFLo7NC4m` reached READY at
+  [the immutable candidate](https://sajda-q5ggeoidw-hypbit.vercel.app).
+  All 36 SEO HTTP checks and eight negative lifecycle API checks passed again.
+  No 5xx records were returned for this candidate in the bounded test window;
+  this is not long-term production monitoring.
+- [The stable test link](https://sajda-test-hypbit.vercel.app) was updated to
+  that candidate. Alias checks returned `/assets/index-CSZCO906.js`, retained
+  noindex and the encoded-query middleware marker. Vercel protection remains
+  enabled; native clients cannot inherit an operator's browser login.
+- Real deployed browser checks: English advanced-search disclosure, 320-pixel
+  AI control wrapping, 390-pixel home/sign-in and zero console errors. Sign-in
+  navigation started at scroll Y=0. On the stable alias the existing test
+  account retained its actual operator-granted Trading access. Account/AI/
+  deletion panels rendered without inspected overflow; opening then canceling
+  deletion did not request a code or mutate the account.
+- First actual simulator artifact `10173170961` was downloaded and visually
+  inspected: the English Search screen, safe areas and labeled native bottom
+  navigation are visible. It is not merely a splash screen. The first full
+  iPhone CI succeeded through installation, launch, screenshot and cleanup.
+  Artifact retention is seven days; its simulator ZIP cannot be installed on
+  a physical iPhone.
+- [Final iPhone CI 34530555190](https://github.com/wolfoftyreso-debug/sajda/actions/runs/34530555190)
+  also completed successfully for `27d04ce`: Debug and Release compilation,
+  fresh iPhone 17 Pro / iOS 26.5 boot, installation, launch, screenshot and
+  cleanup all returned zero. The final screenshot was downloaded and visually
+  inspected: real English Search UI, safe areas and five labeled navigation
+  destinations, with no blank screen or observed clipping in that screenshot.
+  [Final simulator artifact 10173783317](https://github.com/wolfoftyreso-debug/sajda/actions/runs/34530555190/artifacts/10173783317)
+  expires September 17. This does not verify physical-device interaction,
+  authenticated native networking, VoiceOver or an Apple sandbox purchase.
+
+No production deployment, production schema migration, DNS change, real charge,
+Apple purchase, real account deletion or AI search was executed. Apple switches
+remain false. Temporary local QA was stopped and viewport overrides reset.
+
+## Next five release actions
+
+1. Provision the approved Resend plan and verify `mail.hypbit.com`; inspect
+   actual delivered account/reset/deletion and support messages.
+2. Review a customer-reachable backend and production configuration; apply
+   production migrations only in that separate reviewed release operation.
+3. Create the Apple account/app/products and signing configuration, then run
+   the real sandbox lifecycle matrix in `APP-STORE-COMMERCE.md`.
+4. Test physical-device auth, restore, saved state, export, accessibility,
+   background/network failure and account deletion; resolve remaining product
+   parity before advertising full feature availability.
+5. Reconcile the technical privacy inventory with actual provider/retention
+   practices, finalize App Store declarations and obtain launch signoff.
 
 ## Primary references
 
