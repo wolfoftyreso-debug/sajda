@@ -214,6 +214,69 @@ test("management rejects invalid bodies and safely masks provider errors", async
   assert.deepEqual(await f.service.authenticate(`sj_test_${"a".repeat(16)}_${"b".repeat(43)}`), { status: "unavailable" });
 });
 
+test("query-ID DELETE accepts absent bodies across runtimes regardless of an empty-body content type", async () => {
+  for (const body of [undefined, "", Buffer.alloc(0)]) {
+    for (const contentType of [undefined, "application/json", "application/x-www-form-urlencoded"]) {
+      const f = harness(), issued = await f.service.create(owner, { name: "Empty DELETE" });
+      const handler = createDeveloperApiKeysHandler(async () => owner, f.service), result = response();
+      let reads = 0;
+      const request = { method: "DELETE", query: { id: issued.key.id }, headers: { "content-type": contentType },
+        get body() { reads++; return body; } };
+      await handler(request, result);
+      assert.equal(result.code, 200, `${typeof body}/${contentType}`);
+      assert.equal(reads, 1, "lazy body getter must be read exactly once");
+      assert.ok(f.rows[0].revoked_at);
+      assert.deepEqual(await f.service.authenticate(issued.apiKey), { status: "invalid" });
+      assert.equal("apiKey" in (result.body as Record<string, unknown>), false);
+    }
+  }
+});
+
+test("nonempty DELETE bodies retain strict JSON and unambiguous ID validation", async () => {
+  const f = harness(), issued = await f.service.create(owner, { name: "Strict DELETE" });
+  const handler = createDeveloperApiKeysHandler(async () => owner, f.service);
+  for (const [body, contentType, expected] of [
+    [`id=${issued.key.id}`, "application/x-www-form-urlencoded", 415],
+    [JSON.stringify({ id: issued.key.id }), undefined, 415],
+    [" ", "application/json", 400], ["{bad", "application/json", 400],
+    [null, "application/json", 400], [[], "application/json", 400], [{}, "application/json", 400],
+    [{ id: randomUUID() }, "application/json", 400],
+    [{ id: issued.key.id, owner: other.id }, "application/json", 400],
+    [Buffer.from("{bad"), "application/json", 400],
+    ["x".repeat(4097), "application/json", 413],
+  ] as const) {
+    const result = response();
+    await handler({ method: "DELETE", query: { id: issued.key.id }, headers: { "content-type": contentType }, body }, result);
+    assert.equal(result.code, expected);
+    assert.equal(f.rows[0].revoked_at, null, "invalid bodies must not revoke the selected key");
+  }
+  for (const body of [{ id: issued.key.id }, JSON.stringify({ id: issued.key.id }), Buffer.from(JSON.stringify({ id: issued.key.id }))]) {
+    const result = response();
+    await handler({ method: "DELETE", query: { id: issued.key.id }, headers: { "content-type": "application/json" }, body }, result);
+    assert.equal(result.code, 200);
+  }
+  const bodyOnly = response();
+  await handler({ method: "DELETE", headers: { "content-type": "application/json" }, body: { id: issued.key.id } }, bodyOnly);
+  assert.equal(bodyOnly.code, 200);
+});
+
+test("Vercel lazy body parsing errors are safe 400s for POST and DELETE", async () => {
+  const f = harness(), issued = await f.service.create(owner, { name: "Getter failure" });
+  const handler = createDeveloperApiKeysHandler(async () => owner, f.service);
+  for (const method of ["POST", "DELETE"]) {
+    const result = response();
+    let reads = 0;
+    await handler({ method, query: { id: issued.key.id }, headers: { "content-type": "application/json" },
+      get body(): unknown { reads++; throw new SyntaxError("secret-token invalid JSON from private-runtime"); } }, result);
+    assert.equal(result.code, 400);
+    assert.equal(reads, 1);
+    assert.equal((result.body as { code: string }).code, "invalid_request");
+    assert.doesNotMatch(JSON.stringify(result.body), /secret-token|private-runtime/u);
+    assert.equal(f.rows[0].revoked_at, null);
+    assert.equal(f.rows.length, 1);
+  }
+});
+
 test("additive migration protects hashes, allowed scopes, finite expiry and bounded shared quota storage", async () => {
   const sql = await readFile(new URL("../db/migrations/0013_developer_api_keys.sql", import.meta.url), "utf8");
   assert.match(sql, /REFERENCES public.sajda_auth_user\(id\) ON DELETE CASCADE/u);

@@ -48,14 +48,21 @@ function sendError(
   response.status(status).json({ error, code, requestId });
 }
 
-function readBody(request: VercelRequestLike): Record<string, unknown> {
+function readRequestBody(request: VercelRequestLike): unknown {
+  // Vercel may parse lazily and throw from its body getter. Read it once inside
+  // the validation boundary so malformed JSON is a safe 400, never a 503.
+  try { return request.body; }
+  catch { throw new AccountAccessError("invalid_request", 400, "Send a valid API key request."); }
+}
+
+function readBody(request: VercelRequestLike, body: unknown): Record<string, unknown> {
   const contentType = request.headers?.["content-type"];
   if (typeof contentType !== "string" || !/^application\/json(?:\s*;|$)/iu.test(contentType)) {
     throw new AccountAccessError("unsupported_media_type", 415, "Send an application/json request.");
   }
   try {
-    const encoded = Buffer.isBuffer(request.body) ? request.body.toString("utf8")
-      : typeof request.body === "string" ? request.body : JSON.stringify(request.body);
+    const encoded = Buffer.isBuffer(body) ? body.toString("utf8")
+      : typeof body === "string" ? body : JSON.stringify(body);
     if (!encoded || Buffer.byteLength(encoded, "utf8") > 4096) throw new AccountAccessError("request_too_large", 413, "This API key request is too large.");
     const value: unknown = JSON.parse(encoded);
     if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error();
@@ -92,11 +99,15 @@ return async function handler(
     if (method === "GET") {
       response.status(200).json({ keys: await service.list(account), scopes: API_KEY_SCOPES, limits: API_KEY_LIMITS, requestId });
     } else if (method === "POST") {
-      response.status(201).json({ ...await service.create(account, readBody(request)), requestId });
+      response.status(201).json({ ...await service.create(account, readBody(request, readRequestBody(request))), requestId });
     } else {
       let id = request.query?.id;
-      if (request.body !== undefined) {
-        const input = readBody(request);
+      const body = readRequestBody(request);
+      // A DELETE selected by query ID has no representation to type-check.
+      // Runtimes can expose an absent payload as undefined, "", or Buffer(0),
+      // even when a client adds a default form content type to the empty body.
+      if (body !== undefined && body !== "" && !(Buffer.isBuffer(body) && body.length === 0)) {
+        const input = readBody(request, body);
         if (Object.keys(input).some(key => key !== "id") || (id !== undefined && id !== input.id)) {
           throw new AccountAccessError("invalid_request", 400, "Choose one API key to revoke.");
         }

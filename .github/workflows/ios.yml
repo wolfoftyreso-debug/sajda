@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ["ios/**", "src/**", "native.html", "capacitor.config.ts", "vite.native.config.ts", "scripts/build-native.mjs", "package*.json", ".github/workflows/ios.yml"]
+    paths: ["ios/**", "src/**", "native.html", "capacitor.config.ts", "vite.native.config.ts", "scripts/build-native.mjs", "scripts/smoke-ios.sh", "package*.json", ".github/workflows/ios.yml"]
 permissions:
   contents: read
 concurrency:
@@ -28,9 +28,13 @@ jobs:
       - run: npm run sync:ios
       - name: Compile actual iOS app without distribution signing
         run: xcodebuild -project ios/App/App.xcodeproj -scheme App -sdk iphonesimulator -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath ios/App/build CODE_SIGNING_ALLOWED=NO build
+      - name: Boot the app in a real iPhone simulator
+        run: bash scripts/smoke-ios.sh
       - name: Simulator app artifact (not installable on a physical iPhone)
         uses: actions/upload-artifact@v4
         with:
           name: sajda-ios-simulator
-          path: ios/App/build/Build/Products/Debug-iphonesimulator/App.app
+          path: |
+            ios/App/build/Sajda-Simulator.zip
+            ios/App/build/sajda-iphone-smoke.png
           retention-days: 7

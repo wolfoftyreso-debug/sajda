@@ -82,6 +82,16 @@ test("developer workspace uses its current session, explicit scopes and expiry, 
     assert.equal(label(root()).includes(secret), false);
     assert.ok(label(root()).includes("saved:read"));
     await act(async () => button("Revoke").props.onClick());
+    const revoked = calls.find(call => call.init.method === "DELETE");
+    assert.ok(revoked, "Revoking a key must send its owner-bound DELETE request");
+    const revokeUrl = new URL(revoked.path, "https://sajda.test");
+    assert.equal(revokeUrl.pathname, "/api/developer/api-keys");
+    assert.deepEqual([...revokeUrl.searchParams], [["id", key.id]]);
+    assert.equal(revoked.init.credentials, "same-origin");
+    assert.equal(new Headers(revoked.init.headers).get("x-sajda-account"), "account-a");
+    assert.equal(new Headers(revoked.init.headers).has("content-type"), false, "A bodyless DELETE must not claim JSON content");
+    assert.equal(Object.hasOwn(revoked.init, "body"), false, "The selected key belongs in the query, not a DELETE body");
+    assert.equal(revoked.init.body, undefined);
     assert.ok(label(root()).includes("Revoked"));
     assert.equal(button("Revoke"), undefined);
 
