@@ -109,4 +109,25 @@ languages, Swedish/English pricing, English login/reset instructions, and
 Provider delivery was mocked: no real multilingual email delivery, human
 native-speaker review or physical-iPhone language-switch QA is claimed.
 
-Deployment evidence for this revision is recorded separately after publishing.
+### Deployed verification
+
+Source `6e0a8e8760cd6b38f352620ca94d304fca1e98f6` was pushed to GitHub.
+Verify run `34487001870` passed all checks, the production-client build and
+production dependency audit. iPhone run `34487001867` built the native bundle,
+synced Capacitor and compiled the actual simulator app; the simulator boot
+step was still running when this release note was written.
+
+Vercel preview `sajda-hq5fbqqou-hypbit.vercel.app`
+(`dpl_Cf9YaAcY2CFYVk4wsSPLy5Rsv7uU`) reached Ready. Its live HTML uses English
+fallback; the served entry `/assets/index-Bu8dcnaQ.js` includes device-language
+negotiation and revised copy. `/se/sok-doman` still serves Swedish HTML.
+Authenticated Vercel requests returned healthy database connectivity and a
+signed-out `null` session from `/api/auth/get-session`.
+
+Real browser checks on the deployed preview showed initial Swedish for this
+browser, manual English after reload, and the new French Trading page with
+localized USD formatting and no horizontal overflow at 390 pixels. The stable
+alias `https://sajda-test-hypbit.vercel.app` now points to this preview; its served
+entry hash matches and the checked page reported no browser errors. The
+borrowed browser tab and viewport were restored. Vercel protection remains
+enabled; this is a preview release, not a production or App Store launch.
