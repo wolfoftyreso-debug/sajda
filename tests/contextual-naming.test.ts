@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createDomainSearchHandler, generateCandidates } from "../api/domain-search";
-import { parseContextualNames, refineRuleCandidates, selectContextualNames, satisfiesNamingConstraints, type NamingInput } from "../api/_shared/contextual-naming";
+import { contextualNamesFailure, validateContextualNames, parseContextualNames, refineRuleCandidates, selectContextualNames, satisfiesNamingConstraints, type NamingInput } from "../api/_shared/contextual-naming";
 import { AI_CONSENT_VERSION } from "../shared/ai-consent";
 import { parseSearchRefinement } from "../shared/search-refinement";
 
@@ -28,6 +28,30 @@ test("AI output accepts only labels and directions, never prices, status, score 
     { names: model.names.map(name => ({ ...name, label: "samename" })) }, { names: model.names.slice(0, 3) }]) {
     assert.equal(parseContextualNames(value), undefined);
   }
+});
+
+test("strict contextual validation exposes only fixed failure categories, never private labels", () => {
+  const entry = (changes: Record<string, unknown>) => ({ names: [{ ...model.names[0], ...changes }, ...model.names.slice(1)] });
+  const cases: [unknown, string][] = [
+    [null, "root"], [{ ...model, private: "secret" }, "root"],
+    [{ names: model.names.slice(0, 3) }, "array_size"], [{ names: Array(33).fill(model.names[0]) }, "array_size"],
+    [{ names: [null, ...model.names.slice(1)] }, "entry_shape"],
+    [entry({ secret: "private field" }), "entry_shape"],
+    [entry({ label: { secret: "private label" } }), "label_type"],
+    [entry({ label: "a" }), "label_length"], [entry({ label: "private".repeat(10) }), "label_length"],
+    [entry({ label: "privåtename" }), "label_charset"], [entry({ label: "PrivateName" }), "label_charset"],
+    [entry({ label: "private.com" }), "label_charset"],
+    [entry({ direction: "private direction" }), "invalid_direction"],
+    [{ names: Array(4).fill({ label: "privatename", direction: "evocative" }) }, "too_few_unique"],
+  ];
+  for (const [value, failure] of cases) {
+    assert.deepEqual(validateContextualNames(value), { failure });
+    assert.equal(contextualNamesFailure(value), failure);
+    assert.equal(parseContextualNames(value), undefined, "diagnosis must not weaken strict rejection");
+    assert.doesNotMatch(JSON.stringify(validateContextualNames(value)), /private|privåte|secret/);
+  }
+  assert.equal(contextualNamesFailure(model), undefined);
+  assert.deepEqual(validateContextualNames(model), { names: model.names });
 });
 
 test("hard constraints and feedback apply before selecting AI ideas; priority words stay soft", () => {

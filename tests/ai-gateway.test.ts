@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { completedGatewayText, createGatewayRequester } from "../api/_shared/ai-gateway.js";
 import { AI_CONSENT_VERSION } from "../shared/ai-consent.js";
+import { contextualNamesFailure, parseContextualNames } from "../api/_shared/contextual-naming.js";
 
 const completed = (text = '{"summary":"A concise, useful interpretation."}') => ({
   status: "completed", output: [{ type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text }] }],
@@ -176,6 +177,46 @@ test("non-2xx diagnostics normalize only allowlisted nested/root categories and 
     assert.deepEqual(Object.keys(h.logs[0]).sort(), ["durationMs", "errorCategory", "event", "httpStatus", "model", "requestId", "status", "task"]);
     assert.doesNotMatch(JSON.stringify(h.logs), /private|browser-not-allowed|Bearer|message|prompt|error\.type/);
   }
+});
+
+test("successful HTTP responses diagnose envelope, JSON and schema separately without raw output", async () => {
+  const cases: [() => Response, string][] = [
+    [() => new Response("private invalid outer JSON"), "invalid_envelope"],
+    [() => Response.json({ ...completed(), status: "incomplete" }), "invalid_envelope"],
+    [() => Response.json(completed("private invalid output JSON")), "invalid_json"],
+    [() => Response.json(completed('{"private_output":"private fixture"}')), "invalid_schema"],
+  ];
+  for (const [response, expected] of cases) {
+    const h = harness(); h.deps.fetch = async () => response();
+    let diagnoses = 0;
+    assert.equal(await createGatewayRequester(h.deps)({ ...h.options,
+      validationFailure: () => { diagnoses++; return "private raw failure"; } }), undefined);
+    assert.equal(h.logs[0].status, expected);
+    assert.equal(h.logs[0].httpStatus, 200);
+    assert.equal(h.logs[0].validationFailure, undefined, "unallowlisted diagnostics cannot leak");
+    assert.equal(diagnoses, expected === "invalid_schema" ? 1 : 0);
+    assert.equal(h.state.releases, 1);
+    assert.doesNotMatch(JSON.stringify(h.logs), /private|fixture|output|Bearer/);
+  }
+});
+
+test("naming schema diagnostics report only a fixed category and never accept the rejected batch", async () => {
+  const labels = ["sunroom", "bloompath", "calmcraft", "privåtename"];
+  const value = { names: labels.map(label => ({ label, direction: "evocative" })) };
+  const h = harness(); h.deps.fetch = async () => Response.json(completed(JSON.stringify(value)));
+  assert.equal(await createGatewayRequester(h.deps)({ ...h.options, task: "naming",
+    parse: parseContextualNames, validationFailure: contextualNamesFailure }), undefined);
+  assert.equal(h.logs[0].status, "invalid_schema");
+  assert.equal(h.logs[0].validationFailure, "label_charset");
+  assert.equal(h.state.releases, 1);
+  assert.doesNotMatch(JSON.stringify(h.logs), /privåte|sunroom|bloompath|calmcraft|evocative|Bearer/);
+
+  const good = harness(); good.deps.fetch = async () => Response.json(completed());
+  let diagnoses = 0;
+  assert.ok(await createGatewayRequester(good.deps)({ ...good.options,
+    validationFailure: () => { diagnoses++; return "label_charset"; } }));
+  assert.equal(diagnoses, 0, "diagnostics run only when the parser rejects");
+  assert.equal(good.logs[0].validationFailure, undefined);
 });
 
 test("malformed and oversized non-2xx bodies remain unknown, are bounded and release the lease", async () => {

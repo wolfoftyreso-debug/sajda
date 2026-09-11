@@ -12,6 +12,10 @@ const SAFE_ERROR_CATEGORIES = new Set([
   "access_denied", "no_providers_available", "permission_denied", "insufficient_quota",
   "rate_limit_exceeded", "model_not_found", "invalid_request_error",
 ]);
+const SAFE_VALIDATION_FAILURES = new Set([
+  "root", "array_size", "entry_shape", "label_type", "label_length", "label_charset",
+  "invalid_direction", "too_few_unique",
+]);
 const TASK_LIMITS = {
   brief: { modelVariable: "AI_GATEWAY_BRIEF_MODEL", tokens: 600, timeout: 4_000 },
   review: { modelVariable: "AI_GATEWAY_REVIEW_MODEL", tokens: 1_400, timeout: 5_500 },
@@ -32,6 +36,8 @@ interface GatewayRequest<T> {
   schemaName: string;
   schema: Record<string, unknown>;
   parse: (value: unknown) => T | undefined;
+  /** Optional fixed-category diagnosis. Unrecognized return values never enter logs. */
+  validationFailure?: (value: unknown) => unknown;
 }
 
 interface GatewayDependencies {
@@ -133,6 +139,7 @@ export function createGatewayRequester(deps: GatewayDependencies) {
     let status = "authentication_unavailable";
     let httpStatus = 0;
     let errorCategory: string | undefined;
+    let validationFailure: string | undefined;
     let release: (() => Promise<void>) | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
@@ -167,11 +174,18 @@ export function createGatewayRequester(deps: GatewayDependencies) {
         finally { await response.body?.cancel().catch(() => undefined); }
         return undefined;
       }
-      status = "invalid_output";
+      status = "invalid_envelope";
       const text = completedGatewayText(await boundedJson(response));
       if (!text) return undefined;
-      const result = options.parse(JSON.parse(text));
-      if (result === undefined) return undefined;
+      status = "invalid_json";
+      const value: unknown = JSON.parse(text);
+      status = "invalid_schema";
+      const result = options.parse(value);
+      if (result === undefined) {
+        const failure = options.validationFailure?.(value);
+        if (typeof failure === "string" && SAFE_VALIDATION_FAILURES.has(failure)) validationFailure = failure;
+        return undefined;
+      }
       status = "completed";
       return result;
     } catch {
@@ -182,7 +196,8 @@ export function createGatewayRequester(deps: GatewayDependencies) {
       if (timer) clearTimeout(timer);
       if (release) await release().catch(() => undefined);
       deps.log({ event: "sajda_ai_gateway", requestId, task: options.task, model, status, httpStatus,
-        ...(errorCategory ? { errorCategory } : {}), durationMs: Date.now() - started });
+        ...(errorCategory ? { errorCategory } : {}), ...(validationFailure ? { validationFailure } : {}),
+        durationMs: Date.now() - started });
     }
   };
 }

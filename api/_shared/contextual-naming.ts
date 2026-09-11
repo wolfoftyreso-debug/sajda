@@ -13,22 +13,40 @@ export interface NamingInput {
   requiredReferences?: string[]; refinement?: SearchRefinement;
 }
 
-/** Model text cannot add status, scores, URLs, claims or arbitrary fields. */
-export function parseContextualNames(value: unknown): ContextualName[] | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+export type ContextualNamesFailure = "root" | "array_size" | "entry_shape" | "label_type"
+  | "label_length" | "label_charset" | "invalid_direction" | "too_few_unique";
+type ContextualNamesValidation = { names: ContextualName[]; failure?: never }
+  | { names?: never; failure: ContextualNamesFailure };
+
+/** One strict validator; failure data is a fixed category, never a rejected value. */
+export function validateContextualNames(value: unknown): ContextualNamesValidation {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return { failure: "root" };
   const row = value as Record<string, unknown>;
-  if (Object.keys(row).length !== 1 || !Array.isArray(row.names) || row.names.length < 4 || row.names.length > 32) return undefined;
+  if (Object.keys(row).length !== 1 || !Array.isArray(row.names)) return { failure: "root" };
+  if (row.names.length < 4 || row.names.length > 32) return { failure: "array_size" };
   const names: ContextualName[] = [];
   const seen = new Set<string>();
   for (const item of row.names) {
-    if (!item || typeof item !== "object" || Array.isArray(item)) return undefined;
+    if (!item || typeof item !== "object" || Array.isArray(item)) return { failure: "entry_shape" };
     const name = item as Record<string, unknown>;
-    if (Object.keys(name).length !== 2 || typeof name.label !== "string"
-      || !/^[a-z][a-z0-9]{2,21}$/.test(name.label)
-      || !(NAMING_DIRECTIONS as readonly unknown[]).includes(name.direction)) return undefined;
+    if (Object.keys(name).length !== 2) return { failure: "entry_shape" };
+    if (typeof name.label !== "string") return { failure: "label_type" };
+    if (name.label.length < 3 || name.label.length > 22) return { failure: "label_length" };
+    if (!/^[a-z][a-z0-9]{2,21}$/.test(name.label)) return { failure: "label_charset" };
+    if (!(NAMING_DIRECTIONS as readonly unknown[]).includes(name.direction)) return { failure: "invalid_direction" };
     if (!seen.has(name.label)) { seen.add(name.label); names.push({ label: name.label, direction: name.direction as NamingDirection }); }
   }
-  return names.length >= 4 ? names : undefined;
+  return names.length >= 4 ? { names } : { failure: "too_few_unique" };
+}
+
+/** Model text cannot add status, scores, URLs, claims or arbitrary fields. */
+export function parseContextualNames(value: unknown): ContextualName[] | undefined {
+  return validateContextualNames(value).names;
+}
+
+/** Pure diagnostic export: no raw rejected labels, directions, fields or messages. */
+export function contextualNamesFailure(value: unknown): ContextualNamesFailure | undefined {
+  return validateContextualNames(value).failure;
 }
 
 const genericAffix = /^(get|my|the|go)|(?:hub|online|world|works|ify|ly)$/;
@@ -94,6 +112,7 @@ export async function generateContextualNames(input: NamingInput, request: AiReq
           direction: { type: "string", enum: [...NAMING_DIRECTIONS] } } } },
     } },
     parse: parseContextualNames,
+    validationFailure: contextualNamesFailure,
   });
   if (!names) return undefined;
   const selected = selectContextualNames(names, input);
