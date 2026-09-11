@@ -32,6 +32,12 @@ that the public endpoint is impossible to call independently.
   characters. The product limit is 6,000 characters and the HTTP byte cap still
   applies. The stable v1/MCP contract keeps its own narrower published bounds.
 - The strict model response accepts only labels and direction categories.
+  Latin case and canonical accents are normalized to ASCII before validation
+  (for example, `BlåBär` becomes `blabar`). URLs, spaces, controls and other
+  scripts are not repaired into names. Invalid individual labels are discarded;
+  at least four distinct valid names must remain. Unexpected fields or malformed
+  structure still reject the whole response. This is not IDN support or a
+  linguistic safety check.
   Hard length/exclusion constraints and previously seen labels are filtered
   before registry checks; include-words are preferences, not mandatory words.
 - Availability and registrar prices are independently checked. A missing

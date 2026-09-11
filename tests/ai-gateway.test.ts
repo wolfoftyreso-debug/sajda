@@ -201,7 +201,7 @@ test("successful HTTP responses diagnose envelope, JSON and schema separately wi
 });
 
 test("naming schema diagnostics report only a fixed category and never accept the rejected batch", async () => {
-  const labels = ["sunroom", "bloompath", "calmcraft", "privåtename"];
+  const labels = ["sunroom", "bloompath", "calmcraft", "private.name"];
   const value = { names: labels.map(label => ({ label, direction: "evocative" })) };
   const h = harness(); h.deps.fetch = async () => Response.json(completed(JSON.stringify(value)));
   assert.equal(await createGatewayRequester(h.deps)({ ...h.options, task: "naming",
@@ -209,7 +209,7 @@ test("naming schema diagnostics report only a fixed category and never accept th
   assert.equal(h.logs[0].status, "invalid_schema");
   assert.equal(h.logs[0].validationFailure, "label_charset");
   assert.equal(h.state.releases, 1);
-  assert.doesNotMatch(JSON.stringify(h.logs), /privåte|sunroom|bloompath|calmcraft|evocative|Bearer/);
+  assert.doesNotMatch(JSON.stringify(h.logs), /private\.name|sunroom|bloompath|calmcraft|evocative|Bearer/);
 
   const good = harness(); good.deps.fetch = async () => Response.json(completed());
   let diagnoses = 0;

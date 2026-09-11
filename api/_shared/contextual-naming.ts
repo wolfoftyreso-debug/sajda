@@ -18,7 +18,19 @@ export type ContextualNamesFailure = "root" | "array_size" | "entry_shape" | "la
 type ContextualNamesValidation = { names: ContextualName[]; failure?: never }
   | { names?: never; failure: ContextualNamesFailure };
 
-/** One strict validator; failure data is a fixed category, never a rejected value. */
+/** Normalize Latin case/accents only, never strip URL syntax, spaces or other scripts. */
+function normalizeContextualLabel(value: string): { label: string; failure?: never }
+  | { label?: never; failure: "label_length" | "label_charset" } {
+  if (!value.length) return { failure: "label_length" };
+  if (/\p{Default_Ignorable_Code_Point}/u.test(value)
+    || !/^(?:\p{Script=Latin}[\u0300-\u036f]*|[0-9])+$/u.test(value)) return { failure: "label_charset" };
+  // NFD avoids compatibility conversions (for example, full-width lettering).
+  const label = value.normalize("NFD").replace(/[\u0300-\u036f]/gu, "").toLowerCase();
+  if (label.length < 3 || label.length > 22) return { failure: "label_length" };
+  return /^[a-z][a-z0-9]{2,21}$/.test(label) ? { label } : { failure: "label_charset" };
+}
+
+/** Strict structure; discard invalid labels only when at least four useful names remain. */
 export function validateContextualNames(value: unknown): ContextualNamesValidation {
   if (!value || typeof value !== "object" || Array.isArray(value)) return { failure: "root" };
   const row = value as Record<string, unknown>;
@@ -26,17 +38,19 @@ export function validateContextualNames(value: unknown): ContextualNamesValidati
   if (row.names.length < 4 || row.names.length > 32) return { failure: "array_size" };
   const names: ContextualName[] = [];
   const seen = new Set<string>();
+  let firstLabelFailure: "label_length" | "label_charset" | undefined;
   for (const item of row.names) {
     if (!item || typeof item !== "object" || Array.isArray(item)) return { failure: "entry_shape" };
     const name = item as Record<string, unknown>;
-    if (Object.keys(name).length !== 2) return { failure: "entry_shape" };
+    if (Object.keys(name).length !== 2 || Object.keys(name).some(key => key !== "label" && key !== "direction")) return { failure: "entry_shape" };
     if (typeof name.label !== "string") return { failure: "label_type" };
-    if (name.label.length < 3 || name.label.length > 22) return { failure: "label_length" };
-    if (!/^[a-z][a-z0-9]{2,21}$/.test(name.label)) return { failure: "label_charset" };
     if (!(NAMING_DIRECTIONS as readonly unknown[]).includes(name.direction)) return { failure: "invalid_direction" };
-    if (!seen.has(name.label)) { seen.add(name.label); names.push({ label: name.label, direction: name.direction as NamingDirection }); }
+    const normalized = normalizeContextualLabel(name.label);
+    if (normalized.failure) { firstLabelFailure ??= normalized.failure; continue; }
+    const label = normalized.label;
+    if (!seen.has(label)) { seen.add(label); names.push({ label, direction: name.direction as NamingDirection }); }
   }
-  return names.length >= 4 ? { names } : { failure: "too_few_unique" };
+  return names.length >= 4 ? { names } : { failure: firstLabelFailure ?? "too_few_unique" };
 }
 
 /** Model text cannot add status, scores, URLs, claims or arbitrary fields. */
@@ -99,6 +113,7 @@ export async function generateContextualNames(input: NamingInput, request: AiReq
       "Use a mix of descriptive, evocative, compound and invented directions; target six per direction unless the explicit style calls for another balance.",
       "Name language is independent of interface locale: honor explicit en/sv/mixed; for auto infer it from the brief or theme, using English if unclear.",
       "Each label must be lowercase ASCII, 3–22 characters, with no spaces, punctuation, URL or domain ending. Avoid digits, random consonant strings, famous brand imitations and easily confused spellings.",
+      "Transliterate Nordic spelling explicitly: å and ä become a, ö becomes o. Use unaccented Latin letters rather than accented characters; for example blåbär becomes blabar. Do not return full URLs or domain endings.",
       "Respect min/max length, exclusions, and at least one requiredReference if supplied. includeWords are soft preferences: prioritize these but allow better alternatives. Retain whole words where useful.",
       "PreviousNames are already seen: do not repeat their labels even under other endings. LikedNames indicate a direction, not a name to repeat.",
       "too_generic means use more specific project meaning and evocative concepts; hard_to_spell means familiar spelling and clear syllables; too_long means shorter names within constraints; wrong_tone means explore different concepts and sounds, guided by likedNames.",

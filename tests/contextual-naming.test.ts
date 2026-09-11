@@ -22,16 +22,16 @@ test("feedback has strict bounded shape, subset favorites and generated-label-on
 
 test("AI output accepts only labels and directions, never prices, status, score or URLs", () => {
   assert.equal(parseContextualNames(model)?.length, 8);
-  for (const value of [{ ...model, status: "available" }, { names: [{ label: "hello.com", direction: "evocative" }, ...model.names] },
+  for (const value of [{ ...model, status: "available" },
     { names: [{ label: "goodname", direction: "evocative", available: true }, ...model.names] },
-    { names: [{ label: "<script>", direction: "evocative" }, ...model.names] }, { names: Array(33).fill(model.names[0]) },
+    { names: Array(33).fill(model.names[0]) },
     { names: model.names.map(name => ({ ...name, label: "samename" })) }, { names: model.names.slice(0, 3) }]) {
     assert.equal(parseContextualNames(value), undefined);
   }
 });
 
 test("strict contextual validation exposes only fixed failure categories, never private labels", () => {
-  const entry = (changes: Record<string, unknown>) => ({ names: [{ ...model.names[0], ...changes }, ...model.names.slice(1)] });
+  const entry = (changes: Record<string, unknown>) => ({ names: [{ ...model.names[0], ...changes }, ...model.names.slice(1, 4)] });
   const cases: [unknown, string][] = [
     [null, "root"], [{ ...model, private: "secret" }, "root"],
     [{ names: model.names.slice(0, 3) }, "array_size"], [{ names: Array(33).fill(model.names[0]) }, "array_size"],
@@ -39,7 +39,7 @@ test("strict contextual validation exposes only fixed failure categories, never 
     [entry({ secret: "private field" }), "entry_shape"],
     [entry({ label: { secret: "private label" } }), "label_type"],
     [entry({ label: "a" }), "label_length"], [entry({ label: "private".repeat(10) }), "label_length"],
-    [entry({ label: "privåtename" }), "label_charset"], [entry({ label: "PrivateName" }), "label_charset"],
+    [entry({ label: "privаtename" }), "label_charset"],
     [entry({ label: "private.com" }), "label_charset"],
     [entry({ direction: "private direction" }), "invalid_direction"],
     [{ names: Array(4).fill({ label: "privatename", direction: "evocative" }) }, "too_few_unique"],
@@ -52,6 +52,57 @@ test("strict contextual validation exposes only fixed failure categories, never 
   }
   assert.equal(contextualNamesFailure(model), undefined);
   assert.deepEqual(validateContextualNames(model), { names: model.names });
+});
+
+test("Latin case and canonical diacritics normalize conservatively before deduplication", () => {
+  const raw = ["BlåBÄR", "CAFÉ", "ÖRTGÅRD", "ÅKER", "Cafe\u0301", "blabar", "HERB24"];
+  const parsed = parseContextualNames({ names: raw.map(label => ({ label, direction: "evocative" })) });
+  assert.deepEqual(parsed?.map(name => name.label), ["blabar", "cafe", "ortgard", "aker", "herb24"]);
+  assert.equal(contextualNamesFailure({ names: raw.map(label => ({ label, direction: "evocative" })) }), undefined);
+  assert.ok(parsed?.every(name => /^[a-z][a-z0-9]{2,21}$/.test(name.label)));
+  const collision = { names: ["CAFÉ", "Café", "cafe", "Cafe\u0301"].map(label => ({ label, direction: "compound" })) };
+  assert.deepEqual(validateContextualNames(collision), { failure: "too_few_unique" });
+  assert.equal(parseContextualNames(collision), undefined);
+});
+
+test("normalized names still obey previous-name and excluded-word filters", () => {
+  const raw = ["BlåBÄR", "CAFÉ", "ÖRTGÅRD", "ÅKER", "FJÄLL", "LÖV"];
+  const parsed = parseContextualNames({ names: raw.map(label => ({ label, direction: "evocative" })) });
+  assert.ok(parsed);
+  const filtered = selectContextualNames(parsed, { ...input,
+    constraints: { minLength: 3, maxLength: 22, nameLanguage: "sv", nameStyle: "balanced", includeWords: [], excludeWords: ["cafe"] },
+    refinement: { previousNames: ["blabar.com"], likedNames: [], reasons: ["too_generic"] },
+  });
+  assert.deepEqual(filtered.map(name => name.label), ["ortgard", "aker", "fjall", "lov"]);
+});
+
+test("invalid individual labels are discarded without URL truncation or arbitrary script stripping", () => {
+  const invalid = ["bad.name", "https://private.example", "private/path", " name", "two words", "name\n",
+    "name\u0000", "name\u200d", "na\u034fme", "\u0301name", "na\u0654me", "privаtename",
+    "名字", "όνομα", "ＡＬＰＨＡ", "name-brand", "na🙂me", "1name", "ørestad", "aa", "x".repeat(23)];
+  const value = { names: [...invalid.map(label => ({ label, direction: "evocative" })), ...model.names.slice(0, 4)] };
+  assert.equal(value.names.length <= 32, true);
+  assert.deepEqual(parseContextualNames(value), model.names.slice(0, 4));
+  assert.equal(contextualNamesFailure(value), undefined, "a usable remaining batch is not a schema failure");
+  assert.equal(parseContextualNames({ names: [...value.names, ...model.names] }), undefined, "input maximum stays 32 before filtering");
+  const tooFew = { names: [{ label: "private.example", direction: "evocative" }, ...model.names.slice(0, 3)] };
+  assert.deepEqual(validateContextualNames(tooFew), { failure: "label_charset" });
+});
+
+test("structural injection and invalid directions or types invalidate even otherwise usable batches", () => {
+  for (const entry of [
+    { label: "invalid.url", direction: "evocative", price: 1 },
+    { label: "invalid.url", direction: "private injected direction" },
+    { label: { private: "value" }, direction: "evocative" },
+    { label: "goodname", direction: "evocative", status: "available" },
+    { label: "goodname", direction: "evocative", score: 99 },
+    { label: "goodname", instruction: "private extra field" },
+  ]) {
+    for (const entries of [[entry, ...model.names], [...model.names, entry]]) {
+      assert.equal(parseContextualNames({ names: entries }), undefined);
+      assert.match(contextualNamesFailure({ names: entries })!, /^(entry_shape|invalid_direction|label_type)$/);
+    }
+  }
 });
 
 test("hard constraints and feedback apply before selecting AI ideas; priority words stay soft", () => {
