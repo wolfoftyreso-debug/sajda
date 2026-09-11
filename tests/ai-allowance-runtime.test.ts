@@ -4,6 +4,59 @@ import test from "node:test";
 import { Pool } from "pg";
 import { createAiAllowanceReserver, type AiAllowancePool } from "../api/_shared/ai-allowance.js";
 
+/** Clone real CHECK constraints into a temporary table; never touch live counters. */
+test("real migrated Postgres constraints bound test IPs to twenty, production to three and global to one hundred", {
+  skip: process.env.SAJDA_CONFIRM_AI_ALLOWANCE_DATABASE_TEST !== "1", timeout: 60_000,
+}, async () => {
+  assert.equal(process.env.NEON_PROJECT_ID, "spring-paper-89655503");
+  assert.notEqual(process.env.VERCEL_ENV, "production");
+  const url = new URL(process.env.DATABASE_URL_UNPOOLED ?? process.env.DATABASE_URL ?? "");
+  assert.ok(["postgres:", "postgresql:"].includes(url.protocol));
+  assert.ok(url.hostname.endsWith(".neon.tech"));
+  url.searchParams.set("sslmode", "verify-full");
+  url.searchParams.delete("options");
+  const pool = new Pool({ connectionString: url.toString(), max: 1, connectionTimeoutMillis: 5_000, query_timeout: 5_000 });
+  const client = await pool.connect();
+  let open = false;
+  try {
+    await client.query("BEGIN"); open = true;
+    await client.query("SET LOCAL statement_timeout = '5s'; SET LOCAL lock_timeout = '2s'");
+    const constraint = await client.query("SELECT convalidated FROM pg_constraint WHERE conrelid = 'public.sajda_ai_allowance_counters'::regclass AND conname = 'sajda_ai_allowance_counters_check'");
+    assert.deepEqual(constraint.rows, [{ convalidated: true }]);
+    await client.query("CREATE TEMP TABLE sajda_ai_allowance_constraint_fixture (LIKE public.sajda_ai_allowance_counters INCLUDING CONSTRAINTS) ON COMMIT DROP");
+    const insert = (namespace: string, identity: string, count: number) => client.query(
+      "INSERT INTO pg_temp.sajda_ai_allowance_constraint_fixture (namespace,usage_day,identity_hash,request_count,last_request_at) VALUES ($1,CURRENT_DATE,$2,$3,clock_timestamp())",
+      [namespace, identity, count],
+    );
+    const rejected = async (namespace: string, identity: string, count: number) => {
+      await client.query("SAVEPOINT expected_rejection");
+      await assert.rejects(() => insert(namespace, identity, count), { code: "23514" });
+      await client.query("ROLLBACK TO SAVEPOINT expected_rejection");
+      await client.query("RELEASE SAVEPOINT expected_rejection");
+    };
+    const identity = randomBytes(32).toString("hex");
+    for (const stage of ["development", "preview", "production"]) {
+      const namespace = `sajda.ai.v1:${stage}`;
+      const maximum = stage === "production" ? 3 : 20;
+      await insert(namespace, identity, 1);
+      await insert(namespace, identity, maximum);
+      await rejected(namespace, identity, 0);
+      await rejected(namespace, identity, maximum + 1);
+      await insert(namespace, "global", 100);
+      await rejected(namespace, "global", 101);
+      await rejected(namespace, "invalid-identity", 1);
+    }
+    for (const namespace of ["sajda.ai.v1:preview:custom", "sajda.ai.v1:Preview", "sajda.ai.v2:preview", "unknown"]) {
+      await rejected(namespace, identity, 1);
+    }
+    await client.query("ROLLBACK"); open = false;
+  } finally {
+    if (open) await client.query("ROLLBACK").catch(() => undefined);
+    client.release();
+    await pool.end();
+  }
+});
+
 /** Opt-in integration test: no inference, provider call or production access. */
 test("real Postgres allowance transactions, limits and exact fixture cleanup", {
   skip: process.env.SAJDA_CONFIRM_AI_ALLOWANCE_DATABASE_TEST !== "1",

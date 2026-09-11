@@ -5,7 +5,7 @@ import { createElement as h } from "react";
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 import { createServer } from "vite";
 import { buildSearchRefinement, FIRST_RESULTS_COUNT, getVisibleSearchResults, nextSearchResultCount, normalizeRefinementNames, REFINEMENT_REASONS } from "../src/lib/searchRefinement";
-import { refinementText, searchRefinementCopy } from "../src/i18n/searchRefinementCopy";
+import { getSearchGenerationNote, refinementText, searchRefinementCopy } from "../src/i18n/searchRefinementCopy";
 import { isRefinementDomainName, parseSearchRefinement, type RefinementReason, type SearchRefinement as SearchRefinementPayload } from "../shared/search-refinement";
 
 const languages = ["en", "sv", "es", "fr", "zh"] as const;
@@ -75,6 +75,32 @@ test("all five languages preserve limits, interpolation and non-guaranteed namin
   assert.match(english.modeLocalNote, /may not be interpreted precisely/);
   assert.match(english.requestNote, /limits still apply/);
   assert.match(english.noGuarantee, /does not guarantee/);
+});
+
+test("generation notices distinguish quota, busy and unavailable without claiming AI or fixed allowances", () => {
+  for (const language of languages) {
+    const copy = searchRefinementCopy[language];
+    const reasonNotes = {
+      ai_daily_limit: copy.modeAiDailyLimitNote,
+      ai_busy: copy.modeAiBusyNote,
+      ai_unavailable: copy.modeAiUnavailableNote,
+    } as const;
+    assert.equal(new Set(Object.values(reasonNotes)).size, 3);
+    for (const [reason, expected] of Object.entries(reasonNotes)) {
+      assert.equal(getSearchGenerationNote(language, { source: "rules", refinementApplied: false,
+        fallbackReason: reason as keyof typeof reasonNotes }), expected);
+      assert.notEqual(expected, copy.modeAiNote);
+      assert.doesNotMatch(expected.replace("00:00 UTC", ""), /\b(?:3|20)\b/u);
+    }
+    assert.match(copy.modeAiDailyLimitNote, /00:00 UTC/u);
+    assert.doesNotMatch(copy.modeAiBusyNote, /00:00 UTC/u);
+    for (const fallbackReason of [undefined, "ai_off", "no_context"] as const) {
+      assert.equal(getSearchGenerationNote(language, { source: "rules", refinementApplied: false, fallbackReason }), copy.modeLocalNote);
+    }
+    assert.equal(getSearchGenerationNote(language, { source: "ai", refinementApplied: true }), copy.modeAiNote);
+  }
+  assert.match(searchRefinementCopy.en.modeAiDailyLimitNote, /still use these rule-based suggestions/u);
+  assert.match(searchRefinementCopy.en.modeAiBusyNote, /Try again shortly/u);
 });
 
 test("feedback is explicit, accessible, retryable and never starts network work on selection", async t => {

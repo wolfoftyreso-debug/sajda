@@ -38,7 +38,7 @@ export const NAMING_DIRECTIONS = ["descriptive", "evocative", "compound", "inven
 export type NamingDirection = typeof NAMING_DIRECTIONS[number];
 export interface NamingGeneration {
   source: "ai" | "rules";
-  fallbackReason?: "ai_off" | "ai_unavailable" | "no_context";
+  fallbackReason?: "ai_off" | "ai_unavailable" | "no_context" | "ai_daily_limit" | "ai_busy";
   refinementApplied: boolean;
 }
 
@@ -46,7 +46,7 @@ export function parseNamingGeneration(value: unknown): NamingGeneration | undefi
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   const row = value as Record<string, unknown>;
   if (!["ai", "rules"].includes(String(row.source)) || typeof row.refinementApplied !== "boolean") return undefined;
-  const fallbackReason = ["ai_off", "ai_unavailable", "no_context"].includes(String(row.fallbackReason))
+  const fallbackReason = ["ai_off", "ai_unavailable", "no_context", "ai_daily_limit", "ai_busy"].includes(String(row.fallbackReason))
     ? row.fallbackReason as NamingGeneration["fallbackReason"] : undefined;
   return { source: row.source as NamingGeneration["source"], refinementApplied: row.refinementApplied,
     ...(row.source === "rules" && fallbackReason ? { fallbackReason } : {}) };

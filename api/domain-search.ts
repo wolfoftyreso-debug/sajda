@@ -3234,11 +3234,15 @@ return async function handler(request: VercelRequestLike, response: VercelRespon
         nameStyle: creativeMode ? creativeModeNameStyle(creativeMode) : "balanced", includeWords: [], excludeWords: [] },
       requiredReferences: advanced ? themeWords(explicitTheme) : undefined };
     const hasNamingContext = Boolean(explicitTheme.trim() || brief.trim());
+    let capacityFallback: "ai_daily_limit" | "ai_busy" | undefined;
     const contextualNames = !swipe && !isExactDomainSearch && aiConsent && hasNamingContext
-      ? await generateNames(namingInput, request, aiConsent) : undefined;
+      ? await generateNames(namingInput, request, aiConsent, reason => {
+        if (reason === "daily_limit") capacityFallback = "ai_daily_limit";
+        else if (reason === "concurrency_limit") capacityFallback = "ai_busy";
+      }) : undefined;
     const generation: NamingGeneration | undefined = !swipe && !isExactDomainSearch ? {
       source: contextualNames ? "ai" : "rules", refinementApplied: Boolean(refinement),
-      ...(!contextualNames ? { fallbackReason: !hasNamingContext ? "no_context" as const : !aiConsent ? "ai_off" as const : "ai_unavailable" as const } : {}),
+      ...(!contextualNames ? { fallbackReason: !hasNamingContext ? "no_context" as const : !aiConsent ? "ai_off" as const : capacityFallback ?? "ai_unavailable" as const } : {}),
     } : undefined;
     const candidates = swipe
       ? generateSwipeCandidates(tlds, verificationCount, parsedSwipeRange!.range!)

@@ -107,6 +107,27 @@ test("missing OIDC does not consume quota or accidentally use old OpenAI/browser
   assert.equal(h.logs[0].status, "authentication_unavailable");
 });
 
+test("capacity failures expose only actionable fixed reasons without a provider call or retry", async () => {
+  for (const [reason, expected] of [
+    ["daily_limit", "daily_limit"], ["ip_daily_limit", "daily_limit"],
+    ["concurrency_limit", "concurrency_limit"], ["storage_unavailable", undefined],
+    ["private injected details", undefined],
+  ] as const) {
+    const h = harness();
+    const notices: string[] = [];
+    const request = createGatewayRequester({ ...h.deps, reserve: async () => ({
+      allowed: false, reason: reason as "daily_limit", release: async () => { h.state.releases++; },
+    }) });
+    assert.equal(await request({ ...h.options, onCapacityFailure: notice => { notices.push(notice); } }), undefined);
+    assert.deepEqual(notices, expected ? [expected] : []);
+    assert.equal(h.calls.length, 0);
+    assert.equal(h.state.releases, 0);
+    assert.equal(h.logs[0].status, "allowance_denied");
+    assert.equal(h.logs[0].allowanceReason, reason.startsWith("private") ? undefined : reason);
+    assert.doesNotMatch(JSON.stringify(h.logs), /private|Bearer|browser-not-allowed/);
+  }
+});
+
 test("explicit server Gateway key is supported without requesting OIDC", async () => {
   const h = harness(); h.deps.env.AI_GATEWAY_API_KEY = "private-gateway-key";
   await createGatewayRequester(h.deps)(h.options);

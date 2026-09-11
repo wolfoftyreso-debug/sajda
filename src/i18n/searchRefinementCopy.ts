@@ -1,5 +1,5 @@
 import type { Language } from "./LanguageProvider";
-import type { RefinementReason } from "../../shared/search-refinement";
+import type { NamingGeneration, RefinementReason } from "../../shared/search-refinement";
 
 type SearchRefinementCopy = {
   title: string;
@@ -25,6 +25,10 @@ type SearchRefinementCopy = {
   modeAiNote: string;
   modeLocalNote: string;
   modeAiUnavailableNote: string;
+  modeAiDailyLimitNote: string;
+  modeAiBusyNote: string;
+  attemptAiDailyLimitNote: string;
+  attemptAiBusyNote: string;
   noGuarantee: string;
 };
 
@@ -58,6 +62,10 @@ export const searchRefinementCopy: Record<Language, SearchRefinementCopy> = {
     modeAiNote: "Your idea and any feedback guide the suggestions. Availability is checked separately.",
     modeLocalNote: "Local rules use your criteria and any feedback. Tone may not be interpreted precisely.",
     modeAiUnavailableNote: "AI could not provide usable suggestions this time. These names were generated with local rules.",
+    modeAiDailyLimitNote: "Today’s AI limit has been reached. You can still use these rule-based suggestions. The daily allowance resets at 00:00 UTC.",
+    modeAiBusyNote: "AI is handling other requests. These suggestions use local rules. Try again shortly.",
+    attemptAiDailyLimitNote: "Today’s AI allowance is used up and resets at 00:00 UTC. Your previous results are unchanged.",
+    attemptAiBusyNote: "AI is busy. Your previous results are unchanged. Try again shortly.",
     noGuarantee: "Suggestions still need availability checks. Feedback does not guarantee a match.",
   },
   sv: {
@@ -89,6 +97,10 @@ export const searchRefinementCopy: Record<Language, SearchRefinementCopy> = {
     modeAiNote: "Din idé och eventuell återkoppling styr förslagen. Tillgängligheten kontrolleras separat.",
     modeLocalNote: "Lokala regler tar hänsyn till dina önskemål och eventuell återkoppling. Den önskade känslan kan vara svår att tolka exakt.",
     modeAiUnavailableNote: "AI kunde inte ge användbara förslag den här gången. Namnen togs fram med lokala regler.",
+    modeAiDailyLimitNote: "Dagens AI-utrymme är förbrukat. Du kan fortfarande använda de regelbaserade förslagen. Nytt utrymme finns kl. 00:00 UTC.",
+    modeAiBusyNote: "AI hanterar andra förfrågningar just nu. Förslagen har tagits fram med lokala regler. Försök igen om en stund.",
+    attemptAiDailyLimitNote: "Dagens AI-utrymme är slut och fylls på kl. 00:00 UTC. Dina tidigare resultat är oförändrade.",
+    attemptAiBusyNote: "AI är upptaget. Dina tidigare resultat är oförändrade. Försök igen om en stund.",
     noGuarantee: "Förslagens tillgänglighet behöver fortfarande kontrolleras. Återkoppling garanterar inte att du hittar rätt namn.",
   },
   es: {
@@ -120,6 +132,10 @@ export const searchRefinementCopy: Record<Language, SearchRefinementCopy> = {
     modeAiNote: "Tu idea y los comentarios que aportes orientan las sugerencias. La disponibilidad se comprueba por separado.",
     modeLocalNote: "Las reglas locales usan tus criterios y los comentarios que aportes. Puede que no interpreten el tono con precisión.",
     modeAiUnavailableNote: "Esta vez, la IA no pudo generar sugerencias útiles. Estos nombres se generaron con reglas locales.",
+    modeAiDailyLimitNote: "Se alcanzó el límite diario de IA. Puedes seguir usando estas sugerencias basadas en reglas. La cuota diaria se renueva a las 00:00 UTC.",
+    modeAiBusyNote: "La IA está atendiendo otras solicitudes. Estas sugerencias se han generado con reglas locales. Inténtalo de nuevo en unos instantes.",
+    attemptAiDailyLimitNote: "La cuota de IA se agotó y se renueva a las 00:00 UTC. Tus resultados anteriores no han cambiado.",
+    attemptAiBusyNote: "La IA está ocupada. Tus resultados anteriores no han cambiado. Inténtalo de nuevo en unos instantes.",
     noGuarantee: "Aún hay que comprobar la disponibilidad de las sugerencias. Tus comentarios no garantizan encontrar el nombre adecuado.",
   },
   fr: {
@@ -151,6 +167,10 @@ export const searchRefinementCopy: Record<Language, SearchRefinementCopy> = {
     modeAiNote: "Votre idée et vos éventuelles préférences orientent les suggestions. La disponibilité est vérifiée séparément.",
     modeLocalNote: "Les règles locales utilisent vos critères et vos éventuelles préférences. Le ton peut ne pas être interprété avec précision.",
     modeAiUnavailableNote: "L’IA n’a pas fourni de suggestions utilisables cette fois-ci. Ces noms ont été générés à partir de règles locales.",
+    modeAiDailyLimitNote: "La limite quotidienne d’IA est atteinte. Vous pouvez toujours utiliser ces suggestions fondées sur des règles. Le quota se renouvelle à 00:00 UTC.",
+    modeAiBusyNote: "L’IA traite actuellement d’autres demandes. Ces suggestions proviennent de règles locales. Réessayez dans un instant.",
+    attemptAiDailyLimitNote: "Le quota d’IA est épuisé et se renouvelle à 00:00 UTC. Vos résultats précédents sont conservés.",
+    attemptAiBusyNote: "L’IA est occupée. Vos résultats précédents sont conservés. Réessayez dans un instant.",
     noGuarantee: "La disponibilité des suggestions reste à vérifier. Vos préférences ne garantissent pas de trouver le nom qui vous convient.",
   },
   zh: {
@@ -182,9 +202,34 @@ export const searchRefinementCopy: Record<Language, SearchRefinementCopy> = {
     modeAiNote: "你的想法和所提供的反馈会指导命名建议。域名可用性将单独核验。",
     modeLocalNote: "本地规则会参考你的条件和反馈，但可能无法准确理解你想要的风格。",
     modeAiUnavailableNote: "本次 AI 未能提供合适的命名建议，这些名字已改用本地规则生成。",
+    modeAiDailyLimitNote: "今日 AI 额度已用完。你仍可使用这些基于规则生成的建议。每日额度于 00:00 UTC 重置。",
+    modeAiBusyNote: "AI 正在处理其他请求。当前显示的是本地规则生成的建议，请稍后重试。",
+    attemptAiDailyLimitNote: "今日 AI 额度已用完，将于 00:00 UTC 重置。之前的结果保持不变。",
+    attemptAiBusyNote: "AI 正忙。之前的结果保持不变，请稍后重试。",
     noGuarantee: "建议的域名仍需核验可用性。提供反馈不保证找到合适的名字。",
   },
 };
+
+/** Explain the reported source; never infer AI use from a fallback reason. */
+export function getSearchGenerationNote(language: Language, generation: NamingGeneration): string {
+  const copy = searchRefinementCopy[language];
+  if (generation.source === "ai") return copy.modeAiNote;
+  switch (generation.fallbackReason) {
+    case "ai_daily_limit": return copy.modeAiDailyLimitNote;
+    case "ai_busy": return copy.modeAiBusyNote;
+    case "ai_unavailable": return copy.modeAiUnavailableNote;
+    default: return copy.modeLocalNote;
+  }
+}
+
+/** Only for an unsuccessful attempt that retains earlier results, whatever their source. */
+export function getSearchCapacityAttemptNote(language: Language, generation?: NamingGeneration | null): string | undefined {
+  if (generation?.source !== "rules") return undefined;
+  const copy = searchRefinementCopy[language];
+  if (generation.fallbackReason === "ai_daily_limit") return copy.attemptAiDailyLimitNote;
+  if (generation.fallbackReason === "ai_busy") return copy.attemptAiBusyNote;
+  return undefined;
+}
 
 export function refinementText(template: string, values: Record<string, number>): string {
   return template.replace(/\{(\w+)\}/g, (match, key: string) => String(values[key] ?? match));

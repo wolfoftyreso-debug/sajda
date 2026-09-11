@@ -16,7 +16,7 @@ import type { AdvancedSearchCriteria } from "@/lib/advancedSearchCriteria";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { readSearchSession, writeSearchSession } from "@/lib/searchSession";
 import { useAuth } from "@/contexts/AuthContext";
-import { searchRefinementCopy } from "@/i18n/searchRefinementCopy";
+import { getSearchCapacityAttemptNote, searchRefinementCopy } from "@/i18n/searchRefinementCopy";
 import type { NamingGeneration, SearchRefinement } from "../../shared/search-refinement";
 
 export interface DiscoveredDomain {
@@ -381,8 +381,11 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (localDomains.length === 0 || preserveVerifiedResults) {
         setIsScanning(false); setScanPhase("idle"); setPendingDomains([]);
         setActiveTLDScans(new Map()); setTimeRemaining(0);
-        toast({ title: t(preserveVerifiedResults && localDomains.length ? "toast.searchFailed" : "search.noMatches"),
-          description: preserveVerifiedResults && localDomains.length ? searchRefinementCopy[language].checksUnavailable : t("search.noMatchesDescription") });
+        // This describes the failed attempt, not the source of the retained
+        // cards. Never relabel an earlier AI shortlist as a rules fallback.
+        const capacityAttemptNote = domains.length > 0 ? getSearchCapacityAttemptNote(language, response.generation) : undefined;
+        toast({ title: t(capacityAttemptNote || (preserveVerifiedResults && localDomains.length) ? "toast.searchFailed" : "search.noMatches"),
+          description: capacityAttemptNote ?? (preserveVerifiedResults && localDomains.length ? searchRefinementCopy[language].checksUnavailable : t("search.noMatchesDescription")) });
         return false;
       }
       setDomains(localDomains);

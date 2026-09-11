@@ -16,6 +16,11 @@ const SAFE_VALIDATION_FAILURES = new Set([
   "root", "array_size", "entry_shape", "label_type", "label_length", "label_charset",
   "invalid_direction", "too_few_unique",
 ]);
+const SAFE_ALLOWANCE_REASONS = new Set([
+  "disabled", "not_configured", "missing_identity", "daily_limit", "ip_daily_limit",
+  "concurrency_limit", "storage_unavailable",
+]);
+export type AiCapacityFailure = "daily_limit" | "concurrency_limit";
 const TASK_LIMITS = {
   brief: { modelVariable: "AI_GATEWAY_BRIEF_MODEL", tokens: 600, timeout: 4_000 },
   review: { modelVariable: "AI_GATEWAY_REVIEW_MODEL", tokens: 1_400, timeout: 5_500 },
@@ -38,6 +43,8 @@ interface GatewayRequest<T> {
   parse: (value: unknown) => T | undefined;
   /** Optional fixed-category diagnosis. Unrecognized return values never enter logs. */
   validationFailure?: (value: unknown) => unknown;
+  /** Product-safe capacity feedback, not an error body or a quota override. */
+  onCapacityFailure?: (reason: AiCapacityFailure) => void;
 }
 
 interface GatewayDependencies {
@@ -140,6 +147,7 @@ export function createGatewayRequester(deps: GatewayDependencies) {
     let httpStatus = 0;
     let errorCategory: string | undefined;
     let validationFailure: string | undefined;
+    let allowanceReason: string | undefined;
     let release: (() => Promise<void>) | undefined;
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
@@ -147,7 +155,13 @@ export function createGatewayRequester(deps: GatewayDependencies) {
       if (!token) return undefined;
       status = "allowance_unavailable";
       const allowance = await deps.reserve(options.request.headers, { remoteAddress: options.request.socket?.remoteAddress });
-      if (!allowance.allowed) { status = "allowance_denied"; return undefined; }
+      if (!allowance.allowed) {
+        status = "allowance_denied";
+        if (SAFE_ALLOWANCE_REASONS.has(allowance.reason)) allowanceReason = allowance.reason;
+        if (allowanceReason === "daily_limit" || allowanceReason === "ip_daily_limit") options.onCapacityFailure?.("daily_limit");
+        else if (allowanceReason === "concurrency_limit") options.onCapacityFailure?.("concurrency_limit");
+        return undefined;
+      }
       release = allowance.release;
       const controller = new AbortController();
       timer = setTimeout(() => controller.abort(), limits.timeout);
@@ -197,6 +211,7 @@ export function createGatewayRequester(deps: GatewayDependencies) {
       if (release) await release().catch(() => undefined);
       deps.log({ event: "sajda_ai_gateway", requestId, task: options.task, model, status, httpStatus,
         ...(errorCategory ? { errorCategory } : {}), ...(validationFailure ? { validationFailure } : {}),
+        ...(allowanceReason ? { allowanceReason } : {}),
         durationMs: Date.now() - started });
     }
   };

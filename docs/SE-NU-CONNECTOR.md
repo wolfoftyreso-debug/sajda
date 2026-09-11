@@ -9,6 +9,12 @@ Checked 2026-09-11. Status: **not connected**. Keep `.se` and `.nu` hidden from 
 - Relevant credentials were absent from local configuration, downloaded Vercel environment files, the process environment and the current `hypbit/sajda` Vercel environment inventory. Only configuration names/presence were relevant; no credentials belong in this document.
 - The existing read-only Porkbun adapter is real, but the public [supported-TLD pricing response](https://api.porkbun.com/api/json/v3/pricing/get) contained neither `se` nor `nu` at this check. It is not a verified national-domain connector.
 
+## Latest transport and UI check
+
+Rechecked on 2026-09-11 with certificate verification enabled and redirects disabled: both documented DAS hosts return `ERR_TLS_CERT_ALTNAME_INVALID` over HTTPS. The presented certificate covers only `cardpayment.registry.se`, not either DAS hostname. A certificate for a different registry service is not permission to substitute that service or bypass hostname validation. The official Free/DAS documentation still lists HTTP only; no documented credentialless HTTPS replacement was found. Relevant registrar credentials remain absent from the current local and downloaded Vercel environment files and process environment; only names/presence were inspected.
+
+The search extension selector now explains the unavailable checks before expansion, in all five interface languages. `.se`, `.nu` and `.io` remain excluded by the existing public capability list; `.io` also lacks an audited public HTTPS connector. A manual link opens [Internetstiftelsen's official .se/.nu search](https://internetstiftelsen.se/sok-doman/) in a new tab with no query parameters or referrer. The application does not automatically query that page, send the user's idea, or interpret manual results as verified availability.
+
 ## Preferred candidate: Openprovider
 
 Openprovider documents a [HTTPS REST availability operation](https://support.openprovider.eu/hc/en-us/articles/360025299493-2-Domains-API-Check-Domain) and API registration support for [.se](https://support.openprovider.eu/hc/en-us/articles/360000750748--se) and [.nu](https://support.openprovider.eu/hc/en-us/articles/360000756528--nu). Its [developer site](https://developers.openprovider.com/) offers a free reseller account. No account, permission or successful authenticated availability call has been verified for Sajda.

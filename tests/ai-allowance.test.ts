@@ -16,6 +16,7 @@ class MemoryDatabase implements AiAllowancePool {
   destroyed = 0;
   connects = 0;
   fail = "";
+  testIpMaximum = 20;
   private tail = Promise.resolve();
 
   async connect(): Promise<AiAllowanceClient> {
@@ -63,7 +64,8 @@ class MemoryDatabase implements AiAllowancePool {
           for (const hash of ["global", identity]) {
             const key = `${namespace}|${day}|${hash}`;
             const count = (counters!.get(key)?.request_count ?? 0) + 1;
-            if (count > (hash === "global" ? 100 : 3)) throw new Error("Counter constraint violated");
+            const ipMaximum = ["sajda.ai.v1:preview", "sajda.ai.v1:development"].includes(namespace) ? this.testIpMaximum : 3;
+            if (count > (hash === "global" ? 100 : ipMaximum)) throw new Error("Counter constraint violated");
             counters!.set(key, { namespace, day, identity_hash: hash, request_count: count, last_request_at: now });
           }
         } else if (operation === "lease") {
@@ -181,6 +183,112 @@ test("all AI task instances share three rapid IP requests per UTC day and deny t
   assert.equal(database.now, instant);
   assert.equal(database.leases.size, 0);
   assert.ok([...database.counters.values()].every(row => row.request_count === 3));
+});
+
+test("test IP override rejects malformed or out-of-range values before any database access", async () => {
+  for (const stage of ["development", "preview", "production"]) {
+    for (const value of ["", " ", "0", "-1", "21", "100", "1.5", "1e1", "01", "Infinity", "NaN", "20; DROP TABLE"] ) {
+      const { database, reserve } = setup({ VERCEL_ENV: stage, SAJDA_AI_TEST_IP_DAILY_LIMIT: value });
+      assert.equal((await reserve(headers())).reason, "not_configured", `${stage}: ${value}`);
+      assert.equal(database.connects, 0);
+    }
+  }
+});
+
+test("only explicit preview/development test configuration permits up to twenty IP requests", async () => {
+  for (const stage of ["preview", "development"]) {
+    for (const maximum of [1, 4, 20]) {
+      const { database, reserve } = setup({ VERCEL_ENV: stage, SAJDA_AI_TEST_IP_DAILY_LIMIT: String(maximum) });
+      for (let index = 0; index < maximum; index++) {
+        const result = await reserve(headers());
+        assert.equal(result.allowed, true);
+        await result.release();
+      }
+      assert.equal((await reserve(headers())).reason, "ip_daily_limit");
+      assert.ok([...database.counters.values()].every(row => row.request_count === maximum));
+      assert.equal(database.leases.size, 0);
+    }
+  }
+});
+
+test("production ignores a valid test override and untrusted headers cannot enable it", async () => {
+  for (const override of ["1", "20"]) {
+    const { database, reserve } = setup({ VERCEL_ENV: "production", SAJDA_AI_TEST_IP_DAILY_LIMIT: override });
+    for (let index = 0; index < 3; index++) {
+      const result = await reserve({ ...headers(), "SAJDA_AI_TEST_IP_DAILY_LIMIT": "20", "VERCEL_ENV": "preview" });
+      assert.equal(result.allowed, true);
+      await result.release();
+    }
+    assert.equal((await reserve(headers())).reason, "ip_daily_limit");
+    assert.ok([...database.counters.values()].every(row => row.namespace === "sajda.ai.v1:production" && row.request_count === 3));
+  }
+});
+
+test("local test override requires development execution and keeps loopback identity checks", async () => {
+  for (const productionHint of [undefined, "NODE_ENV", "VERCEL_ENV"]) {
+    const environment: NodeJS.ProcessEnv = { VERCEL: undefined, SAJDA_AI_TEST_IP_DAILY_LIMIT: "20" };
+    if (productionHint) environment[productionHint] = "production";
+    const { reserve } = setup(environment);
+    assert.equal((await reserve(headers())).reason, "missing_identity");
+    const maximum = productionHint ? 3 : 20;
+    for (let index = 0; index < maximum; index++) {
+      const result = await reserve({}, { remoteAddress: "127.0.0.1" });
+      assert.equal(result.allowed, true);
+      await result.release();
+    }
+    assert.equal((await reserve({}, { remoteAddress: "127.0.0.1" })).reason, "ip_daily_limit");
+  }
+});
+
+test("raising or removing the test override preserves existing counters, identities and spend", async () => {
+  const { database, environment, reserve } = setup();
+  for (let index = 0; index < 3; index++) await (await reserve(headers())).release();
+  assert.equal((await reserve(headers())).reason, "ip_daily_limit");
+  const originalKeys = [...database.counters.keys()];
+  environment.SAJDA_AI_TEST_IP_DAILY_LIMIT = "20";
+  for (let index = 3; index < 20; index++) await (await reserve(headers())).release();
+  assert.equal((await reserve(headers())).reason, "ip_daily_limit");
+  assert.deepEqual([...database.counters.keys()], originalKeys);
+  assert.ok([...database.counters.values()].every(row => row.request_count === 20));
+  delete environment.SAJDA_AI_TEST_IP_DAILY_LIMIT;
+  assert.equal((await reserve(headers())).reason, "ip_daily_limit");
+  assert.ok([...database.counters.values()].every(row => row.request_count === 20));
+});
+
+test("enabling a test override before migration fails closed without partially consuming quota", async () => {
+  const { database, reserve } = setup({ SAJDA_AI_TEST_IP_DAILY_LIMIT: "20" });
+  database.testIpMaximum = 3;
+  for (let index = 0; index < 3; index++) await (await reserve(headers())).release();
+  assert.equal((await reserve(headers())).reason, "storage_unavailable");
+  assert.ok([...database.counters.values()].every(row => row.request_count === 3));
+  assert.equal(database.leases.size, 0);
+  assert.equal(database.destroyed, 1);
+});
+
+test("test IP override does not raise the shared global budget or concurrent lease limit", async () => {
+  const { database, reserve } = setup({ SAJDA_AI_TEST_IP_DAILY_LIMIT: "20" });
+  const parallel = await Promise.all([reserve(headers()), reserve(headers()), reserve(headers())]);
+  assert.equal(parallel.filter(result => result.allowed).length, 2);
+  assert.equal(parallel.filter(result => result.reason === "concurrency_limit").length, 1);
+  assert.ok([...database.leases.values()].every(lease => lease.expiresAt - database.now === 20_000));
+  await Promise.all(parallel.map(result => result.release()));
+  for (let index = 2; index < 50; index++) {
+    const result = await reserve(headers(`192.0.2.${Math.floor(index / 20) + 1}`));
+    assert.equal(result.allowed, true);
+    await result.release();
+  }
+  assert.equal((await reserve(headers("192.0.2.99"))).reason, "daily_limit");
+  assert.equal([...database.counters.values()].find(row => row.identity_hash === "global")?.request_count, 50);
+});
+
+test("concurrent requests consume the final expanded test IP allowance exactly once", async () => {
+  const { database, reserve } = setup({ SAJDA_AI_TEST_IP_DAILY_LIMIT: "20" });
+  for (let index = 0; index < 19; index++) await (await reserve(headers())).release();
+  const results = await Promise.all([reserve(headers()), reserve(headers())]);
+  assert.equal(results.filter(result => result.allowed).length, 1);
+  assert.equal(results.filter(result => result.reason === "ip_daily_limit").length, 1);
+  assert.ok([...database.counters.values()].every(row => row.request_count === 20));
+  await Promise.all(results.map(result => result.release()));
 });
 
 test("UTC midnight resets the daily cap without delaying the next naming request", async () => {
@@ -346,4 +454,16 @@ test("cleanup is bounded and migration is additive with server-only table privil
   assert.match(migration, /THEN 100 ELSE 3 END/u);
   assert.match(migration, /FROM PUBLIC/u);
   assert.doesNotMatch(migration, /\b(?:DROP|TRUNCATE|DELETE|UPDATE)\b/iu);
+});
+
+test("test-capacity migration replaces only the exact counter check without resetting stored state", () => {
+  const migration = readFileSync(new URL("../db/migrations/0017_ai_test_allowance.sql", import.meta.url), "utf8");
+  assert.equal(migration.match(/DROP CONSTRAINT /gu)?.length, 1);
+  assert.match(migration, /DROP CONSTRAINT sajda_ai_allowance_counters_check/u);
+  assert.match(migration, /ADD CONSTRAINT sajda_ai_allowance_counters_check CHECK/u);
+  assert.match(migration, /WHEN identity_hash = 'global' THEN 100/u);
+  assert.match(migration, /WHEN namespace IN \('sajda\.ai\.v1:preview', 'sajda\.ai\.v1:development'\) THEN 20/u);
+  assert.match(migration, /ELSE 3/u);
+  assert.doesNotMatch(migration, /\b(?:IF EXISTS|TRUNCATE|DELETE|UPDATE|INSERT|GRANT|DISABLE|DROP TABLE)\b/iu);
+  assert.doesNotMatch(migration, /identity_hash_check|namespace_check|_pkey|allowance_leases/u);
 });

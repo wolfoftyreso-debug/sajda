@@ -15,7 +15,7 @@ import SearchResultHelp from "@/components/SearchResultHelp";
 import SearchRefinement from "@/components/SearchRefinement";
 import AiPrivacyControl from "@/components/AiPrivacyControl";
 import { aiPrivacyCopy } from "@/i18n/aiPrivacyCopy";
-import { searchRefinementCopy, refinementText } from "@/i18n/searchRefinementCopy";
+import { searchRefinementCopy, refinementText, getSearchGenerationNote } from "@/i18n/searchRefinementCopy";
 import { FIRST_RESULTS_COUNT, getVisibleSearchResults, nextSearchResultCount } from "@/lib/searchRefinement";
 import { countAdvancedBriefWords } from "@/lib/advancedSearchBrief";
 import FooterNav from "@/components/FooterNav";
@@ -838,7 +838,7 @@ const Index = () => {
 
         {generation && domains.length > 0 && <div className="mb-4 text-sm" role="status">
           <p className="font-medium text-foreground">{generation.source === "ai" ? refinementCopy.modeAi : refinementCopy.modeLocal}</p>
-          <p className="mt-1 text-muted-foreground">{generation.source === "ai" ? refinementCopy.modeAiNote : generation.fallbackReason === "ai_unavailable" ? refinementCopy.modeAiUnavailableNote : refinementCopy.modeLocalNote}</p>
+          <p className="mt-1 text-muted-foreground">{getSearchGenerationNote(language, generation)}</p>
         </div>}
         <SearchResultHelp language={language} enabled={!isScanning && domains.length > 0} />
 

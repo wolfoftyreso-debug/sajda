@@ -27,6 +27,7 @@ interface Configuration {
   namespace: string;
   secret: string;
   dailyLimit: number;
+  ipDailyLimit: number;
 }
 
 const MAX_DAILY_REQUESTS = 100;
@@ -68,12 +69,18 @@ function configuration(environment: NodeJS.ProcessEnv): Configuration | undefine
     || !["development", "preview", "production"].includes(stage ?? "")) return undefined;
   const rawLimit = environment.SAJDA_AI_DAILY_LIMIT?.trim();
   if (rawLimit && !/^\d{1,6}$/u.test(rawLimit)) return undefined;
+  const rawTestIpLimit = environment.SAJDA_AI_TEST_IP_DAILY_LIMIT?.trim();
+  // Explicit malformed overrides fail closed, even outside the test stage.
+  if (rawTestIpLimit !== undefined && !/^(?:[1-9]|1[0-9]|20)$/u.test(rawTestIpLimit)) return undefined;
+  const testStage = (stage === "preview" || stage === "development")
+    && (Boolean(environment.VERCEL) || (environment.NODE_ENV !== "production" && environment.VERCEL_ENV !== "production"));
   return {
     connectionString, secret,
     // All deployments/tasks in one environment share the same allowance.
     // Never namespace by a request hostname or a rotating deployment URL.
     namespace: `sajda.ai.v1:${stage}`,
     dailyLimit: rawLimit ? Math.min(MAX_DAILY_REQUESTS, Number(rawLimit)) : DEFAULT_DAILY_REQUESTS,
+    ipDailyLimit: testStage && rawTestIpLimit !== undefined ? Number(rawTestIpLimit) : IP_DAILY_REQUESTS,
   };
 }
 
@@ -171,7 +178,7 @@ export function createAiAllowanceReserver(dependencies: {
       const ipCount = integer(today(identityHash)?.request_count ?? 0);
       let reason: AllowanceReason | undefined;
       if (globalCount >= configured.dailyLimit) reason = "daily_limit";
-      else if (ipCount >= IP_DAILY_REQUESTS) reason = "ip_daily_limit";
+      else if (ipCount >= configured.ipDailyLimit) reason = "ip_daily_limit";
       else {
         const leases = await client.query("/* ai:active */ SELECT count(*)::integer AS active FROM public.sajda_ai_allowance_leases WHERE namespace = $1 AND expires_at > $2::timestamptz", [namespace, instant]);
         if (integer(leases.rows[0]?.active) >= MAX_CONCURRENT_REQUESTS) reason = "concurrency_limit";

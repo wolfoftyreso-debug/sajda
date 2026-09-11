@@ -6,6 +6,7 @@ import { MemoryRouter } from "react-router-dom";
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 import { createServer } from "vite";
 import type { AccountUser } from "../src/integrations/neon/account-types";
+import type { Language } from "../src/i18n/LanguageProvider";
 import type { StartScanOptions, useScan as useScanType } from "../src/contexts/ScanContext";
 import type { AnonymousSearchResult } from "../src/lib/localTestSearch";
 import { DEFAULT_ADVANCED_SEARCH_CRITERIA } from "../src/lib/advancedSearchCriteria";
@@ -49,7 +50,7 @@ test("mounted iterative search preserves original context, access boundaries and
   const local = new Map<string, string>();
   const session = new Map<string, string>();
   const localWrites: [string, string][] = [];
-  const fixture = { auth: { user: account as AccountUser | null, loading: false }, toasts: [] as unknown[], watchlistMutations: 0 };
+  const fixture = { auth: { user: account as AccountUser | null, loading: false }, language: "en" as Language, toasts: [] as unknown[], watchlistMutations: 0 };
   const setGlobal = (key: string, value: unknown) => Object.defineProperty(globalThis, key, { configurable: true, value });
   const storage = (map: Map<string, string>, writes?: [string, string][]) => ({
     getItem: (key: string) => map.get(key) ?? null,
@@ -66,7 +67,7 @@ test("mounted iterative search preserves original context, access boundaries and
   setGlobal("document", { getElementById: () => null });
   const mocks = new Map([
     ["/src/contexts/AuthContext.tsx", "export const useAuth=()=>globalThis.__REFINEMENT_FLOW__.auth;"],
-    ["/src/i18n/LanguageProvider.tsx", "const t=(key)=>key; export const useLanguage=()=>({language:'en',t}); export const translate=(_locale,key)=>key;"],
+    ["/src/i18n/LanguageProvider.tsx", "const t=(key)=>key; export const useLanguage=()=>({language:globalThis.__REFINEMENT_FLOW__.language,t}); export const translate=(_locale,key)=>key;"],
     ["/src/hooks/use-toast.ts", "const toast=(value)=>globalThis.__REFINEMENT_FLOW__.toasts.push(value); export const useToast=()=>({toast});"],
     ["/src/lib/nativeTransport.ts", "export const nativeRequest=()=>{throw new Error('No native transport expected');};"],
     ["/src/lib/watchlistService.ts", "export const getWatchlist=async()=>[]; export const addToWatchlist=async()=>{globalThis.__REFINEMENT_FLOW__.watchlistMutations++;}; export const removeFromWatchlist=addToWatchlist;"],
@@ -103,11 +104,12 @@ test("mounted iterative search preserves original context, access boundaries and
     const { default: Index } = await vite.ssrLoadModule("/src/pages/Index.tsx");
     function Probe() { scan = useScan(); return null; }
     const tree = () => h(MemoryRouter, null, h(ScanProvider, null, h(Fragment, null, h(Probe), h(Index))));
-    const mount = async ({ user = account as AccountUser | null, loading = false, consumed = false, preserveSession = false } = {}) => {
+    const mount = async ({ user = account as AccountUser | null, loading = false, consumed = false, preserveSession = false, language = "en" as Language } = {}) => {
       if (renderer) await act(async () => renderer!.unmount());
       local.clear(); localWrites.length = 0; requests.length = 0; fixture.toasts.length = 0; fixture.watchlistMutations = 0;
       if (!preserveSession) session.clear();
       fixture.auth = { user, loading };
+      fixture.language = language;
       if (consumed) local.set(quotaKey, JSON.stringify({ version: 1, state: "completed", reservationId: "fixture_reservation", updatedAt: new Date().toISOString() }));
       response = reply;
       await act(async () => { renderer = create(tree()); });
@@ -326,6 +328,29 @@ test("mounted iterative search preserves original context, access boundaries and
       assert.equal(button(searchRefinementCopy.en.submit), undefined);
       assert.equal(requests.length, 0);
     });
+
+    for (const language of ["en", "sv", "es", "fr", "zh"] as const) {
+      for (const fallbackReason of ["ai_daily_limit", "ai_busy", "ai_unavailable"] as const) {
+        await t.test(`${language}: ${fallbackReason} explains rule-based results without an automatic retry`, async () => {
+          await mount({ language });
+          response = () => Response.json({ results: batch(), generation: { source: "rules", refinementApplied: false, fallbackReason } });
+          assert.equal(await start(), true);
+          assert.equal(scan.generation?.source, "rules");
+          assert.equal(scan.generation?.fallbackReason, fallbackReason);
+          const copy = searchRefinementCopy[language];
+          const expectedNote = fallbackReason === "ai_daily_limit" ? copy.modeAiDailyLimitNote
+            : fallbackReason === "ai_busy" ? copy.modeAiBusyNote : copy.modeAiUnavailableNote;
+          const notice = renderer!.root.findAllByProps({ role: "status" }).find(node => text(node).startsWith(`${copy.modeLocal} `));
+          assert.ok(notice, "the source heading must remain rule-based");
+          assert.ok(text(notice!).includes(expectedNote));
+          assert.equal(text(notice!).includes(copy.modeAiNote), false);
+          assert.equal(cards().length, 10, "fallback results remain available");
+          assert.equal(scan.isScanning, false);
+          await act(async () => { await pause(); });
+          assert.equal(requests.length, 1, "the fallback notice must not retry the request");
+        });
+      }
+    }
 
     await t.test("exact checks retain their full bounded list and cannot become creative refinement", async () => {
       await mount();

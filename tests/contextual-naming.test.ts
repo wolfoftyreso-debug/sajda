@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createDomainSearchHandler, generateCandidates } from "../api/domain-search";
 import { contextualNamesFailure, validateContextualNames, parseContextualNames, refineRuleCandidates, selectContextualNames, satisfiesNamingConstraints, type NamingInput } from "../api/_shared/contextual-naming";
 import { AI_CONSENT_VERSION } from "../shared/ai-consent";
-import { parseSearchRefinement } from "../shared/search-refinement";
+import { parseNamingGeneration, parseSearchRefinement } from "../shared/search-refinement";
 
 const consent = { version: AI_CONSENT_VERSION, accepted: true } as const;
 const names = ["sunroom", "bloompath", "petalnote", "brightnest", "fieldletter", "softsignal", "calmcraft", "littleorbit"];
@@ -179,6 +179,33 @@ test("unavailable naming provider falls back once without making model-derived c
     assert.equal(result.status, 200); assert.equal(calls, 1);
     assert.deepEqual(result.body.generation, { source: "rules", fallbackReason: "ai_unavailable", refinementApplied: false });
   } finally { globalThis.fetch = original; }
+});
+
+test("capacity fallback retains rule results and communicates only the actual capacity category", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => new Response("", { status: 503 });
+  try {
+    for (const [reason, expected] of [["daily_limit", "ai_daily_limit"], ["concurrency_limit", "ai_busy"]] as const) {
+      let calls = 0;
+      const handler = createDomainSearchHandler(async (_input, _request, _consent, notify) => {
+        calls++; notify?.(reason); return undefined;
+      });
+      const result = await invoke(handler, { theme: "harbor", tlds: ["com"], count: 4, providers: ["cloudflare"], aiConsent: consent });
+      assert.equal(result.status, 200);
+      assert.equal(calls, 1);
+      assert.ok((result.body.results as unknown[]).length > 0);
+      const generation = { source: "rules", fallbackReason: expected, refinementApplied: false };
+      assert.deepEqual(result.body.generation, generation);
+      assert.deepEqual(parseNamingGeneration(result.body.generation), generation);
+    }
+  } finally { globalThis.fetch = original; }
+});
+
+test("generation parsing cannot expose arbitrary fallback strings or turn a fallback into AI", () => {
+  assert.deepEqual(parseNamingGeneration({ source: "rules", refinementApplied: false, fallbackReason: "private" }),
+    { source: "rules", refinementApplied: false });
+  assert.deepEqual(parseNamingGeneration({ source: "ai", refinementApplied: false, fallbackReason: "ai_daily_limit" }),
+    { source: "ai", refinementApplied: false });
 });
 
 test("the full visible theme reaches naming without silent 100-character truncation", async () => {

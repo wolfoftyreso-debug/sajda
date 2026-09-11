@@ -1,4 +1,4 @@
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { getAnonymousSearchTlds, isAnonymousSearchMode, isPublicSearchMode } from "@/lib/anonymousSearchMode";
 import { useLanguage, type TranslationKey } from "@/i18n/LanguageProvider";
@@ -40,6 +40,9 @@ const TLDSelector = ({ selectedTLDs, onToggleTLD, disabled = false }: TLDSelecto
     ? AVAILABLE_TLDS.filter((tld) => anonymousTlds.includes(tld.id))
     : AVAILABLE_TLDS;
   const selectedVisibleCount = visibleTlds.filter((tld) => selectedTLDs.includes(tld.id)).length;
+  const unconnectedTlds = anonymousSearchMode
+    ? AVAILABLE_TLDS.filter((tld) => !anonymousTlds.includes(tld.id)).map((tld) => tld.label)
+    : [];
 
   return (
     <section className="rounded-xl border border-border bg-card" aria-label={t("search.extensions")}>
@@ -115,6 +118,22 @@ const TLDSelector = ({ selectedTLDs, onToggleTLD, disabled = false }: TLDSelecto
                 : t("search.localRegistryNotice")}
             </p>
           )}
+        </div>
+      )}
+      {unconnectedTlds.length > 0 && (
+        <div className="space-y-1.5 border-t border-border px-3 py-3 text-xs leading-5 text-muted-foreground sm:px-4" role="note">
+          <p>{t("search.unconnectedExtensions", { endings: unconnectedTlds.join(", ") })}</p>
+          <a
+            href="https://internetstiftelsen.se/sok-doman/"
+            target="_blank"
+            rel="noopener noreferrer"
+            referrerPolicy="no-referrer"
+            aria-label={`${t("search.manualSeNuCheck")} (${t("search.externalNewTab")})`}
+            className="inline-flex min-h-10 items-center gap-1.5 rounded-sm font-medium text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            {t("search.manualSeNuCheck")}
+            <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          </a>
         </div>
       )}
     </section>
