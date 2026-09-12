@@ -223,9 +223,8 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
   {
     id: "namesilo",
     name: "NameSilo",
-    // No stable first-party production asset was available during source
-    // verification, so show the branded fallback rather than hotlinking an
-    // unapproved third-party mark.
+    // Bundle the original vendor mark on web and native; no hotlink dependency.
+    logoUrl: new URL("../assets/providers/namesilo.svg", import.meta.url).href,
     logoMonogram: "NS",
     logoFallbackColor: "#1a6b8c",
     purchaseUrl: () => "https://www.namesilo.com/domain/search-domains",
@@ -246,8 +245,10 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
   {
     id: "internetbs",
     name: "InternetBS",
-    // As above, retain a deliberate in-app fallback until the vendor provides
-    // a stable public brand asset rather than relying on a favicon.
+    // Official wordmark used by InternetBS's public support centre.
+    logoUrl: "https://faq.internetbs.net/hc/theming_assets/01HZKQZF4DVTSEGDQT3SKR6K05",
+    logoWide: true,
+    logoSurface: "dark",
     logoMonogram: "IB",
     logoFallbackColor: "#215b8e",
     purchaseUrl: () => "https://internetbs.net/en/domain-name-registration",

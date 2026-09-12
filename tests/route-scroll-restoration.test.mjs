@@ -1,9 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { createElement as h } from "react";
 import { MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import { act, create } from "react-test-renderer";
 import RouteScrollRestoration from "../src/components/RouteScrollRestoration.tsx";
+
+test("edit-search navigation targets the compact form and transfers keyboard focus", () => {
+  // Browser geometry is verified separately at 390px. This source contract
+  // prevents the old full-deck target from returning on a future layout edit.
+  const source = readFileSync(new URL("../src/pages/Index.tsx", import.meta.url), "utf8");
+  assert.match(source, /const searchControlsRef = useRef<HTMLFormElement>/u);
+  assert.match(source, /<form ref=\{searchControlsRef\}/u);
+  assert.doesNotMatch(source, /<div ref=\{searchControlsRef\}/u);
+  const handler = source.slice(source.indexOf("const handleEditSearch ="), source.indexOf("const handleStartSearch ="));
+  assert.match(handler, /requestAnimationFrame/u);
+  assert.match(handler, /scrollToElement\(searchControlsRef.current\)/u);
+  assert.match(handler, /getElementById\("domain-theme"\)\?\.focus\(\{ preventScroll: true \}\)/u);
+});
 
 // Mount the production component and real router. Browser geometry itself is
 // covered separately by the deployed browser pass; these stubs expose only

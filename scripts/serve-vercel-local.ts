@@ -18,27 +18,39 @@ import savedDomains from "../api/account/saved-domains";
 import capabilities from "../api/account/capabilities";
 import membership from "../api/account/membership";
 import lostDomains from "../api/account/lost-domains";
+import tradingScenarios from "../api/account/trading-scenarios";
 import lostDomainsCron from "../api/cron/lost-domains";
 import auth from "../api/auth";
 import contact from "../api/contact";
 import billing from "../api/account/billing";
 import billingWebhook from "../api/billing-webhook";
 import mcp from "../api/mcp";
+import publicMcp from "../api/mcp/public";
 import accountApi from "../api/v1/account";
 import nativeAuth from "../api/native/auth";
 import nativeAccount from "../api/native/account";
+import nativeCommerce from "../api/native/commerce";
+import nativeCommerceCron from "../api/cron/native-commerce";
+import appStoreWebhook from "../api/app-store-webhook";
 import appSessions from "../api/account/app-sessions";
+import deletion from "../api/account/deletion";
 
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 const root = resolve(projectRoot, "dist-vercel");
 const config = JSON.parse(await readFile(resolve(projectRoot, "vercel.json"), "utf8"));
 const port = Number(process.env.SAJDA_QA_PORT || 8095);
 if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error("Invalid QA port");
+// Only this loopback adapter supplies a missing local origin. Never replace an
+// explicit environment setting, and never infer any secret/provider setting.
+if (process.env.BETTER_AUTH_URL === undefined) process.env.BETTER_AUTH_URL = `http://127.0.0.1:${port}`;
 type ResponseAdapter = ServerResponse & { status(code: number): ResponseAdapter; json(body: unknown): void };
 type Handler = (req: IncomingMessage, res: ResponseAdapter) => unknown;
 const handlers = new Map<string, Handler>([
   ["/api/mcp",mcp], ["/api/v1/account",accountApi],
+  ["/api/mcp/public", publicMcp],
   ["/api/native/auth",nativeAuth], ["/api/native/account",nativeAccount],
+  ["/api/native/commerce",nativeCommerce], ["/api/app-store-webhook",appStoreWebhook],
+  ["/api/auth",auth],
   ["/api/domain-search", search], ["/api/deep-review", deepReview], ["/api/health", health],
   ["/api/v1/public/domains", publicDomains], ["/api/v1/domains", protectedDomains],
   ["/api/v1/public/names", publicDomains], ["/api/v1/names", protectedDomains],
@@ -49,8 +61,11 @@ const handlers = new Map<string, Handler>([
   ["/api/account/capabilities", capabilities],
   ["/api/account/membership", membership],
   ["/api/account/app-sessions", appSessions],
+  ["/api/account/deletion", deletion],
   ["/api/account/lost-domains", lostDomains],
+  ["/api/account/trading-scenarios", tradingScenarios],
   ["/api/cron/lost-domains", lostDomainsCron],
+  ["/api/cron/native-commerce", nativeCommerceCron],
   ["/api/contact", contact],
   ["/api/account/billing", billing],
   ["/api/billing-webhook", billingWebhook],

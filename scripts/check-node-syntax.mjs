@@ -9,6 +9,8 @@ const files = [
   "infra/local-server/check-page.mjs",
   "infra/worker/worker.mjs",
   "scripts/build-vercel.mjs",
+  "scripts/build-public-connector.mjs",
+  "scripts/probe-public-mcp.mjs",
   "scripts/release-configuration.mjs",
   "scripts/check-vercel-types.mjs",
   "scripts/seo-routes.mjs",

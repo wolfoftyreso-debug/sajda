@@ -28,6 +28,19 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function unexpiredSession(session: AccountSession | null): session is AccountSession {
+  return !!session && typeof session.expires_at === "number" && Number.isFinite(session.expires_at) && session.expires_at * 1000 > Date.now();
+}
+
+function transientSessionFailure(failure: unknown): boolean {
+  if (!failure || typeof failure !== "object") return false;
+  const { status, code } = failure as { status?: unknown; code?: unknown };
+  if (typeof status === "number") return status === 408 || status === 429 || status >= 500;
+  // Network/timeouts have no HTTP response. An explicit auth error code is not
+  // evidence of a transient outage and must never preserve a revoked identity.
+  return code === undefined || code === "NETWORK_ERROR" || code === "TIMEOUT";
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { language } = useLanguage();
   const [session, setSession] = useState<AccountSession | null>(null);
@@ -37,28 +50,73 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const mounted = useRef(true);
   const channel = useRef<BroadcastChannel | null>(null);
   const currentOwner = useRef<string | null>(null);
+  const currentSession = useRef<AccountSession | null>(null);
+  const pendingRefresh = useRef<{ revision: number; promise: Promise<{ session: AccountSession | null; error: Error | null }> } | null>(null);
   currentOwner.current = session?.user.id ?? null;
+  currentSession.current = session;
 
-  const refresh = useCallback(async () => {
-    const current = ++revision.current;
-    try {
-      const restored = await readAccountSession();
-      if (mounted.current && current === revision.current) {
-        setSession(restored);
-        setError(null);
-      }
-      return { session: restored, error: null };
-    } catch (failure) {
-      const restoreError = accountError(failure, "Could not restore your account session. Sign in again.");
-      if (mounted.current && current === revision.current) {
-        setSession(null);
-        setError(restoreError);
-      }
-      return { session: null, error: restoreError };
-    } finally {
-      if (mounted.current && current === revision.current) setLoading(false);
-    }
+  const publishSession = useCallback((next: AccountSession | null) => {
+    currentSession.current = next;
+    currentOwner.current = next?.user.id ?? null;
+    setSession(next);
   }, []);
+
+  const refresh = useCallback((identityChanged = false) => {
+    if (identityChanged) {
+      // Credentials changed locally/in another tab: the previous owner is no
+      // longer a safe fallback, even when the following request is unavailable.
+      revision.current += 1;
+      publishSession(null);
+      setError(null);
+    } else if (pendingRefresh.current?.revision === revision.current) {
+      return pendingRefresh.current.promise;
+    }
+    const current = ++revision.current;
+    const previous = currentSession.current;
+    const promise = (async () => {
+      try {
+        const received = await readAccountSession();
+        const restored = unexpiredSession(received) ? received : null;
+        if (!mounted.current || current !== revision.current) return { session: null, error: new Error("Your account changed while checking the session. Try again.") };
+        publishSession(restored);
+        setError(null);
+        return { session: restored, error: null };
+      } catch (failure) {
+        const restoreError = accountError(failure, "Your account could not be checked. Please try again.");
+        if (mounted.current && current === revision.current) {
+          // This is display continuity only. Private requests still verify the
+          // session on the server; an outage never grants or extends access.
+          const retained = transientSessionFailure(failure) && unexpiredSession(previous) && currentSession.current === previous ? previous : null;
+          publishSession(retained);
+          setError(restoreError);
+        }
+        return { session: null, error: restoreError };
+      } finally {
+        if (pendingRefresh.current?.revision === current) pendingRefresh.current = null;
+        if (mounted.current && current === revision.current) setLoading(false);
+      }
+    })();
+    pendingRefresh.current = { revision: current, promise };
+    return promise;
+  }, [publishSession]);
+
+  useEffect(() => {
+    if (!session) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const expire = () => {
+      if (currentSession.current !== session) return;
+      const remaining = (session.expires_at ?? 0) * 1000 - Date.now();
+      if (!Number.isFinite(remaining) || remaining <= 0) {
+        revision.current += 1;
+        publishSession(null);
+        setLoading(false);
+        return;
+      }
+      timer = setTimeout(expire, Math.min(remaining, 2_147_483_647));
+    };
+    expire();
+    return () => clearTimeout(timer);
+  }, [session, publishSession]);
 
   useEffect(() => {
     mounted.current = true;
@@ -71,7 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const interval = window.setInterval(restoreOnFocus, 60_000);
     if (typeof BroadcastChannel !== "undefined") {
       channel.current = new BroadcastChannel("sajda-account-state");
-      channel.current.onmessage = () => { void refresh(); };
+      channel.current.onmessage = () => { void refresh(true); };
     }
     return () => {
       mounted.current = false;
@@ -89,7 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const client = await getAccountAuthClient();
       const result = await client.signIn.email({ email: email.trim(), password });
       if (result.error) return { error: accountError(result.error, "Sign-in failed.") };
-      const restored = await refresh();
+      const restored = await refresh(true);
       if (restored.error || !restored.session) return { error: restored.error ?? new Error("Your session could not be restored. Try signing in again.") };
       channel.current?.postMessage("session-changed");
       return { error: null };
@@ -99,7 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInNative = async (): Promise<AuthResult> => {
     try {
       await nativeSignIn();
-      const restored = await refresh();
+      const restored = await refresh(true);
       return { error: restored.error ?? (restored.session ? null : new Error("Your app session could not be verified.")) };
     } catch (failure) { return { error: accountError(failure,"App sign-in was not completed. Try again.") }; }
   };
@@ -114,7 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         fetchOptions: { headers: { "x-sajda-language": language } },
       });
       if (result.error) return { error: accountError(result.error, "Your account could not be created.") };
-      await refresh();
+      await refresh(true);
       channel.current?.postMessage("session-changed");
       return { error: null };
     } catch (failure) { return { error: accountError(failure, "The account service is temporarily unavailable.") }; }
@@ -142,7 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const client = await getAccountAuthClient();
       const result = await client.resetPassword({ newPassword: password, token: recoveryToken });
       if (result.error) return { error: accountError(result.error, "This recovery link is invalid or expired. Request a new link.") };
-      await refresh();
+      await refresh(true);
       channel.current?.postMessage("session-changed");
       return { error: null };
     } catch (failure) { return { error: accountError(failure, "Your password could not be updated. Try again.") }; }
@@ -152,14 +210,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (isNativeApp) {
       await nativeSignOut();
       revision.current += 1;
-      setSession(null); setError(null);
+      publishSession(null); setError(null);
       return;
     }
     const client = await getAccountAuthClient();
     const result = await client.signOut({});
     if (result.error) throw accountError(result.error, "Sign-out failed. Please try again.");
     revision.current += 1;
-    setSession(null);
+    publishSession(null);
     setError(null);
     channel.current?.postMessage("session-changed");
   };
@@ -178,7 +236,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // A different already-restored owner is still untouched.
         revision.current += 1;
         currentOwner.current = null;
-        setSession(null); setError(null); setLoading(false);
+        publishSession(null); setError(null); setLoading(false);
         channel.current?.postMessage("session-changed");
       }
     }

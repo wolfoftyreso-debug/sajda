@@ -163,7 +163,7 @@ export function createAccountDeletionService(deps: {
           [[hash(`account:${owner}`), hash(`app-session-management:${owner}`)]]);
         await client.query(`/* deletion:rates */ DELETE FROM sajda.function_rate_limits WHERE subject_hash=ANY($1::text[])`,
           [[hash(`lost-domains:${owner}`), hash(`saved-domains:${owner}`), hash(`commerce:${owner}`), ...["development", "preview", "production"].flatMap(namespace => [
-            hash(`native:${namespace}:${owner}`), hash(`account-membership:${namespace}:${owner}`),
+            hash(`native:${namespace}:${owner}`), hash(`account-membership:${namespace}:${owner}`), hash(`trading-scenarios:${namespace}:${owner}`),
           ])]]);
         // Auth sessions, passwords, API keys, native sessions, entitlements,
         // Trading campaigns/runs/work/evidence and commerce rows cascade here.

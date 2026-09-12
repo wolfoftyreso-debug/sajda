@@ -13,6 +13,10 @@ test("OpenAPI documents the implemented scoped account contract and actual MCP c
   assert.equal(document["x-sajda-mcp"].endpoint, "/api/mcp");
   assert.ok(document["x-sajda-mcp"].testedProtocolVersions.includes(LATEST_PROTOCOL_VERSION));
   assert.equal(document["x-sajda-mcp"].oauth, false);
+  assert.equal(document["x-sajda-public-mcp"].endpoint, "/api/mcp/public");
+  assert.equal(document["x-sajda-public-mcp"].authentication, "none");
+  assert.deepEqual(document["x-sajda-public-mcp"].tools, ["domains_suggest", "domains_check"]);
+  assert.equal(document["x-sajda-public-mcp"].readOnly, true);
   assert.equal(document.components.securitySchemes.SajdaSession.in, "cookie");
   assert.equal(document.components.securitySchemes.SajdaApiKey.scheme, "bearer");
   assert.deepEqual(document.components.schemas.DeveloperApiKeyMetadata.properties.scopes.items.enum, [...API_KEY_SCOPES]);

@@ -22,13 +22,15 @@ export async function getAccountAuthClient(): Promise<AccountClient> {
 }
 
 export function accountError(error: unknown, fallback: string): Error {
-  if (error && typeof error === "object" && "code" in error) {
-    const code = String(error.code);
-    const safe = new Error(fallback);
-    Object.assign(safe, { code });
-    return safe;
+  const safe = new Error(fallback);
+  if (error && typeof error === "object") {
+    if ("code" in error && typeof error.code === "string") Object.assign(safe, { code: error.code });
+    // Keep only classification metadata, never a provider body, URL or message.
+    if ("status" in error && Number.isInteger(error.status) && Number(error.status) >= 100 && Number(error.status) <= 599) {
+      Object.assign(safe, { status: error.status });
+    }
   }
-  return new Error(fallback);
+  return safe;
 }
 
 export async function readAccountSession(): Promise<AccountSession | null> {

@@ -9,6 +9,7 @@ test("same-origin account client uses cookie sessions, fixed owner scope and no 
   const origin = "https://sajda.example.test";
   const requests: { url: URL; init: RequestInit }[] = [];
   let owner = "account-a";
+  let sessionFailureStatus: number | undefined;
   let onSessionRead: (() => void) | undefined;
   let onAccountResponse: (() => void) | undefined;
   const vite = await createServer({
@@ -29,6 +30,7 @@ test("same-origin account client uses cookie sessions, fixed owner scope and no 
       const url = new URL(String(input));
       requests.push({ url, init });
       if (url.pathname === "/api/auth/get-session") {
+        if (sessionFailureStatus) return Response.json({ code: "SESSION_CHECK_FAILED", message: "Unsafe provider diagnostic" }, { status: sessionFailureStatus });
         const userId = owner;
         onSessionRead?.();
         return Response.json({
@@ -42,7 +44,15 @@ test("same-origin account client uses cookie sessions, fixed owner scope and no 
       }
       return Response.json({ status: true });
     };
-    const { getAccountAuthClient, readAccountSession, accountRequest } = await vite.ssrLoadModule("/src/integrations/neon/auth.ts");
+    const { getAccountAuthClient, readAccountSession, accountRequest, accountError } = await vite.ssrLoadModule("/src/integrations/neon/auth.ts");
+
+    await t.test("safe auth errors preserve only response classification, not provider details", () => {
+      const safe = accountError({ status: 429, code: "RATE_LIMITED", message: "private provider body", token: "do-not-copy" }, "Retry later.");
+      assert.equal(safe.message, "Retry later."); assert.equal(safe.status, 429); assert.equal(safe.code, "RATE_LIMITED");
+      assert.equal("token" in safe, false);
+      for (const status of ["401", NaN, Infinity, 99, 600, null]) assert.equal(accountError({ status }, "Safe").status, undefined);
+      assert.equal(accountError({ status: 401 }, "Safe").status, 401);
+    });
 
     await t.test("only same-origin auth API is used for session and credential actions", async () => {
       const session = await readAccountSession();
@@ -73,6 +83,18 @@ test("same-origin account client uses cookie sessions, fixed owner scope and no 
       assert.equal(new Headers(init.headers).get("content-type"), "application/json");
       assert.equal(new Headers(init.headers).has("authorization"), false);
       assert.deepEqual(JSON.parse(String(init.body)), { domain: "example.com" });
+    });
+
+    await t.test("real auth SDK retains 401/429/503 classification and a failed fresh check never authorizes a mutation", async () => {
+      try {
+        for (const status of [401, 429, 503]) {
+          sessionFailureStatus = status;
+          await assert.rejects(readAccountSession(), (error: Error & { status?: number }) => error.status === status && !error.message.includes("Unsafe provider diagnostic"));
+          const writes = requests.filter(request => request.url.pathname.startsWith("/api/account/")).length;
+          await assert.rejects(accountRequest("/api/account/saved-domains", { accountId: owner, method: "POST", body: { domain: "example.com" } }), { status });
+          assert.equal(requests.filter(request => request.url.pathname.startsWith("/api/account/")).length, writes);
+        }
+      } finally { sessionFailureStatus = undefined; }
     });
 
     await t.test("changed account is rejected before the private endpoint is called", async () => {

@@ -34,3 +34,15 @@ test("storage readiness includes temporal worker columns and independent quote s
   assert.match(storageReadinessSql, /actual\.table_schema='sajda'/u);
   assert.doesNotMatch(storageReadinessSql, /\b(?:INSERT|UPDATE|DELETE|ALTER|CREATE|DROP)\b/u);
 });
+
+test("readiness includes account, native commerce and scenario storage before advertising a ready release", () => {
+  for (const name of ["trading_scenarios", "developer_api_keys", "developer_api_quotas",
+    "native_authorization_codes", "native_sessions", "account_deletion_challenges",
+    "native_commerce_accounts", "native_commerce_subscriptions", "native_commerce_events"]) {
+    assert.ok(storageReadinessSql.includes("'sajda."+name+"'"), name);
+  }
+  for (const column of ["namespace","owner_id","payload","version","last_input_hash"]) {
+    assert.ok(storageReadinessSql.includes("('trading_scenarios','"+column+"')"), column);
+  }
+  assert.doesNotMatch(storageReadinessSql, /\b(?:INSERT|UPDATE|DELETE|ALTER|CREATE|DROP)\b/u);
+});

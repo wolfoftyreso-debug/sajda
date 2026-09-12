@@ -68,6 +68,8 @@ test("native account routing is canonical, scoped and cannot invoke Stripe or ar
     ["/api/account/lost-domains", "GET", undefined, "trading:read"],
     ["/api/account/lost-domains", "POST", { action: "start" }, "trading:run"],
     ["/api/account/lost-domains", "POST", { action: "refresh_quote" }, "trading:quote"],
+    ["/api/account/trading-scenarios", "GET", undefined, "trading:read"],
+    ["/api/account/trading-scenarios", "POST", { action: "save" }, "trading:run"],
     ["/api/developer/api-keys", "GET", undefined, "keys:manage"],
     ["/api/developer/api-keys", "POST", { name: "App integration", scopes: ["domains:read"] }, "keys:manage"],
     ["/api/developer/api-keys?id=12345678-1234-4234-8234-123456789abc", "DELETE", undefined, "keys:manage"],
@@ -87,6 +89,23 @@ test("native account routing is canonical, scoped and cannot invoke Stripe or ar
   }
   assert.throws(() => nativeAccountRoute("/api/developer/api-keys?id=12345678-1234-4234-8234-123456789abc", "POST"));
   assert.throws(() => nativeAccountRoute("/api/developer/api-keys", "PUT"));
+});
+
+test("native scenario journal accepts only the canonical account GET/POST endpoint", () => {
+  for (const method of ["GET", "POST"]) {
+    const route = nativeAccountRoute("/api/account/trading-scenarios", method, method === "POST" ? { action: "save" } : undefined);
+    assert.equal(typeof route.handler, "function");
+    assert.equal(route.scope, method === "GET" ? "trading:read" : "trading:run");
+    assert.deepEqual(route.query, {});
+    for (const path of [
+      "/api/account/trading-scenarios?cursor=1", "/api/account/trading-scenarios?owner_id=victim",
+      "/api/account/trading-scenarios#journal", "/api/account/trading-scenarios/", "/api/account/%74rading-scenarios",
+      "/api/account/../account/trading-scenarios", "https://other.example/api/account/trading-scenarios",
+    ]) assert.throws(() => nativeAccountRoute(path, method), undefined, path);
+  }
+  for (const method of ["DELETE", "PUT", "PATCH", "HEAD", "OPTIONS"]) {
+    assert.throws(() => nativeAccountRoute("/api/account/trading-scenarios", method), isAccessError("unsupported_native_action", 403), method);
+  }
 });
 
 test("native public transport accepts only relative product requests", () => {

@@ -8,6 +8,7 @@ import { nativeJson, nativeResponseHeaders, nativeFailure, type NativeRequest, t
 import membership from "../account/membership.js";
 import saved from "../account/saved-domains.js";
 import trading from "../account/lost-domains.js";
+import tradingScenarios from "../account/trading-scenarios.js";
 import capabilities from "../account/capabilities.js";
 import developerKeys from "../developer/api-keys.js";
 import appSessions from "../account/app-sessions.js";
@@ -48,6 +49,9 @@ export function nativeAccountRoute(path: string, method: string, body?: unknown)
       throw new AccountAccessError("invalid_request",400,"Choose a supported Trading action.");
     }
     return { handler:trading, scope:method === "GET"?"trading:read":action === "refresh_quote"?"trading:quote":"trading:run", query:{} };
+  }
+  if (url.pathname === "/api/account/trading-scenarios" && ["GET","POST"].includes(method) && !url.search) {
+    return {handler:tradingScenarios,scope:method === "GET" ? "trading:read" : "trading:run",query:{}};
   }
   // StoreKit has a dedicated verified commerce boundary. No native request can initiate
   // the browser Stripe checkout or portal, even if its UI is modified.

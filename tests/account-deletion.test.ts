@@ -13,7 +13,7 @@ function fixture(options: { failEmail?: boolean; failBilling?: boolean; failDele
   type Challenge = { id: string; hash: string; attempts: number; requests: number; valid: boolean };
   let state = { exists: true, challenge: undefined as Challenge | undefined, saved: true };
   let snapshot = structuredClone(state);
-  const calls: string[] = [], mails: { to: string; code: string; requestId: string }[] = [];
+  const calls: string[] = [], rateSubjects: string[] = [], mails: { to: string; code: string; requestId: string }[] = [];
   let billingCalls = 0;
   const client: DeletionClient = {
     release() {},
@@ -37,6 +37,7 @@ function fixture(options: { failEmail?: boolean; failBilling?: boolean; failDele
       if (sql.includes("deletion:recheck")) return { rows: state.challenge?.valid && state.challenge.id === args[1] && state.challenge.hash === args[2] ? [{ owner_id: account.id }] : [] };
       if (sql.includes("deletion:billing */")) return { rows: [{ namespace: "development", customer_id: "cus_DeletionFixture", livemode: false, busy: options.busy === true }] };
       if (sql.includes("deletion:saved")) state.saved = false;
+      if (sql.includes("deletion:rates")) rateSubjects.push(...args[0] as string[]);
       if (sql.includes("deletion:delete-user")) {
         if (options.failDelete) throw new Error("connection postgres://private");
         state.exists = false; state.challenge = undefined; return { rows: [{ id: account.id }] };
@@ -51,7 +52,7 @@ function fixture(options: { failEmail?: boolean; failBilling?: boolean; failDele
   const id = randomUUID();
   const request = () => service.execute(account, { action: "request", requestId: id, language: "en" });
   const confirm = (code = deriveDeletionCode(secret, account.id, id)) => service.execute(account, { action: "confirm", requestId: id, code, confirmation: "DELETE" });
-  return { options, service, id, request, confirm, mails, calls, get state() { return state; }, get billingCalls() { return billingCalls; } };
+  return { options, service, id, request, confirm, mails, calls, rateSubjects, get state() { return state; }, get billingCalls() { return billingCalls; } };
 }
 const hasCode = (code: string) => (error: unknown) => error instanceof AccountAccessError && error.code === code;
 
@@ -65,6 +66,22 @@ test("deletion request only sends stored-owner code; authenticated confirmation 
   assert.equal(f.state.exists, false); assert.equal(f.state.saved, false); assert.equal(f.billingCalls, 1);
   assert.ok(f.calls.findIndex(sql => sql.includes("deletion:billing")) < f.calls.findIndex(sql => sql.includes("deletion:delete-user")));
   await assert.rejects(f.confirm, hasCode("invalid_session")); assert.equal(f.billingCalls, 1);
+});
+
+test("account deletion removes scenario rate identifiers in all namespaces and retains existing cleanup", async () => {
+  const f = fixture(); await f.request();
+  assert.deepEqual(f.rateSubjects, []);
+  await f.confirm();
+  const subjects = [
+    ...["lost-domains", "saved-domains", "commerce"].map(scope => `${scope}:${account.id}`),
+    ...["development", "preview", "production"].flatMap(namespace =>
+      ["native", "account-membership", "trading-scenarios"].map(scope => `${scope}:${namespace}:${account.id}`)),
+  ].map(subject => createHash("sha256").update(subject).digest("hex"));
+  assert.deepEqual([...f.rateSubjects].sort(), subjects.sort());
+  assert.equal(new Set(f.rateSubjects).size, 12);
+  const removal = f.calls.findIndex(sql => sql.includes("deletion:rates"));
+  assert.ok(removal >= 0 && removal < f.calls.findIndex(sql => sql.includes("deletion:delete-user")));
+  assert.match(f.calls[removal], /WHERE subject_hash=ANY\(\$1::text\[\]\)/u);
 });
 test("wrong code attempts commit and cannot be reset by reusing a request UUID", async () => {
   const f = fixture(); await f.request();

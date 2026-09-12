@@ -9,6 +9,7 @@
   "trailingSlash": false,
   "functions": {
     "api/mcp.ts": { "maxDuration": 60 },
+    "api/mcp/public.ts": { "maxDuration": 60 },
     "api/v1/account.ts": { "maxDuration": 60 },
     "api/native/auth.ts": { "maxDuration": 20 },
     "api/native/account.ts": { "maxDuration": 60 },
@@ -18,6 +19,7 @@
     "api/account/deletion.ts": { "maxDuration": 60 },
     "api/billing-webhook.ts": { "maxDuration": 30 },
     "api/account/lost-domains.ts": { "maxDuration": 60 },
+    "api/account/trading-scenarios.ts": { "maxDuration": 20 },
     "api/cron/lost-domains.ts": { "maxDuration": 60 },
     "api/account/capabilities.ts": {
       "maxDuration": 20

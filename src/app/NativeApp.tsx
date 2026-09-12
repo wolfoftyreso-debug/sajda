@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Navigate, Route } from "react-router-dom";
+import { createBrowserRouter, Navigate, Route, RouterProvider } from "react-router-dom";
 import FreeSearchGate from "@/components/FreeSearchGate";
 import { LanguageRouteSync } from "@/i18n/LanguageProvider";
 import RouteScrollRestoration from "@/components/RouteScrollRestoration";
@@ -11,11 +11,11 @@ import NativeMore from "./NativeMore";
 import NativeHelp from "./NativeHelp";
 import NativeMembership from "./NativeMembership";
 import NativeRouteBoundary from "./NativeRouteBoundary";
+import DraftNavigationProvider from "./DraftNavigationProvider";
 const NativeAuth = lazy(() => import("./NativeAuth"));
 
-/** Separate dependency graph: no public landing pages or website footer. */
-export default function NativeApp() {
-  return <AppProviders><BrowserRouter><NativeShell>
+function NativeRoutes() {
+  return <NativeShell>
     <LanguageRouteSync />
     <RouteScrollRestoration />
     <NativeRouteBoundary><Suspense fallback={<RouteLoading className="min-h-48" />}>
@@ -29,5 +29,15 @@ export default function NativeApp() {
       </ProductRoutes>
     </Suspense></NativeRouteBoundary>
     <FreeSearchGate />
-  </NativeShell></BrowserRouter></AppProviders>;
+  </NativeShell>;
+}
+
+let router: ReturnType<typeof createBrowserRouter> | undefined;
+const getRouter = () => router ??= createBrowserRouter([
+  { path: "*", element: <DraftNavigationProvider><NativeRoutes /></DraftNavigationProvider> },
+]);
+
+/** Separate dependency graph: no public landing pages or website footer. */
+export default function NativeApp() {
+  return <AppProviders><RouterProvider router={getRouter()} /></AppProviders>;
 }

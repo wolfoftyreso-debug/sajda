@@ -3,6 +3,8 @@ import type { Language } from "@/i18n/languagePreference";
 // English is the source text. Every phrase has reviewed Swedish, Spanish,
 // French and Simplified Chinese text; there is no per-phrase English fallback.
 export const tradingPhrases = {
+  "Available to register": ["Ledig att registrera", "Disponible para registrar", "Disponible à l’enregistrement", "可注册"],
+  "Unavailable to register": ["Kan inte registreras", "No disponible para registrar", "Indisponible à l’enregistrement", "不可注册"],
   "Exact word in the curated vocabulary": ["Exakt ord i den granskade ordlistan", "Palabra exacta del vocabulario revisado", "Mot exact du vocabulaire sélectionné", "与精选词库中的词完全匹配"],
   "Two words with a shared application": ["Två ord med gemensamt användningsområde", "Dos palabras con un uso común", "Deux mots associés à un même usage", "两个词有共同的用途"],
   "Descriptive word without a clear service": ["Beskrivande ord utan tydlig tjänst", "Palabra descriptiva sin un servicio definido", "Mot descriptif sans service clairement associé", "描述性词语，未指向明确服务"],

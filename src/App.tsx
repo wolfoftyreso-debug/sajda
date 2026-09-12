@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Route, useLocation } from "react-router-dom";
+import { createBrowserRouter, Route, RouterProvider, useLocation } from "react-router-dom";
 import AppProviders from "@/app/AppProviders";
+import DraftNavigationProvider from "@/app/DraftNavigationProvider";
 import ProductRoutes from "@/app/ProductRoutes";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import SajdaFooter from "@/components/SajdaFooter";
@@ -63,11 +64,16 @@ const AppRoutes = () => {
   );
 };
 
+// One router per browser entrypoint, including React StrictMode's double render.
+// Lazy construction keeps module inspection independent of the browser DOM.
+let router: ReturnType<typeof createBrowserRouter> | undefined;
+const getRouter = () => router ??= createBrowserRouter([
+  { path: "*", element: <DraftNavigationProvider><AppRoutes /></DraftNavigationProvider> },
+]);
+
 const App = () => (
   <AppProviders>
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
+    <RouterProvider router={getRouter()} />
   </AppProviders>
 );
 

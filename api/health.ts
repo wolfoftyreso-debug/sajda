@@ -26,14 +26,19 @@ export const storageReadinessSql = `SELECT
       'sajda.schema_migrations', 'sajda.saved_domains', 'public.sajda_contact_submissions',
       'sajda.lost_domain_runs', 'sajda.lost_domain_work_items', 'sajda.lost_domain_assessments',
       'sajda.lost_domain_effective_access', 'sajda.lost_domain_provider_backoff', 'sajda.commerce_events',
-      'sajda.lost_domain_quote_requests', 'sajda.lost_domain_quote_observations']) AS required(name))
+      'sajda.lost_domain_quote_requests', 'sajda.lost_domain_quote_observations',
+      'sajda.trading_scenarios', 'sajda.developer_api_keys', 'sajda.developer_api_quotas',
+      'sajda.native_authorization_codes', 'sajda.native_sessions', 'sajda.account_deletion_challenges',
+      'sajda.native_commerce_accounts', 'sajda.native_commerce_subscriptions', 'sajda.native_commerce_events']) AS required(name))
   AND NOT EXISTS (
     SELECT 1 FROM (VALUES
       ('lost_domain_runs','verification_round'), ('lost_domain_runs','verification_max_rounds'),
       ('lost_domain_runs','verification_gap_seconds'), ('lost_domain_runs','run_lifetime_seconds'),
       ('lost_domain_runs','attempt_limit'), ('lost_domain_work_items','verification_round'),
       ('lost_domain_quote_requests','request_key'), ('lost_domain_quote_requests','assessment_id'),
-      ('lost_domain_quote_observations','evidence')
+      ('lost_domain_quote_observations','evidence'),
+      ('trading_scenarios','namespace'), ('trading_scenarios','owner_id'),
+      ('trading_scenarios','payload'), ('trading_scenarios','version'), ('trading_scenarios','last_input_hash')
     ) AS required(table_name,column_name)
     WHERE NOT EXISTS (SELECT 1 FROM information_schema.columns actual
       WHERE actual.table_schema='sajda' AND actual.table_name=required.table_name

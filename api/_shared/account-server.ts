@@ -3,6 +3,7 @@ import { Pool, types as pgTypes } from "pg";
 import { AccountAccessError } from "./account-error.js";
 import { sendAccountEmail, type AccountEmailMessage } from "./account-email.js";
 import { emailLanguage } from "../../shared/account-email-copy.js";
+import { createAccountRateLimitStorage } from "./account-rate-limit.js";
 
 /** pg returns int8 as text by default, but the SDK limiter performs date arithmetic. */
 export function createAccountPool(connectionString: string): Pool {
@@ -47,6 +48,7 @@ export function createAccountAuth(options: {
     },
     rateLimit: {
       enabled: true, storage: "database", modelName: "sajda_auth_rate_limit", window: 60, max: 60,
+      customStorage: createAccountRateLimitStorage(options.pool),
       customRules: {
         "/sign-in/email": { window: 60, max: 5 },
         "/sign-up/email": { window: 600, max: 5 },

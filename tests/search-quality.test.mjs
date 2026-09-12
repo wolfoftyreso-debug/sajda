@@ -161,6 +161,25 @@ test("Swedish national registries fail closed without an approved secure connect
   assert.ok(result.body.results.every((item) => item.status === "unknown" && item.authoritative === false));
 });
 
+test("cached registry evidence retains its observation timestamp instead of inheriting response time", async () => {
+  const originalFetch = globalThis.fetch, originalNow = Date.now;
+  let now = originalNow(), providerCalls = 0;
+  Date.now = () => now;
+  globalThis.fetch = async () => {
+    providerCalls++;
+    return new Response("", { status: 404, headers: { "content-type": "application/rdap+json" } });
+  };
+  try {
+    const first = await request({ domains: ["fixtureobservationclock.com"], providers: ["cloudflare"] });
+    assert.equal(first.body.results[0].status, "available");
+    assert.ok(Number.isFinite(Date.parse(first.body.results[0].checkedAt)));
+    now += 30_000;
+    const second = await request({ domains: ["fixtureobservationclock.com"], providers: ["cloudflare"] });
+    assert.equal(providerCalls, 1);
+    assert.equal(second.body.results[0].checkedAt, first.body.results[0].checkedAt);
+  } finally { globalThis.fetch = originalFetch; Date.now = originalNow; }
+});
+
 test("a rate-limited registry is not hammered by subsequent requests to another suffix on that endpoint", async () => {
   const fetchBefore = globalThis.fetch;
   let calls = 0;

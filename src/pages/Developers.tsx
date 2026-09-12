@@ -33,6 +33,9 @@ import { isNativeApp } from "@/lib/appSurface";
 import { productFetch } from "@/lib/productFetch";
 import { nativeRequest } from "@/lib/nativeTransport";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
+import ConnectorSetup from "@/components/ConnectorSetup";
+import { PUBLIC_CONNECTOR_ORIGIN } from "@/lib/publicConnector";
+import { connectorCopy } from "@/i18n/connectorCopy";
 import { useLanguage, type Language } from "@/i18n/LanguageProvider";
 
 type DeveloperCopy = {
@@ -1037,31 +1040,31 @@ function DeveloperKeyAccountWorkspace({ copy, language }: { copy: DeveloperKeyCo
 }
 
 const mcpCopy = {
-  en: { title: "Connect your tools to Sajda.", lead: "Use MCP to search domains, work with your saved list and read Trading research from the same Sajda account.",
+  en: { title: "Connect your private Sajda account.", lead: "Use MCP to search domains, work with your saved list and read Trading research from the same Sajda account.",
     auth: "Create a key with only the permissions your integration needs. Store it in your MCP client's secret settings and send it as a Bearer header on every request.",
     protocol: "Streamable HTTP · protocol 2025-11-25 · server 1.0.0",
     compatibility: "Use a client that supports configured Bearer headers. OAuth sign-in is not available.",
     behavior: "Reading status or a report never starts research. Start, advance, stop and quote refresh are explicit tools. Trading still requires an active plan; no tool purchases a domain.",
     rest: "The same account operations are available through the scoped REST API.", permission: "Choose access", reference: "Open API reference", keys: "Manage API keys" },
-  sv: { title: "Anslut dina verktyg till Sajda.", lead: "Använd MCP för att söka domäner, arbeta med din sparade lista och läsa Trading-analyser från samma Sajda-konto.",
+  sv: { title: "Anslut ditt privata Sajda-konto.", lead: "Använd MCP för att söka domäner, arbeta med din sparade lista och läsa Trading-analyser från samma Sajda-konto.",
     auth: "Skapa en nyckel med de behörigheter integrationen behöver. Spara den i MCP-klientens hemliga inställningar och skicka den som Bearer-header vid varje anrop.",
     protocol: "Streamable HTTP · protokoll 2025-11-25 · server 1.0.0",
     compatibility: "Använd en klient med stöd för konfigurerade Bearer-headers. OAuth-inloggning är inte tillgänglig.",
     behavior: "Status och rapporter startar aldrig analyser. Start, fortsättning, stopp och prisuppdatering är uttryckliga verktyg. Trading kräver fortfarande en aktiv plan; inget verktyg köper domäner.",
     rest: "Samma kontofunktioner finns i REST-API:t med avgränsade behörigheter.", permission: "Välj åtkomst", reference: "Öppna API-referensen", keys: "Hantera API-nycklar" },
-  es: { title: "Conecta tus herramientas a Sajda.", lead: "Usa MCP para buscar dominios, trabajar con tu lista guardada y leer análisis de Trading de la misma cuenta de Sajda.",
+  es: { title: "Conecta tu cuenta privada de Sajda.", lead: "Usa MCP para buscar dominios, trabajar con tu lista guardada y leer análisis de Trading de la misma cuenta de Sajda.",
     auth: "Crea una clave con los permisos que necesita tu integración. Guárdala en la configuración de secretos de tu cliente MCP y envíala como cabecera Bearer en cada solicitud.",
     protocol: "Streamable HTTP · protocolo 2025-11-25 · servidor 1.0.0",
     compatibility: "Usa un cliente compatible con cabeceras Bearer configuradas. El inicio de sesión OAuth no está disponible.",
     behavior: "Leer el estado o un informe nunca inicia una investigación. Iniciar, avanzar, detener y actualizar precios son herramientas explícitas. Trading requiere un plan activo; ninguna herramienta compra dominios.",
     rest: "Las mismas operaciones de cuenta están disponibles en la API REST con permisos definidos.", permission: "Elige el acceso", reference: "Abrir referencia API", keys: "Gestionar claves API" },
-  fr: { title: "Connectez vos outils à Sajda.", lead: "Utilisez MCP pour rechercher des domaines, gérer votre liste et lire les analyses Trading du même compte Sajda.",
+  fr: { title: "Connectez votre compte Sajda privé.", lead: "Utilisez MCP pour rechercher des domaines, gérer votre liste et lire les analyses Trading du même compte Sajda.",
     auth: "Créez une clé avec les autorisations nécessaires. Conservez-la dans les paramètres secrets de votre client MCP et envoyez-la en en-tête Bearer à chaque requête.",
     protocol: "Streamable HTTP · protocole 2025-11-25 · serveur 1.0.0",
     compatibility: "Utilisez un client acceptant des en-têtes Bearer configurés. La connexion OAuth n’est pas disponible.",
     behavior: "Lire le statut ou un rapport ne lance jamais une analyse. Lancer, avancer, arrêter et actualiser un prix sont des outils explicites. Trading exige un abonnement actif ; aucun outil n’achète de domaine.",
     rest: "Les mêmes opérations sont disponibles dans l’API REST avec des autorisations précises.", permission: "Choisir les accès", reference: "Ouvrir la référence API", keys: "Gérer les clés API" },
-  zh: { title: "将你的工具连接到 Sajda。", lead: "通过 MCP 搜索域名、管理收藏并读取同一 Sajda 账户的 Trading 研究报告。",
+  zh: { title: "连接你的私人 Sajda 账户。", lead: "通过 MCP 搜索域名、管理收藏并读取同一 Sajda 账户的 Trading 研究报告。",
     auth: "创建仅含所需权限的密钥，将其保存在 MCP 客户端的机密设置中，并在每次请求中通过 Bearer 请求头发送。",
     protocol: "Streamable HTTP · 协议 2025-11-25 · 服务版本 1.0.0",
     compatibility: "请使用支持配置 Bearer 请求头的客户端。目前不提供 OAuth 登录。",
@@ -1146,7 +1149,7 @@ export default function Developers() {
   const [publicRequestState, setPublicRequestState] = useState<"idle" | "loading" | "success" | "error">("idle");
 
   const origin = isNativeApp ? import.meta.env.VITE_NATIVE_API_ORIGIN?.trim() ?? ""
-    : typeof window === "undefined" ? "https://sajda.dev" : window.location.origin;
+    : typeof window === "undefined" ? "" : window.location.origin;
   const domainsRequest = useMemo(() => `curl --request POST "${origin}/api/v1/domains" \\
   --header "Authorization: Bearer $SAJDA_API_KEY" \\
   --header "Content-Type: application/json" \\
@@ -1211,9 +1214,10 @@ export default function Developers() {
 
   if (isNativeApp) return <div className="min-h-screen bg-background text-foreground">
     <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-5 pt-6 sm:px-7">
-      <h1 className="text-xl font-semibold">{mcpCopy[language].keys}</h1>
+      <h1 className="text-xl font-semibold">{connectorCopy[language].pageTitle}</h1>
       <a href="#mcp" className="text-sm font-semibold text-primary">MCP<ArrowRight className="ml-2 inline h-4 w-4" aria-hidden="true" /></a>
     </div>
+    <ConnectorSetup language={language} origin={PUBLIC_CONNECTOR_ORIGIN} />
     {keyPortalEnabled ? <DeveloperKeyWorkspace copy={keyCopy} language={language} /> : null}
     <DeveloperMcpSection language={language} origin={origin} copyLabel={copy.copy} copiedLabel={copy.copied} />
   </div>;
@@ -1227,6 +1231,7 @@ export default function Developers() {
           </Link>
           <nav className="hidden items-center gap-5 text-sm font-semibold text-muted-foreground lg:flex" aria-label={copy.documentTitle}>
             <a href="#overview" className="transition-colors hover:text-foreground">{copy.navOverview}</a>
+            <a href="#ai-assistants" className="transition-colors hover:text-foreground">{connectorCopy[language].nav}</a>
             <a href="#public" className="transition-colors hover:text-foreground">{copy.navPublic}</a>
             <a href="#api-v1" className="transition-colors hover:text-foreground">{copy.navV1}</a>
             <a href="#mcp" className="transition-colors hover:text-foreground">MCP</a>
@@ -1254,7 +1259,7 @@ export default function Developers() {
               <p className="mt-6 max-w-2xl text-pretty text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8">{copy.lead}</p>
               <p className="mt-4 max-w-2xl text-pretty text-base font-bold leading-7 text-foreground sm:text-lg sm:leading-8">{copy.proofLine}</p>
               <div className="mt-8 flex flex-wrap gap-3">
-                <a href="#public" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90">{copy.heroPrimary}<ArrowRight className="h-4 w-4" aria-hidden="true" /></a>
+                <a href="#ai-assistants" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90">{connectorCopy[language].connectAction}<ArrowRight className="h-4 w-4" aria-hidden="true" /></a>
                 <a href="#api-v1" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-input bg-card px-5 text-sm font-semibold transition-colors hover:bg-accent hover:text-accent-foreground">{copy.heroSecondary}<ArrowRight className="h-4 w-4" aria-hidden="true" /></a>
               </div>
             </div>
@@ -1271,6 +1276,8 @@ export default function Developers() {
             </aside>
           </div>
         </section>
+
+        <ConnectorSetup language={language} origin={PUBLIC_CONNECTOR_ORIGIN} />
 
         <section id="public" className="mx-auto w-full max-w-7xl scroll-mt-24 px-5 py-14 sm:px-7 sm:py-20">
           <div className="grid gap-10 lg:grid-cols-[minmax(0,0.74fr)_minmax(25rem,1.06fr)] lg:gap-16">

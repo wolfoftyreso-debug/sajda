@@ -10,6 +10,7 @@ import { isNativeApp } from "@/lib/appSurface";
 import { nativeShareCsv } from "@/lib/nativeTransport";
 import { nativeCopy } from "@/app/nativeCopy";
 import TradingEvidenceSummary, { type TradingQuoteControls } from "@/components/TradingEvidenceSummary";
+import TradingPortal from "@/components/TradingPortal";
 import { tradingText, tradingLocale, tradingRunCapacity, tradingOmittedRows, tradingShowMore } from "@/i18n/tradingEvidenceCopy";
 import { filterTradingReport, tradingReportCsv, type TradingReportFilter } from "@/lib/tradingReport";
 import { useAuth } from "@/contexts/AuthContext";
@@ -277,6 +278,8 @@ export default function LostDomains() {
           <p className="mt-3 max-w-2xl text-base leading-7 text-muted-foreground">{ux.intro}</p>
         </div>
       </header>
+
+      {snapshot?.access && accountId && <TradingPortal key={accountId} accountId={accountId} language={language} candidates={report?.candidates ?? []} now={now} onAccessLost={() => void request()} />}
 
       <section className="pb-8" aria-labelledby="plus-workspace-title">
         <section data-testid="trading-next-step" data-state={workspaceState} className={`${panel} border-primary/25 bg-primary/[0.035] p-5 sm:p-7`} aria-labelledby="plus-workspace-title">

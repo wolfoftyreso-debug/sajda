@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { generateContextualNames, refineRuleCandidates, type NamingInput } from "./_shared/contextual-naming.js";
 import { parseSearchRefinement, type NamingGeneration, type SearchRefinement } from "../shared/search-refinement.js";
 import { parseAiConsent, type AiConsent } from "../shared/ai-consent.js";
-import { asciiNameToken, joinNameWords, nameQualitySignals, interpretRdapResponse, readRegistryResponse, registryRetryAt } from "./_shared/search-quality.mjs";
+import { asciiNameToken, joinNameWords, nameQualitySignals, interpretRdapResponse, registryRetryAt } from "./_shared/search-quality.mjs";
 import {
   createRequestId,
   setPublicApiHeaders,
@@ -136,6 +136,9 @@ interface RegistrarOffer {
 
 interface AvailabilityResult {
   domain: string;
+  // Observation time, retained across cache hits; envelope checkedAt is only
+  // the response time and must never refresh old registry evidence.
+  checkedAt?: string;
   tld: string;
   status: AvailabilityStatus;
   checkMethod: CheckMethod;
@@ -192,9 +195,11 @@ interface VercelResponseLike {
 // cannot opt into the authenticated API quota by sending a forged header.
 const TRUSTED_API_ID = Symbol("sajda.trusted-api-id");
 const TRUSTED_REQUEST_ID = Symbol("sajda.trusted-request-id");
+const CONNECTOR_CANDIDATES = Symbol("sajda.connector-candidates");
 type TrustedApiEngineRequest = VercelRequestLike & {
   [TRUSTED_API_ID]?: string;
   [TRUSTED_REQUEST_ID]?: string;
+  [CONNECTOR_CANDIDATES]?: readonly string[];
 };
 
 /**
@@ -247,6 +252,25 @@ export function createPublicApiEngineRequest(
     body,
     [TRUSTED_REQUEST_ID]: requestId,
   } as TrustedApiEngineRequest;
+}
+
+/** Server-generated reserve, not an expanded public bulk API. The unforgeable
+ * Symbol carries at most 120 validated candidates through one ordinary anonymous
+ * quota check and the existing concurrency/deadline limits. It grants no account,
+ * AI permission or rate-limit exemption. HTTP body/header lookalikes do nothing. */
+export function createPublicConnectorEngineRequest(
+  request: VercelRequestLike,
+  body: Record<string, unknown>,
+  requestId: string,
+  domains: readonly string[],
+): VercelRequestLike {
+  if (domains.length < 1 || domains.length > 120 || new Set(domains).size !== domains.length
+    || domains.some(domain => typeof domain !== "string"
+      || !/^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\.(com|net|org|app|dev|ai|xyz|info|biz|se|nu)$/u.test(domain))) {
+    throw new Error("Invalid connector candidate reserve.");
+  }
+  return { ...createPublicApiEngineRequest(request, body, requestId),
+    [CONNECTOR_CANDIDATES]: Object.freeze([...domains]) } as TrustedApiEngineRequest;
 }
 
 interface RateLimitEntry {
@@ -2503,30 +2527,19 @@ function parsePorkbunPricePayload(payload: unknown, checkedAt: string): Registra
 }
 
 async function fetchPorkbunPrices(checkedAt: string): Promise<RegistrarPriceLookup> {
-  const controller = new AbortController();
-  // Keep the timeout alive through body consumption, including a provider
-  // that sends headers promptly but never finishes its JSON response.
-  const timeout = setTimeout(() => controller.abort(), PORKBUN_PRICE_FETCH_TIMEOUT_MS);
-  try {
-    const response = await fetch(PORKBUN_PRICE_API_URL, {
-      method: "GET",
-      headers: { Accept: "application/json", "User-Agent": "Sajda-Price-Check/1.0" },
-      redirect: "error",
-      signal: controller.signal,
-    });
+  return fetchWithTimeout(PORKBUN_PRICE_API_URL, {
+    method: "GET",
+    headers: { Accept: "application/json", "User-Agent": "Sajda-Price-Check/1.0" },
+    redirect: "error",
+  }, PORKBUN_PRICE_FETCH_TIMEOUT_MS, async (response, signal) => {
     const contentType = response.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
     if (!response.ok) throw new RegistrarPriceSourceError("http_error", response.status);
     if (contentType !== "application/json") throw new RegistrarPriceSourceError("unexpected_content_type");
-    const body = await readResponseTextLimited(response, PORKBUN_PRICE_RESPONSE_LIMIT_BYTES);
+    const body = await readResponseTextLimited(response, PORKBUN_PRICE_RESPONSE_LIMIT_BYTES, signal);
     let payload: unknown;
     try { payload = JSON.parse(body); } catch { throw new RegistrarPriceSourceError("invalid_response"); }
     return parsePorkbunPricePayload(payload, checkedAt);
-  } catch (error) {
-    if (controller.signal.aborted) throw new RegistrarPriceSourceError("timeout");
-    throw error;
-  } finally {
-    clearTimeout(timeout);
-  }
+  });
 }
 
 async function getPorkbunPrices(): Promise<RegistrarPriceLookup> {
@@ -2693,23 +2706,24 @@ async function fetchTldesPriceFeed(apiKey: string): Promise<Omit<TldesPriceFeedL
   url.searchParams.set("registrars", TLDES_PRICED_PROVIDER_IDS.map((providerId) => TLDES_REGISTRAR_HOSTS[providerId]).join(","));
   url.searchParams.set("tlds", [...ALLOWED_TLDS].join(","));
 
-  const response = await fetchWithTimeout(url.toString(), {
+  return fetchWithTimeout(url.toString(), {
     headers: { Accept: "application/json", "User-Agent": "Sajda-Price-Feed/1.0" },
     redirect: "error",
-  }, TLDES_PRICE_FETCH_TIMEOUT_MS);
-  const contentType = response.headers.get("content-type") ?? "";
-  if (!response.ok || !contentType.toLowerCase().includes("application/json")) {
-    throw new Error("Aggregated price feed did not return JSON.");
-  }
+  }, TLDES_PRICE_FETCH_TIMEOUT_MS, async (response, signal) => {
+    const contentType = response.headers.get("content-type") ?? "";
+    if (!response.ok || !contentType.toLowerCase().includes("application/json")) {
+      throw new Error("Aggregated price feed did not return JSON.");
+    }
 
-  const text = await readResponseTextLimited(response, TLDES_PRICE_RESPONSE_LIMIT_BYTES);
-  let payload: unknown;
-  try {
-    payload = JSON.parse(text);
-  } catch {
-    throw new Error("Aggregated price feed returned invalid JSON.");
-  }
-  return parseTldesPriceFeedPayload(payload);
+    const text = await readResponseTextLimited(response, TLDES_PRICE_RESPONSE_LIMIT_BYTES, signal);
+    let payload: unknown;
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      throw new Error("Aggregated price feed returned invalid JSON.");
+    }
+    return parseTldesPriceFeedPayload(payload);
+  });
 }
 
 async function getTldesPriceFeed(): Promise<TldesPriceFeedLookup> {
@@ -2748,9 +2762,11 @@ async function getTldesPriceFeed(): Promise<TldesPriceFeedLookup> {
   return tldesPriceFeedFetch;
 }
 
-async function readResponseTextLimited(response: Response, maximumBytes: number): Promise<string> {
+async function readResponseTextLimited(response: Response, maximumBytes: number, signal: AbortSignal): Promise<string> {
+  signal.throwIfAborted();
   const contentLength = response.headers.get("content-length");
   if (contentLength && Number(contentLength) > maximumBytes) {
+    void response.body?.cancel().catch(() => undefined);
     throw new Error("The provider price list exceeded the response-size limit.");
   }
 
@@ -2760,25 +2776,32 @@ async function readResponseTextLimited(response: Response, maximumBytes: number)
   const decoder = new TextDecoder();
   let totalBytes = 0;
   let text = "";
+  const cancel = () => { void reader.cancel().catch(() => undefined); };
+  let onAbort!: () => void;
+  const aborted = new Promise<never>((_, reject) => {
+    onAbort = () => { cancel(); reject(signal.reason); };
+    signal.addEventListener("abort", onAbort, { once: true });
+    if (signal.aborted) onAbort();
+  });
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      signal.throwIfAborted();
+      const { done, value } = await Promise.race([reader.read(), aborted]);
+      signal.throwIfAborted();
       if (done) break;
       if (!value) continue;
 
       totalBytes += value.byteLength;
       if (totalBytes > maximumBytes) {
-        try {
-          await reader.cancel();
-        } catch {
-          // The hard limit remains enforced even when the underlying stream
-          // cannot be cancelled cleanly.
-        }
         throw new Error("The provider price list exceeded the response-size limit.");
       }
       text += decoder.decode(value, { stream: true });
     }
   } finally {
+    signal.removeEventListener("abort", onAbort);
+    // Cancellation may itself hang on a broken transport. Do not await it;
+    // cancel closes pending reads before releaseLock frees the reader.
+    cancel();
     reader.releaseLock();
   }
   return text + decoder.decode();
@@ -2796,15 +2819,14 @@ async function getRegistrarOffers(tlds: readonly string[], locale: Locale): Prom
   // provider that was never queried at all.
   const checkedAt = new Date().toISOString();
   try {
-    const response = await fetchWithTimeout(LOOPIA_PRICE_LIST_URL, {
+    await fetchWithTimeout(LOOPIA_PRICE_LIST_URL, {
       headers: { Accept: "text/html", "User-Agent": "Sajda-Price-Check/1.0" },
       redirect: "error",
-    }, LOOPIA_PRICE_FETCH_TIMEOUT_MS);
-    const contentType = response.headers.get("content-type") ?? "";
-    if (!response.ok) throw new RegistrarPriceSourceError("http_error", response.status);
-    if (!contentType.toLowerCase().includes("text/html")) throw new RegistrarPriceSourceError("unexpected_content_type");
-    {
-      const html = await readResponseTextLimited(response, LOOPIA_PRICE_RESPONSE_LIMIT_BYTES);
+    }, LOOPIA_PRICE_FETCH_TIMEOUT_MS, async (response, signal) => {
+      const contentType = response.headers.get("content-type") ?? "";
+      if (!response.ok) throw new RegistrarPriceSourceError("http_error", response.status);
+      if (!contentType.toLowerCase().includes("text/html")) throw new RegistrarPriceSourceError("unexpected_content_type");
+      const html = await readResponseTextLimited(response, LOOPIA_PRICE_RESPONSE_LIMIT_BYTES, signal);
       // Populate every supported suffix at once. The serverless cache is
       // shared by requests, so caching only the first request's TLDs would
       // make a following .com/.nu query incorrectly look like its price was
@@ -2814,7 +2836,7 @@ async function getRegistrarOffers(tlds: readonly string[], locale: Locale): Prom
         if (offer) offers.set(tld, offer);
       }
       if (!offers.size) logRegistrarPriceFailure("loopia", new RegistrarPriceSourceError("no_usable_prices"));
-    }
+    });
   } catch (error) {
     logRegistrarPriceFailure("loopia", error);
     // Price failures are explicitly rendered as unavailable rather than a
@@ -2886,13 +2908,35 @@ function localizeAvailability(result: AvailabilityResult, locale: Locale): Omit<
   };
 }
 
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = REGISTRY_TIMEOUT_MS): Promise<Response> {
+async function fetchWithTimeout<T>(url: string, init: RequestInit, timeoutMs: number,
+  consume: (response: Response, signal: AbortSignal) => Promise<T>): Promise<T> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let response: Response | undefined;
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => {
+      const error = new DOMException("Provider response timed out.", "TimeoutError");
+      controller.abort(error);
+      reject(error);
+    }, timeoutMs);
+  });
+  const operation = async () => {
+    const fetched = await fetch(url, { ...init, signal: controller.signal });
+    if (controller.signal.aborted) {
+      void fetched.body?.cancel().catch(() => undefined);
+      controller.signal.throwIfAborted();
+    }
+    response = fetched;
+    return consume(fetched, controller.signal);
+  };
   try {
-    return await fetch(url, { ...init, signal: controller.signal });
+    // A header-only timeout is insufficient: the entire bounded body read
+    // shares this deadline, including transports that fail to honor abort.
+    return await Promise.race([operation(), deadline]);
   } finally {
     clearTimeout(timeout);
+    controller.abort();
+    void response?.body?.cancel().catch(() => undefined);
   }
 }
 
@@ -2904,22 +2948,23 @@ async function checkRdap(domain: string, tld: RdapTld): Promise<AvailabilityResu
   const registry = RDAP_REGISTRIES[tld];
   if ((registryCooldowns.get(registry.endpoint) ?? 0) > Date.now()) return unknown(domain, tld, registry.source, "rdapRateLimited");
   try {
-    const response = await fetch(
+    return await fetchWithTimeout(
       `${registry.endpoint}domain/${encodeURIComponent(domain)}`,
-      { headers: { Accept: "application/rdap+json, application/json" }, redirect: "error", signal: AbortSignal.timeout(REGISTRY_TIMEOUT_MS) },
-    );
-    if (response.status === 429) {
-      registryCooldowns.set(registry.endpoint, registryRetryAt(response.headers.get("retry-after")));
-      await response.body?.cancel();
-      return unknown(domain, tld, registry.source, "rdapRateLimited");
-    }
-    if (response.status === 404 || response.status === 200) {
-      const status = interpretRdapResponse(response.status, response.headers.get("content-type"), await readRegistryResponse(response), domain);
-      return status === "unknown"
-        ? unknown(domain, tld, registry.source, "rdapResponseUnsafe")
-        : { domain, tld, status, checkMethod: "rdap", source: registry.source, authoritative: true };
-    }
-    return unknown(domain, tld, registry.source, response.status === 429 ? "rdapRateLimited" : `rdapHttp:${response.status}`);
+      { headers: { Accept: "application/rdap+json, application/json" }, redirect: "error" },
+      REGISTRY_TIMEOUT_MS, async (response, signal): Promise<AvailabilityResult> => {
+        if (response.status === 429) {
+          registryCooldowns.set(registry.endpoint, registryRetryAt(response.headers.get("retry-after")));
+          return unknown(domain, tld, registry.source, "rdapRateLimited");
+        }
+        if (response.status === 404 || response.status === 200) {
+          const status = interpretRdapResponse(response.status, response.headers.get("content-type"),
+            await readResponseTextLimited(response, 262_144, signal), domain);
+          return status === "unknown"
+            ? unknown(domain, tld, registry.source, "rdapResponseUnsafe")
+            : { domain, tld, status, checkMethod: "rdap", source: registry.source, authoritative: true };
+        }
+        return unknown(domain, tld, registry.source, `rdapHttp:${response.status}`);
+    });
   } catch {
     return unknown(domain, tld, registry.source, "rdapFailed");
   }
@@ -2943,6 +2988,8 @@ async function verifyAvailability(domain: string): Promise<AvailabilityResult> {
   if (isRdapTld(tld)) result = await checkRdap(domain, tld);
   else if (tld === "se" || tld === "nu") result = await checkIisDas(domain, tld);
   else result = unknown(domain, tld, "vercel-unsupported-tld", "unsupportedTld");
+
+  result = { ...result, checkedAt: new Date().toISOString() };
 
   // Serverless instances may live longer than a single request. Keep this
   // convenience cache bounded even under a burst of creative searches.
@@ -3092,7 +3139,9 @@ return async function handler(request: VercelRequestLike, response: VercelRespon
         "搜索描述请勿超过 6,000 个字符。") });
       return;
     }
-    const parsedExactDomains = swipe ? {} : parseExactDomainRequest(explicitTheme, body.domains, locale);
+    const connectorCandidates = (request as TrustedApiEngineRequest)[CONNECTOR_CANDIDATES];
+    const parsedExactDomains = connectorCandidates ? { domains: [...connectorCandidates] }
+      : swipe ? {} : parseExactDomainRequest(explicitTheme, body.domains, locale);
     if (parsedExactDomains.error) {
       sendJson(response, 400, { error: parsedExactDomains.error });
       return;

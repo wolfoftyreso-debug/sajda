@@ -76,7 +76,7 @@ const Index = () => {
   const [selectedProviderIds, setSelectedProviderIds] = useState<string[]>(DEFAULT_PROVIDER_IDS);
   const lastExactDomains = lastSearchOptions?.domains ?? [];
   const [visibleResultCount, setVisibleResultCount] = useState(FIRST_RESULTS_COUNT);
-  const searchControlsRef = useRef<HTMLDivElement>(null);
+  const searchControlsRef = useRef<HTMLFormElement>(null);
   const advancedSearchRef = useRef<HTMLDivElement>(null);
 
   const { toast } = useToast();
@@ -233,7 +233,12 @@ const Index = () => {
     // Keep the completed (and cached) result until a replacement succeeds.
     // Editing or encountering the free-search gate must never erase it.
     setIsEditingSearch(true);
-    window.requestAnimationFrame(() => scrollToElement(searchControlsRef.current));
+    window.requestAnimationFrame(() => {
+      // Center the small form, not the whole mobile card deck: its midpoint
+      // can be several screens below the field the user wants to edit.
+      scrollToElement(searchControlsRef.current);
+      document.getElementById("domain-theme")?.focus({ preventScroll: true });
+    });
   };
 
   const handleStartSearch = () => {
@@ -461,10 +466,10 @@ const Index = () => {
               </p>
             </div>}
 
-            <div ref={searchControlsRef} className="sajda-search-shell mt-6 overflow-hidden rounded-[1.5rem] border p-2.5 sm:p-3 md:p-4">
+            <div className="sajda-search-shell mt-6 overflow-hidden rounded-[1.5rem] border p-2.5 sm:p-3 md:p-4">
               {!isNativeApp && anonymousSearchMode && <HeroOfferHeading language={language} />}
 
-              <form onSubmit={(event) => { event.preventDefault(); handleStartSearch(); }} className="sajda-main-search-row relative z-10 grid gap-2 rounded-[1.125rem] border p-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-stretch sm:p-2" role="search">
+              <form ref={searchControlsRef} onSubmit={(event) => { event.preventDefault(); handleStartSearch(); }} className="sajda-main-search-row relative z-10 grid scroll-mt-24 gap-2 rounded-[1.125rem] border p-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-stretch sm:p-2" role="search">
                 <label htmlFor="domain-theme" className="sr-only">
                   {isExactDomainSearch ? t("search.exactCheck") : advancedSearch ? advancedCopy.shortThemeLabel : t("search.label")}
                 </label>

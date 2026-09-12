@@ -93,6 +93,15 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
       user: { id: fixture.owner, email: "qa@example.test", emailVerified: true, name: "QA", createdAt: "2026-09-01T10:00:00Z", updatedAt: "2026-09-01T10:00:00Z" },
       session: { id: "session-a", userId: fixture.owner, createdAt: "2026-09-01T10:00:00Z", updatedAt: "2026-09-01T10:00:00Z", expiresAt: new Date(Date.now() + 60_000).toISOString() },
     } : null);
+    if (url.pathname === "/api/account/trading-scenarios") {
+      // The real portal mounts beside the engine report. Its independent, strict
+      // journal read is not an engine request and must not consume the engine reply.
+      const accountId = new Headers(init.headers).get("x-sajda-account");
+      assert.ok(accountId);
+      assert.equal(accountId, fixture.owner, "Scenario reads keep the initiating account boundary");
+      assert.equal(init.method ?? "GET", "GET", "Report interactions do not mutate the scenario journal");
+      return Response.json({ accountId, requestId, scenarios: [] });
+    }
     assert.equal(url.pathname, "/api/account/lost-domains");
     const request = { method: init.method ?? "GET", body: init.body ? JSON.parse(String(init.body)) : undefined,
       owner: new Headers(init.headers).get("x-sajda-account"), signal: init.signal };
@@ -106,6 +115,8 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
     const surface = await vite.ssrLoadModule("/src/lib/appSurface.ts");
     const tree = () => h(MemoryRouter, { initialEntries: ["/plus"] }, h(LostDomains));
     const text = () => label(renderer!.root);
+    const reportSection = () => renderer!.root.findByProps({ id: "trading-results" });
+    const reportText = () => label(reportSection());
     const nextStep = () => renderer!.root.findByProps({ "data-testid": "trading-next-step" });
     const startButtons = () => renderer!.root.findAllByType("button").filter(node => /^(?:Start domain scan|Start another scan)$/u.test(label(node)));
     const button = (name: string) => {
@@ -362,17 +373,18 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
       assert.equal(renderer!.root.findAllByType("aside").length,0,"An active account does not see the sales card before work");
       assert.match(text(),/Account and Trading subscription/);
       const originalNextStep = label(nextStep());
-      const input=renderer!.root.findByType("input");
+      const input=reportSection().findByType("input");
       await act(async()=>{input.props.onChange({target:{value:"no-match"}});await pause();});
-      assert.match(text(),/0 \/ 1 checks match this selection/);
-      assert.doesNotMatch(text(),/private-alpha\.dev/);
+      assert.match(reportText(),/0 \/ 1 checks match this selection/);
+      assert.doesNotMatch(reportText(),/private-alpha\.dev/);
+      assert.match(label(renderer!.root.findByProps({"data-testid":"trading-portal"})),/private-alpha\.dev/,"The independent Radar is not erased by a report filter");
       assert.equal(button("Export CSV").props.disabled,true);
       assert.equal(label(nextStep()), originalNextStep, "An empty filter does not erase the existing report's main results action or counts");
       await act(async()=>{input.props.onChange({target:{value:""}});await pause();});
-      assert.match(text(),/private-alpha\.dev/);assert.equal(button("Export CSV").props.disabled,false);
-      const status=renderer!.root.findAllByType("select")[0];
+      assert.match(reportText(),/private-alpha\.dev/);assert.equal(button("Export CSV").props.disabled,false);
+      const status=reportSection().findAllByType("select")[0];
       await act(async()=>{status.props.onChange({target:{value:"registered"}});await pause();});
-      assert.match(text(),/0 \/ 1 checks match this selection/);
+      assert.match(reportText(),/0 \/ 1 checks match this selection/);
       assert.equal(label(nextStep()), originalNextStep, "Status filters do not relabel the unfiltered report as empty");
       assert.equal(actionRequests().length,0,"Filtering and exporting never initiate crawling");
     });
@@ -398,7 +410,7 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
       assert.match(text(),/HTTP statuses in the sample200, 404/u);
       const archiveLink=renderer!.root.findAllByType("a").find(node=>node.props.href===source.href);
       assert.ok(archiveLink);assert.equal(archiveLink.props.rel,"noopener noreferrer");assert.equal(archiveLink.props.referrerPolicy,"no-referrer");
-      const status=renderer!.root.findAllByType("select")[0];
+      const status=reportSection().findAllByType("select")[0];
       await act(async()=>{status.props.onChange({target:{value:"strong_fit"}});await pause();});
       assert.match(text(),/1 \/ 1 checks match this selection/u);
       assert.match(text(),/this filter can also include registered domains/u);
@@ -592,30 +604,30 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
       response.candidates=Array.from({length:600},(_,index)=>{const domain=`report-${String(index).padStart(3,"0")}.dev`;return {...template,domain,targetUrl:`https://${domain}/`};});
       response.latestRun={...run(),candidateCount:600,completedCount:600,verificationCount:30,completedVerificationCount:30};response.latestAttempt=response.latestRun;
       await mount(response);
-      assert.match(text(),/600 \/ 600 checks match this selection/u);
-      assert.match(text(),/Final rechecks: 30 \/ 30/u);
-      assert.match(text(),/50 \/ 570 other checks displayed/u);
-      assert.match(text(),/report-079.dev/u);
-      assert.doesNotMatch(text(),/report-080.dev|report-599.dev/u);
+      assert.match(reportText(),/600 \/ 600 checks match this selection/u);
+      assert.match(reportText(),/Final rechecks: 30 \/ 30/u);
+      assert.match(reportText(),/50 \/ 570 other checks displayed/u);
+      assert.match(reportText(),/report-079.dev/u);
+      assert.doesNotMatch(reportText(),/report-080.dev|report-599.dev/u);
       await click("Show 50 more");
-      assert.match(text(),/100 \/ 570 other checks displayed/u);
-      assert.match(text(),/report-129.dev/u);
-      assert.doesNotMatch(text(),/report-130.dev/u);
-      const input=renderer!.root.findByType("input");
+      assert.match(reportText(),/100 \/ 570 other checks displayed/u);
+      assert.match(reportText(),/report-129.dev/u);
+      assert.doesNotMatch(reportText(),/report-130.dev/u);
+      const input=reportSection().findByType("input");
       await act(async()=>{input.props.onChange({target:{value:"report-599"}});await pause();});
-      assert.match(text(),/1 \/ 600 checks match this selection/u);
-      assert.match(text(),/report-599.dev/u);
+      assert.match(reportText(),/1 \/ 600 checks match this selection/u);
+      assert.match(reportText(),/report-599.dev/u);
       await act(async()=>{input.props.onChange({target:{value:""}});await pause();});
-      assert.match(text(),/50 \/ 570 other checks displayed/u,"Changing the search resets the rendered batch");
+      assert.match(reportText(),/50 \/ 570 other checks displayed/u,"Changing the search resets the rendered batch");
       await click("Show 50 more");
-      const extension=renderer!.root.findAllByType("select")[1];
+      const extension=reportSection().findAllByType("select")[1];
       await act(async()=>{extension.props.onChange({target:{value:"dev"}});await pause();});
-      assert.match(text(),/50 \/ 570 other checks displayed/u,"Changing the extension resets the rendered batch");
+      assert.match(reportText(),/50 \/ 570 other checks displayed/u,"Changing the extension resets the rendered batch");
       await click("Show 50 more");
       reply=()=>Response.json({...response,latestRun:{...response.latestRun!,id:activeId}});
       await click("Refresh status");
-      await until(()=>text().includes("50 / 570 other checks displayed"));
-      assert.doesNotMatch(text(),/report-080.dev/u,"A new completed report resets the rendered batch");
+      await until(()=>reportText().includes("50 / 570 other checks displayed"));
+      assert.doesNotMatch(reportText(),/report-080.dev/u,"A new completed report resets the rendered batch");
       assert.equal(actionRequests().length,0);
     });
 
@@ -728,9 +740,9 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
       response.latestRun = { ...run(), candidateCount: 31, completedCount: 31 };
       response.latestAttempt = response.latestRun;
       await mount(response);
-      assert.match(text(), /fresh-30\.devFresh check · outside the top 30/);
-      assert.doesNotMatch(text(), /registry check is too old|Needs a fresh check/);
-      const lists = renderer!.root.findAllByType("ol");
+      assert.match(reportText(), /fresh-30\.devFresh check · outside the top 30/);
+      assert.doesNotMatch(reportText(), /registry check is too old|Needs a fresh check/);
+      const lists = reportSection().findAllByType("ol");
       const rankedList = lists.find(node => label(node).includes("fresh-00.dev"));
       assert.ok(rankedList); assert.equal(rankedList.children.length, 30);
       assert.doesNotMatch(label(rankedList), /fresh-30\.dev/);
@@ -739,9 +751,9 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
       response.candidates[30] = { ...response.candidates[30], evidence: [{ ...template.evidence[0],
         observedAt: new Date(Date.now() - 20 * 60_000).toISOString(), expiresAt: new Date(Date.now() - 5 * 60_000).toISOString() }] };
       await mount(response);
-      assert.match(text(), /fresh-30\.devNeeds a fresh check/);
-      assert.match(text(), /registry check is too old/);
-      assert.doesNotMatch(text(), /Fresh check · outside the top 30/);
+      assert.match(reportText(), /fresh-30\.devNeeds a fresh check/);
+      assert.match(reportText(), /registry check is too old/);
+      assert.doesNotMatch(reportText(), /Fresh check · outside the top 30/);
     });
 
     await t.test("sign-out is single-flight, stops new work and does not falsely claim success after failure", async () => {

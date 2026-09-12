@@ -34,13 +34,36 @@ for (const path of ["/sajda-qa-page-does-not-exist", "/api/sajda-qa-does-not-exi
 const schema = await fetch(new URL("/api/openapi", origin));
 assert.equal(schema.status, 200);
 assert.equal((await schema.json()).openapi, "3.1.0"); checks++;
-for (const path of ["/api/v1/domains", "/api/account/saved-domains", "/api/account/lost-domains", "/api/account/billing"]) {
+const publicMcp = await fetch(new URL("/api/mcp/public", origin), { method: "POST", signal: AbortSignal.timeout(transportTimeout),
+  headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
+  body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "sajda-runtime-check", version: "1.0.0" } } }),
+});
+assert.equal(publicMcp.status, 200, "Anonymous MCP initialization must not redirect to login");
+assert.equal((await publicMcp.json()).result.serverInfo.name, "sajda");
+assert.equal(publicMcp.headers.get("set-cookie"), null); checks++;
+const publicTools = await fetch(new URL("/api/mcp/public", origin), { method: "POST", signal: AbortSignal.timeout(transportTimeout),
+  headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
+  body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" }),
+});
+assert.equal(publicTools.status, 200);
+assert.deepEqual((await publicTools.json()).result.tools.map(tool => tool.name), ["domains_suggest", "domains_check"]); checks++;
+for (const path of ["/api/v1/domains", "/api/account/saved-domains", "/api/account/lost-domains", "/api/account/billing",
+  "/api/account/membership", "/api/account/capabilities", "/api/account/app-sessions", "/api/account/trading-scenarios"]) {
   const privateRead = path.startsWith("/api/account/");
   const response = await fetch(new URL(path, origin), { method: privateRead ? "GET" : "POST", headers: { "content-type": "application/json" }, ...(!privateRead ? { body: "{}" } : {}) });
   assert.equal(response.status, 401, path);
   assert.equal(response.headers.get("access-control-allow-origin"), null, path);
   assert.ok((await response.json()).code); checks++;
 }
+// Anonymous journal submissions must fail at the account boundary, even with
+// a forged owner header. No scenario, quota or commercial state may be written.
+const scenario = await fetch(new URL("/api/account/trading-scenarios", origin), {
+  method: "POST", headers: { "content-type": "application/json", "x-sajda-account": "runtime-qa-unauthenticated" },
+  body: "{}",
+});
+assert.equal(scenario.status, 401, "scenario writes require a verified account session");
+assert.match(scenario.headers.get("cache-control") || "", /no-store/u);
+assert.ok((await scenario.json()).code); checks++;
 // No cookies or bearer credentials: these must be rejected before a request
 // can reserve quota, query a private report or contact a provider.
 const quote = await fetch(new URL("/api/account/lost-domains", origin), {
@@ -54,6 +77,20 @@ assert.ok((await quote.json()).code); checks++;
 const scheduler = await fetch(new URL("/api/cron/lost-domains", origin));
 assert.equal(scheduler.status, 401, "scheduler cannot run without its private secret");
 assert.equal((await scheduler.json()).code, "authentication_required"); checks++;
+for (const [path, method, expected, body] of [
+  ["/api/account/deletion", "POST", 401, {}],
+  ["/api/native/account", "GET", 405],
+  ["/api/native/commerce", "GET", 405],
+  ["/api/cron/native-commerce", "GET", 401],
+  ["/api/app-store-webhook", "GET", 405],
+  ["/api/app-store-webhook", "POST", 400, { signedPayload: "invalid" }],
+]) {
+  const response = await fetch(new URL(path, origin), { method, headers: { "content-type": "application/json" },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+  assert.equal(response.status, expected, path);
+  assert.match(response.headers.get("cache-control") || "", /no-store/u);
+  assert.ok((await response.json()).code, path); checks++;
+}
 const preflight = await fetch(new URL("/api/v1/public/domains", origin), { method: "OPTIONS" });
 assert.equal(preflight.status, 204);
 assert.equal(preflight.headers.get("access-control-allow-origin"), "*"); checks++;
