@@ -547,27 +547,27 @@ export default function HowItWorks() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-20 border-b border-border/80 bg-card/95 backdrop-blur-xl">
-        <div className="mx-auto flex min-h-[4.75rem] w-full max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-3 sm:gap-4 sm:px-7">
+      <header className="top-0 z-20 border-b border-border/80 bg-card/95 backdrop-blur-xl xl:sticky">
+        <div className="mx-auto flex min-h-[4.75rem] w-full max-w-7xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-7">
           <Link
             to="/"
-            className="inline-flex shrink-0 items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="inline-flex min-h-11 shrink-0 items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             aria-label="Sajda"
           >
             <img src="/sajda-logo.svg" alt="Sajda" className="h-7 w-auto sm:h-8" />
           </Link>
-          <nav className="hidden items-center gap-5 text-sm font-semibold text-muted-foreground md:flex" aria-label={copy.eyebrow}>
+          <nav className="order-last hidden w-full flex-wrap items-center gap-x-5 gap-y-1 text-sm font-semibold text-muted-foreground md:flex xl:order-none xl:w-auto" aria-label={copy.eyebrow}>
             {copy.anchors.map((anchor) => (
-              <a key={anchor.id} href={`#${anchor.id}`} className="transition-colors hover:text-foreground">
+              <a key={anchor.id} href={`#${anchor.id}`} className="inline-flex min-h-11 items-center transition-colors hover:text-foreground">
                 {anchor.label}
               </a>
             ))}
-            <Link to="/story" className="transition-colors hover:text-foreground">{copy.navStory}</Link>
+            <Link to="/story" className="inline-flex min-h-11 items-center transition-colors hover:text-foreground">{copy.navStory}</Link>
           </nav>
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex max-w-full flex-wrap items-center gap-2 sm:gap-4">
             <Link
               to="/"
-              className="hidden items-center gap-1.5 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 lg:inline-flex"
+              className="hidden min-h-11 items-center gap-1.5 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 lg:inline-flex"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               {copy.navBack}
@@ -753,9 +753,9 @@ export default function HowItWorks() {
             </div>
           </div>
           <div className="mt-5 flex justify-end">
-            <Button asChild variant="outline">
+            <Button asChild variant="outline" className="h-auto min-h-11 w-full whitespace-normal text-center sm:w-auto">
               <Link to="/developers">
-                {copy.context.developerAction}
+                <span className="min-w-0">{copy.context.developerAction}</span>
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Link>
             </Button>

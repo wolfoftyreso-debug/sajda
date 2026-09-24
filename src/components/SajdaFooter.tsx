@@ -6,6 +6,8 @@ import { isAccountAuthConfigured } from "@/integrations/neon/auth";
 import { isLocalTestMode } from "@/lib/localTestMode";
 import { useLanguage, type Language } from "@/i18n/LanguageProvider";
 import { accountNavigationCopy } from "@/i18n/accountNavigationCopy";
+import { nameProjectsEnabled } from "@/lib/nameProjectsFeature";
+import { projectEntryCopy } from "@/i18n/projectEntryCopy";
 
 type FooterCopy = {
   label: string;
@@ -281,9 +283,9 @@ const footerCopy: Record<Language, FooterCopy> = {
   },
 };
 
-const taskNavigationPaths = new Set(["/", "/top-10-today", "/history", "/my-domains", "/account"]);
+const taskNavigationPaths = new Set(["/", "/top-10-today", "/history", "/my-domains", "/account", "/projects"]);
 
-const footerLinkClassName = "group inline-flex min-h-8 items-center gap-1 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+const footerLinkClassName = "group inline-flex min-h-11 max-w-full items-center gap-1 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
 
 function FooterLink({
   to,
@@ -298,8 +300,8 @@ function FooterLink({
 }) {
   const content = (
     <>
-      <span>{children}</span>
-      {external && <ArrowUpRight className="h-3.5 w-3.5 opacity-60 transition-transform duration-150 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden="true" />}
+      <span className="min-w-0 [overflow-wrap:anywhere]">{children}</span>
+      {external && <ArrowUpRight className="h-3.5 w-3.5 shrink-0 opacity-60 transition-transform duration-150 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" aria-hidden="true" />}
       {description && <span className="sr-only">: {description}</span>}
     </>
   );
@@ -313,14 +315,14 @@ function FooterLink({
 
 function FooterColumn({ heading, children }: { heading: string; children: React.ReactNode }) {
   return (
-    <section aria-labelledby={`footer-${heading.replace(/\s+/g, "-").toLowerCase()}`}>
+    <section className="min-w-0" aria-labelledby={`footer-${heading.replace(/\s+/g, "-").toLowerCase()}`}>
       <h2
         id={`footer-${heading.replace(/\s+/g, "-").toLowerCase()}`}
         className="text-xs font-semibold uppercase tracking-[0.12em] text-foreground"
       >
         {heading}
       </h2>
-      <div className="mt-3 flex flex-col items-start gap-1.5">{children}</div>
+      <div className="mt-3 flex flex-col items-start gap-0.5">{children}</div>
     </section>
   );
 }
@@ -338,11 +340,11 @@ export default function SajdaFooter() {
   return (
     <footer className="mt-0 border-t border-border bg-[#f8fafc] text-foreground" aria-label={copy.label}>
       <div className="mx-auto w-full max-w-7xl px-5 py-10 sm:px-7 sm:py-12 lg:py-14">
-        <div className="grid gap-10 xl:grid-cols-[minmax(17rem,1.2fr)_minmax(0,1.8fr)] xl:gap-16">
+        <div className="grid gap-10">
           <section aria-labelledby="footer-sajda-title">
             <Link
               to="/"
-              className="inline-flex rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="inline-flex min-h-11 items-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               aria-label="Sajda"
             >
               <img src="/sajda-logo.svg" alt="Sajda" className="h-7 w-auto" />
@@ -352,7 +354,7 @@ export default function SajdaFooter() {
             </h2>
             <p className="mt-3 max-w-md text-sm leading-6 text-muted-foreground">{copy.body}</p>
             <p className="mt-5 inline-flex items-center gap-2 text-xs font-medium text-muted-foreground">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" aria-hidden="true" />
               {copy.live}
             </p>
           </section>
@@ -361,6 +363,7 @@ export default function SajdaFooter() {
             <FooterColumn heading={copy.product}>
               <FooterLink to="/" description={copy.searchHint}>{copy.search}</FooterLink>
               <FooterLink to="/swipe" description={copy.swipeHint}>{copy.swipe}</FooterLink>
+              {nameProjectsEnabled && <FooterLink to="/projects">{projectEntryCopy[language].projects}</FooterLink>}
               <FooterLink to="/pricing">{language === "sv" ? "Priser & nivåer" : language === "es" ? "Precios y planes" : language === "fr" ? "Tarifs et offres" : language === "zh" ? "价格与方案" : "Pricing & plans"}</FooterLink>
               <FooterLink to="/plus">Sajda Trading · Lost Domains</FooterLink>
               <FooterLink to="/marketplace" description={copy.marketplaceHint}>{copy.marketplace}</FooterLink>

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "sajda": {
+      "type": "http",
+      "url": "https://sajda-connector.vercel.app/api/mcp/public"
+    }
+  }
+}

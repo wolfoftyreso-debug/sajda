@@ -46,18 +46,18 @@ function MarketplaceHeader({ backLabel }: { backLabel?: string }) {
   if (isNativeApp) return null;
   return (
     <header className="border-b border-border/80 bg-card">
-      <div className="mx-auto flex min-h-[4.75rem] w-full max-w-7xl items-center justify-between gap-4 px-5 sm:px-7">
+      <div className="mx-auto flex min-h-[4.75rem] w-full max-w-7xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-7">
         <Link
           to="/"
-          className="inline-flex shrink-0 items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="inline-flex min-h-11 shrink-0 items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           aria-label="Sajda"
         >
           <img src="/sajda-logo.svg" alt="Sajda" className="h-7 w-auto sm:h-8" />
         </Link>
-        <div className="flex items-center gap-3 sm:gap-5">
+        <div className="flex max-w-full flex-wrap items-center gap-3 sm:gap-5">
           <Link
             to="/"
-            className="hidden text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:inline-flex"
+            className="hidden min-h-11 items-center text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:inline-flex"
           >
             {backLabel ?? "Sajda"}
           </Link>

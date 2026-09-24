@@ -1,0 +1,722 @@
+{
+  "request": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "brand_name": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100
+      },
+      "identity_label": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 63,
+        "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$"
+      },
+      "primary_domain": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 253
+      },
+      "domains": {
+        "minItems": 1,
+        "maxItems": 20,
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 253
+        },
+        "uniqueItems": true
+      },
+      "socials": {
+        "minItems": 1,
+        "maxItems": 6,
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "platform": {
+              "type": "string",
+              "enum": [
+                "instagram",
+                "tiktok",
+                "youtube",
+                "github",
+                "x",
+                "linkedin"
+              ]
+            },
+            "handle": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          "required": [
+            "platform",
+            "handle"
+          ],
+          "additionalProperties": false
+        },
+        "uniqueItems": true
+      },
+      "markets": {
+        "minItems": 1,
+        "maxItems": 38,
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": [
+            "US",
+            "AT",
+            "BE",
+            "BG",
+            "HR",
+            "CY",
+            "CZ",
+            "DK",
+            "EE",
+            "FI",
+            "FR",
+            "DE",
+            "GR",
+            "HU",
+            "IE",
+            "IT",
+            "LV",
+            "LT",
+            "LU",
+            "MT",
+            "NL",
+            "PL",
+            "PT",
+            "RO",
+            "SK",
+            "SI",
+            "ES",
+            "SE",
+            "IS",
+            "LI",
+            "NO",
+            "GB",
+            "CH",
+            "CA",
+            "AU",
+            "NZ",
+            "SG",
+            "JP"
+          ]
+        },
+        "uniqueItems": true
+      },
+      "observations": {
+        "default": [],
+        "maxItems": 64,
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "target_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "reported_owned",
+                "reported_authorized",
+                "matching_name_only",
+                "reported_conflict",
+                "unknown"
+              ]
+            },
+            "source_url": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 512,
+                  "format": "uri"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reported_at": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "target_id",
+            "status"
+          ],
+          "additionalProperties": false
+        },
+        "uniqueItems": true
+      }
+    },
+    "required": [
+      "brand_name",
+      "identity_label",
+      "primary_domain",
+      "domains",
+      "socials",
+      "markets"
+    ],
+    "additionalProperties": false,
+    "description": "Strict user-supplied scope. Domains must be unique after normalization and include primary_domain; declare at most one handle per platform. Markets must be unique supported country codes. Observations must have unique target_id values that exactly match a declared domain:<domain>, social:<platform>:<handle>, or market:<ISO> target. No caller verification or provenance flags are accepted."
+  },
+  "response": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "properties": {
+      "schema_version": {
+        "type": "string",
+        "const": "sajda.brand-presence-index.v1"
+      },
+      "methodology_version": {
+        "type": "string",
+        "const": "brand-presence-1.0.0"
+      },
+      "generated_at": {
+        "type": "string",
+        "format": "date-time",
+        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+      },
+      "brand": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "identity_label": {
+            "type": "string",
+            "maxLength": 63
+          },
+          "primary_domain": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 253
+          },
+          "classification": {
+            "type": "string",
+            "const": "USER_SUPPLIED"
+          }
+        },
+        "required": [
+          "name",
+          "identity_label",
+          "primary_domain",
+          "classification"
+        ],
+        "additionalProperties": false
+      },
+      "scope": {
+        "type": "object",
+        "properties": {
+          "domains": {
+            "minItems": 1,
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 253
+            }
+          },
+          "socials": {
+            "minItems": 1,
+            "maxItems": 6,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "platform": {
+                  "type": "string",
+                  "enum": [
+                    "instagram",
+                    "tiktok",
+                    "youtube",
+                    "github",
+                    "x",
+                    "linkedin"
+                  ]
+                },
+                "handle": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                }
+              },
+              "required": [
+                "platform",
+                "handle"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "markets": {
+            "minItems": 1,
+            "maxItems": 38,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "US",
+                "AT",
+                "BE",
+                "BG",
+                "HR",
+                "CY",
+                "CZ",
+                "DK",
+                "EE",
+                "FI",
+                "FR",
+                "DE",
+                "GR",
+                "HU",
+                "IE",
+                "IT",
+                "LV",
+                "LT",
+                "LU",
+                "MT",
+                "NL",
+                "PL",
+                "PT",
+                "RO",
+                "SK",
+                "SI",
+                "ES",
+                "SE",
+                "IS",
+                "LI",
+                "NO",
+                "GB",
+                "CH",
+                "CA",
+                "AU",
+                "NZ",
+                "SG",
+                "JP"
+              ]
+            }
+          },
+          "target_count": {
+            "type": "integer",
+            "minimum": 3,
+            "maximum": 64
+          },
+          "comparison_key": {
+            "type": "string",
+            "maxLength": 10000
+          },
+          "is_global_score": {
+            "type": "boolean",
+            "const": false
+          }
+        },
+        "required": [
+          "domains",
+          "socials",
+          "markets",
+          "target_count",
+          "comparison_key",
+          "is_global_score"
+        ],
+        "additionalProperties": false
+      },
+      "index": {
+        "type": "object",
+        "properties": {
+          "reported_score": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verified_score": {
+            "type": "null"
+          },
+          "maximum": {
+            "type": "number",
+            "const": 100
+          },
+          "classification": {
+            "type": "string",
+            "const": "SELF_ASSESSMENT"
+          },
+          "reported_coverage_percent": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "verified_coverage_percent": {
+            "type": "number",
+            "const": 0
+          },
+          "confidence": {
+            "type": "null"
+          },
+          "minimum_reported_coverage_percent": {
+            "type": "number",
+            "const": 60
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "needs_reports",
+              "ready"
+            ]
+          }
+        },
+        "required": [
+          "reported_score",
+          "verified_score",
+          "maximum",
+          "classification",
+          "reported_coverage_percent",
+          "verified_coverage_percent",
+          "confidence",
+          "minimum_reported_coverage_percent",
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "subscores": {
+        "type": "object",
+        "properties": {
+          "domains": {
+            "type": "object",
+            "properties": {
+              "score": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 35
+              },
+              "max": {
+                "type": "number",
+                "const": 35
+              }
+            },
+            "required": [
+              "score",
+              "max"
+            ],
+            "additionalProperties": false
+          },
+          "socials": {
+            "type": "object",
+            "properties": {
+              "score": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 25
+              },
+              "max": {
+                "type": "number",
+                "const": 25
+              }
+            },
+            "required": [
+              "score",
+              "max"
+            ],
+            "additionalProperties": false
+          },
+          "markets": {
+            "type": "object",
+            "properties": {
+              "score": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 25
+              },
+              "max": {
+                "type": "number",
+                "const": 25
+              }
+            },
+            "required": [
+              "score",
+              "max"
+            ],
+            "additionalProperties": false
+          },
+          "consistency": {
+            "type": "object",
+            "properties": {
+              "score": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 15
+              },
+              "max": {
+                "type": "number",
+                "const": 15
+              }
+            },
+            "required": [
+              "score",
+              "max"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "domains",
+          "socials",
+          "markets",
+          "consistency"
+        ],
+        "additionalProperties": false
+      },
+      "counts": {
+        "type": "object",
+        "properties": {
+          "requested": {
+            "type": "integer",
+            "minimum": 3,
+            "maximum": 64
+          },
+          "assessed": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 64
+          },
+          "unassessed": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 64
+          },
+          "owned": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 64
+          },
+          "authorized": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 64
+          },
+          "conflicts": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 64
+          },
+          "matching_only": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 64
+          },
+          "stale": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 64
+          }
+        },
+        "required": [
+          "requested",
+          "assessed",
+          "unassessed",
+          "owned",
+          "authorized",
+          "conflicts",
+          "matching_only",
+          "stale"
+        ],
+        "additionalProperties": false
+      },
+      "targets": {
+        "minItems": 3,
+        "maxItems": 64,
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "maxLength": 300
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "domain",
+                "social",
+                "market"
+              ]
+            },
+            "identifier": {
+              "type": "string",
+              "maxLength": 253
+            },
+            "market": {
+              "type": "string",
+              "enum": [
+                "US",
+                "AT",
+                "BE",
+                "BG",
+                "HR",
+                "CY",
+                "CZ",
+                "DK",
+                "EE",
+                "FI",
+                "FR",
+                "DE",
+                "GR",
+                "HU",
+                "IE",
+                "IT",
+                "LV",
+                "LT",
+                "LU",
+                "MT",
+                "NL",
+                "PL",
+                "PT",
+                "RO",
+                "SK",
+                "SI",
+                "ES",
+                "SE",
+                "IS",
+                "LI",
+                "NO",
+                "GB",
+                "CH",
+                "CA",
+                "AU",
+                "NZ",
+                "SG",
+                "JP"
+              ]
+            },
+            "platform": {
+              "type": "string",
+              "enum": [
+                "instagram",
+                "tiktok",
+                "youtube",
+                "github",
+                "x",
+                "linkedin"
+              ]
+            },
+            "reported_status": {
+              "type": "string",
+              "enum": [
+                "reported_owned",
+                "reported_authorized",
+                "matching_name_only",
+                "reported_conflict",
+                "unknown"
+              ]
+            },
+            "status_freshness": {
+              "type": "string",
+              "enum": [
+                "current",
+                "stale",
+                "future",
+                "unknown"
+              ]
+            },
+            "classification": {
+              "type": "string",
+              "const": "USER_SUPPLIED"
+            },
+            "source_url": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 512,
+                  "format": "uri"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reported_at": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "kind",
+            "identifier",
+            "reported_status",
+            "status_freshness",
+            "classification",
+            "source_url",
+            "reported_at"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "limitations": {
+        "minItems": 9,
+        "maxItems": 9,
+        "type": "array",
+        "items": {
+          "type": "string",
+          "enum": [
+            "self_assessment_not_independently_verified",
+            "selected_scope_not_global_rank",
+            "unknown_not_absent_or_uncontrolled",
+            "registration_or_name_match_not_control",
+            "authorized_use_not_direct_ownership",
+            "market_reports_not_legal_clearance",
+            "timestamps_describe_user_reports_not_source_verification",
+            "no_external_lookups_performed",
+            "not_brand_value_or_investment_advice"
+          ]
+        }
+      }
+    },
+    "required": [
+      "schema_version",
+      "methodology_version",
+      "generated_at",
+      "brand",
+      "scope",
+      "index",
+      "subscores",
+      "counts",
+      "targets",
+      "limitations"
+    ],
+    "additionalProperties": false
+  }
+}

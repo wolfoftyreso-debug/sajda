@@ -19,7 +19,7 @@ type Draft = Omit<TradingScenarioInput, "id" | "assumptions"> & {id:string; assu
 const modes: TradingAnalysisMode[] = ["balanced","brand","acquisition","risk"];
 const fields: MoneyField[] = ["acquisitionUsd","annualRenewalUsd","otherCostsUsd","holdingMonths","sellingFeePercent","saleProbabilityPercent","bearSaleUsd","baseSaleUsd","bullSaleUsd"];
 const frame = "rounded-2xl border border-border bg-card";
-const control = "mt-1.5 min-h-11 w-full min-w-0 rounded-xl border border-input bg-background px-3 py-2 text-base sm:text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+const control = "mt-1.5 min-h-11 w-full min-w-0 rounded-xl border border-input bg-background px-3 py-2 text-base text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const action = "min-h-11 h-auto whitespace-normal px-4 py-3";
 function localCalendarDay(at = Date.now()) {
   const date = new Date(at);
@@ -157,7 +157,7 @@ export default function TradingPortal({accountId,language,candidates,now,onAcces
     {view==="radar"&&<div ref={panel} id={id+"-panel"} data-trading-panel={view} role="region" aria-label={c.tabs.radar} tabIndex={-1} className="space-y-6 p-5 outline-none sm:p-7">
       <div><h3 className="text-xl font-semibold">{c.radarTitle}</h3><p className="mt-1 text-sm leading-6 text-muted-foreground">{c.radarIntro}</p></div>
       <fieldset><legend className="mb-2 text-xs font-semibold uppercase tracking-wide">{c.modeLabel}</legend>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{modes.map(key=><button type="button" key={key} aria-pressed={mode===key} onClick={()=>setMode(key)}
+        <div className="grid gap-2 min-[400px]:grid-cols-2 sm:grid-cols-4">{modes.map(key=><button type="button" key={key} aria-pressed={mode===key} onClick={()=>setMode(key)}
           className={"min-h-11 rounded-xl border px-3 py-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring "+(mode===key?"border-primary bg-primary/10 text-primary":"border-border")}>{c.modes[key]}</button>)}</div>
         <p className="mt-3 text-sm leading-6 text-muted-foreground">{c.modeHelp[mode]}</p>
       </fieldset>
@@ -205,7 +205,7 @@ export default function TradingPortal({accountId,language,candidates,now,onAcces
               <div className="flex justify-between gap-1"><dt>{c.roiIfSold}</dt><dd>{outcome.roiIfSoldPercent===null?"—":new Intl.NumberFormat(locale,{maximumFractionDigits:1}).format(outcome.roiIfSoldPercent)+"%"}</dd></div></dl></div>)}</div>
           <h4 className="mt-6 text-sm font-semibold">{c.sensitivity}</h4>
           <ScenarioCurve points={calculation.sensitivity} label={c.sensitivity} note={c.assumptionNotice} money={money} months={c.months} locale={locale}/>
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">{calculation.sensitivity.map(point=><div key={point.holdingMonths} className="rounded-xl border border-border p-3"><p className="text-xs font-semibold">{point.holdingMonths} {c.months}</p><p className="mt-2 text-sm tabular-nums">{money(point.baseNetIfSoldUsd)}</p><p className="text-xs text-muted-foreground">{c.base} · {c.netIfSold}</p></div>)}</div>
+          <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">{calculation.sensitivity.map(point=><div key={point.holdingMonths} className="min-w-0 rounded-xl border border-border p-3"><p className="text-xs font-semibold">{point.holdingMonths} {c.months}</p><p className="mt-2 text-sm tabular-nums [overflow-wrap:anywhere]">{money(point.baseNetIfSoldUsd)}</p><p className="text-xs text-muted-foreground">{c.base} · {c.netIfSold}</p></div>)}</div>
           <p className="mt-4 text-xs leading-5 text-muted-foreground">{c.cashflowNotice}</p>
         </section>:<div className="rounded-xl bg-secondary/50 p-4"><h4 className="text-sm font-semibold">{c.noModelYet}</h4><p className="mt-1 text-xs leading-5 text-muted-foreground">{c.noModelBody}</p></div>}
         <div className="flex flex-wrap items-center gap-3"><Button className={action} type="submit" disabled={Boolean(busy)}>{busy==="save"?<LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true"/>:<Save className="h-4 w-4" aria-hidden="true"/>}{busy==="save"?c.saving:draft.expectedVersion?c.save:c.saveNew}</Button>

@@ -5,6 +5,7 @@ import { createElement as h } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 import { createServer } from "vite";
+import { DEVELOPER_API_SCOPES } from "../shared/developer-scopes";
 
 function label(node: ReactTestInstance): string {
   return node.children.map(child => typeof child === "string" ? child : label(child)).join("");
@@ -66,8 +67,10 @@ test("developer workspace uses its current session, explicit scopes and expiry, 
     await act(async () => { renderer = create(page()); });
     assert.ok(button("Create API key"));
     await act(async () => button("Create API key").props.onClick());
-    const checks = root().findAllByProps({ type: "checkbox" });
-    assert.equal(checks.length, 7);
+    // Only the key form grants permissions; connector setup has a separate
+    // optional-instructions checkbox that must not count as account access.
+    const checks = root().findByType("form").findAllByProps({ type: "checkbox" });
+    assert.deepEqual(checks.map(node => node.props.value), [...DEVELOPER_API_SCOPES]);
     assert.deepEqual(checks.filter(node => node.props.checked).map(node => node.props.value), ["domains:search"]);
     await act(async () => root().findByProps({ id: "developer-key-name" }).props.onChange({ target: { value: "MCP reader" } }));
     await act(async () => checks.find(node => node.props.value === "saved:read")!.props.onChange({ target: { checked: true } }));

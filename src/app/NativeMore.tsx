@@ -4,6 +4,9 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { nativeCopy } from "./nativeCopy";
 import { hasSupabaseBrowserConfig } from "@/integrations/supabase/client";
+import { nameProjectsEnabled } from "@/lib/nameProjectsFeature";
+import { projectEntryCopy } from "@/i18n/projectEntryCopy";
+import { namePackageEntryCopy } from "@/i18n/namePackageEntryCopy";
 
 export default function NativeMore() {
   const { language } = useLanguage();
@@ -12,6 +15,9 @@ export default function NativeMore() {
   const links = [
     { to: user ? "/account" : "/auth?next=%2Faccount", label: user ? copy.account : copy.signIn },
     { to: "/pricing", label: copy.membership },
+    { to: "/brand-index", label: "Sajda Brand Index" },
+    { to: "/name-packages", label: namePackageEntryCopy[language].title },
+    ...(nameProjectsEnabled ? [{ to: "/projects", label: projectEntryCopy[language].projects }, { to: "/plus", label: copy.trading }] : []),
     { to: "/marketplace", label: copy.marketplace },
     { to: "/developers", label: copy.developers },
     // These legacy features have not been migrated to the active account store.

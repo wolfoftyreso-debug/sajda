@@ -1,6 +1,7 @@
 import type { DiscoveredDomain } from "@/contexts/ScanContext";
 
-const KEY = "sajda.search-results.v1";
+const KEY = "sajda.search-results.v2";
+const LEGACY_KEY = "sajda.search-results.v1";
 const MAX_AGE_MS = 30 * 60 * 1000;
 
 function validOffer(value: unknown): boolean {
@@ -20,14 +21,17 @@ function validOffer(value: unknown): boolean {
   return true;
 }
 
-/** A short-lived, tab-local snapshot. Never stores the brief, token or account. */
+/** A short-lived guest-only snapshot. Never stores the brief, token or account.
+ * Older unowned snapshots may originate from private account searches; retire
+ * them rather than attributing that data to a newly signed-in user or guest. */
 export function readSearchSession(): DiscoveredDomain[] {
   if (typeof window === "undefined") return [];
   try {
+    window.sessionStorage.removeItem(LEGACY_KEY);
     const raw = window.sessionStorage.getItem(KEY);
     if (!raw) return [];
     const value = JSON.parse(raw);
-    if (value?.version !== 1 || !Number.isFinite(value.savedAt) || value.savedAt > Date.now()
+    if (value?.version !== 2 || value.audience !== "guest" || !Number.isFinite(value.savedAt) || value.savedAt > Date.now()
       || Date.now() - value.savedAt > MAX_AGE_MS || !Array.isArray(value.domains)) return [];
     return value.domains.slice(0, 50).filter((item: unknown) => {
       if (!item || typeof item !== "object") return false;
@@ -47,7 +51,8 @@ export function readSearchSession(): DiscoveredDomain[] {
 export function writeSearchSession(domains: DiscoveredDomain[]): void {
   if (typeof window === "undefined") return;
   try {
+    window.sessionStorage.removeItem(LEGACY_KEY);
     if (!domains.length) window.sessionStorage.removeItem(KEY);
-    else window.sessionStorage.setItem(KEY, JSON.stringify({ version: 1, savedAt: Date.now(), domains: domains.slice(0, 50) }));
+    else window.sessionStorage.setItem(KEY, JSON.stringify({ version: 2, audience: "guest", savedAt: Date.now(), domains: domains.slice(0, 50) }));
   } catch { /* Storage restrictions must never turn a successful search into failure. */ }
 }

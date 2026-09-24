@@ -4,12 +4,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Globe, Mail, Lock, Loader2, ArrowLeft, ArrowRight, CheckCircle2, KeyRound } from "lucide-react";
+import { Mail, Lock, Loader2, ArrowLeft, ArrowRight, CheckCircle2, KeyRound, Eye, EyeOff } from "lucide-react";
+import AuthLayout from "@/components/auth/AuthLayout";
 import { useToast } from "@/hooks/use-toast";
 import { isAccountAuthConfigured, accountAuthUnavailableReason } from "@/integrations/neon/auth";
 import { passwordRecoveryToken, safeAccountPath } from "@/lib/authNavigation";
 import { useLanguage } from "@/i18n/LanguageProvider";
-import { accountNavigationCopy } from "@/i18n/accountNavigationCopy";
+import { authPresentationCopy } from "@/i18n/authPresentationCopy";
 import { accountAccessCopy } from "@/i18n/accountAccessCopy";
 import { z } from "zod";
 
@@ -360,6 +361,7 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [visiblePasswords, setVisiblePasswords] = useState({ password: false, confirmation: false });
   const [loading, setLoading] = useState(false);
   const [resetEmailSent, setResetEmailSent] = useState(false);
   const [passwordUpdated, setPasswordUpdated] = useState(false);
@@ -373,6 +375,7 @@ const Auth = () => {
   const { toast } = useToast();
   const { language } = useLanguage();
   const copy = { ...authMessages[language], ...passwordRecoveryMessages[language] };
+  const presentation = authPresentationCopy[language];
   const requestedNext = new URLSearchParams(location.search).get("next");
   const nextPath = safeAccountPath(requestedNext);
   const isSignIn = screen === "sign-in";
@@ -387,6 +390,7 @@ const Auth = () => {
     setFormError(null);
     setResetEmailSent(false);
     setPasswordUpdated(false);
+    setVisiblePasswords({ password: false, confirmation: false });
     if (requestedMode !== "update-password") setRecoveryToken(null);
   }, [requestedMode]);
 
@@ -425,20 +429,17 @@ const Auth = () => {
       ? copy.unavailableLocal
       : copy.unavailableConfig;
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background px-4">
-        <section className="w-full max-w-md rounded-2xl border border-border bg-card p-7 shadow-[0_18px_52px_hsl(219_44%_12%/0.08)] sm:p-8">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-primary/15 bg-primary/[0.07] text-primary">
-            <Globe className="h-6 w-6" aria-hidden="true" />
-          </div>
+      <AuthLayout screen="unavailable" backLabel={copy.backToSearch}>
+        <div>
           <p className="mt-5 text-[11px] font-semibold uppercase tracking-[0.14em] text-primary">{accountAccessCopy[language].accountLabel}</p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-[-0.035em] text-foreground">{copy.unavailableTitle}</h1>
+          <h1 id="auth-heading" className="mt-2">{copy.unavailableTitle}</h1>
           <p className="mt-3 text-sm leading-6 text-muted-foreground">{unavailableBody}</p>
-          <Button type="button" onClick={() => navigate("/")} className="mt-6">
+          <Button type="button" onClick={() => navigate("/")} className="sajda-auth-action mt-6 w-full">
             {copy.backToSearch}
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
           </Button>
-        </section>
-      </div>
+        </div>
+      </AuthLayout>
     );
   }
 
@@ -607,6 +608,9 @@ const Auth = () => {
           type="email"
           maxLength={254}
           autoComplete="email"
+          autoCapitalize="none"
+          spellCheck={false}
+          name="email"
           placeholder={copy.emailPlaceholder}
           value={email}
           onChange={(event) => {
@@ -614,11 +618,10 @@ const Auth = () => {
             setVerificationRequired(false);
             setErrors((current) => ({ ...current, email: undefined }));
           }}
-          className="border-border bg-secondary pl-10"
+          className="pl-10"
           disabled={loading}
           aria-invalid={Boolean(errors.email)}
           aria-describedby={errors.email ? "email-error" : undefined}
-          autoFocus
         />
       </div>
       {errors.email && <p id="email-error" className="text-xs text-destructive">{errors.email}</p>}
@@ -631,6 +634,11 @@ const Auth = () => {
     const error = confirm ? errors.confirmPassword : errors.password;
     const value = confirm ? confirmPassword : password;
     const setValue = confirm ? setConfirmPassword : setPassword;
+    const visibilityKey = confirm ? "confirmation" : "password";
+    const visible = visiblePasswords[visibilityKey];
+    const visibilityLabel = confirm
+      ? (visible ? presentation.hideConfirmation : presentation.showConfirmation)
+      : (visible ? presentation.hidePassword : presentation.showPassword);
 
     return (
       <div className="space-y-2">
@@ -639,7 +647,8 @@ const Auth = () => {
           <Lock className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input
             id={fieldId}
-            type="password"
+            type={visible ? "text" : "password"}
+            name={fieldId}
             minLength={isSignIn ? 1 : 12}
             maxLength={128}
             autoComplete={isPasswordUpdate ? "new-password" : (isSignUp ? "new-password" : "current-password")}
@@ -649,11 +658,23 @@ const Auth = () => {
               setValue(event.target.value);
               setErrors((current) => ({ ...current, [confirm ? "confirmPassword" : "password"]: undefined }));
             }}
-            className="border-border bg-secondary pl-10"
+            className="pl-10 pr-14"
             disabled={loading}
             aria-invalid={Boolean(error)}
             aria-describedby={error ? `${fieldId}-error` : !isSignIn && !confirm ? "password-requirements" : undefined}
           />
+          <button
+            type="button"
+            className="sajda-auth-toggle-password"
+            data-auth-password-toggle={fieldId}
+            aria-label={visibilityLabel}
+            aria-pressed={visible}
+            aria-controls={fieldId}
+            disabled={loading}
+            onClick={() => setVisiblePasswords((current) => ({ ...current, [visibilityKey]: !current[visibilityKey] }))}
+          >
+            {visible ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+          </button>
         </div>
         {!isSignIn && !confirm && <p id="password-requirements" className="text-xs text-muted-foreground">{copy.passwordTooShort}</p>}
         {error && <p id={`${fieldId}-error`} className="text-xs text-destructive">{error}</p>}
@@ -683,39 +704,24 @@ const Auth = () => {
         : copy.setNewPasswordDescription;
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-8">
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -top-40 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
-        <div className="absolute bottom-0 right-0 h-60 w-60 rounded-full bg-primary/5 blur-3xl" />
-      </div>
-
-      <div className="relative w-full max-w-md">
-        <div className="mb-8 flex flex-col items-center">
-          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-xl bg-primary glow-primary">
-            <Globe className="h-7 w-7 text-primary-foreground" aria-hidden="true" />
-          </div>
-          <h1 className="text-2xl font-bold text-foreground">Sajda</h1>
-          <p className="text-sm text-muted-foreground">{copy.tagline}</p>
-        </div>
-
-        <div className="rounded-xl border border-border bg-card p-6 sm:p-8">
+    <AuthLayout screen={screen} backLabel={copy.backToSearch}>
           {isPasswordUpdate && authLoading ? (
-            <div className="flex flex-col items-center gap-3 py-7 text-center">
+            <div className="flex flex-col items-center gap-3 py-7 text-center" role="status">
               <Loader2 className="h-6 w-6 animate-spin text-primary" aria-hidden="true" />
-              <p className="text-sm text-muted-foreground">{copy.checkingResetLink}</p>
+              <h1 id="auth-heading">{copy.checkingResetLink}</h1>
             </div>
           ) : isPasswordUpdate && !recoveryToken && !passwordUpdated ? (
             <div className="text-center">
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-destructive/15 bg-destructive/[0.06] text-destructive">
                 <KeyRound className="h-6 w-6" aria-hidden="true" />
               </div>
-              <h2 className="mt-5 text-xl font-semibold text-foreground">{copy.resetLinkInvalidHeading}</h2>
+              <h1 id="auth-heading" className="mt-5">{copy.resetLinkInvalidHeading}</h1>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">{copy.resetLinkInvalid}</p>
-              <Button type="button" onClick={() => changeScreen("request-reset")} className="mt-6 w-full gap-2">
+              <Button type="button" onClick={() => changeScreen("request-reset")} className="sajda-auth-action mt-6 w-full gap-2">
                 {copy.requestNewResetLink}
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Button>
-              <button type="button" onClick={() => changeScreen("sign-in")} className="mt-4 text-sm text-muted-foreground hover:text-primary">
+              <button type="button" onClick={() => changeScreen("sign-in")} className="sajda-auth-text-action mt-4">
                 {copy.backToSignIn}
               </button>
             </div>
@@ -724,9 +730,9 @@ const Auth = () => {
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/[0.08] text-emerald-700">
                 <CheckCircle2 className="h-6 w-6" aria-hidden="true" />
               </div>
-              <h2 className="mt-5 text-xl font-semibold text-foreground">{copy.passwordUpdatedHeading}</h2>
+              <h1 id="auth-heading" className="mt-5">{copy.passwordUpdatedHeading}</h1>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">{copy.passwordUpdated}</p>
-              <Button type="button" onClick={() => user ? navigate(nextPath) : changeScreen("sign-in")} className="mt-6 w-full gap-2">
+              <Button type="button" onClick={() => user ? navigate(nextPath) : changeScreen("sign-in")} className="sajda-auth-action mt-6 w-full gap-2">
                 {user ? copy.continueToSajda : copy.backToSignIn}
                 <ArrowRight className="h-4 w-4" aria-hidden="true" />
               </Button>
@@ -736,20 +742,19 @@ const Auth = () => {
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-primary/15 bg-primary/[0.07] text-primary">
                 <Mail className="h-6 w-6" aria-hidden="true" />
               </div>
-              <h2 className="mt-5 text-xl font-semibold text-foreground">{copy.resetEmailSentHeading}</h2>
+              <h1 id="auth-heading" className="mt-5">{copy.resetEmailSentHeading}</h1>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">{copy.resetEmailSent}</p>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">{copy.resetEmailSentDetail}</p>
-              <button type="button" onClick={() => changeScreen("sign-in")} className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80">
+              <button type="button" onClick={() => changeScreen("sign-in")} className="sajda-auth-text-action mt-6">
                 <ArrowLeft className="h-4 w-4" aria-hidden="true" />
                 {copy.backToSignIn}
               </button>
             </div>
           ) : (
             <>
-              <div className="mb-6 text-center">
-                <h2 className="text-xl font-semibold text-foreground">{title}</h2>
-                <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-                {(isSignIn || isSignUp) && <p className="mt-3 text-sm leading-6 text-muted-foreground">{accountNavigationCopy[language].oneAccount}</p>}
+              <div className="sajda-auth-heading">
+                <h1 id="auth-heading">{title}</h1>
+                <p>{description}</p>
               </div>
 
               {(isSignIn || isSignUp) && (
@@ -758,13 +763,13 @@ const Auth = () => {
                   {renderPasswordField()}
                   {renderFormError()}
                   {isSignIn && verificationRequired && (
-                    <Button type="button" variant="outline" disabled={loading} onClick={() => void handleVerificationRequest()} className="w-full whitespace-normal">
+                    <Button type="button" variant="outline" disabled={loading} onClick={() => void handleVerificationRequest()} className="sajda-auth-action w-full whitespace-normal">
                       {verifyCopy.resend}
                     </Button>
                   )}
                   {isSignIn && (
                     <div className="flex justify-end">
-                      <button type="button" onClick={() => changeScreen("request-reset")} className="text-sm font-medium text-primary hover:text-primary/80">
+                      <button type="button" disabled={loading} onClick={() => changeScreen("request-reset")} className="sajda-auth-text-action">
                         {copy.forgotPassword}
                       </button>
                     </div>
@@ -810,12 +815,12 @@ const Auth = () => {
 
               <div className="mt-6 text-center">
                 {isSignIn || isSignUp ? (
-                  <button type="button" onClick={() => changeScreen(isSignIn ? "sign-up" : "sign-in")} className="text-sm text-muted-foreground hover:text-primary">
-                    {isSignIn ? copy.noAccount : copy.alreadyHaveAccount}
-                    <span className="font-medium text-primary">{isSignIn ? copy.register : copy.signIn}</span>
-                  </button>
+                  <p className="text-sm leading-6 text-muted-foreground">
+                    {isSignIn ? copy.noAccount : copy.alreadyHaveAccount}{" "}
+                    <button type="button" disabled={loading} onClick={() => changeScreen(isSignIn ? "sign-up" : "sign-in")} className="sajda-auth-text-action">{isSignIn ? copy.register : copy.signIn}</button>
+                  </p>
                 ) : (
-                  <button type="button" onClick={() => changeScreen("sign-in")} className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary">
+                  <button type="button" disabled={loading} onClick={() => changeScreen("sign-in")} className="sajda-auth-text-action">
                     <ArrowLeft className="h-4 w-4" aria-hidden="true" />
                     {copy.backToSignIn}
                   </button>
@@ -823,11 +828,7 @@ const Auth = () => {
               </div>
             </>
           )}
-        </div>
-
-        <p className="mt-6 text-center text-xs text-muted-foreground">{copy.terms}</p>
-      </div>
-    </div>
+    </AuthLayout>
   );
 };
 

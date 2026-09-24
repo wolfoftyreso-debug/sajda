@@ -68,17 +68,17 @@ test("deletion request only sends stored-owner code; authenticated confirmation 
   await assert.rejects(f.confirm, hasCode("invalid_session")); assert.equal(f.billingCalls, 1);
 });
 
-test("account deletion removes scenario rate identifiers in all namespaces and retains existing cleanup", async () => {
+test("account deletion removes scenario and name-package rate identifiers in all namespaces and retains existing cleanup", async () => {
   const f = fixture(); await f.request();
   assert.deepEqual(f.rateSubjects, []);
   await f.confirm();
   const subjects = [
     ...["lost-domains", "saved-domains", "commerce"].map(scope => `${scope}:${account.id}`),
     ...["development", "preview", "production"].flatMap(namespace =>
-      ["native", "account-membership", "trading-scenarios"].map(scope => `${scope}:${namespace}:${account.id}`)),
+      ["native", "account-membership", "trading-scenarios", "name-projects", "name-package-social"].map(scope => `${scope}:${namespace}:${account.id}`)),
   ].map(subject => createHash("sha256").update(subject).digest("hex"));
   assert.deepEqual([...f.rateSubjects].sort(), subjects.sort());
-  assert.equal(new Set(f.rateSubjects).size, 12);
+  assert.equal(new Set(f.rateSubjects).size, 18);
   const removal = f.calls.findIndex(sql => sql.includes("deletion:rates"));
   assert.ok(removal >= 0 && removal < f.calls.findIndex(sql => sql.includes("deletion:delete-user")));
   assert.match(f.calls[removal], /WHERE subject_hash=ANY\(\$1::text\[\]\)/u);

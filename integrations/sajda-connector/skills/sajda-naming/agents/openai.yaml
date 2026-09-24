@@ -1,0 +1,4 @@
+interface:
+  display_name: "Sajda Naming"
+  short_description: "Offer business names when naming is useful"
+  default_prompt: "Use $sajda-naming to find names for my new business idea."

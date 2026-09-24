@@ -1,5 +1,50 @@
 # Sajda AI connector
 
+Current source, 2026-09-17: public MCP `1.6.0` has six tools and private MCP
+`1.5.0` has 21. Both also provide optional naming prompts and static policy
+resources. See [six-client distribution and consent](CONNECTOR-DISTRIBUTION.md)
+for installation packages and verification boundaries.
+The `business_names_recommend` tool answers a business-first
+request for up to ten ranked names. It shares the public/protected REST routes
+`POST /api/v1/public/business-names` and `POST /api/v1/business-names`.
+Recommendations require fresh authoritative evidence that at least one
+requested domain is available; the response explicitly reports fewer or no
+qualifying results. It does not assess price, budget, company-name rights,
+trademarks or social registration, and does not call third-party AI.
+
+For name recommendations and package searches, `nameLanguage` selects `en`,
+`sv`, `fr`, `es`, `de`, `it` or `pt`, defaulting to English independently of
+`locale` (`en`, `sv`, `es`, `fr`, `zh`). The public connector remains read-only.
+The private catalogue additionally exposes naming-project read/save, GitHub
+profile observations and Trading-scenario read/save. These require explicit
+scopes and retain account ownership, feature gates and product limits; they
+are not available anonymously. See [MCP tools and scopes](MCP.md#tools-and-scopes).
+
+`brand_lookup` searches public Wikidata records by name
+and returns the selected entity's profile. Its database-sourced assertions are
+not verified ownership, availability or legal clearance; scores stay null.
+Search first and let the user select the intended entity before profiling it.
+The adapter has shared upstream capacity/backoff and never invokes the domain
+engine, registrars, AI, account state or a purchase. See the
+[name-first API contract](API-V1.md#name-first-brand-lookup).
+`name_packages_search` returns versioned name-package
+intelligence without social lookups, legal clearance or price assessment.
+`brand_index_assess` is a separate pure calculator for an existing brand's
+declared targets and supplied reports, not a brand-name generator. It performs
+no external query or independent verification. Its score is labeled
+`SELF_ASSESSMENT`, provenance remains `USER_SUPPLIED`, and `verified_score`
+is always null. It consumes no domain/provider quota. MCP messages retain the
+16 KiB cap; the public REST calculator accepts up to 64 KiB. See the
+[existing-brand API contract](API-V1.md#existing-brand-self-assessment).
+Public 1.5.0 is deployed to `sajda-connector.vercel.app` as
+`dpl_g1P8U9JS4RLgBJMVzJR4yhgzXjkq`. Anonymous initialization, six-tool discovery
+and an actual SDK business-name call were verified: a French logistics brief
+returned five recommendations with fresh available-domain observations and an
+explicit shortfall. Private routes remained 404 without cookies. The main API
+was verified on a separate preview, not promoted to production.
+See [AGENT-API-RELEASE.md](AGENT-API-RELEASE.md) for limitations and test evidence.
+The older 1.1.0 pricing evidence below is historical, not a new price verification.
+
 Status as of 2026-09-12 (Europe/Stockholm): **1.1.0 is deployed with live Cloudflare exact pricing verified**. An anonymous SDK request for ten names within USD 30 for the first year checked a 120-name reserve and returned **10 confirmed exact offers, 0 provisional ideas and no shortfall**, stopping at `target_reached`. This is one successful, dated provider-backed search, not a guarantee of ten matches for every brief or a final tax-inclusive checkout total.
 
 The most recent full local `npm run check` recorded 1,370 passed, 0 failed and 7 skipped tests (1,377 total); that full suite was not rerun for this configuration/deployment step. The current step passed 24 scoped local tests. The release includes the host-seed contract correction for ASCII DNS labels of 1–63 characters and an exact-provider timeout covering both fetch and response-body reading. Local regressions, live SDK/provider observations and host-model behavior remain distinct evidence. No ChatGPT, Claude or Grok host-model evaluation, directory submission or approval has been completed.
@@ -18,8 +63,9 @@ The [public setup page](https://sajda-connector.vercel.app) includes the endpoin
 
 | Host / endpoint | Purpose | Authentication |
 | --- | --- | --- |
-| `sajda-connector.vercel.app/api/mcp/public` | Two bounded public discovery tools | None; omit `Authorization`, API keys, and account credentials |
-| Main Sajda deployment: `/api/mcp` | Existing private account integration, not deployed on the connector host | Scoped Sajda API key in a bearer header; not OAuth |
+| `sajda-connector.vercel.app/api/mcp/public` | Stable alias; 1.5.0 and six tools anonymously verified 2026-09-17 | None; omit `Authorization`, API keys, and account credentials |
+| Main Sajda deployment: `/api/mcp/public` | Six-tool public source catalogue; verify the deployed host separately | None; omit `Authorization` |
+| Main Sajda deployment: `/api/mcp` | 21-tool private source catalogue, not deployed on the connector host | Scoped Sajda API key in a bearer header; not OAuth |
 | `sajda-connector.vercel.app/api/mcp` | No private integration exists on this host | 404; do not send a private key here |
 
 The public endpoint rejects an `Authorization` header. It does not create an account principal or forward cookies, account headers, or caller credentials to the search engine. Connecting it does not link a Sajda account. Private client setup and existing private integration evidence are documented separately in [MCP.md](MCP.md). The dedicated release has one function and no private account/database/payment/AI-provider modules. Version 1.1 permits only its dedicated server-side Cloudflare quote credentials, configured by the operator as described below; public users still provide no credentials. The main Sajda deployment and its protection are outside this release.
@@ -28,12 +74,40 @@ Transport is stateless MCP Streamable HTTP with JSON responses. Send one JSON-RP
 
 ## Public tool contract
 
-`tools/list` is the machine-readable source of truth for input and output schemas. Both tools declare `readOnlyHint: true`, `destructiveHint: false`, `openWorldHint: true`, and `securitySchemes: [{ "type": "noauth" }]`. Discovery does not run a domain search.
+`tools/list` on the actual target is the machine-readable source of truth.
+The six-tool source catalogue below is read-only, non-destructive and `noauth`;
+`brand_index_assess` is closed-world while the other tools query external
+sources. Discovery does not run a domain search. A prior two-tool deployment
+does not gain these capabilities merely because this document changed.
 
 | Tool | Inputs | Result |
 | --- | --- | --- |
 | `domains_suggest` | Required project `query` and explicit `budget`; optional `candidateSeeds`, `tlds`, `count`, `locale` | Confirmed exact-domain budget offers in `items`; at most ten separate, explicitly provisional ideas in `provisionalItems` |
 | `domains_check` | `domains`: 1–10 unique exact names; optional `locale` | Availability observations and registrar price evidence for those names |
+| `business_names_recommend` | Required `businessDescription`; optional keywords, naming language, locale, endings, platforms, markets and count | Ranked names with fresh available-domain evidence, Brand Index, rationale and honest completeness; no budget assessment |
+| `name_packages_search` | Query, endings and platforms; optional naming language, locale, markets and count | Full candidate package evidence with explicit unchecked social/company/trademark status |
+| `brand_index_assess` | Declared brand targets and user-supplied observations | Self-assessment, never independently verified ownership or clearance |
+| `brand_lookup` | Name search, then a user-selected Wikidata entity | Public database assertions; brand score remains null |
+
+For a business-name request, call `business_names_recommend` with:
+
+```json
+{
+  "businessDescription": "A bakery making artisan bread for local families",
+  "nameLanguage": "sv",
+  "locale": "en",
+  "tlds": ["com", "se"],
+  "count": 10
+}
+```
+
+The heuristic checks a bounded pool of ten candidate labels in one package
+search, not an exhaustive market scan. Preserve `returned_count`,
+`completeness`, `shortfall_reason` and evidence timestamps. Unchecked or taken
+names in the full `intelligence` are not recommendations. Company names and
+social handles must not be described as “free” merely because a domain is
+available. Use the separate `domains_suggest` contract when a real price budget
+is part of the request; do not silently invent or ignore a budget.
 
 For `domains_suggest`:
 
@@ -48,7 +122,7 @@ For `domains_suggest`:
 
 The budget is per domain, not a total for buying every result. Ask for missing amount, currency, or period before suggesting. A renewal budget does not constrain the initial registration cost or guarantee future renewal terms.
 
-Both tools support `com`, `net`, `org`, `app`, `dev`, `ai`, `xyz`, `info`, `biz`, `se`, and `nu`. Exact checks accept ordinary ASCII domain names with these endings, not URLs, paths, wildcard names, or subdomains. The current provider selection is Loopia, Porkbun, Namecheap, and Cloudflare; this is bounded coverage, not every registrar.
+The domain tools support `com`, `net`, `org`, `app`, `dev`, `ai`, `xyz`, `info`, `biz`, `se`, and `nu`. Exact checks accept ordinary ASCII domain names with these endings, not URLs, paths, wildcard names, or subdomains. The budget-shortlist/exact-check provider selection is Loopia, Porkbun, Namecheap, and Cloudflare; this is bounded coverage, not every registrar.
 
 Example tool arguments, to be passed through an MCP client:
 
@@ -73,7 +147,7 @@ An exact follow-up uses the actual names selected from the result:
 
 ## Interpret the evidence
 
-Successful calls return an `ok`, `requestId`, and `data` envelope in both text and `structuredContent`. In 1.1, `items` contains **only** `confirmed_exact_offer` results. `returnedCount = confirmedCount = items.length`, and `shortfall = requestedCount - confirmedCount`. `complete` requires the requested number of confirmed exact offers; `partial` has fewer and `empty` has none.
+Successful public calls return an `ok`, `requestId`, and `data` envelope in both text and `structuredContent`. The following price rules apply to `domains_suggest`, not business-name/package results. Since 1.1, its `items` contains **only** `confirmed_exact_offer` results. `returnedCount = confirmedCount = items.length`, and `shortfall = requestedCount - confirmedCount`. `complete` requires the requested number of confirmed exact offers; `partial` has fewer and `empty` has none.
 
 `provisionalItems` contains at most ten `conditional_tld_estimate` ideas. `provisionalCount` and its compatibility alias `conditionalCount` count only that separate collection. Provisional ideas never enter `items`, reduce `shortfall`, make the status `complete`, or terminate the refill loop. For example, ten provisional ideas and zero exact offers means `returnedCount: 0`, `confirmedCount: 0`, `shortfall: 10`, `status: "empty"` for a ten-name request. Explain `exclusions`, `warnings` and `search.stopReason`; do not merge the two collections into a claimed successful shortlist.
 
@@ -117,15 +191,49 @@ Other clients need remote Streamable HTTP and anonymous tool support. Verify ini
 
 ## Data, limits, and operations
 
-The public tools use Sajda's non-AI naming/search path; they do not invoke third-party AI generation. The host assistant can contribute `candidateSeeds` under its own service terms. Sajda receives tool arguments, and registry/registrar services receive domain queries needed for checks and price evidence. No account history is exposed through these tools. Do not include confidential project details that are unnecessary to search.
+Public naming/domain tools use Sajda's non-AI search path; brand lookup queries
+Wikidata, and brand self-assessment performs no external lookup. The host
+assistant may contribute `candidateSeeds` to `domains_suggest` under its own
+service terms. Registry/registrar services receive domain queries needed for
+checks and price evidence. No account history is exposed publicly. Do not
+include confidential project details unnecessary to the request.
 
-One suggestion builds a deterministic reserve of up to 120 distinct names, balancing selected extensions and several naming directions. The local semantic lexicon targets English and Swedish; an unsupported or context-free brief can yield fewer or no candidates. Host seeds retain the public ASCII DNS-label contract, receive a separate generic/nonsense screen, and carry explicit attribution; generated labels normally use the stricter 6–20-character naming screen. Naming scores are spelling/relevance heuristics, not valuations.
+One budget suggestion builds a deterministic reserve of up to 120 distinct
+names. Its automatic language inference targets English and Swedish; explicit
+seven-language selection belongs to business-name and package searches.
+Unsupported or context-free briefs can yield fewer or no candidates. Host
+seeds retain the ASCII DNS-label contract, receive a generic/nonsense screen
+and carry explicit attribution; generated labels normally use the stricter
+6–20-character screen. Naming scores are heuristics, not valuations.
 
 The reserve consumes **one** anonymous engine allowance, not one per name. Registry work has a 22-second admission deadline. Fresh registry-not-found candidates then enter at most six Cloudflare quote batches of at most 20 names each, refilling until the requested number of exact budget matches is reached or the reserve/work/provider limit stops the run. No new quote batch starts after 45 seconds from tool start; the final already-started check may use its eight-second timeout, shared by fetch and response-body reading. These limits bound work, not promise 120 completed checks or ten matches. `search` records pool size, registry/quote checks, batches and stop reason. Missing exact credentials stops with `exact_pricing_not_configured`, not a fabricated successful shortlist.
 
 Search calls share the existing anonymous engine allowance of 6 searches per minute per IP per warm process. MCP requests, including metadata, have an additional bounded 120-per-minute per-IP process-local guard. These are best-effort abuse controls: different serverless processes do not share their memory, and clients behind a common host IP may share a bucket. They are not an account entitlement, a durable monthly quota, or a paid API plan.
 
 Respect HTTP `Retry-After` and tool `retryAfterSeconds` values. Report provider failures or rate limits honestly, and do not compensate with unverified suggestions or repeated automatic calls. Read-only status does not make calls costless or exempt them from provider limits.
+
+## Private workspace extension and boundaries
+
+Private `name_projects_list/save`, `social_profiles_check` and
+`trading_scenarios_list/save` map to `/api/v1/account` resources
+`name-projects`, `social-profiles` and `trading-scenarios`. New permissions
+`projects:read`, `projects:write`, `social:check` and `trading:write` require
+migration `0020_agent_product_scopes.sql` before issuance. Existing keys are
+not upgraded; omitted scopes still mean `domains:search` only. Older code
+cannot read keys with these new scopes, so rollback needs compatible readers
+or an explicit credential replacement plan.
+
+Project/scenario saves return only the affected record, not the entire private
+workspace. Use stable IDs and optimistic versions; retry the identical payload
+after an ambiguous failure. A GitHub missing-profile observation does not prove
+that a handle can be registered. Trading scenarios remain user-authored
+assumptions and require active Trading membership.
+
+Authentication, billing, deletion and key administration remain controlled
+account flows, not public agent actions. Disabled legacy Supabase features are
+not exposed. Deep Review and the budget-shortlist workflow do not have full
+versioned REST/MCP parity. No tool purchases or reserves domains. The private
+extension is not deployed onto the isolated anonymous connector host.
 
 ## Cloudflare operator setup — production configured, not public-user authentication
 

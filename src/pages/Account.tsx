@@ -152,7 +152,7 @@ const Account = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-24">
+    <div className="min-h-screen bg-background pb-24 md:pb-8">
       <main className="mx-auto max-w-3xl px-4 py-6 sm:px-6" aria-labelledby="account-title">
         <Link to="/" className="mb-6 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><ArrowLeft aria-hidden="true" className="h-4 w-4 shrink-0" />{membershipCopy.home}</Link>
         <header className="mb-6">

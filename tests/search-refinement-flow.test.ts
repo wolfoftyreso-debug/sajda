@@ -17,7 +17,7 @@ import { parseSearchRefinement } from "../shared/search-refinement";
 type ScanState = ReturnType<typeof useScanType>;
 const origin = "https://sajda.example.test";
 const quotaKey = "sajda.free-search.v1";
-const sessionKey = "sajda.search-results.v1";
+const sessionKey = "sajda.search-results.v2";
 const account: AccountUser = { id: "free-account", email: "qa@example.test", email_verified: true, created_at: "2026-09-01T00:00:00Z" };
 const originalCriteria = { ...DEFAULT_ADVANCED_SEARCH_CRITERIA, nameStyle: "invented" as const, includeWords: ["calm"], excludeWords: ["robot"] };
 const originalOptions: StartScanOptions = {
@@ -51,6 +51,7 @@ test("mounted iterative search preserves original context, access boundaries and
   const session = new Map<string, string>();
   const localWrites: [string, string][] = [];
   const fixture = { auth: { user: account as AccountUser | null, loading: false }, language: "en" as Language, toasts: [] as unknown[], watchlistMutations: 0 };
+  let projectRouteState: unknown;
   const setGlobal = (key: string, value: unknown) => Object.defineProperty(globalThis, key, { configurable: true, value });
   const storage = (map: Map<string, string>, writes?: [string, string][]) => ({
     getItem: (key: string) => map.get(key) ?? null,
@@ -66,6 +67,7 @@ test("mounted iterative search preserves original context, access boundaries and
   });
   setGlobal("document", { getElementById: () => null });
   const mocks = new Map([
+    ["/src/lib/nameProjectsFeature.ts", "export const nameProjectsEnabled=true;"],
     ["/src/contexts/AuthContext.tsx", "export const useAuth=()=>globalThis.__REFINEMENT_FLOW__.auth;"],
     ["/src/i18n/LanguageProvider.tsx", "const t=(key)=>key; export const useLanguage=()=>({language:globalThis.__REFINEMENT_FLOW__.language,t}); export const translate=(_locale,key)=>key;"],
     ["/src/hooks/use-toast.ts", "const toast=(value)=>globalThis.__REFINEMENT_FLOW__.toasts.push(value); export const useToast=()=>({toast});"],
@@ -103,7 +105,7 @@ test("mounted iterative search preserves original context, access boundaries and
     const { ScanProvider, useScan } = await vite.ssrLoadModule("/src/contexts/ScanContext.tsx");
     const { default: Index } = await vite.ssrLoadModule("/src/pages/Index.tsx");
     function Probe() { scan = useScan(); return null; }
-    const tree = () => h(MemoryRouter, null, h(ScanProvider, null, h(Fragment, null, h(Probe), h(Index))));
+    const tree = () => h(MemoryRouter, { initialEntries: [{ pathname: "/", state: projectRouteState }] }, h(ScanProvider, null, h(Fragment, null, h(Probe), h(Index))));
     const mount = async ({ user = account as AccountUser | null, loading = false, consumed = false, preserveSession = false, language = "en" as Language } = {}) => {
       if (renderer) await act(async () => renderer!.unmount());
       local.clear(); localWrites.length = 0; requests.length = 0; fixture.toasts.length = 0; fixture.watchlistMutations = 0;
@@ -126,6 +128,52 @@ test("mounted iterative search preserves original context, access boundaries and
       await act(async () => button(scan.domains[0].domain).props.onClick());
     };
     const refine = async () => { await act(async () => { button(searchRefinementCopy.en.submit).props.onClick(); await pause(); }); };
+
+    await t.test("brand name language reaches the real transport without changing UI locale or exact domains", async () => {
+      await mount();
+      await start({ theme: "bakery", tlds: ["com"], namePackages: true, nameLanguage: "fr" });
+      assert.equal(requests.length, 1);
+      assert.equal(requests[0].body.nameLanguage, "fr");
+      assert.equal(requests[0].body.locale, "en");
+      assert.equal(requests[0].body.advanced, false);
+      assert.equal(requests[0].body.aiConsent, undefined);
+      assert.equal(scan.lastSearchOptions?.nameLanguage, "fr");
+      await mount();
+      await start({ theme: "atelier", tlds: ["com"], domains: ["atelier.com"], namePackages: true, nameLanguage: "fr" });
+      assert.equal(requests[0].body.nameLanguage, undefined);
+      assert.deepEqual(requests[0].body.domains, ["atelier.com"]);
+      await mount(); await start();
+      assert.equal(requests[0].body.nameLanguage, undefined, "Unrelated creative searches retain their existing request shape");
+    });
+    await t.test("project handoff prepares the real form without spending a search and clears on account switch", async () => {
+      projectRouteState = { nameProjectAccountId: account.id, nameProject: {
+        id: "c4129878-d6ab-47b6-b1d6-e9a47e6b95e5", title: "Coffee studio", description: "A calm neighborhood coffee studio",
+        audience: "Local founders", desiredStyle: "Short", languages: ["en"],
+        budget: { currency: "USD", maxFirstYearCents: 3000, maxAnnualRenewalCents: 5000 },
+        archived: false, version: 1, shortlistDomains: [], createdAt: "2026-09-13T10:00:00.000Z", updatedAt: "2026-09-13T10:00:00.000Z",
+      } };
+      await mount();
+      let advanced = renderer!.root.findByType("fixture-advancedsearchbrief").props;
+      assert.equal(advanced.enabled, true);
+      assert.match(advanced.value, /Audience: Local founders/);
+      assert.match(advanced.value, /USD 30\.00/);
+      assert.equal(requests.length, 0, "Opening the project does not submit or consume a search");
+      assert.ok(renderer!.root.findAllByType("a").some(link => link.props.href === "/projects" && text(link) === "Back to project"));
+      const preparedBrief = advanced.value;
+      await act(async () => { renderer!.root.findByType("form").props.onSubmit({ preventDefault() {} }); await pause(); });
+      assert.equal(requests.length, 1);
+      assert.equal(requests[0].body.brief, preparedBrief);
+      assert.equal(requests[0].body.aiConsent, undefined, "Project handoff never opts into AI sharing");
+      await act(async () => button("search.edit").props.onClick());
+      fixture.auth = { user: { ...account, id: "different-account" }, loading: false };
+      await act(async () => renderer!.update(tree()));
+      advanced = renderer!.root.findByType("fixture-advancedsearchbrief").props;
+      assert.equal(advanced.value, "");
+      assert.equal(advanced.enabled, false);
+      assert.equal(renderer!.root.findAllByType("a").some(link => text(link) === "Back to project"), false);
+      assert.equal(requests.length, 1);
+      projectRouteState = undefined;
+    });
 
     await t.test("Index shows ten, reveals existing results without a request, and posts explicit original-context feedback", async () => {
       await mount({ consumed: true });
@@ -314,12 +362,12 @@ test("mounted iterative search preserves original context, access boundaries and
       assert.equal(requests[2].body.aiConsent, undefined);
     });
 
-    await t.test("restored snapshots do not resurrect briefs or permit context-free refinement", async () => {
-      await mount(); await start();
+    await t.test("restored guest snapshots do not resurrect briefs or permit context-free refinement", async () => {
+      await mount({ user: null }); await start();
       const snapshot = session.get(sessionKey);
       assert.ok(snapshot);
       assert.doesNotMatch(snapshot!, /coffee studio|neighborhood|includeWords|refinement|aiConsent/);
-      await mount({ preserveSession: true });
+      await mount({ user: null, preserveSession: true });
       assert.equal(scan.restoredResults, true);
       assert.equal(scan.lastSearchOptions, null);
       assert.equal(scan.generation, null);

@@ -5,7 +5,7 @@ import { openApiDocument } from "../api/_shared/openapi-document.mjs";
 import { createVercelBuildEnvironment } from "../scripts/build-vercel.mjs";
 import { assertPublicBrowserBundle } from "../scripts/check-neon-build.mjs";
 
-const appRoutes = ["/auth", "/connect/native", "/contact", "/plus", "/pricing", "/story", "/how-it-works", "/developers", "/legal", "/security", "/status", "/marketplace", "/marketplace/:listingId", "/swipe", "/watchlist", "/my-domains", "/history", "/account", "/install", "/top-10-today", "/admin"];
+const appRoutes = ["/auth", "/connect/native", "/contact", "/plus", "/pricing", "/story", "/how-it-works", "/developers", "/legal", "/security", "/status", "/marketplace", "/marketplace/:listingId", "/swipe", "/watchlist", "/projects", "/name-packages", "/brand-index", "/brand-index/assessment", "/my-domains", "/history", "/account", "/install", "/top-10-today", "/admin"];
 
 test("Plus is private/noindex and bounded worker functions do not activate a crawl schedule", async () => {
   const config = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
@@ -29,6 +29,14 @@ test("clean-URL application rewrites target the served root, not an excluded .ht
   for (const route of applicationRewrites) {
     assert.equal(route.destination, "/");
     assert.ok(!route.source.includes("(.*)"), "unknown pages must not become a soft 404");
+  }
+  const productRoutes = await readFile(new URL("../src/app/ProductRoutes.tsx", import.meta.url), "utf8");
+  for (const path of ["/brand-index", "/brand-index/assessment"]) {
+    assert.ok(productRoutes.includes(`path="${path}"`), `${path} must have an actual application route`);
+    const headers = config.headers.find(entry => entry.source === path)?.headers ?? [];
+    assert.ok(headers.some(header => header.key === "X-Robots-Tag" && header.value === "noindex, nofollow"), `${path} is not an indexable SEO entry`);
+    assert.ok(headers.some(header => header.key === "Cache-Control" && header.value === "private, no-store"), `${path} keeps assessment state private`);
+    assert.ok(headers.some(header => header.key === "Referrer-Policy" && header.value === "no-referrer"), `${path} does not disclose assessment URLs through referrers`);
   }
 });
 
@@ -80,6 +88,17 @@ test("Vercel derives account auth from both server requirements, never stale pub
 test("build environment retains matching canonicals and rejects configuration drift", () => {
   assert.equal(createVercelBuildEnvironment({ SAJDA_CANONICAL_ORIGIN: "https://sajda.example.test" }).VITE_SAJDA_CANONICAL_ORIGIN, "https://sajda.example.test");
   assert.throws(() => createVercelBuildEnvironment({ SAJDA_CANONICAL_ORIGIN: "https://sajda.example.test", VITE_SAJDA_CANONICAL_ORIGIN: "https://other.example.test" }), /must match/);
+});
+
+test("name-project navigation requires the server gate and working account configuration", async () => {
+  const configured = { DATABASE_URL: "postgresql://fixture", BETTER_AUTH_SECRET: "x".repeat(32) };
+  assert.equal(createVercelBuildEnvironment({ ...configured, VITE_SAJDA_NAME_PROJECTS_ENABLED: "true" }).VITE_SAJDA_NAME_PROJECTS_ENABLED, "false");
+  assert.equal(createVercelBuildEnvironment({ SAJDA_NAME_PROJECTS_ENABLED: "true" }).VITE_SAJDA_NAME_PROJECTS_ENABLED, "false");
+  assert.equal(createVercelBuildEnvironment({ ...configured, SAJDA_NAME_PROJECTS_ENABLED: "true" }).VITE_SAJDA_NAME_PROJECTS_ENABLED, "true");
+  const config = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
+  const headers = config.headers.find(entry => entry.source === "/projects").headers;
+  assert.ok(headers.some(header => header.key === "X-Robots-Tag" && header.value.includes("noindex")));
+  assert.ok(headers.some(header => header.key === "Cache-Control" && header.value === "private, no-store"));
 });
 
 test("public bundle policy rejects external auth, JWT requests and exposed secrets without dumping source", () => {

@@ -7,8 +7,9 @@ import nativeCommerceCron from "../api/cron/native-commerce.js";
 import appStoreWebhook from "../api/app-store-webhook.js";
 
 const source = readFileSync(new URL("../scripts/serve-vercel-local.ts", import.meta.url), "utf8");
-const imports = new Map([...source.matchAll(/^import\s+(\w+)\s+from\s+"\.\.\/api\/([^";]+)";/gmu)]
-  .map(match => [match[1], `/api/${match[2]}`]));
+const importEntries = [...source.matchAll(/^import\s+(\w+)\s+from\s+"\.\.\/api\/([^";]+)";/gmu)]
+  .map(match => [match[1], `/api/${match[2]}`] as const);
+const imports = new Map(importEntries);
 const entries = [...source.matchAll(/\[\s*"(\/api\/[^"\n]+)"\s*,\s*(\w+)\s*\]/gu)]
   .map(match => [match[1], match[2]] as const);
 const routes = new Map(entries);
@@ -22,6 +23,7 @@ function apiPaths(directory = new URL("../api/", import.meta.url), prefix = "/ap
 }
 
 test("loopback QA explicitly maps every public API file to its actual production handler", () => {
+  assert.equal(importEntries.length, imports.size, "Public catalogue and private account handlers must use distinct import bindings");
   assert.equal(entries.length, routes.size, "Duplicate route declarations must not silently shadow another handler");
   const expected = apiPaths().sort();
   assert.deepEqual([...routes.keys()].sort(), expected,

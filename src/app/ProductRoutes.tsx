@@ -6,6 +6,10 @@ import AccountFeatureUnavailable from "@/pages/AccountFeatureUnavailable";
 
 const Index = lazy(() => import("@/pages/Index"));
 const Watchlist = lazy(() => import("@/pages/Watchlist"));
+const NameProjects = lazy(() => import("@/pages/NameProjects"));
+const NamePackages = lazy(() => import("@/pages/NamePackages"));
+const BrandIndex = lazy(() => import("@/pages/BrandIndex"));
+const BrandIndexAssessment = lazy(() => import("@/pages/BrandIndexAssessment"));
 const MyDomains = lazy(() => import("@/pages/MyDomains"));
 const SearchHistory = lazy(() => import("@/pages/SearchHistory"));
 const Account = lazy(() => import("@/pages/Account"));
@@ -34,9 +38,13 @@ export default function ProductRoutes({ children, authElement }: { children?: Re
     <Route path="/status" element={<Status />} />
     <Route path="/contact" element={<Contact />} />
     <Route path="/plus" element={<LostDomains />} />
+    <Route path="/brand-index" element={<BrandIndex />} />
+    <Route path="/brand-index/assessment" element={<BrandIndexAssessment />} />
     <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
     <Route path="/swipe" element={<ProtectedRoute><Swipe /></ProtectedRoute>} />
     <Route path="/watchlist" element={<ProtectedRoute><Watchlist /></ProtectedRoute>} />
+    <Route path="/projects" element={<ProtectedRoute><NameProjects /></ProtectedRoute>} />
+    <Route path="/name-packages" element={<ProtectedRoute><NamePackages /></ProtectedRoute>} />
     <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
     <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
     <Route path="/my-domains" element={<ProtectedRoute>{hasSupabaseBrowserConfig ? <MyDomains /> : <AccountFeatureUnavailable />}</ProtectedRoute>} />

@@ -58,7 +58,7 @@ const AppRoutes = () => {
           <Route path="/install" element={<ProtectedRoute><Install /></ProtectedRoute>} />
         </ProductRoutes>
       </Suspense>
-      {pathname !== "/swipe" && <SajdaFooter />}
+      {pathname !== "/swipe" && pathname !== "/auth" && <SajdaFooter />}
       <FreeSearchGate />
     </>
   );

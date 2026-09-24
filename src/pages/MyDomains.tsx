@@ -494,7 +494,7 @@ const MyDomains = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-24">
+    <div className="min-h-screen bg-background pb-24 md:pb-8">
       {/* Search, Filters and Action Buttons */}
       <div className="container mx-auto px-6 py-4">
         <div className="flex flex-col gap-4">

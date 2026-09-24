@@ -46,6 +46,9 @@ test("pricing keeps ordinary naming separate from Trading and states that saving
   }
   assert.match(getPricingCopy("en").plans.free.points.join(" "), /Save domains with a verified account/);
   assert.match(getPricingCopy("sv").plans.free.points.join(" "), /Spara domäner med verifierat konto/);
+  assert.match(getPricingCopy("en").plannedContents, /not all features are live/);
+  assert.match(getPricingCopy("en").plans.premium.audience, /founders and small agencies/);
+  assert.doesNotMatch(getPricingCopy("en").plans.basic.points.join(" "), /Save and compare|smaller project|Limited swiping/);
 });
 
 test("mounted pricing presents the shared prices and only truthful navigation, without checkout effects", async t => {
@@ -79,10 +82,19 @@ test("mounted pricing presents the shared prices and only truthful navigation, w
         const cards = renderer!.root.findAllByType("article");
         assert.equal(cards.length, 4);
         assert.equal(renderer!.root.findAllByType("h1").length, 1);
+        const founderSection = renderer!.root.findByProps({ "data-plan-group": "founder" });
+        const specialistSection = renderer!.root.findByProps({ "data-plan-group": "specialist" });
+        assert.deepEqual(founderSection.findAllByType("article").map(card => card.props["data-plan"]), ["free", "basic", "premium"]);
+        assert.deepEqual(specialistSection.findAllByType("article").map(card => card.props["data-plan"]), ["trading"]);
+        const freeStart = renderer!.root.findByProps({ "aria-labelledby": "pricing-current-title" }).findByType("a");
+        assert.equal(freeStart.props.href, "/", "Visitors can reach value before weighing unavailable subscriptions");
+        assert.equal(label(freeStart), getPricingCopy(language).trySearch);
         for (const id of PLAN_ORDER) {
           const card = cards.find(card => card.props["data-plan"] === id)!;
           const price = card.findByProps({ "data-plan-price": id });
           assert.equal(label(price), formatPlanMonthlyPrice(id, language));
+          const scope = card.findByProps({ "data-plan-scope": id === "free" ? "available" : "planned" });
+          assert.equal(label(scope), id === "free" ? getPricingCopy(language).contents : getPricingCopy(language).plannedContents);
           if (id === "basic" || id === "premium") {
             const button = card.findByType("button");
             assert.equal(button.props.disabled, true);

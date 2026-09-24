@@ -9,6 +9,8 @@ import membership from "../account/membership.js";
 import saved from "../account/saved-domains.js";
 import trading from "../account/lost-domains.js";
 import tradingScenarios from "../account/trading-scenarios.js";
+import nameProjects from "../account/name-projects.js";
+import namePackageSocial from "../account/name-package-social.js";
 import capabilities from "../account/capabilities.js";
 import developerKeys from "../developer/api-keys.js";
 import appSessions from "../account/app-sessions.js";
@@ -19,6 +21,16 @@ const input = z.object({
   path: z.string().max(1000), method: z.enum(["GET","POST","DELETE"]),
   accountId: z.string().min(1).max(200), body: z.unknown().optional(),
 }).strict();
+/** The project body keeps its own 32 KB limit. Only its exact native envelope
+ * gets 2 KB of additional routing overhead; all other routes retain 16 KB. */
+export function nativeAccountJson(request: NativeRequest) {
+  return nativeJson(request, {
+    maxBytes: 34_816,
+    parsedMaxBytes: value => value && typeof value === "object" && !Array.isArray(value)
+      && "path" in value && value.path === "/api/account/name-projects"
+      && "method" in value && value.method === "POST" ? 34_816 : 16_384,
+  });
+}
 export function nativeAccountRoute(path: string, method: string, body?: unknown) {
   if (/^\/api\/developer\/api-keys(?:\?id=[a-f0-9-]{36})?$/.test(path)
     && ["GET","POST","DELETE"].includes(method)) {
@@ -53,6 +65,12 @@ export function nativeAccountRoute(path: string, method: string, body?: unknown)
   if (url.pathname === "/api/account/trading-scenarios" && ["GET","POST"].includes(method) && !url.search) {
     return {handler:tradingScenarios,scope:method === "GET" ? "trading:read" : "trading:run",query:{}};
   }
+  if (path === "/api/account/name-projects" && ["GET","POST"].includes(method)) {
+    return {handler:nameProjects,scope:method === "GET" ? "saved:read" : "saved:write",query:{}};
+  }
+  if (path === "/api/account/name-package-social" && method === "POST") {
+    return {handler:namePackageSocial,scope:"saved:read",query:{}};
+  }
   // StoreKit has a dedicated verified commerce boundary. No native request can initiate
   // the browser Stripe checkout or portal, even if its UI is modified.
   throw new AccountAccessError("unsupported_native_action",403,"This action is not available in the app.");
@@ -68,7 +86,7 @@ export default async function handler(request: NativeRequest, response: NativeRe
     }
     const { principal } = await requireNativeSession(request.headers);
     await limitNative(principal.userId,120);
-    const parsed = input.safeParse(await nativeJson(request));
+    const parsed = input.safeParse(await nativeAccountJson(request));
     if (!parsed.success) throw new AccountAccessError("invalid_request",400,"Send a valid app request.");
     const value = parsed.data;
     if (value.accountId !== principal.userId) throw new AccountAccessError("account_changed",409,"Your account changed. Reload before trying again.");

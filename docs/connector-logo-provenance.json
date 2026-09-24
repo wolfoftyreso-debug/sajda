@@ -1,0 +1,123 @@
+{
+  "retrievedAt": "2026-09-24",
+  "licenseNotice": "public-clean/connectors/LICENSE.txt",
+  "assets": [
+    {
+      "id": "chatgpt",
+      "file": "public-clean/connectors/chatgpt.svg",
+      "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/5c1ecb4fb06b92519a39102482d4e8273f000422/packages/static-svg/icons/openai.svg",
+      "library": "Lobe Icons",
+      "license": "MIT",
+      "sha256": "a595df6b423920c67a7f8f73c063e4bfb72d415948097b6cac063a2366bb5186",
+      "modified": false
+    },
+    {
+      "id": "claude",
+      "file": "public-clean/connectors/claude.svg",
+      "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/5c1ecb4fb06b92519a39102482d4e8273f000422/packages/static-svg/icons/claude-color.svg",
+      "library": "Lobe Icons",
+      "license": "MIT",
+      "sha256": "a3101f3047a119aa11825ad9369510f0c472428c8c52d420e31bc62db44a8364",
+      "modified": false
+    },
+    {
+      "id": "grok",
+      "file": "public-clean/connectors/grok.svg",
+      "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/5c1ecb4fb06b92519a39102482d4e8273f000422/packages/static-svg/icons/grok.svg",
+      "library": "Lobe Icons",
+      "license": "MIT",
+      "sha256": "9175fc90c22655160231976c849f25a03b888d7cc0e04c5f1b987b659bb07c95",
+      "modified": false
+    },
+    {
+      "id": "perplexity",
+      "file": "public-clean/connectors/perplexity.svg",
+      "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/5c1ecb4fb06b92519a39102482d4e8273f000422/packages/static-svg/icons/perplexity-color.svg",
+      "library": "Lobe Icons",
+      "license": "MIT",
+      "sha256": "8353f3ab20822f1a933224b0ea32cc39f0c32d5740f4af8c254b0f418e0a3a70",
+      "modified": false
+    },
+    {
+      "id": "cursor",
+      "file": "public-clean/connectors/cursor.svg",
+      "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/5c1ecb4fb06b92519a39102482d4e8273f000422/packages/static-svg/icons/cursor.svg",
+      "library": "Lobe Icons",
+      "license": "MIT",
+      "sha256": "0cb51bddf264ae108926fd554c063ef40fc1aac3c5c921ddb39ad184e4e5d0ef",
+      "modified": false
+    },
+    {
+      "id": "replit",
+      "file": "public-clean/connectors/replit.svg",
+      "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/5c1ecb4fb06b92519a39102482d4e8273f000422/packages/static-svg/icons/replit-color.svg",
+      "library": "Lobe Icons",
+      "license": "MIT",
+      "sha256": "7d803ffdfc0d46aec134f656fd3c8815ee936a6726295eea5173d7122007eae5",
+      "modified": false
+    },
+    {
+      "id": "lovable",
+      "file": "public-clean/connectors/lovable.svg",
+      "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/5c1ecb4fb06b92519a39102482d4e8273f000422/packages/static-svg/icons/lovable-color.svg",
+      "library": "Lobe Icons",
+      "license": "MIT",
+      "sha256": "ab3b36b92ef69561b00f963eb3edaef9afdd598d67424991d74157419cd1d44e",
+      "modified": false
+    },
+    {
+      "id": "codex",
+      "file": "public-clean/connectors/codex.svg",
+      "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/5c1ecb4fb06b92519a39102482d4e8273f000422/packages/static-svg/icons/codex-color.svg",
+      "library": "Lobe Icons",
+      "license": "MIT",
+      "sha256": "4a2f43ce46b5b6e3722c95088f88d26ef91e6a8c2e598e70642a1c54367386e4",
+      "modified": false
+    },
+    {
+      "id": "vscode",
+      "file": "public-clean/connectors/vscode.svg",
+      "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/5c1ecb4fb06b92519a39102482d4e8273f000422/packages/static-svg/icons/githubcopilot.svg",
+      "library": "Lobe Icons",
+      "license": "MIT",
+      "sha256": "bbc7fddc13448236e5edea8c399d2072dc40aa5da5bca07f7a2f412405c500a3",
+      "modified": false
+    },
+    {
+      "id": "windsurf",
+      "file": "public-clean/connectors/windsurf.svg",
+      "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/5c1ecb4fb06b92519a39102482d4e8273f000422/packages/static-svg/icons/windsurf.svg",
+      "library": "Lobe Icons",
+      "license": "MIT",
+      "sha256": "e3c836aae05a3741e33d5c5a38d4167aacfbb69e480d098b8b94cad8c90e0d08",
+      "modified": false
+    },
+    {
+      "id": "cline",
+      "file": "public-clean/connectors/cline.svg",
+      "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/5c1ecb4fb06b92519a39102482d4e8273f000422/packages/static-svg/icons/cline.svg",
+      "library": "Lobe Icons",
+      "license": "MIT",
+      "sha256": "9003d2cdce82b016147b732abb4def60af55c348ba2cea2ba0b69a3c7d159b19",
+      "modified": false
+    },
+    {
+      "id": "gemini-cli",
+      "file": "public-clean/connectors/gemini-cli.svg",
+      "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/5c1ecb4fb06b92519a39102482d4e8273f000422/packages/static-svg/icons/gemini-color.svg",
+      "library": "Lobe Icons",
+      "license": "MIT",
+      "sha256": "8ab0a9bafec11f7e69bcb9fc4ffd8f1bc927d1ddcbbb6ff36dee5ae8b5a9d602",
+      "modified": false
+    },
+    {
+      "id": "zed",
+      "file": "public-clean/connectors/zed.svg",
+      "source": "https://raw.githubusercontent.com/simple-icons/simple-icons/b86d5c9a0bdd4f3f5c30898a63654dd32f39fd76/icons/zedindustries.svg",
+      "library": "Simple Icons",
+      "license": "CC0-1.0",
+      "sha256": "90848d3e8d74d4fb3efc7137b8a5181139082e212566b025843379a7cb0550a0",
+      "modified": false
+    }
+  ]
+}

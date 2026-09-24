@@ -7,8 +7,11 @@ import { MemoryRouter } from "react-router-dom";
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 import { createServer } from "vite";
 import { connectorCopy } from "../src/i18n/connectorCopy";
+import { connectorDirectoryCopy, connectorInstructions } from "../src/i18n/connectorDirectoryCopy";
 import type { Language } from "../src/i18n/languagePreference";
 import { PUBLIC_CONNECTOR_ORIGIN } from "../src/lib/publicConnector";
+import { CONNECTOR_HOSTS, connectorInstallUrl, connectorConfig, cursorMcpConfig } from "../src/lib/connectorSetup";
+import { CONNECTOR_HOST_INSTRUCTIONS, getConnectorOffer } from "../shared/connector-policy";
 
 const languages: Language[] = ["en", "sv", "es", "fr", "zh"];
 const c = connectorCopy.en;
@@ -22,7 +25,9 @@ test("connector instructions have complete five-language copy and retain budget 
   assert.deepEqual(Object.keys(connectorCopy).sort(), [...languages].sort());
   for (const language of languages) {
     const copy = connectorCopy[language];
+    const directory = connectorDirectoryCopy[language];
     assert.deepEqual(Object.keys(copy).sort(), keys);
+    assert.deepEqual(Object.keys(directory).sort(), Object.keys(connectorDirectoryCopy.en).sort());
     for (const [key, value] of Object.entries(copy)) {
       assert.ok(value.trim(), `${language}.${key}`);
       assert.equal(value, value.trim());
@@ -34,14 +39,51 @@ test("connector instructions have complete five-language copy and retain budget 
     if (language !== "en") for (const key of ["title", "lead", "prompt", "priceHint", "copyError", "privacy", "listing", "verification"] as const) {
       assert.notEqual(copy[key], c[key], `${language}.${key} is translated`);
     }
+    for (const [key, value] of Object.entries(directory)) {
+      assert.ok(value.trim(), `${language}.directory.${key}`);
+      assert.equal(value, value.trim());
+      assert.doesNotMatch(value, /\uFFFD|<[^>]+>|\{\w+\}/u);
+      if (language !== "en") assert.notEqual(value, connectorDirectoryCopy.en[key as keyof typeof directory], `${language}.directory.${key} is translated`);
+    }
+    for (const host of CONNECTOR_HOSTS) {
+      const instructions = connectorInstructions(language, host);
+      assert.equal(instructions.steps.length, 3);
+      assert.ok(instructions.steps.every(step => typeof step === "string" && step.trim().length > 0));
+      assert.ok(instructions.action.trim());
+      if (language !== "en") assert.notDeepEqual(instructions.steps, connectorInstructions("en", host).steps, `${host.id} instructions are translated into ${language}`);
+    }
   }
   assert.match(c.prompt, /up to 10/u); assert.match(c.prompt, /Return fewer/u);
-  assert.match(c.priceHint, /published extension prices/u);
-  assert.match(c.pricing, /not exact checkout quotes/u);
+  assert.match(c.priceHint, /exact domain/u);
+  assert.match(c.pricing, /exact-domain registrar quote/u);
+  assert.match(c.pricing, /Unknown or provisional prices are not confirmed/u);
+  assert.match(c.pricing, /taxes and fees may be unknown/u);
   assert.match(c.privacy, /cannot read your account.*cannot buy domains/u);
   assert.match(c.listing, /not a directory listing/u);
   assert.match(c.verification, /not yet been verified/u);
   assert.match(c.limits, /not unlimited/u);
+  assert.match(c.companionLead, /does not read chats in the background/u);
+  assert.match(c.companionLead, /only after you say yes/u);
+  assert.match(c.companionCaveat, /not guaranteed/u);
+});
+
+test("builder install links decode to credential-free Sajda configurations", () => {
+  assert.deepEqual(CONNECTOR_HOSTS.map(host => host.id).sort(), ["chatgpt", "claude", "grok", "perplexity", "cursor", "replit", "lovable", "codex", "vscode", "windsurf", "cline", "zed", "gemini-cli"].sort());
+  assert.deepEqual(JSON.parse(cursorMcpConfig(endpoint)), { mcpServers: { sajda: { url: endpoint } } });
+  const cursor = new URL(connectorInstallUrl("cursor", endpoint)!);
+  assert.equal(cursor.origin + cursor.pathname, "https://cursor.com/link/mcp/install");
+  assert.equal(cursor.searchParams.get("name"), "sajda");
+  assert.deepEqual(JSON.parse(atob(cursor.searchParams.get("config")!)), { url: endpoint });
+  const replit = new URL(connectorInstallUrl("replit", endpoint)!);
+  assert.equal(replit.origin + replit.pathname, "https://replit.com/integrations");
+  assert.deepEqual(JSON.parse(atob(replit.searchParams.get("mcp")!)), { displayName: "Sajda", baseUrl: endpoint });
+  for (const host of CONNECTOR_HOSTS) {
+    assert.equal(connectorInstallUrl(host.id, null), null);
+    assert.equal(connectorConfig(host.id, null), null);
+    if (["perplexity", "codex", "vscode", "windsurf", "cline", "zed", "gemini-cli"].includes(host.id)) {
+      assert.equal(connectorInstallUrl(host.id, endpoint), host.documentation, `${host.id} opens documented setup instead of fabricating an install link`);
+    }
+  }
 });
 
 test("real ConnectorSetup renders usable instructions and honest clipboard outcomes without API activity", async t => {
@@ -84,6 +126,10 @@ test("real ConnectorSetup renders usable instructions and honest clipboard outco
       assert.ok(text().includes(c.noAccount)); assert.ok(text().includes(c.priceHint));
       assert.ok(text().includes(c.listing)); assert.ok(text().includes(c.verification));
       assert.equal(link(c.privateAction).props.href, "#mcp");
+      const account = root().findByType("aside");
+      assert.ok(label(account).includes(c.privateTitle));
+      assert.ok(label(account).includes(c.privateBody));
+      assert.equal(account.findAllByType("code").length, 0, "Public setup must not invent a private account endpoint");
       assert.equal(root().findAllByType("form").length, 0);
       assert.equal(writes.length, 0);
       await click(c.copyUrl); assert.deepEqual(writes, [endpoint]);
@@ -96,13 +142,22 @@ test("real ConnectorSetup renders usable instructions and honest clipboard outco
       assert.equal(link(c.chatgptAction).props.href, "https://chatgpt.com/plugins");
       assert.equal(link(c.documentation).props.href, "https://developers.openai.com/plugins/deploy/connect-chatgpt");
       assert.equal(root().findAllByType("li").length, 3);
-      for (const client of ["Claude", "Grok", "ChatGPT"]) {
-        await click(client);
-        assert.equal(button(client).props["aria-pressed"], true);
+      assert.equal(root().findAllByType("img").length, CONNECTOR_HOSTS.length);
+      for (const host of CONNECTOR_HOSTS) {
+        await click(host.name);
+        assert.equal(button(host.name).props["aria-pressed"], true);
+        assert.equal(root().findAllByType("button").filter(node => node.props["aria-pressed"] === true).length, 1);
         assert.equal(root().findAllByType("li").length, 3);
         const region = root().findByProps({ role: "region" });
-        assert.equal(button(client).props["aria-controls"], region.props.id);
-        assert.equal(region.props["aria-labelledby"], button(client).props.id);
+        assert.equal(button(host.name).props["aria-controls"], region.props.id);
+        assert.equal(region.props["aria-labelledby"], button(host.name).props.id);
+        assert.equal(link(c.documentation).props.href, host.documentation);
+        const logo = button(host.name).findByType("img");
+        assert.equal(logo.props.src, host.logo);
+        assert.match(logo.props.src, /^\/connectors\/[a-z-]+\.svg$/u);
+        assert.equal(logo.props.alt, "", "The button's visible product name supplies its accessible name");
+        assert.ok(logo.props.width > 0 && logo.props.height > 0);
+        assert.match(logo.parent!.props.className, /bg-white/u, "Unmodified brand marks have a readable light surface");
       }
       await click("Claude");
       const claude = new URL(link(c.claudeAction).props.href);
@@ -112,9 +167,46 @@ test("real ConnectorSetup renders usable instructions and honest clipboard outco
       await click("Grok");
       assert.equal(link(c.grokAction).props.href, "https://grok.com/connectors");
       assert.equal(link(c.documentation).props.href, "https://docs.x.ai/grok/connectors");
+      await click("Cursor");
+      assert.equal(link(c.cursorAction).props.href, connectorInstallUrl("cursor", endpoint));
+      await click(c.copyConfig);
+      assert.deepEqual(JSON.parse(writes.at(-1)!), { mcpServers: { sajda: { url: endpoint } } });
+      await click("Replit");
+      assert.equal(link(c.replitAction).props.href, connectorInstallUrl("replit", endpoint));
+      await click("Lovable");
+      assert.equal(link(c.lovableAction).props.href, "https://lovable.dev/dashboard?connectors=");
+      assert.ok(text().includes(c.lovableStep3));
+      for (const host of CONNECTOR_HOSTS.filter(item => !["chatgpt", "claude", "grok", "cursor", "replit", "lovable"].includes(item.id))) {
+        await click(host.name);
+        assert.equal(link(connectorDirectoryCopy.en.action).props.href, host.documentation);
+        if (host.configKind !== "none") {
+          await click(connectorDirectoryCopy.en.copyConfig);
+          assert.equal(writes.at(-1), connectorConfig(host.id, endpoint));
+          assert.ok(button(connectorDirectoryCopy.en.configCopied));
+        } else {
+          assert.equal(root().findAllByType("button").filter(node => label(node) === connectorDirectoryCopy.en.copyConfig).length, 0);
+        }
+      }
       for (const node of root().findAllByType("a").filter(node => node.props.target === "_blank")) {
         assert.match(node.props.rel, /noopener/u); assert.match(node.props.rel, /noreferrer/u);
       }
+    });
+
+    await t.test("companion instructions need an explicit opt-in and copy never activates a connector", async () => {
+      await mount("sv");
+      assert.ok(text().includes(getConnectorOffer("sv")));
+      assert.equal(root().findByType("input").props.checked, false);
+      assert.equal(root().findAllByType("button").filter(node => label(node) === connectorCopy.sv.copyInstructions).length, 0);
+      await act(async () => root().findByType("input").props.onChange({ target: { checked: true } }));
+      assert.equal(writes.length, 0);
+      await click("Cursor");
+      assert.ok(text().includes(connectorCopy.sv.cursorCompanion));
+      await click(connectorCopy.sv.copyInstructions);
+      assert.equal(writes.at(-1), `${CONNECTOR_HOST_INSTRUCTIONS}\n\n${getConnectorOffer("sv")}`);
+      assert.equal(link(connectorCopy.sv.setupKit).props.href, PUBLIC_CONNECTOR_ORIGIN + "/#setup");
+      assert.equal(link(connectorCopy.sv.downloadKit).props.href, PUBLIC_CONNECTOR_ORIGIN + "/downloads/sajda-connector.zip");
+      await act(async () => root().findByType("input").props.onChange({ target: { checked: false } }));
+      assert.equal(root().findAllByType("button").filter(node => label(node) === connectorCopy.sv.instructionsCopied).length, 0);
     });
 
     await t.test("local, native and unsafe origins cannot be copied as remote-install URLs", async () => {
@@ -128,6 +220,12 @@ test("real ConnectorSetup renders usable instructions and honest clipboard outco
         assert.ok(!text().includes("private-secret"));
         await click("Claude");
         assert.equal(root().findAllByType("a").filter(node => node.props.href.startsWith("https://claude.ai/")).length, 0);
+        for (const host of CONNECTOR_HOSTS) {
+          await click(host.name);
+          const instructions = connectorInstructions("en", host);
+          assert.equal(root().findAllByType("a").filter(node => label(node) === instructions.action).length, 0);
+          assert.equal(root().findAllByType("button").filter(node => [c.copyConfig, connectorDirectoryCopy.en.copyConfig].includes(label(node))).length, 0);
+        }
         await click(c.copyPrompt); assert.equal(writes.at(-1), c.prompt, "A useful prompt remains available");
       }
     });
@@ -173,7 +271,22 @@ test("real ConnectorSetup renders usable instructions and honest clipboard outco
         assert.ok(text().includes(copy.limits)); assert.ok(text().includes(copy.privacy));
         assert.ok(text().includes(copy.verification));
         assert.equal(root().findByType("code").children.join(""), endpoint);
-        await click("Claude"); assert.ok(link(copy.claudeAction));
+        const directory = connectorDirectoryCopy[language];
+        for (const category of ["assistant", "builder", "editor"] as const) assert.ok(text().includes(directory[category]));
+        assert.ok(text().includes(directory.review));
+        assert.ok(text().includes(copy.privateBody));
+        for (const host of CONNECTOR_HOSTS) {
+          await click(host.name);
+          const instructions = connectorInstructions(language, host);
+          assert.ok(link(instructions.action));
+          for (const step of instructions.steps) assert.ok(text().includes(step));
+          assert.equal(link(copy.documentation).props.href, host.documentation);
+          if (host.id === "perplexity" || host.id === "windsurf") assert.ok(text().includes(directory[host.id]));
+          if (host.configKind !== "none") {
+            assert.ok(button(host.id === "cursor" ? copy.copyConfig : directory.copyConfig));
+          }
+        }
+        assert.ok(text().includes(getConnectorOffer(language)));
       }
     });
   } finally {

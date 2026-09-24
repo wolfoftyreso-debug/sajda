@@ -8,7 +8,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   const { language } = useLanguage();
   const location = useLocation();
-  const publicSearchRoute = isAnonymousSearchMode() && (location.pathname === "/" || location.pathname === "/swipe");
+  const publicSearchRoute = isAnonymousSearchMode() && ["/", "/swipe", "/name-packages"].includes(location.pathname);
   if (publicSearchRoute) return <>{children}</>;
 
   if (loading) return (

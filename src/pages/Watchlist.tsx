@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Bookmark, ArrowLeft, Search, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,8 @@ import { getWatchlist, removeFromWatchlist, type WatchlistItem } from "@/lib/wat
 import { WatchlistPageSkeleton } from "@/components/PageSkeletons";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { savedDomainsCopy, savedCopyValues } from "@/i18n/savedDomainsCopy";
+import { nameProjectsEnabled } from "@/lib/nameProjectsFeature";
+import { projectEntryCopy } from "@/i18n/projectEntryCopy";
 import { savedDomainExtension, selectSavedDomains, type SavedDomainSort } from "@/lib/savedDomainsWorkspace";
 import { formatLocalizedDateTime } from "@/lib/localeFormat";
 
@@ -101,6 +103,7 @@ const Watchlist = () => {
       </div>
       <Button variant="outline" className="min-h-11 max-w-full whitespace-normal" disabled={loading || Boolean(removingDomain)} onClick={() => void loadWatchlist()} aria-describedby="saved-refresh-help"><RefreshCw className={`h-4 w-4 shrink-0 ${loading ? "animate-spin" : ""}`} aria-hidden="true" />{loading ? copy.refreshing : copy.refresh}</Button>
     </header>
+    {nameProjectsEnabled && <Link to="/projects" className="mt-4 inline-flex min-h-11 items-center rounded-xl border border-border bg-card px-4 text-sm font-semibold text-primary focus-visible:ring-2 focus-visible:ring-ring">{projectEntryCopy[language].projects}</Link>}
     <p id="saved-refresh-help" className="mt-4 text-sm text-muted-foreground">{copy.refreshHelp}</p>
     <p className="mt-5 rounded-2xl border border-border bg-secondary/50 p-4 text-sm leading-6">{copy.snapshot}</p>
     <p className="sr-only" role="status" aria-live="polite">{removedDomain ? savedCopyValues(copy.removed, { domain: removedDomain }) : ""}</p>

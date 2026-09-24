@@ -4,6 +4,7 @@ import type { RegistrarOffer } from "@/lib/registrarOffer";
 import { translate, type Language } from "@/i18n/LanguageProvider";
 import type { AdvancedSearchCriteria } from "@/lib/advancedSearchCriteria";
 import { parseNamingGeneration, type NamingGeneration, type SearchRefinement } from "../../shared/search-refinement";
+import type { BrandNameLanguage } from "../../shared/name-languages";
 
 /**
  * Stable API identifiers for the four basic creative-search cards. They stay
@@ -18,6 +19,7 @@ export interface AnonymousSearchResult {
   status: "available" | "taken" | "unknown";
   checkMethod: "rdap" | "whois" | "das" | "none";
   source: string;
+  checkedAt?: string | null;
   authoritative: boolean;
   error?: string;
   registrarPrice: number;
@@ -47,6 +49,9 @@ export interface AnonymousSearchResponse {
 }
 
 export interface AnonymousSearchOptions {
+  /** Same-name extension matrix, within the ordinary search allowance. */
+  namePackages?: boolean;
+  nameLanguage?: BrandNameLanguage;
   refinement?: SearchRefinement;
   /** Cancelling a search cancels the actual request, not just its UI. */
   signal?: AbortSignal;
@@ -106,6 +111,8 @@ export async function runAnonymousSearch(
         maxLength: options.swipe === true ? options.maxLength : undefined,
         creativeMode: options.creativeMode,
         refinement: options.refinement,
+        namePackages: options.namePackages === true ? true : undefined,
+        nameLanguage: options.namePackages === true && !options.domains?.length ? options.nameLanguage : undefined,
       }),
       signal: controller.signal,
     });

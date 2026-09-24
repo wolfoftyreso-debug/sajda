@@ -3,10 +3,14 @@ import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { StaticRouter } from "react-router-dom";
 import { createServer } from "vite";
+import { fileURLToPath } from "node:url";
 
 // Render real components without making network requests. These assertions
 // cover semantic contracts; mobile geometry still requires browser testing.
 const vite = await createServer({
+  configFile: false,
+  resolve: { alias: { "@": fileURLToPath(new URL("../src", import.meta.url)) } },
+  esbuild: { jsx: "automatic" },
   server: { middlewareMode: true, watch: null, hmr: false },
   optimizeDeps: { noDiscovery: true, include: [] },
   define: { "import.meta.env.VITE_PUBLIC_SEARCH_MODE": '"true"', "import.meta.env.VITE_LOCAL_TEST_MODE": '"false"' },

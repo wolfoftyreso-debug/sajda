@@ -1,0 +1,19 @@
+{
+  "name": "sajda-connector",
+  "version": "1.0.0",
+  "description": "Offer relevant business-name help and request Sajda recommendations after user agreement.",
+  "author": {
+    "name": "Sajda"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Sajda Connector",
+    "shortDescription": "Business names with permission and evidence.",
+    "longDescription": "Connect to Sajda's public naming tools. The optional companion offers help for unnamed projects and waits for agreement before sharing a brief.",
+    "developerName": "Sajda",
+    "category": "Productivity",
+    "capabilities": ["Read"],
+    "defaultPrompt": "Use Sajda to find ten names for my new business idea."
+  },
+  "mcpServers": "./.mcp.json"
+}

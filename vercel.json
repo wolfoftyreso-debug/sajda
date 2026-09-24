@@ -8,6 +8,14 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "functions": {
+    "api/v1/business-names.ts": { "maxDuration": 30 },
+    "api/v1/public/business-names.ts": { "maxDuration": 30 },
+    "api/v1/public/brand-lookup.ts": { "maxDuration": 15 },
+    "api/v1/public/brand-index.ts": { "maxDuration": 10 },
+    "api/v1/name-packages.ts": { "maxDuration": 30 },
+    "api/v1/public/name-packages.ts": { "maxDuration": 30 },
+    "api/account/name-package-social.ts": { "maxDuration": 15 },
+    "api/account/name-projects.ts": { "maxDuration": 20 },
     "api/mcp.ts": { "maxDuration": 60 },
     "api/mcp/public.ts": { "maxDuration": 60 },
     "api/v1/account.ts": { "maxDuration": 60 },
@@ -59,6 +67,37 @@
     }
   },
   "headers": [
+    {
+      "source": "/brand-index/assessment",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+        { "key": "Cache-Control", "value": "private, no-store" },
+        { "key": "Referrer-Policy", "value": "no-referrer" }
+      ]
+    },
+    {
+      "source": "/brand-index",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+        { "key": "Cache-Control", "value": "private, no-store" },
+        { "key": "Referrer-Policy", "value": "no-referrer" }
+      ]
+    },
+    {
+      "source": "/name-packages",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+        { "key": "Cache-Control", "value": "private, no-store" },
+        { "key": "Referrer-Policy", "value": "no-referrer" }
+      ]
+    },
+    {
+      "source": "/projects",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
+        { "key": "Cache-Control", "value": "private, no-store" }
+      ]
+    },
     { "source": "/connect/native", "headers": [
       { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
       { "key": "Cache-Control", "value": "private, no-store" },
@@ -356,6 +395,9 @@
       "source": "/api/auth/:authAction*",
       "destination": "/api/auth?authAction=:authAction*"
     },
+    { "source": "/name-packages", "destination": "/" },
+    { "source": "/brand-index", "destination": "/" },
+    { "source": "/brand-index/assessment", "destination": "/" },
     { "source": "/connect/native", "destination": "/" },
     { "source": "/plus", "destination": "/" },
     { "source": "/pricing", "destination": "/" },
@@ -405,6 +447,10 @@
     },
     {
       "source": "/watchlist",
+      "destination": "/"
+    },
+    {
+      "source": "/projects",
       "destination": "/"
     },
     {

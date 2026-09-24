@@ -1,9 +1,12 @@
 /** Minimal Vercel Build Output API artifact. Copies no project source, secrets,
  * database configuration, account routes or payment routes into the release. */
 import { build } from "esbuild";
-import { mkdir, writeFile, readdir } from "node:fs/promises";
+import { mkdir, writeFile, readdir, copyFile } from "node:fs/promises";
 import { resolve, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { renderConnectorHub } from "./connector-hub.mjs";
+import { buildConnectorKit } from "./build-connector-kit.mjs";
+import { CONNECTOR_HOSTS } from "../shared/connector-catalogue.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const staging = resolve(root, "tmp/public-connector-release");
@@ -14,6 +17,12 @@ if (origin.protocol !== "https:" || origin.username || origin.password || origin
 const endpoint = new URL("/api/mcp/public", origin).href;
 await mkdir(resolve(output, "functions/api/mcp/public.func"), { recursive: true });
 await mkdir(resolve(output, "static"), { recursive: true });
+await mkdir(resolve(output, "static/connectors"), { recursive: true });
+const connectorAssets = [...CONNECTOR_HOSTS.map(host => host.logo.slice(1)), "connectors/LICENSE.txt"];
+for (const asset of connectorAssets) {
+  if (!/^connectors\/[a-z0-9-]+\.svg$|^connectors\/LICENSE\.txt$/u.test(asset)) throw new Error("Unexpected connector asset path");
+  await copyFile(resolve(root, "public-clean", asset), resolve(output, "static", asset));
+}
 const bundle = await build({ entryPoints: [resolve(root, "infra/public-connector/entry.ts")],
   outfile: resolve(output, "functions/api/mcp/public.func/index.mjs"), bundle: true,
   platform: "node", target: "node24", format: "esm", minify: true, metafile: true,
@@ -39,13 +48,13 @@ await writeFile(resolve(output, "functions/api/mcp/public.func/.vc-config.json")
 }, null, 2));
 await writeFile(resolve(output, "config.json"), JSON.stringify({ version: 3, routes: [
   { src: "/(.*)", headers: { "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex, nofollow",
-    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'" }, continue: true },
+    "Content-Security-Policy": "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'" }, continue: true },
   { src: "/api/mcp/public", dest: "/api/mcp/public" },
   { handle: "filesystem" },
   { src: "/(.*)", status: 404, dest: "/404.html" },
 ] }, null, 2));
-const claudeUrl = "https://claude.ai/customize/connectors?" + new URLSearchParams({ modal: "add-custom-connector", connectorName: "Sajda", connectorUrl: endpoint });
-await writeFile(resolve(output, "static/index.html"), `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Sajda — Connect your AI assistant</title><style>body{font:17px/1.6 system-ui,sans-serif;color:#152238;background:#f4f8ff;max-width:780px;margin:auto;padding:32px 24px}h1{font-size:clamp(30px,6vw,48px);line-height:1.12;letter-spacing:-.04em}h2{font-size:23px;margin-top:36px}a{color:#0862c4}code{display:block;overflow-wrap:anywhere;background:white;border:1px solid #c7d7e9;padding:18px;border-radius:14px}blockquote{margin:24px 0;padding:18px;border-left:4px solid #1676ed;background:white}li{margin:14px 0}.note{color:#465973;font-size:15px}</style></head><body><p><strong>SAJDA · AI CONNECTOR</strong></p><h1>Find your next domain, inside your AI assistant.</h1><p>Ask for name ideas within a budget. Sajda checks registry status and compares available registrar price evidence.</p><blockquote>Suggest 10 suitable domain names for a planning app for founders. My budget is USD 30 per domain for the first year. Prefer .com, .app and .dev.</blockquote><h2>1. Connect Sajda</h2><p>Use this MCP server URL. Choose <strong>no authentication</strong> — no Sajda account or API key is needed.</p><code>${endpoint}</code><ul><li><strong>ChatGPT:</strong> enable Developer mode if your account permits it, then add Sajda in <a href="https://chatgpt.com/plugins">Plugins</a>. <a href="https://developers.openai.com/plugins/deploy/connect-chatgpt">Official setup guide</a>.</li><li><strong>Claude:</strong> <a href="${claudeUrl.replaceAll("&", "&amp;")}">open the prefilled connector form</a> and confirm.</li><li><strong>Grok:</strong> open <a href="https://grok.com/connectors">Connectors</a>, select New Connector → Custom and paste the URL.</li></ul><h2>2. Ask for names</h2><p>Include what you are building, the preferred endings, your currency, and a first-year or yearly-renewal budget. Select Sajda in the conversation. You can ask it to recheck names before choosing.</p><h2>How Sajda finds the shortlist</h2><p>Sajda explores up to 120 name candidates and checks registry evidence. It then checks exact prices in batches when its registrar connection is active. It stops when enough confirmed budget matches are found, or reports the remaining shortfall and the reason it stopped.</p><h2>Know what the result means</h2><p>Published extension prices are <strong>conditional estimates, not exact checkout quotes</strong>. Premium pricing, tax and required extras may differ. Only confirmed exact-name offers count toward your requested shortlist. Other registry-checked ideas are shown separately with provisional extension-price estimates. Sajda returns fewer confirmed matches when checks or exact-price evidence are insufficient. A registry-not-found result does not reserve a domain or clear trademarks.</p><p>This connection is read-only. It cannot buy domains, access an account, save names, or read Trading data. Your assistant sends the search arguments to Sajda; registry and registrar services receive domain queries needed for checks. Avoid unnecessary confidential details.</p><p class="note">Public use has shared, best-effort rate limits. Setup options depend on the assistant's account/workspace rules. A working MCP endpoint is not a directory listing or a guarantee of every host's model behavior.</p><p class="note">Questions or problems? <a href="mailto:dev@hypbit.com">dev@hypbit.com</a></p></body></html>`);
+const kit = await buildConnectorKit(root, resolve(output, "static"));
+await writeFile(resolve(output, "static/index.html"), renderConnectorHub(endpoint));
 await writeFile(resolve(output, "static/404.html"), "<!doctype html><html lang=en><meta charset=utf-8><title>Not found</title><h1>Not found</h1><p>This service only provides Sajda's public domain connector.</p></html>");
 await writeFile(resolve(output, "static/robots.txt"), "User-agent: *\nDisallow: /\n");
 await writeFile(resolve(staging, "vercel.json"), JSON.stringify({ version: 2, framework: null }, null, 2));
@@ -57,7 +66,10 @@ async function files(directory) {
 }
 const allowed = new Set(["vercel.json", ".vercel/project.json", ".vercel/README.txt", ".gitignore", ".vercel/output/config.json",
   ".vercel/output/functions/api/mcp/public.func/index.mjs", ".vercel/output/functions/api/mcp/public.func/.vc-config.json",
-  ".vercel/output/static/index.html", ".vercel/output/static/404.html", ".vercel/output/static/robots.txt"]);
+  ".vercel/output/static/index.html", ".vercel/output/static/404.html", ".vercel/output/static/robots.txt",
+  ".vercel/output/static/downloads/sajda-connector.zip", ".vercel/output/static/downloads/sajda-connector.sha256",
+  ".vercel/output/static/host-instructions.txt", ".vercel/output/static/policy.json", ".vercel/output/static/connector.json", ".vercel/output/static/llms.txt"]);
+for (const asset of connectorAssets) allowed.add(`.vercel/output/static/${asset}`);
 for (const file of await files(staging)) if (!allowed.has(file)) throw new Error(`Unreviewed release file: ${file}`);
 console.log(JSON.stringify({ staging, endpoint, bundledInputs: inputs.length, privateDependencies: forbidden.length,
-  route: "/api/mcp/public", accountRoutes: false, database: false, payments: false }));
+  route: "/api/mcp/public", accountRoutes: false, database: false, payments: false, kit }));

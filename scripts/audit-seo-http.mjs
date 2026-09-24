@@ -3,16 +3,53 @@ import { promisify } from "node:util";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { load } from "cheerio";
+import robotsParser from "robots-parser";
 import { SEO_PAGES, DEFAULT_SEO_ORIGIN } from "./seo-routes.mjs";
 
 const run = promisify(execFile);
+
+function hasNoindex($, headers) {
+  const directives = $('meta[name]').toArray()
+    .filter(node => /^(?:robots|googlebot)$/iu.test($(node).attr("name") ?? ""))
+    .map(node => $(node).attr("content") ?? "")
+    .join(",");
+  const restrictsIndexing = value => value.split(",").some(directive =>
+    !directive.includes(":") && directive.trim().split(/\s+/u).some(rule => /^(?:noindex|none)$/iu.test(rule)));
+  if (restrictsIndexing(directives)) return true;
+  // Header rules may be scoped to one crawler. Parameter values such as
+  // max-image-preview:none must not be mistaken for the standalone none rule.
+  let crawler = "*";
+  for (const token of (headers["x-robots-tag"] ?? "").split(",")) {
+    const scoped = token.trim().match(/^([\w*-]+):\s*(.*)$/u);
+    let rules = token.trim();
+    if (scoped && !/^(?:max-snippet|max-image-preview|max-video-preview|unavailable_after)$/iu.test(scoped[1])) {
+      crawler = scoped[1].toLowerCase();
+      rules = scoped[2];
+    }
+    if ((crawler === "*" || crawler === "googlebot") && restrictsIndexing(rules)) return true;
+  }
+  return false;
+}
+
+export function inspectSeoRobots(body, origin, canonicalOrigin, preview) {
+  const issues = [];
+  if (!/^User-agent:/imu.test(body)) issues.push("robots_mismatch");
+  const robots = robotsParser(`${origin}/robots.txt`, body);
+  const sitemap = `${canonicalOrigin}/sitemap.xml`;
+  if (preview ? robots.getSitemaps().length > 0 : !robots.getSitemaps().includes(sitemap)) issues.push("robots_sitemap_mismatch");
+  const allowed = SEO_PAGES.map(page => robots.isAllowed(`${origin}${page.path}`, "Googlebot"));
+  if (preview ? allowed.some(value => value !== false) : allowed.some(value => value !== true)) {
+    issues.push(preview ? "preview_crawlable" : "canonical_page_blocked");
+  }
+  return issues;
+}
 
 /** Only public document metadata is returned, never response cookies or bodies. */
 export function inspectSeoDocument({ path, status, headers, body }, canonicalOrigin, preview) {
   const $ = load(body);
   const meta = name => $(`meta[name="${name}"]`).attr("content") ?? "";
   const canonical = $('link[rel="canonical"]').attr("href") ?? "";
-  const robots = `${meta("robots")} ${headers["x-robots-tag"] ?? ""}`;
+  const noindex = hasNoindex($, headers);
   const issues = [];
   if (status !== 200) issues.push("http_not_200");
   if (!headers["content-type"]?.includes("text/html")) issues.push("not_html");
@@ -21,7 +58,7 @@ export function inspectSeoDocument({ path, status, headers, body }, canonicalOri
   if (!meta("description").trim()) issues.push("missing_description");
   if (canonical !== canonicalOrigin + path) issues.push("canonical_mismatch");
   if ($('html').attr("lang") !== "sv-SE") issues.push("language_mismatch");
-  if (preview ? !/\bnoindex\b/u.test(robots) : /\bnoindex\b/u.test(robots)) issues.push("indexation_mismatch");
+  if (preview ? !noindex : noindex) issues.push("indexation_mismatch");
   let schemas = 0;
   $('script[type="application/ld+json"]').each((_index, node) => {
     try { JSON.parse($(node).text()); schemas++; } catch { issues.push("invalid_json_ld"); }
@@ -56,6 +93,12 @@ async function httpGet(origin, path, cli) {
 export async function auditSeoHttp({ origin, canonicalOrigin = DEFAULT_SEO_ORIGIN, preview = true, cli }) {
   const parsed = new URL(origin);
   if (parsed.protocol !== "https:" || parsed.origin !== origin || parsed.username || parsed.password) throw new Error("Use a bare HTTPS origin");
+  const canonical = new URL(canonicalOrigin);
+  if (canonical.protocol !== "https:" || canonical.origin !== canonicalOrigin || canonical.username || canonical.password) throw new Error("Use a bare HTTPS canonical origin");
+  // A protected preview can validate HTML, but cannot establish that Google's
+  // canonical destination is publicly reachable. Production must test it directly.
+  if (!preview && origin !== canonicalOrigin) throw new Error("Production SEO audit must run at the canonical origin");
+  if (!preview && cli) throw new Error("Production SEO audit must use unauthenticated HTTP, without the Vercel CLI");
   const documents = [];
   // Small fixed concurrency: no discovery crawler and no product API calls.
   const queue = [...SEO_PAGES];
@@ -89,10 +132,9 @@ export async function auditSeoHttp({ origin, canonicalOrigin = DEFAULT_SEO_ORIGI
         const expected = preview ? [] : SEO_PAGES.map(page => canonicalOrigin + page.path);
         if (JSON.stringify(locs.sort()) !== JSON.stringify(expected.sort())) issues.push("sitemap_mismatch");
       }
-      if (path === "/robots.txt" && (!/^User-agent:/imu.test(result.body) || (!preview && !result.body.includes(`Sitemap: ${canonicalOrigin}/sitemap.xml`)))) issues.push("robots_mismatch");
+      if (path === "/robots.txt") issues.push(...inspectSeoRobots(result.body, origin, canonicalOrigin, preview));
       if (path === "/auth" || path.includes("?")) {
-        const robots = `${result.headers["x-robots-tag"] ?? ""} ${$('meta[name="robots"]').attr("content") ?? ""}`;
-        if (!/\bnoindex\b/u.test(robots)) issues.push("private_or_query_page_indexable");
+        if (!hasNoindex($, result.headers)) issues.push("private_or_query_page_indexable");
         if (path.includes("?") && result.headers["x-sajda-query-policy"] !== "noindex") issues.push("query_middleware_not_verified");
       }
       checks.push({ path, status: result.status, issues });

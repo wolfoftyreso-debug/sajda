@@ -1,5 +1,8 @@
 import { NAMES_API_TLDS } from "./names-contract.js";
 import { asciiNameToken, joinNameWords, nameQualitySignals } from "./search-quality.mjs";
+import { isBrandNameLanguage, type BrandNameLanguage } from "../../shared/name-languages.js";
+import { additionalLanguage, namingTopicTriggers, namingTopicRoots, namingCompanions,
+  namingModifiers, namingTools, namingFallbackRoots, namingToneRoots } from "./naming-language-corpus.js";
 
 export interface ConnectorCandidateInput {
   query: string;
@@ -8,6 +11,8 @@ export interface ConnectorCandidateInput {
   count?: number;
   /** Optional caller-provided labels, never domains, URLs or instructions. */
   candidateSeeds?: string[];
+  /** Explicit output language. The interface locale never chooses this. */
+  nameLanguage?: BrandNameLanguage;
 }
 export type ConnectorCandidateDirection = "benefit" | "descriptive" | "metaphor" | "audience" | "brandable" | "host_seed";
 export interface ConnectorCandidate {
@@ -132,11 +137,54 @@ function safeHostLabel(value: unknown): string | null {
 }
 interface LabelCandidate { label: string; direction: ConnectorCandidateDirection; score: number; rationale: string; anchor: string; source: "rules" | "host_seed" }
 
+/** Deterministic compression for the business-name operation. Read the entire
+ * bounded description before fitting the existing 100-character naming budget.
+ * The audit trail identifies dictionary interpretation; it is not an AI summary. */
+export function summarizeConnectorBusinessBrief(description: string, keywords: readonly string[] = []) {
+  if (typeof description !== "string" || description.length < 1 || description.length > 1000
+    || keywords.length > 8 || keywords.some(value => typeof value !== "string" || value.length > 40)) {
+    throw new Error("Use a bounded business description and keywords.");
+  }
+  const tokenize = (value: string) => (value.toLowerCase().match(/\p{L}+/gu) ?? []).map(asciiNameToken).filter(Boolean);
+  const descriptionTokens = tokenize(description), keywordTokens = distinct(keywords.flatMap(tokenize));
+  const all = [...descriptionTokens, ...keywordTokens];
+  const tokenMatches = (entry: Concept, token: string) => entry.triggers.some(trigger => match(token, trigger))
+    || namingTopicTriggers(entry.id).includes(token);
+  const topics = concepts.map(entry => ({ entry, hits: distinct(all.filter(token => tokenMatches(entry, token))),
+    priority: all.filter(token => tokenMatches(entry, token)).length
+      + keywordTokens.filter(token => tokenMatches(entry, token)).length * 3 }))
+    .filter(value => value.hits.length).sort((a, b) => b.priority - a.priority || all.indexOf(a.hits[0]) - all.indexOf(b.hits[0]));
+  const valid = (token: string) => /^[a-z]{3,20}$/u.test(token) && !stopWords.has(token);
+  const frequencies = new Map<string, number>();
+  for (const token of descriptionTokens.filter(valid)) frequencies.set(token, (frequencies.get(token) ?? 0) + 1);
+  const references = [...frequencies].sort((a, b) => b[1] - a[1]
+    || descriptionTokens.indexOf(a[0]) - descriptionTokens.indexOf(b[0])).map(([token]) => token);
+  const candidates = distinct([
+    ...topics.slice(0, 2).map(value => value.entry.triggers[0]),
+    ...keywordTokens.filter(valid),
+    ...distinct(all.filter(token => tones.some(tone => tone.triggers.some(trigger => match(token, trigger))))),
+    ...distinct(all.filter(token => audiences.some(audience => audience.triggers.some(trigger => match(token, trigger))))),
+    ...references,
+  ]);
+  const included: string[] = [];
+  for (const token of candidates) {
+    if (token.length > 20 || !/^[a-z]+$/u.test(token)) continue;
+    if ([...included, token].join(" ").length <= 100) included.push(token);
+  }
+  if (!included.length) throw new Error("Describe the business using meaningful Latin-letter keywords.");
+  return {
+    query: included.join(" "), included_terms: included,
+    omitted_term_count: candidates.filter(token => !included.includes(token)).length,
+    recognized_topics: topics.slice(0, 2).map(value => ({ id: value.entry.id, label: value.entry.title.en, matched_terms: value.hits })),
+  };
+}
+
 /** Pure, bounded naming exploration. Every returned domain still needs registry
  * and exact-price checks; ranking is lexical relevance/form plus diversity. */
 export function generateConnectorCandidates(input: ConnectorCandidateInput): ConnectorCandidate[] {
   if (!input || typeof input !== "object" || Array.isArray(input)
-    || Object.keys(input).some(key => !["query", "tlds", "count", "candidateSeeds"].includes(key))
+    || Object.keys(input).some(key => !["query", "tlds", "count", "candidateSeeds", "nameLanguage"].includes(key))
+    || input.nameLanguage !== undefined && !isBrandNameLanguage(input.nameLanguage)
     || typeof input.query !== "string" || input.query.trim().length < 1 || input.query.length > 100
     || !Array.isArray(input.tlds) || input.tlds.length < 1 || input.tlds.length > NAMES_API_TLDS.length
     || input.tlds.some(tld => !NAMES_API_TLDS.includes(tld as typeof NAMES_API_TLDS[number])) || new Set(input.tlds).size !== input.tlds.length
@@ -150,21 +198,29 @@ export function generateConnectorCandidates(input: ConnectorCandidateInput): Con
     || /[<>]/u.test(query)) throw new Error("Use a plain naming brief without URLs, domains or markup.");
   const count = input.count ?? 120;
   const tokens = distinct((query.toLowerCase().match(/\p{L}+/gu) ?? []).map(asciiNameToken).filter(Boolean));
-  const language: Language = tokens.some(token => swedishMarkers.has(token)) || /[åäö]/iu.test(query) ? "sv" : "en";
-  const matched = concepts.map(entry => ({ entry, hits: tokens.filter(token => entry.triggers.some(trigger => match(token, trigger))) }))
+  const language: BrandNameLanguage = input.nameLanguage ?? (tokens.some(token => swedishMarkers.has(token)) || /[åäö]/iu.test(query) ? "sv" : "en");
+  const foreign = additionalLanguage(language) ? language : null;
+  // Cross-language additions require exact matches: French "foret" must not
+  // turn Swedish "foretagare" (founders) into a forest naming brief.
+  const conceptMatch = (entry: Concept, token: string) => entry.triggers.some(trigger => match(token, trigger))
+    || namingTopicTriggers(entry.id).includes(token);
+  const matched = concepts.map(entry => ({ entry, hits: tokens.filter(token => conceptMatch(entry, token)) }))
     .filter(value => value.hits.length).sort((a, b) => b.hits.length - a.hits.length || tokens.indexOf(a.hits[0]) - tokens.indexOf(b.hits[0])).slice(0, 2);
   const selectedTones = tones.filter(tone => tokens.some(token => tone.triggers.some(trigger => match(token, trigger))));
-  const audienceTerms = distinct(audiences.filter(audience => tokens.some(token => audience.triggers.some(trigger => match(token, trigger)))).flatMap(audience => audience.terms[language]));
+  const audienceTerms = foreign ? [] : distinct(audiences.filter(audience => tokens.some(token => audience.triggers.some(trigger => match(token, trigger)))).flatMap(audience => audience.terms[language as Language]));
   const ignored = new Set([...stopWords, ...tones.flatMap(tone => tone.triggers), ...audiences.flatMap(audience => audience.triggers)]);
   const references = tokens.filter(token => token.length >= 3 && token.length <= 12 && /^[a-z]+$/u.test(token)
-    && ![...ignored].some(trigger => match(token, trigger)) && !concepts.some(entry => entry.triggers.some(trigger => match(token, trigger)))).slice(0, matched.length ? 2 : 4);
-  const anchors = distinct([...matched.flatMap(value => value.entry.roots[language]), ...references]).slice(0, 18);
-  const modifiers = distinct(selectedTones.flatMap(tone => tone.terms[language]));
-  if (!modifiers.length) modifiers.push(...(language === "sv" ? words("klar fin ljus trygg ny") : words("clear bright kind fresh open")));
-  const companions = distinct(matched.flatMap(value => value.entry.companions[language]));
+    && ![...ignored].some(trigger => match(token, trigger)) && !concepts.some(entry => conceptMatch(entry, token))).slice(0, matched.length ? 2 : 4);
+  const inferredLanguage = tokens.some(token => swedishMarkers.has(token)) || /[åäö]/iu.test(query) ? "sv" : "en";
+  const keepReferences = !foreign && (!input.nameLanguage || input.nameLanguage === inferredLanguage);
+  const anchors = distinct([...matched.flatMap(value => foreign ? namingTopicRoots(value.entry.id, foreign) : value.entry.roots[language as Language]), ...(keepReferences ? references : [])]).slice(0, 18);
+  if (!anchors.length && foreign) anchors.push(...namingFallbackRoots(foreign));
+  const modifiers = distinct(selectedTones.flatMap(tone => foreign ? namingToneRoots(tones.indexOf(tone), foreign) : tone.terms[language as Language]));
+  if (!modifiers.length) modifiers.push(...(foreign ? namingModifiers(foreign) : language === "sv" ? words("klar fin ljus trygg ny") : words("clear bright kind fresh open")));
+  const companions = foreign ? namingCompanions(foreign) : distinct(matched.flatMap(value => value.entry.companions[language as Language]));
   if (!companions.length) companions.push(...(language === "sv" ? words("verk rum stig nav glimt lund blick spar lyft huset") : words("craft lane grove nest path guide field harbor view loom")));
-  const tools = language === "sv" ? words("plan blick verk guide karta bok tavla nav rum") : words("desk guide book board map kit notes canvas compass");
-  const topic = matched.map(value => value.entry.title[language]).join(language === "sv" ? " och " : " and ") || (language === "sv" ? "dina nyckelord" : "your supplied keywords");
+  const tools = foreign ? namingTools(foreign) : language === "sv" ? words("plan blick verk guide karta bok tavla nav rum") : words("desk guide book board map kit notes canvas compass");
+  const topic = matched.map(value => value.entry.title[language === "sv" ? "sv" : "en"]).join(language === "sv" ? " och " : " and ") || (language === "sv" ? "dina nyckelord" : "your supplied keywords");
   const labels = new Map<string, LabelCandidate>();
   const add = (raw: string, direction: ConnectorCandidateDirection, relevance: number, anchor: string, left: string, right: string, source: "rules" | "host_seed" = "rules") => {
     const label = source === "host_seed" ? safeHostLabel(raw) : safeLabel(raw);
@@ -181,7 +237,11 @@ export function generateConnectorCandidates(input: ConnectorCandidateInput): Con
     if (!current || score > current.score || score === current.score && current.source === "host_seed" && source === "rules") labels.set(label, candidate);
   };
   for (const anchor of anchors) {
-    for (const modifier of modifiers) add(joinNameWords(modifier, anchor), "benefit", 29, anchor, modifier, anchor);
+    for (const modifier of modifiers) {
+      const trailing = foreign && foreign !== "de";
+      const left = trailing ? anchor : modifier, right = trailing ? modifier : anchor;
+      add(joinNameWords(left, right), "benefit", 29, anchor, left, right);
+    }
     for (const companion of companions) add(joinNameWords(anchor, companion), "metaphor", 24, anchor, anchor, companion);
     for (const tool of tools) add(joinNameWords(anchor, tool), "descriptive", 26, anchor, anchor, tool);
     for (const audience of audienceTerms) add(joinNameWords(audience, anchor), "audience", 25, anchor, audience, anchor);

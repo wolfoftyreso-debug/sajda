@@ -3,6 +3,8 @@ import test from "node:test";
 import { openApiDocument } from "../api/_shared/openapi-document.mjs";
 import { API_KEY_SCOPES, API_KEY_LIMITS } from "../api/_shared/developer-api-keys.js";
 import { LATEST_PROTOCOL_VERSION } from "@modelcontextprotocol/sdk/types.js";
+import { SAJDA_MCP_VERSION } from "../api/_shared/mcp-tools.js";
+import { PUBLIC_MCP_VERSION } from "../api/_shared/public-mcp-tools.js";
 
 test("OpenAPI documents the implemented scoped account contract and actual MCP compatibility", () => {
   const document = JSON.parse(JSON.stringify(openApiDocument));
@@ -11,15 +13,18 @@ test("OpenAPI documents the implemented scoped account contract and actual MCP c
   assert.ok(document.paths["/api/v1/account"].delete);
   assert.equal(document.paths["/api/mcp"], undefined, "MCP is a protocol endpoint, not a fabricated REST action.");
   assert.equal(document["x-sajda-mcp"].endpoint, "/api/mcp");
+  assert.equal(document["x-sajda-mcp"].serverVersion, SAJDA_MCP_VERSION);
   assert.ok(document["x-sajda-mcp"].testedProtocolVersions.includes(LATEST_PROTOCOL_VERSION));
   assert.equal(document["x-sajda-mcp"].oauth, false);
   assert.equal(document["x-sajda-public-mcp"].endpoint, "/api/mcp/public");
   assert.equal(document["x-sajda-public-mcp"].authentication, "none");
-  assert.deepEqual(document["x-sajda-public-mcp"].tools, ["domains_suggest", "domains_check"]);
+  assert.equal(document["x-sajda-public-mcp"].serverVersion, PUBLIC_MCP_VERSION);
+  assert.deepEqual(document["x-sajda-public-mcp"].tools, ["business_names_recommend", "domains_suggest", "domains_check", "name_packages_search", "brand_index_assess", "brand_lookup"]);
   assert.equal(document["x-sajda-public-mcp"].readOnly, true);
   assert.equal(document.components.securitySchemes.SajdaSession.in, "cookie");
   assert.equal(document.components.securitySchemes.SajdaApiKey.scheme, "bearer");
   assert.deepEqual(document.components.schemas.DeveloperApiKeyMetadata.properties.scopes.items.enum, [...API_KEY_SCOPES]);
+  assert.equal(document.components.schemas.DeveloperApiKeyCreateRequest.properties.scopes.maxItems, API_KEY_SCOPES.length);
   assert.deepEqual(document.components.schemas.DeveloperApiKeyMetadata.properties.environment.enum, ["development", "preview", "production"]);
   assert.equal(document.components.schemas.DeveloperApiKeyCreateRequest.properties.expiresInDays.maximum, API_KEY_LIMITS.maxExpiryDays);
   assert.equal(document.components.schemas.DeveloperApiKeyListResponse.properties.limits.properties.requestsPerMinute.const, API_KEY_LIMITS.requestsPerMinute);

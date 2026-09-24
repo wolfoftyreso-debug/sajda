@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components -- This context module intentionally exports shared scan types, helpers, provider, and hook. */
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { getScanModeConfig, type ScanMode } from "@/lib/scanModes";
 import { normaliseRegistrarOffer, type RegistrarOffer } from "@/lib/registrarOffer";
@@ -18,6 +18,8 @@ import { readSearchSession, writeSearchSession } from "@/lib/searchSession";
 import { useAuth } from "@/contexts/AuthContext";
 import { getSearchCapacityAttemptNote, searchRefinementCopy } from "@/i18n/searchRefinementCopy";
 import type { NamingGeneration, SearchRefinement } from "../../shared/search-refinement";
+import { normalizePackageEvidenceTimestamp } from "../../shared/name-packages";
+import type { BrandNameLanguage } from "../../shared/name-languages";
 
 export interface DiscoveredDomain {
   domain: string;
@@ -33,6 +35,8 @@ export interface DiscoveredDomain {
   registrarOffer: RegistrarOffer;
   providerOffers?: RegistrarOffer[];
   checkMethod: "rdap" | "whois" | "das" | "dns" | "none" | "error";
+  checkedAt?: string | null;
+  source?: string;
   availabilityVerified: boolean;
   priceVerified: boolean;
   modelCount?: number;
@@ -54,6 +58,9 @@ export interface StartScanOptions {
   providers?: string[];
   /** Exact names to verify directly with the registry. */
   domains?: string[];
+  namePackages?: boolean;
+  /** Desired language of generated names, independent of the interface locale. */
+  nameLanguage?: BrandNameLanguage;
   /** Allows an exact-domain entry to set its own extension selection. */
   tlds?: string[];
   theme?: string;
@@ -89,6 +96,8 @@ export function getModeTargets(mode: string, _anonymousSearchMode = true): ModeT
 
 interface ScanContextType {
   restoredResults: boolean;
+  /** Receipt time for this live search response, never restored browser data. */
+  resultsCheckedAt: string | null;
   isScanning: boolean;
   domains: DiscoveredDomain[];
   pendingDomains: DiscoveredDomain[];
@@ -148,6 +157,8 @@ function convertAnonymousSearchResultToDomain(
     registrarOffer,
     providerOffers,
     checkMethod: result.checkMethod,
+    checkedAt: normalizePackageEvidenceTimestamp(result.checkedAt),
+    source: result.source,
     availabilityVerified: result.authoritative,
     priceVerified: registrarOffer.priceVerified,
     modelCount: 0,
@@ -163,8 +174,9 @@ function compareScreeningValue(a: DiscoveredDomain, b: DiscoveredDomain): number
 
 export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isScanning, setIsScanning] = useState(false);
-  const [domains, setDomains] = useState<DiscoveredDomain[]>(readSearchSession);
+  const [domains, setDomains] = useState<DiscoveredDomain[]>(() => readSearchSession().map(domain => ({ ...domain, checkedAt: null })));
   const [restoredResults, setRestoredResults] = useState(() => readSearchSession().length > 0);
+  const [resultsCheckedAt, setResultsCheckedAt] = useState<string | null>(null);
   const [pendingDomains, setPendingDomains] = useState<DiscoveredDomain[]>([]);
   const [domainsScanned, setDomainsScanned] = useState(0);
   const [timeRemaining, setTimeRemaining] = useState(0);
@@ -191,6 +203,18 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { toast } = useToast();
   const { language, t } = useLanguage();
   const { user, loading: authLoading } = useAuth();
+  const accountId = user?.id ?? null;
+  // Auth refresh can temporarily be loading without changing the settled owner.
+  // Update the observed identity during render so a late async response cannot
+  // slip through before the layout-effect cleanup runs.
+  const observedAccount = useRef<string | null | undefined>(undefined);
+  const settledAccount = useRef<string | null | undefined>(undefined);
+  // A known different non-null owner is already a privacy boundary even if
+  // their session is still loading. A transient null alone is not proof of a
+  // logout until auth settles.
+  if (!authLoading || accountId !== null) observedAccount.current = accountId;
+  const accountChanged = settledAccount.current !== undefined && settledAccount.current !== null
+    && observedAccount.current !== settledAccount.current;
   const verifiedAccount = !authLoading && user?.email_verified === true;
 
   const anonymousSearchAccessReady = !authLoading;
@@ -256,6 +280,7 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setDomains([]);
     writeSearchSession([]);
     setRestoredResults(false);
+    setResultsCheckedAt(null);
     setBriefAnalysis(null);
     setGeneration(null);
     setLastSearchOptions(null);
@@ -264,14 +289,15 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const deleteDomain = useCallback(async (domainName: string) => {
     setDomains((previous) => {
       const remaining = previous.filter((domain) => domain.domain !== domainName);
-      writeSearchSession(remaining);
+      // Account/project results are private memory, not the unowned guest cache.
+      writeSearchSession(accountId === null ? remaining : []);
       return remaining;
     });
     toast({
       title: t("toast.removed"),
       description: t("toast.removedList", { domain: domainName }),
     });
-  }, [t, toast]);
+  }, [accountId, t, toast]);
 
   const stopScan = useCallback(() => {
     activeRequestRef.current += 1;
@@ -287,10 +313,25 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setTimeRemaining(0);
   }, [clearTimer]);
 
+  useLayoutEffect(() => {
+    if (authLoading && (accountId === null || accountId === settledAccount.current)) return;
+    const previous = settledAccount.current;
+    settledAccount.current = accountId;
+    // Keep the guest's first useful result during initial hydration/signup.
+    // Once a real owner has been established, every identity change retires
+    // their request, private brief, refinement context and result snapshots.
+    if (previous === undefined || previous === null || previous === accountId) return;
+    stopScan();
+    clearResults();
+    setSearchKeyword("");
+    setDomainsScanned(0);
+    setFreeSearchGateOpen(false);
+  }, [accountId, authLoading, clearResults, stopScan]);
+
   const startScan = useCallback(async (options: StartScanOptions = {}) => {
     // React state updates are asynchronous; the ref closes the double-submit
     // window before the next render.
-    if (isScanning || activeAccessRef.current) return false;
+    if (isScanning || activeAccessRef.current || authLoading || observedAccount.current !== accountId) return false;
     const access = requestAnonymousSearchAccess();
     if (!access) return false;
 
@@ -343,16 +384,18 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
           domains: exactDomains,
           creativeMode: operationMode,
           refinement: options.refinement,
+          namePackages: options.namePackages === true,
+          nameLanguage: options.nameLanguage,
           signal: controller.signal,
         },
       );
 
-      if (activeRequestRef.current !== requestId) return false;
+      if (activeRequestRef.current !== requestId || accountId !== null && observedAccount.current !== accountId) return false;
 
       const seenDomains = new Set<string>();
       const localDomains = response.results
         .map((result) => convertAnonymousSearchResultToDomain(result, operationMode))
-        .filter((domain) => domain.status !== "taken" || exactDomainSet.has(domain.domain.toLowerCase()))
+        .filter((domain) => domain.status !== "taken" || options.namePackages === true || exactDomainSet.has(domain.domain.toLowerCase()))
         .filter((domain) => {
           const normalized = domain.domain.toLowerCase();
           if (seenDomains.has(normalized)) return false;
@@ -389,7 +432,11 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
       setDomains(localDomains);
-      writeSearchSession(localDomains);
+      setResultsCheckedAt(new Date().toISOString());
+      // Only guest trial results may survive reload in the unowned tab cache.
+      // Signed-in project results can otherwise reappear for another account
+      // after a cookie/session replacement outside this mounted application.
+      writeSearchSession(accountId === null ? localDomains : []);
       setRestoredResults(false);
       setBriefAnalysis(response.briefAnalysis ?? null);
       setGeneration(response.generation ?? null);
@@ -411,7 +458,7 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       return true;
     } catch (error) {
-      if (activeRequestRef.current !== requestId) return false;
+      if (activeRequestRef.current !== requestId || accountId !== null && observedAccount.current !== accountId) return false;
       clearTimer();
       activeAccessRef.current = null;
       requestControllerRef.current = null;
@@ -427,24 +474,25 @@ export const ScanProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       return false;
     }
-  }, [clearTimer, domains, isScanning, language, requestAnonymousSearchAccess, scanMode, searchKeyword, selectedTLDs, startTimer, t, toast]);
+  }, [accountId, authLoading, clearTimer, domains, isScanning, language, requestAnonymousSearchAccess, scanMode, searchKeyword, selectedTLDs, startTimer, t, toast]);
 
   return (
     <ScanContext.Provider value={{
-      restoredResults,
-      isScanning,
-      domains,
-      pendingDomains,
+      restoredResults: accountChanged ? false : restoredResults,
+      resultsCheckedAt: accountChanged ? null : resultsCheckedAt,
+      isScanning: accountChanged ? false : isScanning,
+      domains: accountChanged ? [] : domains,
+      pendingDomains: accountChanged ? [] : pendingDomains,
       domainsScanned,
       timeRemaining,
       scanPhase,
       activeTLDScans,
       selectedTLDs,
       scanMode,
-      searchKeyword,
-      briefAnalysis,
-      generation,
-      lastSearchOptions,
+      searchKeyword: accountChanged ? "" : searchKeyword,
+      briefAnalysis: accountChanged ? null : briefAnalysis,
+      generation: accountChanged ? null : generation,
+      lastSearchOptions: accountChanged ? null : lastSearchOptions,
       anonymousSearchAccessReady,
       anonymousSearchCanStart,
       freeSearchAvailable,

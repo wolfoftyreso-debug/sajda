@@ -6,7 +6,7 @@ import { runtimeFetch as fetch } from "./runtime-http.mjs";
 
 const origin = process.env.SAJDA_TEST_ORIGIN || "http://127.0.0.1:8095";
 const pages = ["/", "/plus", "/pricing", "/auth", "/contact", "/story", "/how-it-works", "/developers", "/legal", "/security", "/status", "/marketplace", "/swipe",
-  "/watchlist", "/my-domains", "/history", "/account", "/install", "/top-10-today", "/admin", ...SEO_PAGES.map((page) => page.path)];
+  "/watchlist", "/projects", "/my-domains", "/history", "/account", "/install", "/top-10-today", "/admin", ...SEO_PAGES.map((page) => page.path)];
 let checks = 0;
 // Authenticated CLI startup is local process overhead, not server latency.
 // Keep its process count low and give that transport its own bounded deadline.

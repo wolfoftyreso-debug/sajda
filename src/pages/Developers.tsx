@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { throwIfCancelled } from "@/lib/abort";
+import { DEVELOPER_API_SCOPES } from "../../shared/developer-scopes";
 import {
   ArrowLeft,
   ArrowRight,
@@ -34,8 +35,11 @@ import { productFetch } from "@/lib/productFetch";
 import { nativeRequest } from "@/lib/nativeTransport";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import ConnectorSetup from "@/components/ConnectorSetup";
+import NamePackageApiGuide from "@/components/NamePackageApiGuide";
 import { PUBLIC_CONNECTOR_ORIGIN } from "@/lib/publicConnector";
 import { connectorCopy } from "@/i18n/connectorCopy";
+import BrandIndexApiGuide from "@/components/BrandIndexApiGuide";
+import BrandLookupApiGuide from "@/components/BrandLookupApiGuide";
 import { useLanguage, type Language } from "@/i18n/LanguageProvider";
 
 type DeveloperCopy = {
@@ -812,13 +816,13 @@ function maskedKey(key: DeveloperApiKey): string {
   return "••••••••";
 }
 
-const permissionScopes = ["domains:search", "account:read", "saved:read", "saved:write", "trading:read", "trading:run", "trading:quote"] as const;
+const permissionScopes = DEVELOPER_API_SCOPES;
 const permissionCopy = {
-  en: { title: "Permissions", expiry: "Expires after", expires: "Expires", expired: "Expired", days: "days", hint: "Choose only the access this integration needs. Trading still requires an active Trading plan.", labels: ["Search domains", "Read account and plan", "Read saved domains", "Save and remove domains", "Read Trading reports", "Start and cancel Trading research", "Refresh registrar quotes"] },
-  sv: { title: "Behörigheter", expiry: "Upphör efter", expires: "Upphör", expired: "Utgången", days: "dagar", hint: "Välj endast den åtkomst integrationen behöver. Trading kräver fortfarande en aktiv Trading-plan.", labels: ["Sök domäner", "Läs konto och plan", "Läs sparade domäner", "Spara och ta bort domäner", "Läs Trading-rapporter", "Starta och avbryt Trading-analyser", "Uppdatera registrarpriser"] },
-  es: { title: "Permisos", expiry: "Caduca después de", expires: "Caduca", expired: "Caducada", days: "días", hint: "Selecciona solo el acceso que necesita esta integración. Trading requiere un plan Trading activo.", labels: ["Buscar dominios", "Leer cuenta y plan", "Leer dominios guardados", "Guardar y eliminar dominios", "Leer informes de Trading", "Iniciar y cancelar análisis de Trading", "Actualizar precios del registrador"] },
-  fr: { title: "Autorisations", expiry: "Expire après", expires: "Expiration", expired: "Expirée", days: "jours", hint: "Choisissez uniquement les accès nécessaires. Trading exige toujours un abonnement Trading actif.", labels: ["Rechercher des domaines", "Lire le compte et l’abonnement", "Lire les domaines enregistrés", "Enregistrer et supprimer des domaines", "Lire les rapports Trading", "Lancer et annuler les analyses Trading", "Actualiser les prix du bureau d’enregistrement"] },
-  zh: { title: "权限", expiry: "有效期", expires: "到期时间", expired: "已到期", days: "天", hint: "仅选择此集成所需的权限。Trading 仍然需要有效的 Trading 套餐。", labels: ["搜索域名", "读取账户与套餐", "读取已保存的域名", "保存和删除域名", "读取 Trading 报告", "启动和取消 Trading 研究", "刷新注册商报价"] },
+  en: { title: "Permissions", expiry: "Expires after", expires: "Expires", expired: "Expired", days: "days", hint: "Choose only the access this integration needs. Trading still requires an active Trading plan.", labels: ["Search domains", "Read account and plan", "Read saved domains", "Save and remove domains", "Read Trading reports", "Start and cancel Trading research", "Refresh registrar quotes", "Read name projects and brand packages", "Save name projects and brand packages", "Check GitHub profiles", "Save Trading scenarios"] },
+  sv: { title: "Behörigheter", expiry: "Upphör efter", expires: "Upphör", expired: "Utgången", days: "dagar", hint: "Välj endast den åtkomst integrationen behöver. Trading kräver fortfarande en aktiv Trading-plan.", labels: ["Sök domäner", "Läs konto och plan", "Läs sparade domäner", "Spara och ta bort domäner", "Läs Trading-rapporter", "Starta och avbryt Trading-analyser", "Uppdatera registrarpriser", "Läs namnprojekt och varumärkespaket", "Spara namnprojekt och varumärkespaket", "Kontrollera GitHub-profiler", "Spara Trading-scenarier"] },
+  es: { title: "Permisos", expiry: "Caduca después de", expires: "Caduca", expired: "Caducada", days: "días", hint: "Selecciona solo el acceso que necesita esta integración. Trading requiere un plan Trading activo.", labels: ["Buscar dominios", "Leer cuenta y plan", "Leer dominios guardados", "Guardar y eliminar dominios", "Leer informes de Trading", "Iniciar y cancelar análisis de Trading", "Actualizar precios del registrador", "Leer proyectos y paquetes de nombres", "Guardar proyectos y paquetes de nombres", "Consultar perfiles de GitHub", "Guardar escenarios de Trading"] },
+  fr: { title: "Autorisations", expiry: "Expire après", expires: "Expiration", expired: "Expirée", days: "jours", hint: "Choisissez uniquement les accès nécessaires. Trading exige toujours un abonnement Trading actif.", labels: ["Rechercher des domaines", "Lire le compte et l’abonnement", "Lire les domaines enregistrés", "Enregistrer et supprimer des domaines", "Lire les rapports Trading", "Lancer et annuler les analyses Trading", "Actualiser les prix du bureau d’enregistrement", "Lire les projets et ensembles de noms", "Enregistrer les projets et ensembles de noms", "Consulter les profils GitHub", "Enregistrer les scénarios Trading"] },
+  zh: { title: "权限", expiry: "有效期", expires: "到期时间", expired: "已到期", days: "天", hint: "仅选择此集成所需的权限。Trading 仍然需要有效的 Trading 套餐。", labels: ["搜索域名", "读取账户与套餐", "读取已保存的域名", "保存和删除域名", "读取 Trading 报告", "启动和取消 Trading 研究", "刷新注册商报价", "读取名称项目和品牌组合", "保存名称项目和品牌组合", "查询 GitHub 资料", "保存 Trading 情景"] },
 };
 
 function DeveloperKeyWorkspace(props: { copy: DeveloperKeyCopy; language: Language }) {
@@ -962,7 +966,7 @@ function DeveloperKeyAccountWorkspace({ copy, language }: { copy: DeveloperKeyCo
               <span className="grid h-11 w-11 place-items-center rounded-xl bg-primary/10 text-primary"><KeyRound className="h-5 w-5" aria-hidden="true" /></span>
               <h3 className="mt-5 text-xl font-semibold tracking-[-0.03em]">{copy.signInTitle}</h3>
               <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">{copy.signInLead}</p>
-              <Button asChild className="mt-5"><Link to="/auth?next=/developers%23access">{copy.signInAction}<ArrowRight className="h-4 w-4" /></Link></Button>
+              <Button asChild className="mt-5 h-auto min-h-11 w-full whitespace-normal text-center sm:w-auto"><Link to="/auth?next=/developers%23access"><span className="min-w-0">{copy.signInAction}</span><ArrowRight className="h-4 w-4" /></Link></Button>
             </div>
           </div>
         ) : (
@@ -1042,31 +1046,31 @@ function DeveloperKeyAccountWorkspace({ copy, language }: { copy: DeveloperKeyCo
 const mcpCopy = {
   en: { title: "Connect your private Sajda account.", lead: "Use MCP to search domains, work with your saved list and read Trading research from the same Sajda account.",
     auth: "Create a key with only the permissions your integration needs. Store it in your MCP client's secret settings and send it as a Bearer header on every request.",
-    protocol: "Streamable HTTP · protocol 2025-11-25 · server 1.0.0",
+    protocol: "Streamable HTTP · protocol 2025-11-25",
     compatibility: "Use a client that supports configured Bearer headers. OAuth sign-in is not available.",
     behavior: "Reading status or a report never starts research. Start, advance, stop and quote refresh are explicit tools. Trading still requires an active plan; no tool purchases a domain.",
     rest: "The same account operations are available through the scoped REST API.", permission: "Choose access", reference: "Open API reference", keys: "Manage API keys" },
   sv: { title: "Anslut ditt privata Sajda-konto.", lead: "Använd MCP för att söka domäner, arbeta med din sparade lista och läsa Trading-analyser från samma Sajda-konto.",
     auth: "Skapa en nyckel med de behörigheter integrationen behöver. Spara den i MCP-klientens hemliga inställningar och skicka den som Bearer-header vid varje anrop.",
-    protocol: "Streamable HTTP · protokoll 2025-11-25 · server 1.0.0",
+    protocol: "Streamable HTTP · protokoll 2025-11-25",
     compatibility: "Använd en klient med stöd för konfigurerade Bearer-headers. OAuth-inloggning är inte tillgänglig.",
     behavior: "Status och rapporter startar aldrig analyser. Start, fortsättning, stopp och prisuppdatering är uttryckliga verktyg. Trading kräver fortfarande en aktiv plan; inget verktyg köper domäner.",
     rest: "Samma kontofunktioner finns i REST-API:t med avgränsade behörigheter.", permission: "Välj åtkomst", reference: "Öppna API-referensen", keys: "Hantera API-nycklar" },
   es: { title: "Conecta tu cuenta privada de Sajda.", lead: "Usa MCP para buscar dominios, trabajar con tu lista guardada y leer análisis de Trading de la misma cuenta de Sajda.",
     auth: "Crea una clave con los permisos que necesita tu integración. Guárdala en la configuración de secretos de tu cliente MCP y envíala como cabecera Bearer en cada solicitud.",
-    protocol: "Streamable HTTP · protocolo 2025-11-25 · servidor 1.0.0",
+    protocol: "Streamable HTTP · protocolo 2025-11-25",
     compatibility: "Usa un cliente compatible con cabeceras Bearer configuradas. El inicio de sesión OAuth no está disponible.",
     behavior: "Leer el estado o un informe nunca inicia una investigación. Iniciar, avanzar, detener y actualizar precios son herramientas explícitas. Trading requiere un plan activo; ninguna herramienta compra dominios.",
     rest: "Las mismas operaciones de cuenta están disponibles en la API REST con permisos definidos.", permission: "Elige el acceso", reference: "Abrir referencia API", keys: "Gestionar claves API" },
   fr: { title: "Connectez votre compte Sajda privé.", lead: "Utilisez MCP pour rechercher des domaines, gérer votre liste et lire les analyses Trading du même compte Sajda.",
     auth: "Créez une clé avec les autorisations nécessaires. Conservez-la dans les paramètres secrets de votre client MCP et envoyez-la en en-tête Bearer à chaque requête.",
-    protocol: "Streamable HTTP · protocole 2025-11-25 · serveur 1.0.0",
+    protocol: "Streamable HTTP · protocole 2025-11-25",
     compatibility: "Utilisez un client acceptant des en-têtes Bearer configurés. La connexion OAuth n’est pas disponible.",
     behavior: "Lire le statut ou un rapport ne lance jamais une analyse. Lancer, avancer, arrêter et actualiser un prix sont des outils explicites. Trading exige un abonnement actif ; aucun outil n’achète de domaine.",
     rest: "Les mêmes opérations sont disponibles dans l’API REST avec des autorisations précises.", permission: "Choisir les accès", reference: "Ouvrir la référence API", keys: "Gérer les clés API" },
   zh: { title: "连接你的私人 Sajda 账户。", lead: "通过 MCP 搜索域名、管理收藏并读取同一 Sajda 账户的 Trading 研究报告。",
     auth: "创建仅含所需权限的密钥，将其保存在 MCP 客户端的机密设置中，并在每次请求中通过 Bearer 请求头发送。",
-    protocol: "Streamable HTTP · 协议 2025-11-25 · 服务版本 1.0.0",
+    protocol: "Streamable HTTP · 协议 2025-11-25",
     compatibility: "请使用支持配置 Bearer 请求头的客户端。目前不提供 OAuth 登录。",
     behavior: "读取状态或报告不会启动研究。启动、推进、停止和刷新报价均需显式调用工具。Trading 仍需有效套餐；所有工具均不会购买域名。",
     rest: "相同的账户操作也可通过带权限控制的 REST API 使用。", permission: "选择权限", reference: "打开 API 参考", keys: "管理 API 密钥" },
@@ -1212,33 +1216,36 @@ export default function Developers() {
     { method: "POST", path: "/api/v1/domains", description: copy.protectedDomains, status: copy.statusKey, audience: copy.audienceApproved, href: "#api-v1", tone: "protected" as const },
   ];
 
-  if (isNativeApp) return <div className="min-h-screen bg-background text-foreground">
+  if (isNativeApp) return <main className="min-h-screen bg-background text-foreground">
     <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-5 pt-6 sm:px-7">
       <h1 className="text-xl font-semibold">{connectorCopy[language].pageTitle}</h1>
       <a href="#mcp" className="text-sm font-semibold text-primary">MCP<ArrowRight className="ml-2 inline h-4 w-4" aria-hidden="true" /></a>
     </div>
     <ConnectorSetup language={language} origin={PUBLIC_CONNECTOR_ORIGIN} />
+    <NamePackageApiGuide language={language} />
+    <BrandLookupApiGuide language={language} />
+    <BrandIndexApiGuide language={language} />
     {keyPortalEnabled ? <DeveloperKeyWorkspace copy={keyCopy} language={language} /> : null}
     <DeveloperMcpSection language={language} origin={origin} copyLabel={copy.copy} copiedLabel={copy.copied} />
-  </div>;
+  </main>;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <header className="sticky top-0 z-30 border-b border-border/80 bg-card/95 backdrop-blur-xl">
-        <div className="mx-auto flex min-h-[4.5rem] w-full max-w-7xl items-center justify-between gap-4 px-5 sm:px-7">
-          <Link to="/" className="inline-flex shrink-0 items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" aria-label="Sajda">
+      <header className="top-0 z-30 border-b border-border/80 bg-card/95 backdrop-blur-xl xl:sticky">
+        <div className="mx-auto flex min-h-[4.5rem] w-full max-w-7xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-7">
+          <Link to="/" className="inline-flex min-h-11 shrink-0 items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2" aria-label="Sajda">
             <img src="/sajda-logo.svg" alt="Sajda" className="h-7 w-auto sm:h-8" />
           </Link>
-          <nav className="hidden items-center gap-5 text-sm font-semibold text-muted-foreground lg:flex" aria-label={copy.documentTitle}>
-            <a href="#overview" className="transition-colors hover:text-foreground">{copy.navOverview}</a>
-            <a href="#ai-assistants" className="transition-colors hover:text-foreground">{connectorCopy[language].nav}</a>
-            <a href="#public" className="transition-colors hover:text-foreground">{copy.navPublic}</a>
-            <a href="#api-v1" className="transition-colors hover:text-foreground">{copy.navV1}</a>
-            <a href="#mcp" className="transition-colors hover:text-foreground">MCP</a>
-            {keyPortalEnabled ? <a href="#access" className="transition-colors hover:text-foreground">{copy.navAccess}</a> : null}
+          <nav className="order-last hidden w-full flex-wrap items-center gap-x-5 gap-y-1 text-sm font-semibold text-muted-foreground lg:flex xl:order-none xl:w-auto" aria-label={copy.documentTitle}>
+            <a href="#overview" className="inline-flex min-h-11 items-center transition-colors hover:text-foreground">{copy.navOverview}</a>
+            <a href="#ai-assistants" className="inline-flex min-h-11 items-center transition-colors hover:text-foreground">{connectorCopy[language].nav}</a>
+            <a href="#public" className="inline-flex min-h-11 items-center transition-colors hover:text-foreground">{copy.navPublic}</a>
+            <a href="#api-v1" className="inline-flex min-h-11 items-center transition-colors hover:text-foreground">{copy.navV1}</a>
+            <a href="#mcp" className="inline-flex min-h-11 items-center transition-colors hover:text-foreground">MCP</a>
+            {keyPortalEnabled ? <a href="#access" className="inline-flex min-h-11 items-center transition-colors hover:text-foreground">{copy.navAccess}</a> : null}
           </nav>
-          <div className="flex items-center gap-2 sm:gap-4">
-            <Link to="/" className="hidden items-center gap-1.5 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground md:inline-flex">
+          <div className="flex max-w-full flex-wrap items-center gap-2 sm:gap-4">
+            <Link to="/" className="hidden min-h-11 items-center gap-1.5 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground md:inline-flex">
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               {copy.navBack}
             </Link>
@@ -1278,6 +1285,9 @@ export default function Developers() {
         </section>
 
         <ConnectorSetup language={language} origin={PUBLIC_CONNECTOR_ORIGIN} />
+        <NamePackageApiGuide language={language} />
+        <BrandLookupApiGuide language={language} />
+        <BrandIndexApiGuide language={language} />
 
         <section id="public" className="mx-auto w-full max-w-7xl scroll-mt-24 px-5 py-14 sm:px-7 sm:py-20">
           <div className="grid gap-10 lg:grid-cols-[minmax(0,0.74fr)_minmax(25rem,1.06fr)] lg:gap-16">

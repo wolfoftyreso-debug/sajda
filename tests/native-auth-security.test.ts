@@ -6,7 +6,7 @@ import { createDelegatedAccountHeaders, readDelegatedAccount, type DelegatedAcco
 import { exchangeNativeCode, hashNativeSecret, nativeAuthorizeInput, nativeChallenge, nativeExchangeInput, requireNativeSession } from "../api/_shared/native-auth";
 import { nativeJson, nativeResponseHeaders } from "../api/_shared/native-http";
 import nativeAuth from "../api/native/auth";
-import nativeAccount, { nativeAccountRoute } from "../api/native/account";
+import nativeAccount, { nativeAccountJson, nativeAccountRoute } from "../api/native/account";
 import { nativePublicPath } from "../src/lib/productFetch";
 
 const isAccessError = (code: string, status?: number) => (error: unknown) => error instanceof AccountAccessError && error.code === code && (status === undefined || error.status === status);
@@ -70,6 +70,8 @@ test("native account routing is canonical, scoped and cannot invoke Stripe or ar
     ["/api/account/lost-domains", "POST", { action: "refresh_quote" }, "trading:quote"],
     ["/api/account/trading-scenarios", "GET", undefined, "trading:read"],
     ["/api/account/trading-scenarios", "POST", { action: "save" }, "trading:run"],
+    ["/api/account/name-projects", "GET", undefined, "saved:read"],
+    ["/api/account/name-projects", "POST", { action: "save" }, "saved:write"],
     ["/api/developer/api-keys", "GET", undefined, "keys:manage"],
     ["/api/developer/api-keys", "POST", { name: "App integration", scopes: ["domains:read"] }, "keys:manage"],
     ["/api/developer/api-keys?id=12345678-1234-4234-8234-123456789abc", "DELETE", undefined, "keys:manage"],
@@ -118,6 +120,39 @@ test("native public transport accepts only relative product requests", () => {
   assert.throws(() => nativePublicPath("/api/domain-search", "GET"));
 });
 
+test("native name projects use only the private canonical GET/POST endpoint and keep their feature gate", async () => {
+  const originalEnabled = process.env.SAJDA_NAME_PROJECTS_ENABLED;
+  delete process.env.SAJDA_NAME_PROJECTS_ENABLED;
+  try {
+    for (const method of ["GET", "POST"]) {
+      const route = nativeAccountRoute("/api/account/name-projects", method, method === "POST" ? { action: "save" } : undefined);
+      assert.equal(typeof route.handler, "function");
+      assert.equal(route.scope, method === "GET" ? "saved:read" : "saved:write");
+      assert.deepEqual(route.query, {});
+      const reply = response();
+      await route.handler({ method, headers: {}, query: route.query }, reply);
+      assert.equal(reply.code, 404, "native routing must not bypass the server feature gate");
+      assert.equal((reply.body as { code: string }).code, "not_available");
+      assert.equal(reply.headers.get("cache-control"), "private, no-store");
+      assert.equal(reply.headers.get("x-robots-tag"), "noindex, nofollow");
+      for (const path of [
+        "/api/account/name-projects?cursor=1", "/api/account/name-projects?owner_id=victim",
+        "/api/account/name-projects?", "/api/account/name-projects#shortlist", "/api/account/name-projects/",
+        "/api/account/%6eame-projects", "/api/account/../account/name-projects",
+        "https://other.example/api/account/name-projects", "/api/account/name-projects\\other",
+      ]) assert.throws(() => nativeAccountRoute(path, method), undefined, path);
+    }
+    for (const method of ["DELETE", "PUT", "PATCH", "HEAD", "OPTIONS"]) {
+      assert.throws(() => nativeAccountRoute("/api/account/name-projects", method), isAccessError("unsupported_native_action", 403), method);
+    }
+    assert.throws(() => nativePublicPath("/api/account/name-projects", "GET"));
+    assert.throws(() => nativePublicPath("/api/account/name-projects", "POST"));
+  } finally {
+    if (originalEnabled === undefined) delete process.env.SAJDA_NAME_PROJECTS_ENABLED;
+    else process.env.SAJDA_NAME_PROJECTS_ENABLED = originalEnabled;
+  }
+});
+
 test("native JSON and response headers bound input and keep account data private", async () => {
   assert.deepEqual(await nativeJson({ headers: { "content-type": "application/json; charset=utf-8" }, body: { action: "logout" } }), { action: "logout" });
   await assert.rejects(() => nativeJson({ headers: { "content-type": "text/plain" }, body: "{}" }), isAccessError("unsupported_media_type", 415));
@@ -130,6 +165,38 @@ test("native JSON and response headers bound input and keep account data private
   assert.equal(result.headers.get("referrer-policy"), "no-referrer");
   assert.equal(result.headers.get("vary"), "Authorization");
   assert.equal(result.headers.has("access-control-allow-origin"), false);
+});
+
+test("native project envelopes have a byte-bounded exception without enlarging other account requests", async () => {
+  const headers = { "content-type": "application/json" };
+  const envelope = { path: "/api/account/name-projects", method: "POST", accountId: "account-a", body: { action: "save", project: { description: "" } } };
+  const empty = JSON.stringify(envelope);
+  const sized = (size: number, value = "x") => JSON.stringify({ ...envelope,
+    body: { action: "save", project: { description: value.repeat((size - Buffer.byteLength(empty)) / Buffer.byteLength(value)) } } });
+  const exact = sized(34_816);
+  assert.equal(Buffer.byteLength(exact), 34_816);
+  assert.deepEqual(await nativeAccountJson({ headers, body: exact }), JSON.parse(exact));
+  await assert.rejects(() => nativeAccountJson({ headers, body: sized(34_817) }), isAccessError("request_too_large", 413));
+  const unicode = { ...envelope, body: { project: { description: "🧭".repeat(8_700) } } };
+  assert.ok(JSON.stringify(unicode).length < 34_816);
+  assert.ok(Buffer.byteLength(JSON.stringify(unicode)) > 34_816);
+  await assert.rejects(() => nativeAccountJson({ headers, body: unicode }), isAccessError("request_too_large", 413));
+  const normal = JSON.parse(sized(17_000));
+  for (const patch of [
+    { path: "/api/account/saved-domains" }, { path: "/api/account/name-projects?cursor=1" },
+    { path: "/api/account/name-projects?" }, { path: "/api/account/name-projects/" },
+    { path: "/api/account/%6eame-projects" }, { method: "GET" }, { method: "DELETE" },
+    { path: "/api/account/trading-scenarios", body: { path: "/api/account/name-projects", project: "x".repeat(16_385) } },
+  ]) await assert.rejects(() => nativeAccountJson({ headers, body: { ...normal, ...patch } }), isAccessError("request_too_large", 413));
+  const regular = { ...envelope, path: "/api/account/saved-domains" };
+  const regularText = JSON.stringify(regular);
+  const padded = regularText + " ".repeat(16_384 - Buffer.byteLength(regularText));
+  assert.deepEqual(await nativeAccountJson({ headers, body: padded }), regular);
+  await assert.rejects(() => nativeAccountJson({ headers, body: padded + " " }), isAccessError("request_too_large", 413));
+  const streamed = { headers, async *[Symbol.asyncIterator]() { yield Buffer.from(exact.slice(0, 20_000)); yield Buffer.from(exact.slice(20_000)); } };
+  assert.deepEqual(await nativeAccountJson(streamed), JSON.parse(exact));
+  const oversizedStream = { headers, async *[Symbol.asyncIterator]() { yield Buffer.alloc(20_000); yield Buffer.alloc(20_000); } };
+  await assert.rejects(() => nativeAccountJson(oversizedStream), isAccessError("request_too_large", 413));
 });
 
 test("native bearer validation, unavailable storage and PKCE replay fail closed (simulated database transport)", async () => {

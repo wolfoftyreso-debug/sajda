@@ -20,7 +20,7 @@ interface ResponseLike {
 export const config = { maxDuration: 60 };
 const MAX_BODY_BYTES = 8192;
 
-async function readBody(request: RequestLike): Promise<Record<string, unknown>> {
+async function readBody(request: RequestLike, maxBytes = MAX_BODY_BYTES): Promise<Record<string, unknown>> {
   if (typeof request.headers["content-type"] !== "string" || !/^application\/json(?:\s*;|$)/iu.test(request.headers["content-type"])) {
     throw new AccountAccessError("unsupported_media_type", 415, "Send an application/json request.");
   }
@@ -37,12 +37,12 @@ async function readBody(request: RequestLike): Promise<Record<string, unknown>> 
     for await (const chunk of request as unknown as AsyncIterable<Uint8Array | string>) {
       const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
       bytes += buffer.length;
-      if (bytes > MAX_BODY_BYTES) throw new AccountAccessError("request_too_large", 413, "The account request body is too large.");
+      if (bytes > maxBytes) throw new AccountAccessError("request_too_large", 413, "The account request body is too large.");
       chunks.push(buffer);
     }
     text = Buffer.concat(chunks).toString("utf8");
   }
-  if (text && Buffer.byteLength(text, "utf8") > MAX_BODY_BYTES) {
+  if (text && Buffer.byteLength(text, "utf8") > maxBytes) {
     throw new AccountAccessError("request_too_large", 413, "The account request body is too large.");
   }
   try {
@@ -87,10 +87,12 @@ export function createAccountApiHandler(dependencies: {
       const principal = await (dependencies.authorize ?? requireApiKey)(request.headers);
       const query = request.query ?? {};
       const resource = query.resource;
-      if (typeof resource !== "string" || !["membership", "saved-domains", "trading", "trading-status"].includes(resource)) {
-        throw new AccountAccessError("invalid_resource", 400, "Choose membership, saved-domains, trading, or trading-status.");
+      if (typeof resource !== "string" || !["membership", "saved-domains", "trading", "trading-status", "name-projects", "social-profiles", "trading-scenarios"].includes(resource)) {
+        throw new AccountAccessError("invalid_resource", 400, "Choose a documented account resource: membership, saved-domains, name-projects, social-profiles, trading, trading-status or trading-scenarios.");
       }
-      const allowedMethods = resource === "saved-domains" ? ["GET", "POST", "DELETE"] : resource === "trading" ? ["GET", "POST"] : ["GET"];
+      const allowedMethods = resource === "saved-domains" ? ["GET", "POST", "DELETE"]
+        : ["trading", "name-projects", "trading-scenarios"].includes(resource) ? ["GET", "POST"]
+        : resource === "social-profiles" ? ["POST"] : ["GET"];
       if (!request.method || !allowedMethods.includes(request.method)) {
         response.setHeader("Allow", allowedMethods.join(", "));
         throw new AccountAccessError("method_not_allowed", 405, "Use a supported method for this resource.");
@@ -104,6 +106,16 @@ export function createAccountApiHandler(dependencies: {
       let args: Record<string, unknown> = {};
       if (resource === "membership") operation = "account_membership";
       else if (resource === "trading-status") operation = "trading_status";
+      else if (resource === "name-projects") {
+        operation = request.method === "GET" ? "name_projects_list" : "name_projects_save";
+        args = request.method === "GET" ? {} : await readBody(request, 32768);
+      } else if (resource === "trading-scenarios") {
+        operation = request.method === "GET" ? "trading_scenarios_list" : "trading_scenarios_save";
+        args = request.method === "GET" ? {} : await readBody(request, 16384);
+      } else if (resource === "social-profiles") {
+        operation = "social_profiles_check";
+        args = await readBody(request, 4096);
+      }
       else if (resource === "saved-domains") {
         operation = request.method === "GET" ? "saved_domains_list" : request.method === "POST" ? "saved_domains_save" : "saved_domains_remove";
         args = request.method === "GET" ? (query.cursor === undefined ? {} : { cursor: query.cursor }) : await readBody(request);

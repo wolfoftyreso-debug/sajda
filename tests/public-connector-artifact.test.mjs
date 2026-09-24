@@ -35,7 +35,7 @@ test("isolated public deployment bundles no private services and serves only ano
   const client = new Client({ name: "artifact-qa", version: "1" });
   t.after(() => client.close());
   await client.connect(new StreamableHTTPClientTransport(new URL(`http://${host}/api/mcp/public`)));
-  assert.deepEqual((await client.listTools()).tools.map(tool => tool.name), ["domains_suggest", "domains_check"]);
+  assert.deepEqual((await client.listTools()).tools.map(tool => tool.name), ["business_names_recommend", "domains_suggest", "domains_check", "name_packages_search", "brand_index_assess", "brand_lookup"]);
   for (const path of ["/api/mcp", "/api/account/membership", "/api/auth", "/api/domain-search", "/anything"])
     assert.equal((await fetch(`http://${host}${path}`)).status, 404, path);
   await assert.rejects(client.callTool({ name: "account_get", arguments: {} }), /Unknown public/u);

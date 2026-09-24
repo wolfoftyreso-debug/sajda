@@ -373,7 +373,7 @@ export function SwipeWishlistPanel({
           type="button"
           variant="outline"
           size="sm"
-          className={cn("relative shrink-0 border-border bg-card/90 shadow-sm", className)}
+          className={cn("relative h-11 shrink-0 border-border bg-card/90 shadow-sm", className)}
           aria-label={`${copy.triggerLabel} (${items.length})`}
         >
           <Bookmark className="h-4 w-4" aria-hidden="true" />
@@ -384,8 +384,8 @@ export function SwipeWishlistPanel({
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="left-auto right-0 top-0 h-[100dvh] w-full max-w-[34rem] translate-x-0 translate-y-0 gap-0 overflow-hidden rounded-none border-border bg-background p-0 shadow-2xl sm:rounded-none">
-        <DialogHeader className="border-b border-border bg-card px-5 py-5 pr-14 text-left">
+      <DialogContent className="left-auto right-0 top-0 flex h-[100dvh] max-h-none w-full max-w-[34rem] translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-border bg-background p-0 shadow-2xl sm:rounded-none">
+        <DialogHeader className="shrink-0 border-b border-border bg-card px-5 py-5 pr-14 text-left">
           <div className="flex items-center gap-2">
             <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <Bookmark className="h-4 w-4" aria-hidden="true" />
@@ -401,8 +401,8 @@ export function SwipeWishlistPanel({
           </p>
         </DialogHeader>
 
-        <div className="flex min-h-0 flex-1 flex-col bg-background">
-          <div className="border-b border-border bg-card/65 px-5 py-4">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overscroll-contain bg-background">
+          <div className="shrink-0 border-b border-border bg-card/65 px-5 py-4">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
               <Input
@@ -413,24 +413,24 @@ export function SwipeWishlistPanel({
                 className="border-border bg-background pl-9"
               />
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <label className="grid gap-1.5 text-xs font-semibold text-muted-foreground">
+            <div className="mt-3 grid min-w-0 gap-2 sm:grid-cols-2">
+              <label className="grid min-w-0 gap-1.5 text-xs font-semibold text-muted-foreground">
                 <span className="flex items-center gap-1.5"><Filter className="h-3.5 w-3.5" aria-hidden="true" />{copy.category}</span>
                 <select
                   value={category}
                   onChange={(event) => setCategory(event.target.value as SwipeWishlistCategory | "all")}
-                  className="h-9 rounded-lg border border-border bg-background px-2 text-sm font-medium text-foreground outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-ring"
+                  className="h-11 min-w-0 w-full rounded-lg border border-border bg-background px-2 text-base font-medium text-foreground outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <option value="all">{copy.allCategories}</option>
                   {swipeWishlistCategories.map((value) => <option key={value} value={value}>{categoryLabel(value, copy)}</option>)}
                 </select>
               </label>
-              <label className="grid gap-1.5 text-xs font-semibold text-muted-foreground">
+              <label className="grid min-w-0 gap-1.5 text-xs font-semibold text-muted-foreground">
                 <span>{copy.sort}</span>
                 <select
                   value={sort}
                   onChange={(event) => setSort(event.target.value as WishlistSort)}
-                  className="h-9 rounded-lg border border-border bg-background px-2 text-sm font-medium text-foreground outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-ring"
+                  className="h-11 min-w-0 w-full rounded-lg border border-border bg-background px-2 text-base font-medium text-foreground outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <option value="recent">{copy.recent}</option>
                   <option value="alphabetical">{copy.alphabetical}</option>
@@ -438,7 +438,7 @@ export function SwipeWishlistPanel({
                 </select>
               </label>
             </div>
-            <div className="mt-3 flex items-center justify-between gap-3">
+            <div className="mt-3 flex min-w-0 flex-wrap items-center justify-between gap-3">
               <p className="text-xs text-muted-foreground">{withValue(copy.visibleCount, visible.length)}</p>
               <Button
                 type="button"
@@ -446,7 +446,7 @@ export function SwipeWishlistPanel({
                 size="sm"
                 onClick={() => { void onRefresh(refreshDomains); }}
                 disabled={refreshDomains.length === 0 || isRefreshing}
-                className="border-primary/25 bg-background text-primary hover:bg-primary/5 hover:text-primary"
+                className="h-auto min-h-11 max-w-full whitespace-normal border-primary/25 bg-background text-primary hover:bg-primary/5 hover:text-primary"
               >
                 <RefreshCw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} aria-hidden="true" />
                 {isRefreshing ? copy.refreshing : copy.refresh}
@@ -456,7 +456,7 @@ export function SwipeWishlistPanel({
           </div>
 
           {items.length > 0 && (
-            <div className="flex items-center justify-end border-b border-border bg-card/40 px-5 py-2">
+            <div className="flex shrink-0 items-center justify-end border-b border-border bg-card/40 px-5 py-2">
               <Button type="button" variant="ghost" size="sm" onClick={onClear} className="h-8 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
                 <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                 {copy.clear}
@@ -464,7 +464,7 @@ export function SwipeWishlistPanel({
             </div>
           )}
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          <div className="min-w-0 shrink-0 grow px-5 py-4">
             {visible.length > 0 ? (
               <ul className="space-y-3" aria-label={copy.title}>
                 {visible.map((item) => {

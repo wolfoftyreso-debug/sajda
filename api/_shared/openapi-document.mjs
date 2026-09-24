@@ -5,6 +5,11 @@
  * utility in _shared so Vercel does not expose it as a function entrypoint.
  */
 
+import namePackageSchemas from "./name-package-openapi.json" with { type: "json" };
+import brandIndexSchemas from "./brand-index-openapi.json" with { type: "json" };
+import brandLookupSchemas from "./brand-lookup-openapi.json" with { type: "json" };
+import agentProductSchemas from "./agent-product-openapi.json" with { type: "json" };
+
 const providerIds = [
   "loopia", "cloudflare", "godaddy", "namecheap", "porkbun", "dynadot", "route53", "onecom",
   "ionos", "ovhcloud", "squarespace", "hostinger", "gandi", "hover", "spaceship", "namecom",
@@ -12,11 +17,12 @@ const providerIds = [
 ];
 
 const tlds = ["com", "net", "org", "app", "dev", "ai", "xyz", "info", "biz", "se", "nu"];
-const apiKeyScopes = ["domains:search", "account:read", "saved:read", "saved:write", "trading:read", "trading:run", "trading:quote"];
+const apiKeyScopes = agentProductSchemas.scopes;
 const accountApiErrors = Object.fromEntries([
   ["400", "Invalid documented resource, fields or pagination."], ["401", "API key missing, invalid, revoked, expired, or bound to another environment."],
   ["403", "Required scope, active membership, verified account, or request origin is not allowed."], ["405", "Method not supported for this resource; inspect Allow."],
-  ["409", "The request key conflicts with a different candidate or current account state."], ["413", "Body exceeds 8 KiB, or the product action limit."],
+  ["404", "The requested product resource is disabled in this environment."],
+  ["409", "The request key or expectedVersion conflicts with a different candidate or current account state."], ["413", "Body exceeds the resource-specific limit: projects 32 KiB, scenarios 16 KiB, social checks 4 KiB, otherwise 8 KiB; product action limits also apply."],
   ["415", "Send application/json for mutations."], ["429", "Shared account request or product budget exhausted."],
   ["503", "Account verification, database, engine or provider is unavailable."],
 ].map(([status, description]) => [status, { description,
@@ -27,32 +33,109 @@ const accountApiErrors = Object.fromEntries([
   }, content: { "application/json": { schema: { $ref: "#/components/schemas/AccountApiError" } } },
 }]));
 
+function namePackagePath(isPublic) {
+  return {
+    post: {
+      tags: [isPublic ? "Public domains" : "Integration domains"],
+      operationId: isPublic ? "searchPublicNamePackagesV1" : "searchNamePackagesV1",
+      summary: "Compare name candidates with versioned evidence and scoring",
+      security: isPublic ? [] : [{ SajdaApiKey: [] }],
+      description: "Bounded non-AI search using the same name-package scoring method as the website. Requires selected domain extensions and social platforms. Optional unique supported country codes in markets default to the United States and all 27 EU countries; EU itself is not a market code. Versioned market_coverage contains manual company and trademark review sources, an empty checked_markets list and automated_checks_available:false. Locale and domain extensions never determine market selection or a candidate's country. Social handles are format suggestions, not verified availability. Company and trademark checks remain not_checked. The current score ceiling is 70/100; evidence_coverage_percent measures evidence categories, not country clearance. Prices, legal clearance and valuation are not assessed. Fewer packages than requested may be returned. No purchases, social provider calls or saved history. " +
+        (isPublic ? "Shares the anonymous domain-search budget; accepts no Authorization header."
+          : "Requires a persisted account API key with domains:search and shares account request/search quotas. Legacy operator keys are not accepted."),
+      requestBody: { required: true, content: { "application/json": {
+        schema: { $ref: "#/components/schemas/NamePackageSearchRequest" },
+        example: { query: "European logistics software", tlds: ["com", "dev"], platforms: ["github", "linkedin"], markets: ["US", "SE", "DE"], count: 10, locale: "en" },
+      } } },
+      responses: {
+        "200": { description: "A versioned name-package intelligence response; unknown and stale evidence stay explicit.",
+          headers: { "X-Request-Id": { $ref: "#/components/headers/RequestId" } },
+          content: { "application/json": { schema: { $ref: "#/components/schemas/NamePackageIntelligenceResponse" } } } },
+        "400": { $ref: "#/components/responses/PublicBadRequest" },
+        "405": { $ref: "#/components/responses/PublicMethodNotAllowed" },
+        "413": { $ref: "#/components/responses/PublicPayloadTooLarge" },
+        "415": { $ref: "#/components/responses/PublicUnsupportedMediaType" },
+        "429": { $ref: "#/components/responses/PublicRateLimited" },
+        "503": { description: "Search, evidence projection or account verification is unavailable. No successful package claim.",
+          content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } } },
+        ...(!isPublic ? { "401": accountApiErrors["401"], "403": accountApiErrors["403"] } : {}),
+      },
+    },
+    ...(isPublic ? { options: { summary: "Name-package CORS preflight", security: [],
+      responses: { "204": { description: "Public JSON preflight; no credentials or provider work." } } } } : {}),
+  };
+}
+
+function businessNamesPath(isPublic) {
+  return {
+    post: {
+      tags: [isPublic ? "Public domains" : "Integration domains"],
+      operationId: isPublic ? "recommendPublicBusinessNamesV1" : "recommendBusinessNamesV1",
+      summary: "Recommend up to ten business names with Sajda Brand Index and domain evidence",
+      security: isPublic ? [] : [{ SajdaApiKey: [] }],
+      ...(!isPublic ? { "x-sajda-required-scopes": ["domains:search"] } : {}),
+      "x-sajda-mcp-tool": "business_names_recommend",
+      "x-request-body-limit-bytes": 6144,
+      description: "Provide businessDescription (1–1000 characters), optional keywords and naming language. Defaults: count 10, English naming language, English interface locale, .com, Instagram and LinkedIn review candidates, and US plus all 27 EU review markets. The full brief is considered before a transparent rule-based summary fits the 100-character naming budget. One bounded ten-candidate package search checks selected domain endings. Only candidates with at least one fresh authoritative available requested domain are recommended; other requested endings may be taken or unknown. Ranking uses Sajda Brand Index candidate readiness, name fit and an explicit naming heuristic. Present result_summary.headline, explanation and next_steps before the recommendations. This localized summary states requested and returned counts, missing names and separate known-taken, unconfirmed or unassessed candidates; never present six results as an unexplained Top 10. Inspect requested_count, returned_count, completeness, shortfall_reason and full evidence. The output is not an exhaustive search, corporate-name availability, trademark clearance, social-handle availability, investment advice or a price assessment. No third-party AI, saving, reservation or purchase. "
+        + (isPublic ? "No API key; no Authorization header or URL parameters. Shares the ordinary anonymous search budget."
+          : "Requires a persisted account key with domains:search. Shares account request and domain-search quotas; legacy operator keys are not accepted."),
+      requestBody: { required: true, content: { "application/json": {
+        schema: { $ref: "#/components/schemas/BusinessNamesRequest" },
+        example: { businessDescription: "A bakery making artisan bread for local families", nameLanguage: "en", tlds: ["com"], count: 10 },
+      } } },
+      responses: {
+        "200": { description: "Ranked names with full evidence and required localized result_summary. Display the summary and next steps before partial or empty recommendations.",
+          headers: { "X-Request-Id": { $ref: "#/components/headers/RequestId" } },
+          content: { "application/json": { schema: { $ref: "#/components/schemas/BusinessNamesResponse" } } } },
+        "400": { $ref: `#/components/responses/${isPublic ? "PublicBadRequest" : "BadRequest"}` },
+        "405": { description: isPublic ? "Use POST or credential-free OPTIONS." : "Use POST.",
+          headers: { Allow: { schema: { type: "string", const: isPublic ? "POST, OPTIONS" : "POST" } } },
+          content: { "application/json": { schema: { $ref: "#/components/schemas/AccountApiError" } } } },
+        "413": { $ref: "#/components/responses/PublicPayloadTooLarge" },
+        "415": { $ref: "#/components/responses/PublicUnsupportedMediaType" },
+        "429": { $ref: `#/components/responses/${isPublic ? "PublicRateLimited" : "RateLimited"}` },
+        "503": { description: "The bounded search or evidence projection could not complete. This is not a no-match result.",
+          content: { "application/json": { schema: { $ref: "#/components/schemas/AccountApiError" } } } },
+        ...(!isPublic ? { "401": accountApiErrors["401"], "403": accountApiErrors["403"] } : {}),
+      },
+    },
+    ...(isPublic ? { options: { summary: "Business-name CORS preflight", security: [],
+      responses: { "204": { description: "Credential-free public preflight without engine work." } } } } : {}),
+  };
+}
+
 export const openApiDocument = {
   openapi: "3.1.0",
   info: {
     title: "Sajda Developer API",
-    version: "1.0.0",
+    version: "1.4.1",
     description: [
       "A small public surface for bounded, registry-checked domain search and source-attributed domain-market context.",
+      "Versioned name-package intelligence is available through POST /api/v1/public/name-packages, scoped POST /api/v1/name-packages and the name_packages_search MCP tool. Machine evidence is separate from derived scores; missing legal, social and price checks remain explicit.",
+      "POST /api/v1/[public/]business-names and business_names_recommend turn a business brief into up to ten ranked names with the same Sajda Brand Index and fresh domain evidence. Required result_summary explains the delivered count, shortfall reasons and next steps in the requested locale before the names. Company names, trademarks, socials and prices are not cleared or assessed.",
+      "POST /api/v1/public/brand-index and the brand_index_assess MCP tool calculate an existing-brand SELF_ASSESSMENT from USER_SUPPLIED reports only. No external queries or independent verification are performed; verified_score is always null.",
+      "POST /api/v1/public/brand-lookup and brand_lookup offer name-first Wikidata search and a selected entity profile. Database assertions are not verified ownership or live availability; profile index.score remains null. This is separate from the self-assessment worksheet.",
       "Availability is confirmed only when a configured registry source returns authoritative evidence. A result marked unknown is not an availability claim.",
       "POST /api/v1/public/domains and GET public endpoints require no API key. POST /api/v1/domains is a protected server-to-server integration route.",
-      "The separate anonymous /api/mcp/public Streamable HTTP connector provides domains_suggest (explicit per-domain budget) and domains_check without a Sajda account or API key. Only public domain discovery is exposed. Conditional published-TLD price estimates remain distinct from exact offers; results may be fewer than requested. Platform installation and directory approval are separate from endpoint compatibility.",
-      "Verified accounts can create scoped, expiring keys in the same-origin developer dashboard backed by Neon Postgres. Account integrations use /api/v1/account and share saved domains, membership and Trading state with the website. The legacy operator key only authorizes its existing domain-search compatibility route.",
-      "Remote MCP is available separately at /api/mcp through Streamable HTTP (server 1.0.0, tested protocol 2025-11-25, SDK 1.30.0). It accepts scoped bearer keys on every request and is not an ordinary REST action. OAuth discovery/login is not implemented. Billing, marketplace transfers, automatic purchases and registrar credentials are not part of these integration interfaces.",
+      "The separate anonymous /api/mcp/public Streamable HTTP connector provides business_names_recommend, domains_suggest (explicit per-domain budget), domains_check, name_packages_search, the pure brand_index_assess calculator and public brand_lookup without a Sajda account or API key. No account data is exposed. Conditional published-TLD price estimates remain distinct from exact offers; results may be fewer than requested. Platform installation and directory approval are separate from endpoint compatibility.",
+      "Verified accounts can create scoped, expiring keys in the same-origin developer dashboard backed by Neon Postgres. Account integrations use /api/v1/account and share naming projects, saved packages/domains, membership, GitHub profile observations, Trading reports and scenario journals with the website. Use expectedVersion for project/scenario optimistic concurrency. A key scope is not a paid entitlement. The legacy operator key only authorizes its existing domain-search compatibility route.",
+      "Remote MCP is available separately at /api/mcp through Streamable HTTP (server 1.5.0, public server 1.6.0, tested protocol 2025-11-25, SDK 1.30.0). Both expose optional naming prompts and static policy resources; metadata access never starts a search or enables offers. It accepts scoped bearer keys on every private request and is not an ordinary REST action. GET /api/v1/capabilities publishes static capability metadata, not live account access. OAuth discovery/login is not implemented. Billing, marketplace transfers, automatic purchases and registrar credentials are not part of these integration interfaces.",
     ].join(" "),
   },
   servers: [{ url: "/", description: "Same origin as the deployed Sajda application." }],
   externalDocs: { url: "/developers#mcp", description: "Sajda MCP connection and scoped API guide." },
-  "x-sajda-mcp": { endpoint: "/api/mcp", transport: "streamable-http", serverVersion: "1.0.0", sdkVersion: "1.30.0",
+  "x-sajda-mcp": { endpoint: "/api/mcp", transport: "streamable-http", serverVersion: agentProductSchemas.privateMcpVersion, sdkVersion: "1.30.0",
     testedProtocolVersions: ["2025-11-25", "2025-06-18", "2025-03-26"], authentication: "scoped-bearer-api-key", oauth: false,
     stateless: true, toolDiscovery: "tools/list", requestBodyLimitBytes: 16384 },
-  "x-sajda-public-mcp": { endpoint: "/api/mcp/public", transport: "streamable-http", serverVersion: "1.0.0",
+  "x-sajda-public-mcp": { endpoint: "/api/mcp/public", transport: "streamable-http", serverVersion: agentProductSchemas.publicMcpVersion,
     testedProtocolVersions: ["2025-11-25", "2025-06-18", "2025-03-26"], authentication: "none", oauth: false,
-    tools: ["domains_suggest", "domains_check"], readOnly: true, stateless: true, requestBodyLimitBytes: 16384,
+    tools: ["business_names_recommend", "domains_suggest", "domains_check", "name_packages_search", "brand_index_assess", "brand_lookup"], readOnly: true, stateless: true, requestBodyLimitBytes: 16384,
     maxResults: 10, budgetCurrencies: ["USD", "EUR", "GBP", "SEK"], budgetPeriods: ["first_year", "annual_renewal"],
     sourcePolicy: "Keep unknown availability, actual observation dates, conditional standard-TLD prices and reference FX distinct from exact checkout offers.",
     limitations: "No account data, writes, purchases, third-party AI or guaranteed number of matches. Best-effort shared per-instance network limits; client availability depends on platform policy. Directory listing is not implied." },
   tags: [
+    { name: "Public brand lookup", description: "Name-first public database search and selected-entity profiles, not ownership verification." },
+    { name: "Brand self-assessment", description: "CPU-only calculation from supplied reports; no independent verification or external queries." },
     { name: "Public domains", description: "Anonymous, CORS-enabled and rate-bounded domain search." },
     { name: "Integration domains", description: "Server-to-server domain search using a user-managed Sajda API key." },
     { name: "Developer keys", description: "Same-origin, verified-session key management backed by Neon Postgres. Requires the key migration and account authentication configuration in this deployment." },
@@ -60,6 +143,73 @@ export const openApiDocument = {
     { name: "Facts", description: "Read-only, source-attributed historical market context." },
   ],
   paths: {
+    "/api/v1/capabilities": {
+      get: { tags: ["Facts"], operationId: "getSajdaCapabilitiesV1", security: [],
+        summary: "Discover supported Sajda operations, schemas, scopes and action boundaries",
+        description: "Static public product capability metadata for humans and agents. This does not read an account, prove entitlement, check environment availability, create a key or invoke product work. Use account membership and each operation response to verify actual access. No OAuth or directory approval is implied.",
+        responses: { "200": { description: "A versioned capability catalogue with REST and MCP bindings.",
+          content: { "application/json": { schema: { type: "object", additionalProperties: true } } } },
+          "405": { description: "Use GET or OPTIONS." } },
+      },
+    },
+    "/api/v1/public/business-names": businessNamesPath(true),
+    "/api/v1/business-names": businessNamesPath(false),
+    "/api/v1/public/brand-lookup": {
+      post: {
+        tags: ["Public brand lookup"], operationId: "lookupPublicBrandV1", security: [],
+        summary: "Search for an existing brand, then inspect the selected database entity",
+        description: "Strict two-operation JSON contract: search requires a 1–100-character Unicode name query; profile requires a selected Wikidata Q identifier. Locale defaults to en and selects language, never jurisdiction. No Authorization, query parameters, caller source URL, provider credentials or verification flags. Body limit is 6 KiB (6144 UTF-8 bytes). Wikidata is the sole source, identified as community_knowledge_graph and CC0-1.0. Search returns up to five candidates and a null verified_index. Profile returns up to twenty DATABASE_ASSERTION entries with relationship:not_verified, temporal_status:not_established, source and revision/retrieval dates; index.score is null and verified_assertions is zero. A source assertion is not ownership proof, current social availability, domain control, legal clearance, reputation, financial valuation or global coverage. Missing or empty results do not establish a brand's absence. The caller selects the intended entity; a matching name does not disambiguate it. No domain engine, registrar, AI, private account state, save or purchase is invoked. REST uses a best-effort 12/minute per-instance network guard. The shared per-instance adapter bounds cache/singleflight and upstream capacity, with cooldown honoring Retry-After; this is not a global/project quota guarantee. Search cache TTL is five minutes and profile TTL fifteen minutes; retrieved_at stays the original retrieval time. Responses use no-store/noindex and public CORS without credentials.",
+        "x-request-body-limit-bytes": 6144,
+        requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/BrandLookupRequest" },
+          examples: { search: { value: { operation: "search", query: "IKEA", locale: "en" } },
+            profile: { summary: "Use the entity_id from the selected search candidate", value: { operation: "profile", entity_id: "Q54078", locale: "en" } } },
+        } } },
+        responses: Object.fromEntries([
+          ["200", "Versioned search candidates or a selected database profile; scores remain null."],
+          ["400", "Invalid strict operation input, URL parameters or unsupported Authorization header."],
+          ["404", "The selected source profile was not found; this is not proof that a brand is absent."],
+          ["405", "Use POST; OPTIONS supports credential-free preflight."], ["413", "Body exceeds 6 KiB."],
+          ["415", "Send application/json."], ["429", "Request/source capacity or cooldown reached; respect Retry-After when present."],
+          ["503", "The public source lookup could not be completed, not a successful no-match result."],
+        ].map(([status, description]) => [status, { description,
+          headers: { "X-Request-Id": { $ref: "#/components/headers/RequestId" },
+            ...(status === "429" ? { "Retry-After": { schema: { type: "integer", minimum: 1 } } } : {}),
+            ...(status === "405" ? { Allow: { schema: { type: "string", const: "POST, OPTIONS" } } } : {}) },
+          content: { "application/json": { schema: { $ref: `#/components/schemas/${status === "200" ? "BrandLookupResponse" : "BrandLookupError"}` } } },
+        }])),
+      },
+      options: { summary: "Brand-lookup CORS preflight", security: [],
+        responses: { "204": { description: "Credential-free public preflight with no lookup or provider work." } } },
+    },
+    "/api/v1/public/brand-index": {
+      post: {
+        tags: ["Brand self-assessment"], operationId: "assessPublicBrandIndexV1",
+        summary: "Calculate an existing brand self-assessment from user-supplied reports", security: [],
+        description: "Strict JSON body, at most 64 KiB (65536 UTF-8 bytes). No URL query parameters or Authorization header. Domain and social identities are declarations, not checked ownership. Unique observations must match targets in the selected scope; duplicate and caller verification fields are rejected. This pure calculator performs no DNS, HTTP, AI, company, trademark, registrar or database lookup and does not save reports. Supplied source URLs are never fetched. All provenance is USER_SUPPLIED, index.classification is SELF_ASSESSMENT, verified_score and confidence stay null and verified coverage is zero. A reported score remains null until at least 60% weighted report coverage and one current resolved report per category. Future, stale (over 30 days), undated, unknown and matching-name-only reports do not resolve coverage. Scores cover the explicitly selected identity and targets, not global brand value, reputation, legal clearance or availability. No domain-search/provider quota is consumed. A best-effort per-instance guard allows 120 requests/minute per network address, with a bounded map. All responses use no-store and noindex headers; public CORS never grants credentials.",
+        "x-request-body-limit-bytes": 65536,
+        requestBody: { required: true, content: { "application/json": {
+          schema: { $ref: "#/components/schemas/BrandIndexAssessmentRequest" },
+          example: { brand_name: "Example Brand", identity_label: "example", primary_domain: "example.com",
+            domains: ["example.com"], socials: [{ platform: "github", handle: "example" }], markets: ["US"], observations: [] },
+        } } },
+        responses: Object.fromEntries([
+          ["200", "Versioned SELF_ASSESSMENT with USER_SUPPLIED reports; never independent verification."],
+          ["400", "Invalid strict input, target scope, URL query parameters or unsupported Authorization header."],
+          ["405", "Use POST; OPTIONS supports credential-free preflight."], ["413", "Body exceeds 64 KiB."],
+          ["415", "Send application/json."], ["429", "Public calculator request guard reached; wait before retrying."],
+          ["503", "The calculator could not produce a valid self-assessment. No successful assessment claim."],
+        ].map(([status, description]) => [status, { description,
+          headers: { "X-Request-Id": { $ref: "#/components/headers/RequestId" },
+            ...(status === "429" ? { "Retry-After": { schema: { type: "integer", minimum: 1 } } } : {}),
+            ...(status === "405" ? { Allow: { schema: { type: "string", const: "POST, OPTIONS" } } } : {}) },
+          content: { "application/json": { schema: { $ref: `#/components/schemas/${status === "200" ? "BrandIndexAssessmentResponse" : "BrandIndexError"}` } } },
+        }])),
+      },
+      options: { summary: "Brand-index CORS preflight", security: [],
+        responses: { "204": { description: "Public CORS preflight; no credentials, calculation, saving or provider work." } } },
+    },
+    "/api/v1/public/name-packages": namePackagePath(true),
+    "/api/v1/name-packages": namePackagePath(false),
     "/api/v1/public/domains": {
       post: {
         tags: ["Public domains"],
@@ -270,31 +420,36 @@ export const openApiDocument = {
     },
     "/api/v1/account": {
       get: {
-        tags: ["Account integration"], summary: "Read membership, saved domains or existing Trading state", operationId: "readAccountResourceV1",
+        tags: ["Account integration"], summary: "Read membership, naming projects, saved domains, Trading reports or scenarios", operationId: "readAccountResourceV1",
         security: [{ SajdaApiKey: [] }],
-        description: "Choose resource. Required scopes: membership=account:read; saved-domains=saved:read; trading and trading-status=trading:read. Trading reports also require active Trading membership. No read starts or advances work. The account comes only from the verified key. Unknown query fields are rejected. Limit: 120 requests/minute across this account's keys and protocols, plus existing product limits. No cross-origin CORS.",
-        "x-sajda-resource-scopes": { membership: "account:read", "saved-domains": "saved:read", trading: "trading:read", "trading-status": "trading:read" },
+        description: "Choose resource. Required scopes: membership=account:read; saved-domains=saved:read; name-projects=projects:read; trading, trading-status and trading-scenarios=trading:read. Reports and scenario journals also require active Trading membership. Naming projects remain feature-gated. No read starts or advances work. Project snapshots and scenario assumptions are user supplied, not refreshed evidence or forecasts. The account comes only from the verified key. Unknown query fields are rejected. Limit: 120 requests/minute across this account's keys and protocols, plus existing product limits. No cross-origin CORS.",
+        "x-sajda-resource-scopes": { membership: "account:read", "saved-domains": "saved:read", "name-projects": "projects:read",
+          trading: "trading:read", "trading-status": "trading:read", "trading-scenarios": "trading:read" },
         parameters: [
-          { in: "query", name: "resource", required: true, schema: { type: "string", enum: ["membership", "saved-domains", "trading", "trading-status"] } },
+          { in: "query", name: "resource", required: true, schema: { type: "string", enum: ["membership", "saved-domains", "trading", "trading-status", "name-projects", "trading-scenarios"] } },
           { in: "query", name: "cursor", description: "Only for saved-domains. Use nextCursor from the prior page; each page has up to 100 items.", schema: { type: "string", pattern: "^[1-9][0-9]{0,18}$" } },
           { in: "query", name: "offset", description: "Only for trading. Offset into the current report; restart pagination if its run changes.", schema: { type: "integer", minimum: 0, maximum: 10000, default: 0 } },
           { in: "query", name: "limit", description: "Only for trading.", schema: { type: "integer", minimum: 1, maximum: 100, default: 25 } },
         ],
         responses: { "200": { description: "The selected product's account-owned response. trading-status omits candidate details.",
-          content: { "application/json": { schema: { anyOf: ["AccountMembershipResponse", "SavedDomainListResponse", "TradingStatusResponse", "TradingReportResponse"].map(name => ({ $ref: `#/components/schemas/${name}` })) } } },
+          content: { "application/json": { schema: { anyOf: ["AccountMembershipResponse", "SavedDomainListResponse", "TradingStatusResponse", "TradingReportResponse", "NameProjectsResponse", "TradingScenariosResponse"].map(name => ({ $ref: `#/components/schemas/${name}` })) } } },
         }, ...accountApiErrors },
       },
       post: {
-        tags: ["Account integration"], summary: "Save a domain or explicitly change a Trading run", operationId: "writeAccountResourceV1",
+        tags: ["Account integration"], summary: "Save domains, naming projects or scenarios; check GitHub profiles; explicitly change Trading research", operationId: "writeAccountResourceV1",
         security: [{ SajdaApiKey: [] }],
-        description: "resource=saved-domains accepts SaveDomainRequest and requires saved:write. resource=trading accepts TradingActionRequest: start/advance/cancel require trading:run; refresh_quote requires trading:quote. Start and quote actions require a caller-generated UUID requestKey reused on retries, including after timeout. Quote keys bind one run/domain. Each advance may perform new provider work and is not idempotent. Membership, ownership, kill switch and durable product budgets remain enforced. Maximum body 8 KiB; Trading action body 1 KiB. No automatic purchases or billing changes.",
-        "x-sajda-action-scopes": { save: "saved:write", start: "trading:run", advance: "trading:run", cancel: "trading:run", refresh_quote: "trading:quote" },
-        parameters: [{ in: "query", name: "resource", required: true, schema: { type: "string", enum: ["saved-domains", "trading"] } }],
+        description: "resource=saved-domains accepts SaveDomainRequest and requires saved:write. name-projects accepts NameProjectsSaveRequest and requires projects:write; trading-scenarios accepts TradingScenariosSaveRequest and requires trading:write plus Trading entitlement. Those bodies contain project or scenario, not an action field. Use stable UUID id and expectedVersion=0 to create; reuse the returned version for updates and retry the identical payload after ambiguous failure. Stale writes conflict. Projects can only shortlist this account's already-saved domains, and remain feature-gated. social-profiles accepts SocialProfilesCheckRequest and requires social:check; only up to five GitHub handles are observed. An absent profile is not registrability or ownership proof. resource=trading accepts TradingActionRequest: start/advance/cancel require trading:run; refresh_quote requires trading:quote. Start and quote require a caller-generated UUID requestKey reused on retries; quote keys bind one run/domain. Each advance performs new bounded work and is not idempotent. Membership, ownership, kill switches and durable product budgets remain enforced. Body limits: projects 32768 bytes, scenarios 16384, social 4096, others 8192; downstream Trading action limit 1024. No automatic purchases or billing changes.",
+        "x-sajda-action-scopes": { save: "saved:write", start: "trading:run", advance: "trading:run", cancel: "trading:run", refresh_quote: "trading:quote",
+          name_projects_save: "projects:write", trading_scenarios_save: "trading:write", social_profiles_check: "social:check" },
+        "x-sajda-resource-body-limit-bytes": { "saved-domains": 8192, trading: 8192, "name-projects": 32768, "trading-scenarios": 16384, "social-profiles": 4096 },
+        parameters: [{ in: "query", name: "resource", required: true, schema: { type: "string", enum: ["saved-domains", "trading", "name-projects", "trading-scenarios", "social-profiles"] } }],
         requestBody: { required: true, content: { "application/json": { schema: { oneOf: [
           { $ref: "#/components/schemas/SaveDomainRequest" }, { $ref: "#/components/schemas/TradingActionRequest" },
+          { $ref: "#/components/schemas/NameProjectsSaveRequest" }, { $ref: "#/components/schemas/TradingScenariosSaveRequest" },
+          { $ref: "#/components/schemas/SocialProfilesCheckRequest" },
         ] } } } },
-        responses: { "200": { description: "Saved-domain receipt or latest Trading run/access status. The previous completed report remains available.",
-          content: { "application/json": { schema: { oneOf: [{ $ref: "#/components/schemas/SavedDomainMutationResponse" }, { $ref: "#/components/schemas/TradingStatusResponse" }] } } },
+        responses: { "200": { description: "The selected product response, preserving account ownership, evidence and optimistic-concurrency versions. Research journal assumptions are not market forecasts.",
+          content: { "application/json": { schema: { oneOf: ["SavedDomainMutationResponse", "TradingStatusResponse", "NameProjectsResponse", "TradingScenariosResponse", "SocialProfilesResponse"].map(name => ({ $ref: `#/components/schemas/${name}` })) } } },
         }, ...accountApiErrors },
       },
       delete: {
@@ -435,6 +590,17 @@ export const openApiDocument = {
       },
     },
     schemas: {
+      ...agentProductSchemas.schemas,
+      BrandLookupRequest: brandLookupSchemas.request,
+      BrandLookupResponse: brandLookupSchemas.response,
+      BrandLookupError: { type: "object", additionalProperties: false, required: ["code", "error", "requestId"],
+        properties: { code: { type: "string" }, error: { type: "string" }, requestId: { type: "string" } } },
+      BrandIndexAssessmentRequest: brandIndexSchemas.request,
+      BrandIndexAssessmentResponse: brandIndexSchemas.response,
+      BrandIndexError: { type: "object", additionalProperties: false, required: ["code", "error", "requestId"],
+        properties: { code: { type: "string" }, error: { type: "string" }, requestId: { type: "string" } } },
+      NamePackageSearchRequest: namePackageSchemas.request,
+      NamePackageIntelligenceResponse: namePackageSchemas.response,
       DeveloperApiKeyMetadata: {
         type: "object",
         required: ["id", "name", "keyPrefix", "lastFour", "environment", "scopes", "createdAt", "lastUsedAt", "expiresAt", "revokedAt"],
@@ -458,7 +624,7 @@ export const openApiDocument = {
         required: ["name"],
         properties: {
           name: { type: "string", minLength: 1, maxLength: 80, example: "Production service" },
-          scopes: { type: "array", minItems: 1, maxItems: 7, uniqueItems: true, default: ["domains:search"], items: { type: "string", enum: apiKeyScopes } },
+          scopes: { type: "array", minItems: 1, maxItems: apiKeyScopes.length, uniqueItems: true, default: ["domains:search"], items: { type: "string", enum: apiKeyScopes } },
           expiresInDays: { type: "integer", minimum: 1, maximum: 365, default: 90 },
         },
       },

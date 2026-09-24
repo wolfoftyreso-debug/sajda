@@ -146,7 +146,9 @@ test("Trading portal navigation protects focused context, draft state and recove
       resetTransport(); await mount(); await click(c.tabs.scenarios);
       for (const node of root().findAll(node => ["input", "textarea", "select"].includes(String(node.type)))) {
         assert.match(node.props.className, /(?:^|\s)text-base(?:\s|$)/u);
-        assert.match(node.props.className, /(?:^|\s)sm:text-sm(?:\s|$)/u);
+        // Keep readable 16px controls on tablets too. A desktop-only size
+        // override is optional; shrinking at the sm breakpoint is not required.
+        assert.doesNotMatch(node.props.className, /(?:^|\s)(?:sm:|md:)?text-(?:xs|sm)(?:\s|$)/u);
       }
     });
   } finally {

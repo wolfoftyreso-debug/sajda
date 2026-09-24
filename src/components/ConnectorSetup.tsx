@@ -3,26 +3,10 @@ import { ArrowUpRight, Check, Clipboard, LoaderCircle, Plug, ShieldCheck } from 
 import { Button } from "@/components/ui/button";
 import { connectorCopy, type ConnectorCopy } from "@/i18n/connectorCopy";
 import type { Language } from "@/i18n/languagePreference";
-
-type Assistant = "chatgpt" | "claude" | "grok";
-const assistants: { id: Assistant; name: string; documentation: string }[] = [
-  { id: "chatgpt", name: "ChatGPT", documentation: "https://developers.openai.com/plugins/deploy/connect-chatgpt" },
-  { id: "claude", name: "Claude", documentation: "https://claude.com/docs/connectors/building/directory-vs-custom" },
-  { id: "grok", name: "Grok", documentation: "https://docs.x.ai/grok/connectors" },
-];
-
-function publicMcpUrl(origin: string): string | null {
-  try {
-    const url = new URL(origin);
-    // Native must use its configured HTTPS service, never capacitor://localhost.
-    // Do not put credentials, local/private hosts or arbitrary paths in a setup link.
-    const host = url.hostname.toLowerCase();
-    if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash || url.pathname !== "/" ||
-      host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.includes(":") ||
-      /^\d+(?:\.\d+){3}$/u.test(host) || !host.includes(".")) return null;
-    return new URL("/api/mcp/public", url).href;
-  } catch { return null; }
-}
+import { CONNECTOR_HOSTS, connectorInstallUrl, connectorConfig, publicMcpUrl, type ConnectorHost } from "@/lib/connectorSetup";
+import { connectorDirectoryCopy, connectorInstructions } from "@/i18n/connectorDirectoryCopy";
+import { PUBLIC_CONNECTOR_ORIGIN } from "@/lib/publicConnector";
+import { CONNECTOR_HOST_INSTRUCTIONS, getConnectorOffer } from "../../shared/connector-policy";
 
 async function copyText(value: string) {
   if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
@@ -66,7 +50,7 @@ function CopyField({ value, label, action, confirmed, c, multiline = false }: {
   return <div className="min-w-0 rounded-2xl border border-border bg-card p-4 sm:p-5">
     <p id={id} className="text-sm font-semibold">{label}</p>
     {multiline
-      ? <p aria-labelledby={id} className="mt-3 select-text whitespace-pre-wrap text-sm leading-6 text-muted-foreground">{value}</p>
+      ? <p aria-labelledby={id} className="mt-3 select-text whitespace-pre-wrap break-words text-sm leading-6 text-muted-foreground">{value}</p>
       : <code aria-labelledby={id} className="mt-3 block select-text break-all text-sm font-medium text-primary">{value}</code>}
     <Button type="button" variant="outline" onClick={() => void copy()} disabled={status === "copying"}
       className="mt-4 min-h-11 h-auto max-w-full whitespace-normal text-left" aria-describedby={status === "error" ? id + "-status" : undefined}>
@@ -81,15 +65,17 @@ function CopyField({ value, label, action, confirmed, c, multiline = false }: {
 }
 
 export default function ConnectorSetup({ language, origin }: { language: Language; origin: string }) {
-  const c = connectorCopy[language], id = useId();
-  const [selected, setSelected] = useState<Assistant>("chatgpt");
+  const c = connectorCopy[language], directory = connectorDirectoryCopy[language], id = useId();
+  const [selected, setSelected] = useState<ConnectorHost>("chatgpt");
+  const [companionEnabled, setCompanionEnabled] = useState(false);
   const endpoint = publicMcpUrl(origin);
-  const assistant = assistants.find(item => item.id === selected)!;
-  const steps = selected === "chatgpt" ? [c.chatgptStep1, c.chatgptStep2, c.chatgptStep3]
-    : selected === "claude" ? [c.claudeStep1, c.claudeStep2, c.claudeStep3] : [c.grokStep1, c.grokStep2, c.grokStep3];
-  const action = selected === "chatgpt" ? c.chatgptAction : selected === "claude" ? c.claudeAction : c.grokAction;
-  const destination = selected === "chatgpt" ? "https://chatgpt.com/plugins" : selected === "grok" ? "https://grok.com/connectors"
-    : endpoint ? "https://claude.ai/customize/connectors?" + new URLSearchParams({ modal: "add-custom-connector", connectorName: "Sajda", connectorUrl: endpoint }).toString() : null;
+  const assistant = CONNECTOR_HOSTS.find(item => item.id === selected)!;
+  const { steps, action } = connectorInstructions(language, assistant);
+  const configuration = connectorConfig(selected, endpoint);
+  const destination = connectorInstallUrl(selected, endpoint);
+  const placement = selected === "cursor" ? c.cursorCompanion : selected === "replit" ? c.replitCompanion
+    : selected === "lovable" ? c.lovableCompanion : c.assistantCompanion;
+  const companionInstructions = `${CONNECTOR_HOST_INSTRUCTIONS}\n\n${getConnectorOffer(language)}`;
   return <section id="ai-assistants" aria-labelledby={id + "-title"} className="scroll-mt-24 border-y border-border/80 bg-secondary/35">
     <div className="mx-auto w-full max-w-7xl px-5 py-12 sm:px-7 sm:py-16">
       <div className="max-w-3xl">
@@ -108,20 +94,49 @@ export default function ConnectorSetup({ language, origin }: { language: Languag
         <div className="min-w-0 rounded-2xl border border-border bg-card p-5 sm:p-6">
           <fieldset>
             <legend className="mb-3 text-sm font-semibold">{c.choose}</legend>
-            <div className="grid grid-cols-3 gap-2">{assistants.map(item => <button key={item.id} type="button" id={id + "-" + item.id}
+            {(["assistant", "builder", "editor"] as const).map(category => <div key={category} className="mt-4 first:mt-0">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{directory[category]}</p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">{CONNECTOR_HOSTS.filter(item => item.category === category).map(item => <button key={item.id} type="button" id={id + "-" + item.id}
               onClick={() => setSelected(item.id)} aria-pressed={selected === item.id} aria-controls={id + "-steps"}
-              className={"min-h-11 rounded-xl border px-2 py-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring " +
-                (selected === item.id ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-secondary")}>{item.name}</button>)}</div>
+              className={"flex min-h-14 min-w-0 items-center gap-2 rounded-xl border px-3 py-3 text-left text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring " +
+                (selected === item.id ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-secondary")}>
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white p-1"><img src={item.logo} alt="" width={24} height={24} className="h-6 w-6 object-contain" /></span>
+                <span className="min-w-0 break-words">{item.name}</span>
+              </button>)}</div>
+            </div>)}
           </fieldset>
           <div id={id + "-steps"} role="region" aria-labelledby={id + "-" + selected}>
             <ol className="mt-6 space-y-4">{steps.map((step, index) => <li key={index} className="flex items-start gap-3 text-sm leading-6">
               <span aria-hidden="true" className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-secondary text-xs font-bold">{index + 1}</span><span>{step}</span>
             </li>)}</ol>
             <p className="mt-5 text-xs leading-5 text-muted-foreground">{c.noAuth}</p>
+            {(selected === "perplexity" || selected === "windsurf") && <p className="mt-3 rounded-xl bg-secondary p-3 text-sm leading-6">{directory[selected]}</p>}
             {destination && endpoint ? <a href={destination} target="_blank" rel="noopener noreferrer" className="mt-5 inline-flex min-h-11 max-w-full items-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">{action}<ArrowUpRight className="h-4 w-4 shrink-0" aria-hidden="true" /></a> : null}
             {selected === "claude" && endpoint && <p className="mt-3 text-xs leading-5 text-muted-foreground">{c.claudeNote}</p>}
+            {(selected === "cursor" || selected === "replit") && endpoint ? <p className="mt-3 text-xs leading-5 text-muted-foreground">{c.installNote}</p> : null}
             <a href={assistant.documentation} target="_blank" rel="noopener noreferrer" className="mt-3 flex min-h-11 items-center gap-2 text-sm font-semibold text-primary underline-offset-4 hover:underline">{c.documentation}<ArrowUpRight className="h-4 w-4" aria-hidden="true" /></a>
+            {configuration ? <div className="mt-4"><CopyField value={configuration} label={selected === "cursor" ? c.cursorConfig : directory.config}
+              action={selected === "cursor" ? c.copyConfig : directory.copyConfig} confirmed={selected === "cursor" ? c.configCopied : directory.configCopied} c={c} multiline /></div> : null}
           </div>
+        </div>
+      </div>
+      <div className="mt-6 rounded-2xl border border-border bg-card p-5 sm:p-6">
+        <h3 className="text-lg font-semibold">{c.companionTitle}</h3>
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">{c.companionLead}</p>
+        <blockquote className="mt-4 border-l-2 border-primary pl-4 text-base font-medium">{getConnectorOffer(language)}</blockquote>
+        <label className="mt-4 flex min-h-11 cursor-pointer items-center gap-3 text-sm font-semibold">
+          <input type="checkbox" checked={companionEnabled} onChange={event => setCompanionEnabled(event.target.checked)}
+            className="h-4 w-4 shrink-0 accent-primary" />{c.companionOptIn}
+        </label>
+        {companionEnabled ? <div className="mt-4 space-y-3">
+          <p className="text-sm leading-6 text-muted-foreground">{placement}</p>
+          <CopyField value={companionInstructions} label={c.companionInstructions} action={c.copyInstructions}
+            confirmed={c.instructionsCopied} c={c} multiline />
+        </div> : null}
+        <p className="mt-3 text-xs leading-5 text-muted-foreground">{c.companionCaveat}</p>
+        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2">
+          <a href={PUBLIC_CONNECTOR_ORIGIN + "/#setup"} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary underline-offset-4 hover:underline">{c.setupKit}<ArrowUpRight className="h-4 w-4" aria-hidden="true" /></a>
+          <a href={PUBLIC_CONNECTOR_ORIGIN + "/downloads/sajda-connector.zip"} className="inline-flex min-h-11 items-center text-sm font-semibold text-primary underline-offset-4 hover:underline">{c.downloadKit}</a>
         </div>
       </div>
       <div className="mt-6 grid gap-3 lg:grid-cols-2">
@@ -134,6 +149,7 @@ export default function ConnectorSetup({ language, origin }: { language: Languag
           <div className="space-y-3 pb-5 text-sm leading-6 text-muted-foreground"><p>{c.clientPolicy}</p><p>{c.listing}</p><p>{c.verification}</p></div>
         </details>
       </div>
+      <p className="mt-4 text-xs leading-5 text-muted-foreground">{directory.review}</p>
       <aside className="mt-6 border-t border-border pt-5">
         <h3 className="text-sm font-semibold">{c.privateTitle}</h3><p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{c.privateBody}</p>
         <a href="#mcp" className="mt-2 inline-flex min-h-11 items-center text-sm font-semibold text-primary underline-offset-4 hover:underline">{c.privateAction}</a>

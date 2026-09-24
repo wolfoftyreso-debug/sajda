@@ -1,0 +1,522 @@
+{
+  "request": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "operation": {
+        "type": "string",
+        "enum": [
+          "search",
+          "profile"
+        ]
+      },
+      "query": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100
+      },
+      "locale": {
+        "default": "en",
+        "type": "string",
+        "enum": [
+          "en",
+          "sv",
+          "es",
+          "fr",
+          "zh"
+        ]
+      },
+      "entity_id": {
+        "type": "string",
+        "pattern": "^Q[1-9][0-9]{0,11}$"
+      }
+    },
+    "required": [
+      "operation"
+    ],
+    "anyOf": [
+      {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "operation": {
+            "type": "string",
+            "const": "search"
+          },
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "locale": {
+            "default": "en",
+            "type": "string",
+            "enum": [
+              "en",
+              "sv",
+              "es",
+              "fr",
+              "zh"
+            ]
+          }
+        },
+        "required": [
+          "operation",
+          "query"
+        ],
+        "additionalProperties": false
+      },
+      {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "operation": {
+            "type": "string",
+            "const": "profile"
+          },
+          "entity_id": {
+            "type": "string",
+            "pattern": "^Q[1-9][0-9]{0,11}$"
+          },
+          "locale": {
+            "default": "en",
+            "type": "string",
+            "enum": [
+              "en",
+              "sv",
+              "es",
+              "fr",
+              "zh"
+            ]
+          }
+        },
+        "required": [
+          "operation",
+          "entity_id"
+        ],
+        "additionalProperties": false
+      }
+    ]
+  },
+  "response": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "sajda.brand-lookup.v1"
+          },
+          "locale": {
+            "type": "string",
+            "enum": [
+              "en",
+              "sv",
+              "es",
+              "fr",
+              "zh"
+            ]
+          },
+          "retrieved_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "source": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "const": "Wikidata"
+              },
+              "kind": {
+                "type": "string",
+                "const": "community_knowledge_graph"
+              },
+              "license": {
+                "type": "string",
+                "const": "CC0-1.0"
+              },
+              "url": {
+                "type": "string",
+                "const": "https://www.wikidata.org"
+              }
+            },
+            "required": [
+              "name",
+              "kind",
+              "license",
+              "url"
+            ],
+            "additionalProperties": false
+          },
+          "coverage": {
+            "type": "string",
+            "const": "wikidata_only"
+          },
+          "operation": {
+            "type": "string",
+            "const": "search"
+          },
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "matches",
+              "no_matches"
+            ]
+          },
+          "candidates": {
+            "maxItems": 5,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "entity_id": {
+                  "type": "string",
+                  "pattern": "^Q[1-9][0-9]{0,11}$"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                "description": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 1000
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "source_url": {
+                  "type": "string",
+                  "pattern": "^https:\\/\\/www\\.wikidata\\.org\\/wiki\\/Q[1-9][0-9]{0,11}(?:#P(?:856|2002|2003|4264))?$"
+                }
+              },
+              "required": [
+                "entity_id",
+                "name",
+                "description",
+                "source_url"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "verified_index": {
+            "type": "null"
+          }
+        },
+        "required": [
+          "schema_version",
+          "locale",
+          "retrieved_at",
+          "source",
+          "coverage",
+          "operation",
+          "query",
+          "status",
+          "candidates",
+          "has_more",
+          "verified_index"
+        ],
+        "additionalProperties": false
+      },
+      {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "sajda.brand-lookup.v1"
+          },
+          "locale": {
+            "type": "string",
+            "enum": [
+              "en",
+              "sv",
+              "es",
+              "fr",
+              "zh"
+            ]
+          },
+          "retrieved_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "source": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "const": "Wikidata"
+              },
+              "kind": {
+                "type": "string",
+                "const": "community_knowledge_graph"
+              },
+              "license": {
+                "type": "string",
+                "const": "CC0-1.0"
+              },
+              "url": {
+                "type": "string",
+                "const": "https://www.wikidata.org"
+              }
+            },
+            "required": [
+              "name",
+              "kind",
+              "license",
+              "url"
+            ],
+            "additionalProperties": false
+          },
+          "coverage": {
+            "type": "string",
+            "const": "wikidata_only"
+          },
+          "operation": {
+            "type": "string",
+            "const": "profile"
+          },
+          "requested_entity_id": {
+            "type": "string",
+            "pattern": "^Q[1-9][0-9]{0,11}$"
+          },
+          "entity": {
+            "type": "object",
+            "properties": {
+              "entity_id": {
+                "type": "string",
+                "pattern": "^Q[1-9][0-9]{0,11}$"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 1000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "source_url": {
+                "type": "string",
+                "pattern": "^https:\\/\\/www\\.wikidata\\.org\\/wiki\\/Q[1-9][0-9]{0,11}(?:#P(?:856|2002|2003|4264))?$"
+              },
+              "revision_id": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "source_modified_at": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "entity_id",
+              "name",
+              "description",
+              "source_url",
+              "revision_id",
+              "source_modified_at"
+            ],
+            "additionalProperties": false
+          },
+          "assertions": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "statement_id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "property_id": {
+                  "type": "string",
+                  "enum": [
+                    "P856",
+                    "P2002",
+                    "P2003",
+                    "P4264"
+                  ]
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "website",
+                    "social"
+                  ]
+                },
+                "platform": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "x",
+                        "instagram",
+                        "linkedin"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "value": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1000
+                },
+                "url": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 2000,
+                      "format": "uri"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "classification": {
+                  "type": "string",
+                  "const": "DATABASE_ASSERTION"
+                },
+                "relationship": {
+                  "type": "string",
+                  "const": "not_verified"
+                },
+                "rank": {
+                  "type": "string",
+                  "enum": [
+                    "normal",
+                    "preferred"
+                  ]
+                },
+                "has_qualifiers": {
+                  "type": "boolean"
+                },
+                "temporal_status": {
+                  "type": "string",
+                  "const": "not_established"
+                },
+                "source_url": {
+                  "type": "string",
+                  "pattern": "^https:\\/\\/www\\.wikidata\\.org\\/wiki\\/Q[1-9][0-9]{0,11}(?:#P(?:856|2002|2003|4264))?$"
+                }
+              },
+              "required": [
+                "statement_id",
+                "property_id",
+                "kind",
+                "platform",
+                "value",
+                "url",
+                "classification",
+                "relationship",
+                "rank",
+                "has_qualifiers",
+                "temporal_status",
+                "source_url"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "index": {
+            "type": "object",
+            "properties": {
+              "score": {
+                "type": "null"
+              },
+              "status": {
+                "type": "string",
+                "const": "insufficient_verified_evidence"
+              },
+              "verified_assertions": {
+                "type": "number",
+                "const": 0
+              }
+            },
+            "required": [
+              "score",
+              "status",
+              "verified_assertions"
+            ],
+            "additionalProperties": false
+          },
+          "limitations": {
+            "minItems": 5,
+            "maxItems": 5,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "single_source",
+                "ownership_not_verified",
+                "availability_not_checked",
+                "not_legal_clearance",
+                "no_global_coverage"
+              ]
+            }
+          }
+        },
+        "required": [
+          "schema_version",
+          "locale",
+          "retrieved_at",
+          "source",
+          "coverage",
+          "operation",
+          "requested_entity_id",
+          "entity",
+          "assertions",
+          "truncated",
+          "index",
+          "limitations"
+        ],
+        "additionalProperties": false
+      }
+    ]
+  }
+}

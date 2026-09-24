@@ -19,6 +19,7 @@ import AiPrivacyControl from "@/components/AiPrivacyControl";
 import { isNativeApp } from "@/lib/appSurface";
 import { Button } from "@/components/ui/button";
 import { useLanguage, type Language } from "@/i18n/LanguageProvider";
+import { legalDataCopy } from "@/i18n/legalDataCopy";
 
 type LegalSection = {
   eyebrow: string;
@@ -94,11 +95,11 @@ const legalCopy: Record<Language, LegalCopy> = {
       title: "What Sajda handles when you use it.",
       lead: "The product separates browser-only preferences from information sent to a service to complete a search. Optional account features add authenticated storage when they are configured.",
       localTitle: "In your browser",
-      localBody: "Sajda can use browser local storage for preferences such as language, selected search options, and lists you choose to keep, including wishlists. Search results are also kept in this tab’s session storage for up to 30 minutes so a refresh does not lose them; this snapshot does not include your brief or account details. You can remove browser storage in your browser settings.",
+      localBody: "Sajda uses device storage for language, search choices, AI permission, wishlists and local marketplace drafts. Guest search results can be restored from this tab’s session storage for 30 minutes; the snapshot excludes your brief, account details and credentials. The restore window does not guarantee deletion after 30 minutes. Signed-in searches are not saved in that guest snapshot. You can clear website data in your browser settings.",
       serviceTitle: "During a search",
-      serviceBody: "A domain query, selected extensions, and search settings may be sent to Sajda’s service so the requested availability check or public domain search can run. Market signals are presented as source-labeled context.",
+      serviceBody: "Your query, extensions and search settings go to Sajda’s service to produce results. Domain checks and quotes send the relevant names to configured registries, DNS and registrar services, which can include Cloudflare, Porkbun and Loopia. Network requests also expose technical request information to receiving services. These checks still contact external services when optional AI is off. Market signals are source-labeled context.",
       accountTitle: "When you sign in",
-      accountBody: "Where optional authenticated features are enabled, account and saved-product data may be handled through the configured Neon-backed account service. The exact data available depends on the feature you use.",
+      accountBody: "Account services run on Vercel with data stored in Neon. They handle your email, account identifier, password hash, verification records and session data, including IP address and browser information, to sign you in and protect access. Website sign-in uses a secure HTTP-only cookie. The iPhone app stores its sign-in credential in iOS Keychain. Resend delivers account verification, recovery and deletion messages to your email address.",
       keyTitle: "For developers",
       keyBody: "API keys authenticate server-to-server requests. Keep them in server-side environment variables or a secret manager; never expose them in a browser bundle, public repository, or client-side storage.",
     },
@@ -167,11 +168,11 @@ const legalCopy: Record<Language, LegalCopy> = {
       title: "Vad Sajda hanterar när du använder tjänsten.",
       lead: "Produkten skiljer mellan inställningar som bara finns i webbläsaren och information som skickas till en tjänst för att slutföra en sökning. Valfria kontofunktioner lägger till autentiserad lagring när de är konfigurerade.",
       localTitle: "I din webbläsare",
-      localBody: "Sajda kan använda lokal lagring i webbläsaren för språk, sökalternativ och listor du väljer att behålla, inklusive önskelistor. Sökresultat sparas också i flikens sessionslagring i upp till 30 minuter så att de inte försvinner vid omladdning; kopian innehåller inte din beskrivning eller dina kontouppgifter. Du kan ta bort webbläsarlagringen i webbläsarens inställningar.",
+      localBody: "Sajda använder enhetens lagring för språk, sökval, AI-tillstånd, önskelistor och lokala marknadsplatsutkast. Gästsökningar kan återställas från flikens sessionslagring i 30 minuter; kopian innehåller inte din beskrivning, dina kontouppgifter eller inloggningsuppgifter. Återställningstiden innebär inte garanterad radering efter 30 minuter. Inloggade sökningar sparas inte i denna gästkopia. Du kan rensa webbplatsdata i webbläsarens inställningar.",
       serviceTitle: "Under en sökning",
-      serviceBody: "En domänfråga, valda ändelser och sökinställningar kan skickas till Sajdas tjänst så att den begärda tillgänglighetskontrollen eller publika domänsökningen kan köras. Marknadssignaler visas som bakgrundsinformation med angivna källor.",
+      serviceBody: "Din sökfråga, dina ändelser och sökinställningar skickas till Sajdas tjänst för att ta fram resultat. Domänkontroller och prisförfrågningar skickar berörda namn till konfigurerade domänregister, DNS- och registratortjänster, som kan omfatta Cloudflare, Porkbun och Loopia. Mottagande tjänster ser också teknisk information om nätverksanropen. Kontrollerna använder externa tjänster även när valfri AI är avstängd. Marknadssignaler visas med angivna källor.",
       accountTitle: "När du loggar in",
-      accountBody: "Där valfria autentiserade funktioner är aktiverade kan konto- och sparad produktdata hanteras genom den konfigurerade Neon-baserade kontotjänsten. Exakt vilken data som finns beror på den funktion du använder.",
+      accountBody: "Kontotjänsterna körs på Vercel med lagring i Neon. De hanterar e-postadress, konto-id, lösenordshash, verifieringsposter och sessionsdata, inklusive IP-adress och webbläsarinformation, för inloggning och åtkomstskydd. Webbplatsen använder en säker HTTP-only-kaka för inloggning. iPhone-appen lagrar sin inloggningsuppgift i iOS Keychain. Resend levererar mejl för verifiering, återställning och kontoradering till din e-postadress.",
       keyTitle: "För utvecklare",
       keyBody: "API-nycklar autentiserar server-till-server-anrop. Förvara dem i serverbaserade miljövariabler eller en hemlighetshanterare; exponera dem aldrig i webbläsarpaket, öppna kodarkiv eller klientlagring.",
     },
@@ -240,11 +241,11 @@ const legalCopy: Record<Language, LegalCopy> = {
       title: "Qué gestiona Sajda cuando lo utilizas.",
       lead: "El producto diferencia entre preferencias exclusivas del navegador e información enviada a un servicio para completar una búsqueda. Las funciones opcionales de cuenta añaden almacenamiento autenticado cuando están configuradas.",
       localTitle: "En tu navegador",
-      localBody: "Sajda puede usar almacenamiento local para el idioma, las opciones de búsqueda y las listas que decides conservar. Los resultados también se guardan en la sesión de esta pestaña hasta 30 minutos para conservarlos al recargar; la copia no incluye tu descripción ni datos de cuenta. Puedes borrar el almacenamiento en los ajustes del navegador.",
+      localBody: "Sajda utiliza el almacenamiento del dispositivo para el idioma, las opciones de búsqueda, el permiso de IA, las listas y los borradores locales del marketplace. Los resultados de invitados pueden restaurarse desde la sesión de esta pestaña durante 30 minutos; la copia no incluye tu descripción, datos de cuenta ni credenciales. Este plazo no garantiza la eliminación a los 30 minutos. Las búsquedas con sesión iniciada no se guardan en esa copia de invitado. Puedes borrar los datos del sitio en los ajustes del navegador.",
       serviceTitle: "Durante una búsqueda",
-      serviceBody: "Una consulta de dominio, las extensiones seleccionadas y los ajustes de búsqueda pueden enviarse al servicio de Sajda para realizar la comprobación de disponibilidad o la búsqueda pública solicitada. Las señales de mercado se muestran como contexto con fuente identificada.",
+      serviceBody: "La consulta, las extensiones y los ajustes se envían al servicio de Sajda para obtener resultados. Las comprobaciones de dominios y precios envían los nombres pertinentes a los registros y servicios de DNS y registradores configurados, que pueden incluir Cloudflare, Porkbun y Loopia. Los destinatarios también reciben información técnica de las solicitudes. Estas consultas usan servicios externos aunque la IA opcional esté desactivada. Las señales de mercado indican su fuente.",
       accountTitle: "Cuando inicias sesión",
-      accountBody: "Cuando las funciones autenticadas opcionales están activadas, los datos de cuenta y de producto guardado pueden gestionarse mediante el servicio de cuentas basado en Neon configurado. Los datos exactos dependen de la función que utilices.",
+      accountBody: "Los servicios de cuenta funcionan en Vercel y almacenan datos en Neon. Gestionan correo, identificador de cuenta, hash de contraseña, verificaciones y datos de sesión, incluida la dirección IP e información del navegador, para iniciar sesión y proteger el acceso. La web usa una cookie segura HTTP-only; la app de iPhone guarda su credencial en iOS Keychain. Resend entrega los mensajes de verificación, recuperación y eliminación a tu correo.",
       keyTitle: "Para desarrolladores",
       keyBody: "Las claves API autentican solicitudes de servidor a servidor. Guárdalas en variables de entorno del servidor o en un gestor de secretos; nunca las expongas en un paquete del navegador, repositorio público o almacenamiento del cliente.",
     },
@@ -313,11 +314,11 @@ const legalCopy: Record<Language, LegalCopy> = {
       title: "Ce que Sajda traite lorsque vous l’utilisez.",
       lead: "Le produit distingue les préférences conservées uniquement dans le navigateur des informations envoyées à un service pour réaliser une recherche. Les fonctions de compte facultatives ajoutent du stockage authentifié lorsqu’elles sont configurées.",
       localTitle: "Dans votre navigateur",
-      localBody: "Sajda peut utiliser le stockage local pour la langue, les options de recherche et les listes que vous conservez. Les résultats restent aussi dans le stockage de session de cet onglet pendant 30 minutes au maximum pour résister à un rechargement ; cette copie ne contient ni votre description ni vos données de compte. Vous pouvez effacer le stockage dans les réglages du navigateur.",
+      localBody: "Sajda utilise le stockage de l’appareil pour la langue, les choix de recherche, l’autorisation IA, les listes et les brouillons locaux du marketplace. Les résultats des invités peuvent être restaurés depuis la session de cet onglet pendant 30 minutes ; la copie exclut le brief, les données du compte et les identifiants. Ce délai ne garantit pas leur suppression après 30 minutes. Les recherches connectées ne sont pas enregistrées dans cette copie invité. Vous pouvez effacer les données du site dans les réglages du navigateur.",
       serviceTitle: "Pendant une recherche",
-      serviceBody: "Une requête de domaine, les extensions sélectionnées et les réglages de recherche peuvent être envoyés au service Sajda pour lancer la vérification de disponibilité ou la recherche publique demandée. Les signaux de marché sont présentés comme un contexte dont la source est indiquée.",
+      serviceBody: "Votre requête, les extensions et les réglages sont transmis au service Sajda pour produire des résultats. Les vérifications et demandes de prix transmettent les noms concernés aux registres, services DNS et bureaux d’enregistrement configurés, dont Cloudflare, Porkbun et Loopia peuvent faire partie. Les destinataires reçoivent aussi des informations techniques sur les requêtes. Ces vérifications utilisent des services externes même si l’IA facultative est désactivée. Les signaux de marché indiquent leur source.",
       accountTitle: "Lorsque vous vous connectez",
-      accountBody: "Lorsque les fonctions authentifiées facultatives sont activées, les données de compte et de produit enregistré peuvent être traitées par le service de comptes Neon configuré. Les données exactes dépendent de la fonction utilisée.",
+      accountBody: "Les services de compte fonctionnent sur Vercel et stockent les données dans Neon. Ils traitent l’e-mail, l’identifiant du compte, le hachage du mot de passe, les vérifications et les données de session, dont l’adresse IP et des informations sur le navigateur, pour vous connecter et protéger l’accès. Le site utilise un cookie sécurisé HTTP-only ; l’app iPhone conserve son identifiant de connexion dans iOS Keychain. Resend envoie les messages de vérification, de récupération et de suppression à votre adresse e-mail.",
       keyTitle: "Pour les développeurs",
       keyBody: "Les clés API authentifient les requêtes de serveur à serveur. Conservez-les dans des variables d’environnement côté serveur ou un gestionnaire de secrets ; ne les exposez jamais dans un bundle navigateur, un dépôt public ou un stockage côté client.",
     },
@@ -386,11 +387,11 @@ const legalCopy: Record<Language, LegalCopy> = {
       title: "使用 Sajda 时，产品会处理哪些信息。",
       lead: "产品区分仅保留在浏览器中的偏好设置，以及为完成搜索而发送给服务的信息。配置了可选账户功能时，会加入经过身份验证的存储。",
       localTitle: "在你的浏览器中",
-      localBody: "Sajda 可使用浏览器本地存储保存语言、搜索选项和你保留的列表。搜索结果还会在此标签页的会话存储中保留最多 30 分钟，以便刷新后恢复；此副本不包含你的需求说明或账户信息。你可以在浏览器设置中删除这些存储内容。",
+      localBody: "Sajda 使用设备存储保存语言、搜索选项、AI 许可、收藏列表和本地市场草稿。访客搜索结果可在 30 分钟内从此标签页的会话存储恢复；副本不含需求说明、账户信息或认证凭据。恢复期限不代表 30 分钟后一定删除。登录后的搜索不会保存到此访客副本。您可以在浏览器设置中清除网站数据。",
       serviceTitle: "搜索期间",
-      serviceBody: "域名查询、已选后缀和搜索设置可能会被发送到 Sajda 服务，以便运行所请求的可用性核验或公开域名搜索。市场信号会以标注来源的背景信息呈现。",
+      serviceBody: "查询、后缀和搜索设置会发送给 Sajda 服务以生成结果。域名核查和报价会将相关名称发送给已配置的注册局、DNS 和注册商服务，其中可能包括 Cloudflare、Porkbun 和 Loopia。接收服务还会获得请求的技术信息。即使关闭可选 AI，这些核查仍会联系外部服务。市场信号会注明来源。",
       accountTitle: "登录时",
-      accountBody: "启用可选身份验证功能时，账户和已保存的产品数据可能会通过已配置的 Neon 账户服务处理。具体数据取决于你使用的功能。",
+      accountBody: "账户服务运行于 Vercel，数据存储于 Neon。服务处理邮箱、账户标识符、密码哈希、验证记录和会话数据（包括 IP 地址及浏览器信息），以实现登录并保护访问。网站登录使用安全的 HTTP-only Cookie；iPhone 应用将登录凭据存储在 iOS Keychain 中。Resend 向您的邮箱发送验证、恢复和删除账户的邮件。",
       keyTitle: "面向开发者",
       keyBody: "API 密钥用于验证服务器到服务器的请求。请将其放在服务端环境变量或密钥管理工具中；不要将其暴露在浏览器构建产物、公开代码库或客户端存储中。",
     },
@@ -444,6 +445,22 @@ function SectionHeading({ eyebrow, title, lead }: LegalSection) {
   );
 }
 
+const packagePrivacy: Record<Language, { title: string; body: string }> = {
+  en: { title: "Name packages and social checks", body: "Unsaved package comparisons stay in page memory. Names and configurations saved to a project are stored with your account. When you request a GitHub check, Sajda sends the exact handle to GitHub’s public API, not your brief or account email. Sajda retains a hashed account quota counter, not the profile payload. Opening other social or official-register links contacts those services directly. A downloaded or shared report remains outside account deletion. Company names and social registration availability are not automatically cleared." },
+  sv: { title: "Namnpaket och profilkontroller", body: "Osparade paketjämförelser finns i sidans minne. Namn och inställningar som sparas i ett projekt lagras med kontot. När du begär en GitHub-kontroll skickar Sajda det exakta användarnamnet till GitHubs publika API, inte din beskrivning eller kontots e-postadress. Sajda sparar en hashad räknare för kontots kvot, inte profilsvaret. Öppnar du andra sociala länkar eller officiella register kontaktar du dessa tjänster direkt. Nedladdade och delade rapporter omfattas inte av kontoradering. Företagsnamn och sociala användarnamns registrerbarhet godkänns inte automatiskt." },
+  es: { title: "Paquetes de nombres y perfiles", body: "Las comparaciones no guardadas permanecen en la memoria de la página. Los nombres y ajustes guardados en un proyecto se almacenan con la cuenta. Al solicitar una comprobación de GitHub, Sajda envía el nombre de usuario exacto a la API pública de GitHub, no tu descripción ni el correo de la cuenta. Sajda conserva un contador de cuota asociado a un hash del identificador de cuenta, no el perfil. Los enlaces externos contactan directamente con esas plataformas o registros. Eliminar la cuenta no elimina informes descargados o compartidos. No se autoriza automáticamente el registro de denominaciones sociales ni de nombres de usuario." },
+  fr: { title: "Ensembles de noms et profils", body: "Les comparaisons non enregistrées restent dans la mémoire de la page. Les noms et réglages enregistrés dans un projet sont conservés avec le compte. Lors d’une vérification GitHub, Sajda envoie l’identifiant exact à l’API publique de GitHub, pas votre description ni l’adresse e-mail du compte. Sajda conserve un compteur de quota lié à un identifiant de compte haché, pas le profil. Les liens externes contactent directement ces plateformes ou registres. La suppression du compte n’efface pas les rapports téléchargés ou partagés. L’enregistrement des dénominations sociales et des identifiants sociaux n’est pas validé automatiquement." },
+  zh: { title: "命名方案与账号核查", body: "未保存的方案比较保存在页面内存中。保存到项目的名称和配置会与账户一同存储。您请求核查 GitHub 时，Sajda 仅将准确用户名发送到 GitHub 的公开 API，不发送企业描述或账户邮箱。Sajda 保存关联到账户哈希标识的配额计数，不保存完整账号响应。打开其他社交平台或官方登记链接会直接联系相应服务。删除账户不会删除已下载或分享的报告。企业名称和社交用户名是否可注册不会自动获得确认。" },
+};
+
+const brandLookupPrivacy: Record<Language, { title: string; body: string }> = {
+  en: { title: "Brand lookup and Wikidata", body: "When you look up a brand, Sajda sends the name you enter or the selected Wikidata Q identifier, plus the chosen language, to Wikidata’s public database. The website and app request this without account credentials; Sajda does not add your account email or project brief. Names you enter can still contain personal or confidential information. A temporary server-memory cache holds up to 128 entries per instance, with 5-minute search and 15-minute profile cache windows; these are not saved cloud or account profiles. These windows are not a general retention guarantee for hosting or Wikidata. Opening a source, website or social link contacts that service directly. Database records do not verify ownership." },
+  sv: { title: "Varumärkesuppslag och Wikidata", body: "När du slår upp ett varumärke skickar Sajda namnet du skriver eller den valda Wikidata-postens Q-id samt valt språk till Wikidatas offentliga databas. Webbplatsen och appen begär uppslaget utan att skicka inloggningsuppgifter; Sajda lägger inte till kontots e-postadress eller projektbeskrivning. Namn du skriver kan ändå innehålla personliga eller konfidentiella uppgifter. En tillfällig cache i serverminnet rymmer högst 128 poster per instans, med cachetider på 5 minuter för sökningar och 15 minuter för profiler; dessa är inte sparade moln- eller kontoprofiler. Tiderna är ingen generell lagringsgaranti för driftleverantören eller Wikidata. Öppnar du en käll-, webbplats- eller social länk kontaktar du den tjänsten direkt. Databasposter verifierar inte ägande." },
+  es: { title: "Búsqueda de marcas y Wikidata", body: "Al buscar una marca, Sajda envía el nombre que escribes o el identificador Q de Wikidata seleccionado, junto con el idioma elegido, a la base pública de Wikidata. La web y la app hacen esta solicitud sin credenciales de cuenta; Sajda no añade el correo de tu cuenta ni la descripción del proyecto. Los nombres introducidos aún pueden contener información personal o confidencial. Una caché temporal en la memoria del servidor mantiene hasta 128 entradas por instancia, con ventanas de 5 minutos para búsquedas y 15 minutos para perfiles; no son perfiles guardados en la nube o en la cuenta. Estos plazos no garantizan la retención general del alojamiento ni de Wikidata. Abrir un enlace de fuente, sitio web o red social contacta directamente con ese servicio. Los registros de la base no verifican la propiedad." },
+  fr: { title: "Recherche de marques et Wikidata", body: "Lorsque vous recherchez une marque, Sajda transmet le nom saisi ou l’identifiant Q Wikidata sélectionné, ainsi que la langue choisie, à la base publique de Wikidata. Le site et l’app effectuent cette demande sans identifiants d’authentification du compte ; Sajda n’ajoute ni l’adresse e-mail du compte ni la description du projet. Les noms saisis peuvent néanmoins contenir des informations personnelles ou confidentielles. Un cache temporaire en mémoire serveur contient au plus 128 entrées par instance, avec des fenêtres de 5 minutes pour les recherches et de 15 minutes pour les profils ; ce ne sont pas des profils enregistrés dans le cloud ou le compte. Ces délais ne garantissent pas la durée générale de conservation de l’hébergeur ou de Wikidata. Ouvrir un lien de source, de site ou de réseau social contacte directement ce service. Les données de la base ne vérifient pas la propriété." },
+  zh: { title: "品牌查询与 Wikidata", body: "查询品牌时，Sajda 会将您输入的名称或所选 Wikidata 记录的 Q 标识符，以及所选语言发送到 Wikidata 公开数据库。网站和应用发起此请求时不携带账户认证凭据；Sajda 不会附加账户邮箱或项目描述。您输入的名称仍可能包含个人或机密信息。每个服务器实例的临时内存缓存最多包含 128 条记录，搜索缓存窗口为 5 分钟，资料缓存窗口为 15 分钟；这些不是保存到云端或账户中的资料。这些窗口并非对托管服务或 Wikidata 总体保留时间的保证。打开来源、网站或社交链接会直接联系相应服务。数据库记录不能验证所有权。" },
+};
+
 export default function Legal() {
   const { language } = useLanguage();
   const copy = legalCopy[language];
@@ -459,7 +476,10 @@ export default function Legal() {
   const privacyCards = [
     { icon: Database, title: copy.privacy.localTitle, body: copy.privacy.localBody },
     { icon: SearchCheck, title: copy.privacy.serviceTitle, body: copy.privacy.serviceBody },
+    { icon: SearchCheck, ...packagePrivacy[language] },
+    { icon: SearchCheck, ...brandLookupPrivacy[language] },
     { icon: ShieldCheck, title: copy.privacy.accountTitle, body: copy.privacy.accountBody },
+    ...legalDataCopy[language].cards.map(card => ({ icon: ShieldCheck, ...card })),
     { icon: KeyRound, title: copy.privacy.keyTitle, body: copy.privacy.keyBody },
   ];
 
@@ -469,26 +489,26 @@ export default function Legal() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {!isNativeApp && <header className="sticky top-0 z-20 border-b border-border/80 bg-card/95 backdrop-blur-xl">
-        <div className="mx-auto flex min-h-[4.75rem] w-full max-w-7xl items-center justify-between gap-4 px-5 sm:px-7">
+      {!isNativeApp && <header className="top-0 z-20 border-b border-border/80 bg-card/95 backdrop-blur-xl xl:sticky">
+        <div className="mx-auto flex min-h-[4.75rem] w-full max-w-7xl flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 sm:px-7">
           <Link
             to="/"
-            className="inline-flex shrink-0 items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="inline-flex min-h-11 shrink-0 items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             aria-label="Sajda"
           >
             <img src="/sajda-logo.svg" alt="Sajda" className="h-7 w-auto sm:h-8" />
           </Link>
-          <nav className="hidden items-center gap-5 text-sm font-semibold text-muted-foreground lg:flex" aria-label={copy.navLabel}>
+          <nav className="order-last hidden w-full flex-wrap items-center gap-x-5 gap-y-1 text-sm font-semibold text-muted-foreground lg:flex xl:order-none xl:w-auto" aria-label={copy.navLabel}>
             {copy.anchors.map((anchor) => (
-              <a key={anchor.id} href={`#${anchor.id}`} className="transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+              <a key={anchor.id} href={`#${anchor.id}`} className="inline-flex min-h-11 items-center transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
                 {anchor.label}
               </a>
             ))}
           </nav>
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex max-w-full flex-wrap items-center gap-2 sm:gap-4">
             <Link
               to="/"
-              className="hidden items-center gap-1.5 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 xl:inline-flex"
+              className="hidden min-h-11 items-center gap-1.5 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 xl:inline-flex"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               {copy.backToSearch}
@@ -552,6 +572,18 @@ export default function Legal() {
           </div>
         </section>
 
+        <section aria-labelledby="legal-operator" className="mx-auto w-full max-w-7xl px-5 pt-10 sm:px-7 sm:pt-14">
+          <div className="sajda-surface p-5 sm:p-6">
+            <h2 id="legal-operator" className="text-lg font-semibold tracking-[-0.025em] text-foreground">{legalDataCopy[language].operator.title}</h2>
+            <p className="mt-3 max-w-4xl text-sm leading-6 text-muted-foreground">{legalDataCopy[language].operator.body}</p>
+            <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm">
+              <a className="inline-flex min-h-11 items-center underline underline-offset-4" href="mailto:dev@hypbit.com">dev@hypbit.com</a>
+              <a className="inline-flex min-h-11 items-center underline underline-offset-4" href="tel:+46101985881">+46 10 198 58 81</a>
+              <a className="inline-flex min-h-11 items-center underline underline-offset-4" href="https://landvex.com/company">{legalDataCopy[language].companyInformation}</a>
+            </div>
+          </div>
+        </section>
+
         <section id="privacy" className="mx-auto w-full max-w-7xl scroll-mt-24 px-5 py-14 sm:px-7 sm:py-20">
           <SectionHeading eyebrow={copy.privacy.eyebrow} title={copy.privacy.title} lead={copy.privacy.lead} />
           <AiPrivacyControl className="mt-6" />
@@ -571,11 +603,16 @@ export default function Legal() {
           </div>
         </section>
 
+        <div className="mx-auto flex w-full max-w-7xl flex-wrap gap-x-6 gap-y-3 px-5 pb-8 text-sm sm:px-7">
+          <Link className="inline-flex min-h-11 items-center underline underline-offset-4" to="/account">{legalDataCopy[language].account}</Link>
+          <a className="inline-flex min-h-11 items-center underline underline-offset-4" href="mailto:dev@hypbit.com">{legalDataCopy[language].support} · dev@hypbit.com</a>
+        </div>
+
         <section id="terms" className="scroll-mt-24 border-y border-border/80 bg-card">
           <div className="mx-auto w-full max-w-7xl px-5 py-14 sm:px-7 sm:py-20">
             <SectionHeading eyebrow={copy.terms.eyebrow} title={copy.terms.title} lead={copy.terms.lead} />
             <div className="mt-9 grid gap-4 lg:grid-cols-2">
-              {copy.terms.items.map((item, index) => {
+              {[...copy.terms.items, legalDataCopy[language].rights].map((item, index) => {
                 const Icon = termIcons[index] ?? FileText;
                 return (
                   <article key={item.title} className="rounded-[1.25rem] border border-border bg-background p-5 shadow-[0_8px_22px_hsl(219_44%_12%/0.035)] sm:p-6">

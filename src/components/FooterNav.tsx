@@ -1,5 +1,8 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { Search, History, FolderOpen, Heart, User } from "lucide-react";
+import { Search, History, FolderOpen, Heart, User, Layers } from "lucide-react";
+import { nameProjectsEnabled } from "@/lib/nameProjectsFeature";
+import { projectEntryCopy } from "@/i18n/projectEntryCopy";
+import { hasSupabaseBrowserConfig } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { isAnonymousSearchMode } from "@/lib/anonymousSearchMode";
@@ -63,7 +66,7 @@ const FooterNav = () => {
   const { language } = useLanguage();
   const copy = footerMessages[language];
 
-  if (isNativeApp || isAnonymousSearchMode()) return null;
+  if (isNativeApp || isAnonymousSearchMode() && !nameProjectsEnabled) return null;
 
   const navItems = [
     {
@@ -78,7 +81,10 @@ const FooterNav = () => {
       path: "/watchlist",
       requiresAuth: true,
     },
-    {
+    ...(nameProjectsEnabled ? [
+      { label: "Swipe", icon: Layers, path: "/swipe", requiresAuth: false },
+      { label: projectEntryCopy[language].short, icon: FolderOpen, path: "/projects", requiresAuth: true },
+    ] : hasSupabaseBrowserConfig ? [{
       label: copy.history,
       icon: History,
       path: "/history",
@@ -89,12 +95,12 @@ const FooterNav = () => {
       icon: FolderOpen,
       path: "/my-domains",
       requiresAuth: true,
-    },
+    }] : []),
   ];
 
   const handleNavigation = (path: string, requiresAuth: boolean) => {
     if (requiresAuth && !user) {
-      navigate("/auth");
+      navigate(`/auth?next=${encodeURIComponent(path)}`);
     } else {
       navigate(path);
     }

@@ -12,7 +12,7 @@ export default function AccountLink({ compact = false }: { compact?: boolean }) 
   const copy = accountNavigationCopy[language];
   const label = user || loading ? copy.account : copy.signIn;
   return <Link to={user || loading ? "/account" : `/auth?next=${encodeURIComponent(pathname === "/auth" ? "/account" : pathname)}`}
-    aria-label={label} className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm font-medium text-foreground transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${compact ? "w-10" : "px-3"}`}>
+    aria-label={label} className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm font-medium text-foreground transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${compact ? "w-11" : "px-3"}`}>
     <UserRound className="h-4 w-4 shrink-0" aria-hidden="true" />
     {!compact && <span>{label}</span>}
   </Link>;

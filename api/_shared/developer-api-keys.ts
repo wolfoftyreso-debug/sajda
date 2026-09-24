@@ -4,8 +4,9 @@ import { createAccountPool } from "./account-server.js";
 import { AccountAccessError } from "./account-error.js";
 import type { VerifiedAccount } from "./account-auth.js";
 import type { AccountHeaders } from "./account-origin.js";
+import { DEVELOPER_API_SCOPES } from "../../shared/developer-scopes.js";
 
-export const API_KEY_SCOPES = ["domains:search", "account:read", "saved:read", "saved:write", "trading:read", "trading:run", "trading:quote"] as const;
+export const API_KEY_SCOPES = DEVELOPER_API_SCOPES;
 export type ApiKeyScope = typeof API_KEY_SCOPES[number];
 export type ApiKeyEnvironment = "development" | "preview" | "production";
 export interface ApiKeyPrincipal {

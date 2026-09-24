@@ -37,6 +37,7 @@ test("mounted account entry preserves workspace and uses one account in every la
       await act(async () => { renderer = create(h(MemoryRouter, { initialEntries: [route] }, h(AccountLink, { compact }))); });
       const link = renderer!.root.findByType("a");
       assert.match(link.props.className, /focus-visible:ring-2/);
+      assert.match(link.props.className, /min-h-11/);
       assert.equal(link.findByType("svg").props["aria-hidden"], "true");
       assert.equal(renderer!.root.findAllByType("form").length, 0);
       return link;
@@ -66,7 +67,7 @@ test("mounted account entry preserves workspace and uses one account in every la
           assert.equal(link.props["aria-label"], expected);
           assert.equal(label(link), compact ? "" : expected);
           assert.equal(link.findAllByType("span").length, compact ? 0 : 1);
-          if (compact) assert.match(link.props.className, /w-10/);
+          if (compact) assert.match(link.props.className, /w-11/);
           assert.doesNotMatch(link.props.href, /signup|trading-account|plus-auth|mode=/);
         }
       });

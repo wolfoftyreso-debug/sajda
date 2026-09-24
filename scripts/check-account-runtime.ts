@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 import { createAccountAuth, createAccountPool } from "../api/_shared/account-server.js";
 import { createAuthHandler } from "../api/auth.js";
 import savedDomains from "../api/account/saved-domains.js";
+import nameProjects from "../api/account/name-projects.js";
 
 if (process.env.SAJDA_CONFIRM_ACCOUNT_QA !== "1" || process.env.NEON_PROJECT_ID !== "spring-paper-89655503"
   || process.env.VERCEL_ENV === "production") throw new Error("Explicit Sajda preview QA database confirmation required.");
@@ -48,6 +49,7 @@ async function local(path: string, method = "GET", body?: unknown, cookie = "", 
   const request = { method, url: path, body, headers: { host: new URL(origin).host, origin: requestOrigin,
     "content-type": "application/json", cookie, "x-sajda-account": accountId }, query: Object.fromEntries(new URL(path, origin).searchParams) };
   if (path.startsWith("/api/auth/")) await handler(request, response);
+  else if (path === "/api/account/name-projects") await nameProjects(request, response);
   else await savedDomains(request, response);
   return new Response(output === undefined ? null : typeof output === "string" ? output : JSON.stringify(output), { status, headers });
 }
@@ -126,6 +128,25 @@ try {
   assert.equal((await own.json()).items.length, 1);
   const foreign = await expect(request("/api/account/saved-domains", "GET", undefined, cookieB, users[1]), 200, "cross-user read isolated");
   assert.equal((await foreign.json()).items.length, 0);
+  if (process.env.SAJDA_CHECK_NAME_PROJECTS === "1") {
+    const project = { id: randomUUID(), expectedVersion: 0, title: "Isolated name-project QA", description: "A test planning app",
+      audience: "Founders", desiredStyle: "Short", languages: ["en"], budget: { currency: "USD", maxFirstYearCents: 3000, maxAnnualRenewalCents: 2000 },
+      archived: false, shortlistDomains: ["sajda-qa-example.test"] };
+    await expect(request("/api/account/name-projects"), 401, "anonymous project read denied");
+    const saved = await expect(request("/api/account/name-projects", "POST", { action: "save", project }, cookieA, users[0]), 200, "project persists through account route");
+    const snapshot = await saved.json();
+    assert.equal(snapshot.accountId, users[0]); assert.equal(snapshot.projects[0].version, 1);
+    assert.match(saved.headers.get("cache-control") ?? "", /no-store/);
+    const retry = await expect(request("/api/account/name-projects", "POST", { action: "save", project }, cookieA, users[0]), 200, "project identical retry preserves version");
+    assert.deepEqual((await retry.json()).projects, snapshot.projects);
+    const isolated = await expect(request("/api/account/name-projects", "GET", undefined, cookieB, users[1]), 200, "other account cannot see project");
+    assert.deepEqual((await isolated.json()).projects, []);
+    await expect(request("/api/account/name-projects", "POST", { action: "save", project }, cookieA, users[1]), 409, "project stale account rejected");
+    await expect(request("/api/account/name-projects", "POST", { action: "save", project }, cookieB, users[1]), 409, "project cannot reference another account's saved name");
+    await expect(request("/api/account/name-projects", "POST", { action: "save", project: { ...project, title: "Conflicting retry" } }, cookieA, users[0]), 409, "project stale version rejected");
+    await expect(request("/api/account/name-projects", "POST", { action: "save", project: { ...project, expectedVersion: 1, archived: true } }, cookieA, users[0]), 200, "project archive preserves saved original");
+    assert.equal(Number((await pool.query("SELECT count(*) FROM sajda.saved_domains WHERE user_id=$1", [users[0]])).rows[0].count), 1);
+  }
   await expect(request("/api/account/saved-domains", "POST", { domain: "sajda-qa-example.test" }, cookieA, users[1]), 409, "stale initiating account denied");
   await expect(request("/api/account/saved-domains", "POST", { domain: "sajda-qa-example.test", user_id: users[1] }, cookieA, users[0]), 400, "forged ownership denied");
   await expect(request("/api/account/saved-domains", "DELETE", { domain: "sajda-qa-example.test" }, cookieB, users[1]), 200, "cross-user delete cannot affect owner");
@@ -136,6 +157,11 @@ try {
   const returning = await expect(request("/api/auth/sign-in/email", "POST", { email: emails[0], password }), 200, "returning user signs in again");
   const returnCookie = cookieOf(returning);
   await expect(request("/api/account/saved-domains", "GET", undefined, returnCookie, users[0]), 200, "saved state retained after relogin");
+  if (process.env.SAJDA_CHECK_NAME_PROJECTS === "1") {
+    const retained = await expect(request("/api/account/name-projects", "GET", undefined, returnCookie, users[0]), 200, "project retained after logout and login");
+    const rows = (await retained.json()).projects;
+    assert.equal(rows.length, 1); assert.equal(rows[0].archived, true); assert.equal(rows[0].version, 2);
+  }
 
   // Email is captured only by this CLI factory, never by a public route.
   await expect(local("/api/auth/request-password-reset", "POST", { email: emails[0], redirectTo: `${origin}/auth?mode=update-password` }), 200, "password reset creates one-use link");
@@ -165,6 +191,8 @@ try {
   if (owned.length) {
     await pool.query("DELETE FROM sajda.saved_domains WHERE user_id = ANY($1::text[])", [owned]);
     await pool.query("DELETE FROM sajda.function_rate_limits WHERE scope='saved-domains' AND subject_hash = ANY($1::text[])", [owned.map(id => createHash("sha256").update(`saved-domains:${id}`).digest("hex"))]);
+    const projectHashes = owned.flatMap(id => ["development", "preview", "production"].map(namespace => createHash("sha256").update(`name-projects:${namespace}:${id}`).digest("hex")));
+    await pool.query("DELETE FROM sajda.function_rate_limits WHERE scope='name-projects' AND subject_hash = ANY($1::text[])", [projectHashes]);
     await pool.query("DELETE FROM sajda_auth_verification WHERE value = ANY($1::text[]) OR identifier = ANY($2::text[])", [owned, emails]);
     await pool.query("DELETE FROM sajda_auth_user WHERE id = ANY($1::text[]) AND email = ANY($2::text[])", [owned, emails]);
   }

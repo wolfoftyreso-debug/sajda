@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
 import { createElement as h } from "react";
+import { MemoryRouter } from "react-router-dom";
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 import { createServer } from "vite";
 import { REFERENCE_FX_SOURCE, REFERENCE_FX_SOURCE_URL } from "../shared/reference-fx";
@@ -47,7 +48,7 @@ test("mounted standard-price cards share one FX lookup and show comparable USD i
     const props = { domain: "example.com", status: "available", confidenceScore: 65, registrarPrice: 0,
       estimatedValue: 0, rationale: "Test fixture.", showWatchlistActions: false,
       registrarOffer: loopia, providerOffers: [loopia, porkbun], selectedProviderIds: ["loopia", "porkbun", "namecheap"] };
-    const tree = () => h("main", null, h(DomainCard, props), h(DomainCard, { ...props, domain: "second.com" }));
+    const tree = () => h(MemoryRouter, {}, h("main", null, h(DomainCard, props), h(DomainCard, { ...props, domain: "second.com" })));
     setLanguage("en");
     await act(async () => { renderer = create(tree()); });
     assert.equal(calls, 1, "Many result cards use one rate request");

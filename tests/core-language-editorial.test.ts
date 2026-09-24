@@ -204,8 +204,14 @@ test("search cards, review grammar and result trends render in all five language
       await mount(h(RouteLoading));
       const loading = { en: "Loading", sv: "Laddar", es: "Cargando", fr: "Chargement", zh: "正在加载" };
       assert.ok(renderer!.root.findByProps({ role: "status" }).props["aria-label"].startsWith(loading[language]));
-      await mount(h(HeroOfferCarousel, { language, onExploreTrending: () => {}, onOpenAdvancedSearch: () => {} }));
-      assert.equal(renderer!.root.findAllByType("article").length, 3);
+      const actions: string[] = [];
+      await mount(h(HeroOfferCarousel, { language, onExploreTrending: () => actions.push("idea"), onOpenAdvancedSearch: () => actions.push("criteria") }));
+      const searchPaths = renderer!.root.findAllByType("article");
+      assert.deepEqual(searchPaths.map(card => card.props["data-search-path"]), ["trending", "brief", "swipe"], "Founder idea search comes before specialist browsing");
+      assert.deepEqual(actions, [], "Displaying search choices must not start a search");
+      await act(async () => searchPaths[0].findByType("button").props.onClick());
+      await act(async () => searchPaths[1].findByType("button").props.onClick());
+      assert.deepEqual(actions, ["idea", "criteria"]);
       assert.equal(renderer!.root.findAllByType("a").length, 1);
       assert.equal(renderer!.root.findAllByType("a")[0].props.href, "/swipe");
       const cardText = text(renderer!.root);

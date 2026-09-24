@@ -870,16 +870,16 @@ const Swipe = () => {
   return (
     <div className="sajda-swipe-viewport relative h-[100dvh] overflow-hidden bg-background">
       <main className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-hidden px-3 py-3 sm:px-6 sm:py-5">
-        <header className="flex shrink-0 items-center justify-between gap-2" aria-label={copy.deck}>
-          <Button asChild variant="ghost" size="sm" className="-ml-2 h-10 text-muted-foreground">
+        <header className="flex shrink-0 flex-wrap items-center justify-between gap-2" aria-label={copy.deck}>
+          <Button asChild variant="ghost" size="sm" className="-ml-2 h-11 min-w-11 shrink-0 text-muted-foreground">
             <Link to="/" aria-label={copy.backToSearch}>
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               <span className="hidden sm:inline">{copy.backToSearch}</span>
             </Link>
           </Button>
-          <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+          <div className="ml-auto flex max-w-full flex-wrap items-center justify-end gap-1.5 sm:gap-2">
             <AccountLink compact />
-            <div data-swipe-wishlist-slot>
+            <div className="shrink-0" data-swipe-wishlist-slot>
               <SwipeWishlistPanel
                 items={saved}
                 language={swipeLanguage}
@@ -901,7 +901,7 @@ const Swipe = () => {
               onClick={() => void loadDeck()}
               disabled={isLoading || isPrefetching || isUndoPending || Boolean(exitDirection) || selectedTlds.length === 0}
               aria-label={copy.shuffle}
-              className="h-10 w-10 rounded-xl border-border bg-card"
+              className="h-11 w-11 shrink-0 rounded-xl border-border bg-card"
             >
               <RefreshCw className={cn("h-4 w-4", (isLoading || isPrefetching) && "animate-spin")} aria-hidden="true" />
             </Button>
@@ -911,7 +911,7 @@ const Swipe = () => {
               onClick={openSettings}
               disabled={isUndoPending || Boolean(exitDirection)}
               aria-label={copy.deckSettings}
-              className="h-10 min-w-0 gap-1.5 rounded-xl border-border bg-card px-2.5 text-xs sm:px-3"
+              className="h-11 shrink-0 gap-1.5 rounded-xl border-border bg-card px-2.5 text-xs sm:px-3"
             >
               <Settings2 className="h-4 w-4" aria-hidden="true" />
               <span>{selectedTlds.length === 1 ? `.${selectedTlds[0]}` : `${copy.mixed} (${selectedTlds.length})`}</span>

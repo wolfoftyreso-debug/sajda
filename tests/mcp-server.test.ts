@@ -15,6 +15,7 @@ import type { McpProductExecutor } from "../api/_shared/mcp-tools.js";
 import { createAccountMembershipHandler } from "../api/account/membership.js";
 import { createLostDomainsHandler } from "../api/account/lost-domains.js";
 import type { lostDomainsService } from "../api/_shared/lost-domains-service.js";
+import { brandIndexResultSchema } from "../shared/brand-presence-index.js";
 
 const accountA: ApiKeyPrincipal = { userId: "mcp-owner-a", keyId: randomUUID(), scopes: [...API_KEY_SCOPES], environment: "development" };
 const accountB: ApiKeyPrincipal = { ...accountA, userId: "mcp-owner-b", keyId: randomUUID() };
@@ -79,7 +80,7 @@ test("real SDK client initializes, discovers strict schemas and calls tools over
   assert.equal(transport.sessionId, undefined);
   assert.equal(transport.protocolVersion, "2025-11-25");
   const catalogue = await client.listTools();
-  assert.equal(catalogue.tools.length, 12);
+  assert.equal(catalogue.tools.length, 21);
   assert.deepEqual(fixture.calls, [], "Initialize and discovery cannot execute product work.");
   for (const tool of catalogue.tools) {
     assert.equal(tool.inputSchema.type, "object");
@@ -89,6 +90,16 @@ test("real SDK client initializes, discovers strict schemas and calls tools over
   }
   assert.equal(catalogue.tools.find(tool => tool.name === "trading_start")?.annotations?.readOnlyHint, false);
   assert.equal(catalogue.tools.find(tool => tool.name === "trading_advance")?.annotations?.idempotentHint, false);
+  const packages = catalogue.tools.find(tool => tool.name === "name_packages_search")!;
+  assert.deepEqual(packages._meta?.["sajda/requiredScopes"], ["domains:search"]);
+  assert.equal(packages.annotations?.readOnlyHint, true);
+  assert.equal(packages.annotations?.idempotentHint, false);
+  assert.equal(packages.annotations?.openWorldHint, true);
+  assert.equal(packages.annotations?.destructiveHint, false);
+  const brand = catalogue.tools.find(tool => tool.name === "brand_index_assess")!;
+  assert.deepEqual(brand._meta?.["sajda/requiredScopes"], ["domains:search"]);
+  assert.equal(brand.annotations?.readOnlyHint, true); assert.equal(brand.annotations?.openWorldHint, false);
+  assert.equal(brand.annotations?.idempotentHint, true); assert.equal(brand.annotations?.destructiveHint, false);
   assert.equal(catalogue.tools.some(tool => /purchase|payment|buy/i.test(tool.name)), false);
   const result = await client.callTool({ name: "account_membership", arguments: {} });
   assert.equal(result.isError, undefined);
@@ -117,11 +128,27 @@ test("initialization negotiates compatible dated versions and unsupported protoc
 test("Vercel's parsed-body getter supports the SDK transport and malformed JSON remains a protocol error", async t => {
   const fixture = await serve(t, { vercelBody: true });
   const { client } = await fixture.client();
-  assert.equal((await client.listTools()).tools.length, 12);
+  assert.equal((await client.listTools()).tools.length, 21);
   const malformed = await fixture.post("{");
   assert.equal(malformed.status, 400);
   assert.equal((await malformed.json()).error.code, ErrorCode.ParseError);
   assert.deepEqual(fixture.calls, []);
+});
+
+test("scoped SDK brand assessment uses only request quota and never domain providers or account product handlers", async t => {
+  let requests = 0;
+  const forbidden = async () => { assert.fail("Pure brand calculator must not perform product work"); };
+  const fixture = await serve(t, { quota: async () => { requests++; return requestQuota(); },
+    execute: createMcpProductExecutor({ quota: forbidden, domainSearch: forbidden, membership: forbidden, savedDomains: forbidden, trading: forbidden }) });
+  const { client } = await fixture.client();
+  const args = { brand_name: "Example Brand", identity_label: "example", primary_domain: "example.com",
+    domains: ["example.com"], socials: [{ platform: "github", handle: "example" }], markets: ["US"], observations: [] };
+  const result = await client.callTool({ name: "brand_index_assess", arguments: args });
+  assert.equal(result.structuredContent?.ok, true); assert.equal(result.isError, undefined); assert.ok(requests > 0);
+  const data = brandIndexResultSchema.parse(result.structuredContent!.data);
+  assert.equal(data.index.verified_score, null); assert.equal(data.index.classification, "SELF_ASSESSMENT");
+  await assert.rejects(client.callTool({ name: "brand_index_assess", arguments: { ...args, authoritative: true } }),
+    error => error instanceof McpError && error.code === ErrorCode.InvalidParams);
 });
 
 test("HTTP authentication, origin, protocol media and size errors cannot dispatch a tool", async t => {
@@ -324,4 +351,28 @@ test("domain adapter retains exact status/currency and delegates sanitized input
   await assert.rejects(execute("domains_check", { domains: ["example.com"] }, { ...accountA, scopes: [] }),
     error => error instanceof AccountAccessError && error.code === "insufficient_scope");
   assert.equal(invoked, 1);
+});
+
+test("authenticated SDK validates package output and rejects missing scope without search work", async t => {
+  let searches = 0;
+  const execute = createMcpProductExecutor({ quota: requestQuota, domainSearch: async (_request, response) => {
+    searches++; response.status(200).json({ results: [] });
+  } });
+  const fixture = await serve(t, { execute, keys: new Map([["test-a", accountA], ["test-b", { ...accountB, scopes: [] }]]) });
+  const args = { query: "studio", tlds: ["com"], platforms: ["github"], markets: ["US", "SE", "DE"], count: 3 };
+  const permitted = (await fixture.client()).client;
+  const result = await permitted.callTool({ name: "name_packages_search", arguments: args });
+  assert.equal(result.structuredContent?.ok, true);
+  const data = result.structuredContent?.data as { schema_version: string; returned_count: number; requested_count: number;
+    packages: { brand_index: { mode: string; status: string }; evidence: { domains: { status: string; observed_at: null }[] } }[];
+    market_coverage: { requested_markets: string[]; checked_markets: string[]; automated_checks_available: boolean } };
+  assert.equal(data.schema_version, "sajda.name-package-intelligence.v1");
+  assert.equal(data.returned_count, 3); assert.equal(data.requested_count, 3);
+  assert.ok(data.packages.every(pkg => pkg.brand_index.mode === "candidate" && pkg.brand_index.status === "checks_needed"
+    && pkg.evidence.domains.every(domain => domain.status === "unknown" && domain.observed_at === null)));
+  assert.deepEqual([...data.market_coverage.requested_markets].sort(), ["DE", "SE", "US"]);
+  assert.deepEqual(data.market_coverage.checked_markets, []); assert.equal(data.market_coverage.automated_checks_available, false);
+  const denied = await (await fixture.client("test-b")).client.callTool({ name: "name_packages_search", arguments: args });
+  assert.equal(denied.isError, true); assert.equal(denied.structuredContent?.status, 403);
+  assert.equal(searches, 1);
 });

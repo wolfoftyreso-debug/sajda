@@ -1,5 +1,7 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { Search, Layers, Heart, ChartNoAxesCombined, UserRound } from "lucide-react";
+import { Search, Layers, Heart, ChartNoAxesCombined, UserRound, FolderOpen } from "lucide-react";
+import { nameProjectsEnabled } from "@/lib/nameProjectsFeature";
+import { projectEntryCopy } from "@/i18n/projectEntryCopy";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { nativeCopy } from "./nativeCopy";
 
@@ -11,7 +13,9 @@ export default function NativeNavigation() {
     { to: "/", label: copy.search, icon: Search },
     { to: "/swipe", label: copy.swipe, icon: Layers },
     { to: "/watchlist", label: copy.savedShort, fullLabel: copy.saved, icon: Heart },
-    { to: "/plus", label: copy.trading, icon: ChartNoAxesCombined },
+    nameProjectsEnabled
+      ? { to: "/projects", label: projectEntryCopy[language].short, fullLabel: projectEntryCopy[language].projects, icon: FolderOpen }
+      : { to: "/plus", label: copy.trading, icon: ChartNoAxesCombined },
     { to: "/account", label: copy.account, icon: UserRound },
   ];
   return <nav aria-label={copy.navigation} className="sajda-native-navigation fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 backdrop-blur-xl">

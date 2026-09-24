@@ -19,25 +19,25 @@ const copy = {
       eyebrow: "Short domains",
       headerNote: "Up to 100 per round",
       title: "Browse short domains",
-      description: "See one short domain at a time. Keep the ones you like and skip the rest.",
+      description: "Prefer to browse? Keep the short names you like and skip the rest.",
       detail: "Check each domain’s current status on its card.",
       action: "Browse domains",
     },
     trending: {
       eyebrow: "Domain ideas",
       headerNote: "Multiple naming directions",
-      title: "Start with a word or idea",
-      description: "Describe what you are building and explore domain suggestions around it.",
-      detail: "Choose your theme in the search field above.",
-      action: "Find domain ideas",
+      title: "Name what you’re building",
+      description: "Describe your product or business to get relevant domain ideas.",
+      detail: "Start with a few words. No account needed to try.",
+      action: "Describe my idea",
     },
     brief: {
       eyebrow: "Detailed search",
       headerNote: "You set the criteria",
-      title: "Describe what you need",
-      description: "Add your audience, preferred style and words to prioritize or avoid.",
-      detail: "Set the extensions and criteria that matter to you.",
-      action: "Open advanced search",
+      title: "Set your naming criteria",
+      description: "Choose a style, name length and words to include or avoid.",
+      detail: "Add your audience and preferred domain endings.",
+      action: "Set search criteria",
     },
   },
   sv: {
@@ -47,25 +47,25 @@ const copy = {
       eyebrow: "Korta domäner",
       headerNote: "Upp till 100 per omgång",
       title: "Bläddra bland korta domäner",
-      description: "Se en kort domän i taget. Behåll dem du gillar och hoppa över resten.",
+      description: "Vill du hellre bläddra? Behåll de korta namn du gillar och hoppa över resten.",
       detail: "Varje kort visar domänens aktuella status.",
       action: "Bläddra bland domäner",
     },
     trending: {
       eyebrow: "Domänförslag",
       headerNote: "Flera namnspår",
-      title: "Börja med ett ord eller en idé",
-      description: "Beskriv vad du bygger och få förslag på domäner som passar idén.",
-      detail: "Ange ditt tema i sökfältet ovan.",
-      action: "Hitta domänförslag",
+      title: "Hitta namnet till din idé",
+      description: "Beskriv din produkt eller verksamhet och få relevanta domänförslag.",
+      detail: "Börja med några ord. Inget konto krävs för att prova.",
+      action: "Beskriv min idé",
     },
     brief: {
       eyebrow: "Detaljerad sökning",
       headerNote: "Du sätter kriterierna",
-      title: "Beskriv vad du behöver",
-      description: "Lägg till målgrupp, önskad stil och ord att prioritera eller undvika.",
-      detail: "Välj de ändelser och kriterier som är viktiga för dig.",
-      action: "Öppna avancerad sökning",
+      title: "Välj kriterier för namnet",
+      description: "Välj stil, namnlängd och ord att ta med eller undvika.",
+      detail: "Lägg till målgrupp och önskade domänändelser.",
+      action: "Ange sökkriterier",
     },
   },
   es: {
@@ -75,25 +75,25 @@ const copy = {
       eyebrow: "Dominios cortos",
       headerNote: "Hasta 100 por ronda",
       title: "Explora dominios cortos",
-      description: "Revisa un dominio corto a la vez. Conserva los que te gusten y descarta el resto.",
+      description: "¿Prefieres explorar? Conserva los nombres cortos que te gusten y descarta el resto.",
       detail: "Consulta el estado actual de cada dominio en su tarjeta.",
       action: "Explorar dominios",
     },
     trending: {
       eyebrow: "Ideas de dominios",
       headerNote: "Distintas ideas de nombres",
-      title: "Empieza con una palabra o idea",
-      description: "Describe lo que estás creando y explora sugerencias de dominios relacionados.",
-      detail: "Escribe tu tema en el campo de búsqueda de arriba.",
-      action: "Encontrar ideas de dominios",
+      title: "Pon nombre a tu proyecto",
+      description: "Describe tu producto o negocio para obtener ideas de dominios relevantes.",
+      detail: "Empieza con unas palabras. No necesitas una cuenta para probar.",
+      action: "Describir mi idea",
     },
     brief: {
       eyebrow: "Búsqueda detallada",
       headerNote: "Tú defines los criterios",
-      title: "Describe lo que necesitas",
-      description: "Añade tu público, el estilo que prefieres y las palabras que quieras priorizar o evitar.",
-      detail: "Elige las extensiones y los criterios que te importan.",
-      action: "Abrir búsqueda avanzada",
+      title: "Define los criterios del nombre",
+      description: "Elige estilo, longitud y palabras que quieras incluir o evitar.",
+      detail: "Añade tu público y las extensiones que prefieres.",
+      action: "Definir criterios de búsqueda",
     },
   },
   fr: {
@@ -103,25 +103,25 @@ const copy = {
       eyebrow: "Domaines courts",
       headerNote: "Jusqu’à 100 par série",
       title: "Parcourez des domaines courts",
-      description: "Découvrez un domaine court à la fois. Gardez ceux qui vous plaisent et passez les autres.",
+      description: "Vous préférez parcourir des idées ? Gardez les noms courts qui vous plaisent et passez les autres.",
       detail: "Consultez le statut actuel de chaque domaine sur sa carte.",
       action: "Parcourir les domaines",
     },
     trending: {
       eyebrow: "Idées de domaines",
       headerNote: "Plusieurs pistes de noms",
-      title: "Partez d’un mot ou d’une idée",
-      description: "Décrivez votre projet et explorez des suggestions de domaines en lien avec votre idée.",
-      detail: "Indiquez votre thème dans le champ de recherche ci-dessus.",
-      action: "Trouver des idées de domaines",
+      title: "Donnez un nom à votre projet",
+      description: "Décrivez votre produit ou activité pour obtenir des idées de domaines adaptées.",
+      detail: "Commencez par quelques mots. Aucun compte requis pour essayer.",
+      action: "Décrire mon idée",
     },
     brief: {
       eyebrow: "Recherche détaillée",
       headerNote: "Vous fixez les critères",
-      title: "Décrivez ce qu’il vous faut",
-      description: "Précisez votre public, le style souhaité et les mots à privilégier ou à éviter.",
-      detail: "Choisissez les extensions et les critères qui comptent pour vous.",
-      action: "Ouvrir la recherche avancée",
+      title: "Définissez vos critères",
+      description: "Choisissez le style, la longueur et les mots à inclure ou à éviter.",
+      detail: "Ajoutez votre public et vos extensions préférées.",
+      action: "Définir les critères de recherche",
     },
   },
   zh: {
@@ -131,25 +131,25 @@ const copy = {
       eyebrow: "短域名",
       headerNote: "每轮最多 100 个",
       title: "浏览短域名",
-      description: "一次查看一个短域名，保留喜欢的，跳过其他的。",
+      description: "更喜欢浏览？保留你喜欢的短域名，跳过其他选项。",
       detail: "每张卡片都会显示域名的当前状态。",
       action: "浏览域名",
     },
     trending: {
       eyebrow: "域名灵感",
       headerNote: "多种命名方向",
-      title: "从一个词或想法开始",
-      description: "描述你正在创建的项目，探索相关域名建议。",
-      detail: "在上方搜索框中输入你的主题。",
-      action: "查找域名灵感",
+      title: "为你的项目找到名字",
+      description: "描述你的产品或业务，获取相关的域名建议。",
+      detail: "从几个词开始，无需账户即可试用。",
+      action: "描述我的想法",
     },
     brief: {
       eyebrow: "详细搜索",
       headerNote: "由你设定条件",
-      title: "描述你的需求",
-      description: "补充目标受众、偏好风格，以及优先考虑或排除的词语。",
-      detail: "选择你需要的域名后缀和筛选条件。",
-      action: "打开高级搜索",
+      title: "设定命名条件",
+      description: "选择风格、名字长度，以及要包含或排除的词语。",
+      detail: "补充目标受众和偏好的域名后缀。",
+      action: "设置搜索条件",
     },
   },
 } as const;
@@ -284,9 +284,9 @@ export default function HeroOfferCarousel({
 }: HeroOfferCarouselProps) {
   const strings = copy[language];
   const offers = [
-    { id: "swipe" as const, ...strings.swipe },
     { id: "trending" as const, ...strings.trending },
     { id: "brief" as const, ...strings.brief },
+    { id: "swipe" as const, ...strings.swipe },
   ];
 
   const renderAction = (offerId: OfferId, action: string) => {
@@ -324,7 +324,8 @@ export default function HeroOfferCarousel({
           return (
             <article
               key={offer.id}
-              className={`group relative isolate flex min-h-[20.75rem] overflow-hidden rounded-[1.45rem] border shadow-[0_13px_30px_hsl(210_50%_30%/0.10)] transition-[border-color,box-shadow,transform] duration-300 hover:-translate-y-1 hover:border-primary/55 hover:shadow-[0_20px_40px_hsl(210_50%_30%/0.16)] motion-reduce:transform-none sm:min-h-[22rem] ${visual.cardClassName}`}
+              data-search-path={offer.id}
+              className={`group relative isolate flex min-h-[19rem] overflow-hidden rounded-[1.45rem] border shadow-[0_13px_30px_hsl(210_50%_30%/0.10)] transition-[border-color,box-shadow,transform] duration-300 hover:-translate-y-1 hover:border-primary/55 hover:shadow-[0_20px_40px_hsl(210_50%_30%/0.16)] motion-reduce:transform-none ${visual.cardClassName}`}
             >
               <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
                 <div className="absolute inset-0 bg-[linear-gradient(115deg,hsl(0_0%_100%/0.92)_0%,hsl(0_0%_100%/0.82)_45%,transparent_77%)]" />
@@ -336,7 +337,7 @@ export default function HeroOfferCarousel({
               </div>
 
               <div className="relative z-10 flex min-w-0 flex-1 flex-col">
-                <div className="flex min-h-[5.25rem] flex-col items-start justify-center gap-1 border-b border-[#8fc7f0]/55 bg-white/70 px-4 py-3 backdrop-blur-sm">
+                <div className="flex min-h-[4.5rem] flex-col items-start justify-center gap-1 border-b border-[#8fc7f0]/55 bg-white/70 px-4 py-3 backdrop-blur-sm">
                   <span className="max-w-full text-sm font-semibold leading-5 text-[#075e9e] [overflow-wrap:anywhere]">
                     {offer.eyebrow}
                   </span>
@@ -349,7 +350,7 @@ export default function HeroOfferCarousel({
                     <h3 className="max-w-full text-lg font-semibold leading-6 tracking-[-0.02em] text-foreground [overflow-wrap:anywhere] md:min-h-12">
                       {offer.title}
                     </h3>
-                    <p className="mt-2 max-w-full text-sm leading-5 text-[#425a78] md:min-h-[5rem]">{offer.description}</p>
+                    <p className="mt-2 max-w-full text-sm leading-5 text-[#425a78] md:min-h-[3.75rem]">{offer.description}</p>
                     <p className="mt-3 max-w-full text-xs leading-5 text-[#4e6684] md:min-h-10">
                       {offer.detail}
                     </p>

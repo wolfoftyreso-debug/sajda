@@ -1,4 +1,11 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useLayoutEffect, useRef } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { nameProjectsEnabled } from "@/lib/nameProjectsFeature";
+import { nameProjectSearchEntry } from "@/lib/nameProjectSearch";
+import { namePackageEntryCopy } from "@/i18n/namePackageEntryCopy";
+import BrandWorkspaceEntry from "@/components/BrandWorkspaceEntry";
+import { brandLookupCopy } from "@/i18n/brandLookupCopy";
+import { projectEntryCopy } from "@/i18n/projectEntryCopy";
 import { Search, CheckCircle, AlertCircle, Square, RotateCcw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import DomainCard from "@/components/DomainCard";
@@ -38,6 +45,8 @@ import { isNativeApp } from "@/lib/appSurface";
 import { nativeCopy } from "@/app/nativeCopy";
 
 const Index = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const {
     isScanning,
     domains,
@@ -91,6 +100,35 @@ const Index = () => {
   const anonymousSearchMode = isAnonymousSearchMode();
   const modeTargets = getModeTargets(scanMode, anonymousSearchMode);
   const presentationLanguage = language as string;
+  const projectCopy = projectEntryCopy[language];
+  const [projectContext, setProjectContext] = useState<{ id: string; title: string; accountId: string } | null>(null);
+  const consumedProjectEntry = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    if (projectContext && projectContext.accountId !== accountId) {
+      setProjectContext(null);
+      setAdvancedBrief("");
+      setSearchKeyword("");
+      setAdvancedSearch(false);
+    }
+  }, [accountId, projectContext, setSearchKeyword]);
+  useEffect(() => {
+    if (authLoading || isScanning || !nameProjectsEnabled) return;
+    const entryKey = `${location.key}:${accountId}`;
+    if (consumedProjectEntry.current === entryKey) return;
+    const entry = nameProjectSearchEntry(location.state, accountId);
+    if (!entry || !accountId) return;
+    consumeSearchEntryPreset(); // An explicit project handoff supersedes an older public-page preset.
+    consumedProjectEntry.current = entryKey;
+    setProjectContext({ id: entry.project.id, title: entry.project.title, accountId });
+    setIsEditingSearch(true);
+    setSearchKeyword("");
+    setAdvancedSearch(true);
+    setAdvancedBrief(entry.brief);
+    setAdvancedCriteria(entry.criteria);
+    // A consumed brief belongs in the current form, not retained in browser
+    // history where it could survive a sign-out or be restored by Back.
+    navigate({ pathname: location.pathname, search: location.search, hash: location.hash }, { replace: true, state: null });
+  }, [accountId, authLoading, isScanning, location.key, location.state, location.pathname, location.search, location.hash, navigate, projectContext, setSearchKeyword]);
 
   // Retire the short-lived brand-study links cleanly after the selected Sajda
   // identity became permanent. Other query parameters are left untouched.
@@ -242,7 +280,7 @@ const Index = () => {
   };
 
   const handleStartSearch = () => {
-    if (!canStartSearch || isScanning) return;
+    if (!canStartSearch || isScanning || projectContext && projectContext.accountId !== accountId) return;
     if (isExactDomainSearch) {
       // Reflect the exact domains in the visible extension selector while the
       // request itself uses the override immediately (state updates are async).
@@ -427,8 +465,8 @@ const Index = () => {
 
   return (
     <div className="sajda-canvas min-h-screen pb-1">
-      <main className={`mx-auto w-full px-4 sm:px-6 ${domains.length === 0 && !isScanning ? "max-w-5xl py-5 sm:py-6" : "max-w-[1280px] py-5 sm:py-6"}`}>
-        {!isNativeApp && <header className="grid min-h-10 grid-cols-[1fr_auto] items-center gap-3 border-b border-border/80 pb-4 sm:grid-cols-[1fr_auto_auto]" aria-label="Sajda">
+      <main className="mx-auto w-full max-w-[1280px] px-4 py-5 sm:px-6 sm:py-6">
+        {!isNativeApp && <header className="sajda-search-header grid min-h-10 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/80 pb-4 xl:grid-cols-[auto_auto_minmax(0,1fr)]" aria-label="Sajda">
           <a
             href="/"
             className="inline-flex items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
@@ -441,11 +479,26 @@ const Index = () => {
             />
           </a>
           <a href="/pricing" className="inline-flex min-h-11 items-center rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{language === "sv" ? "Priser & nivåer" : language === "es" ? "Precios y planes" : language === "fr" ? "Tarifs et offres" : language === "zh" ? "价格与方案" : "Pricing & plans"}</a>
-          <div className="col-span-2 flex flex-wrap items-center justify-end gap-2 justify-self-end sm:col-span-1">
+          <div className="col-span-2 flex min-w-0 flex-wrap items-center justify-between gap-3 xl:col-span-1 xl:justify-end">
+            <div className="flex min-w-0 flex-wrap items-center gap-1">
+            {nameProjectsEnabled && <Link to="/projects" className="inline-flex min-h-11 items-center rounded-xl px-3 text-sm font-medium text-primary focus-visible:ring-2 focus-visible:ring-ring">{projectCopy.projects}</Link>}
+            <Link to="/name-packages" className="inline-flex min-h-11 items-center rounded-xl px-3 text-sm font-medium text-primary focus-visible:ring-2 focus-visible:ring-ring">{namePackageEntryCopy[language].title}</Link>
+            <Link to="/brand-index" aria-label={brandLookupCopy[language].entry} className="inline-flex min-h-11 items-center rounded-xl px-3 text-sm font-medium text-primary focus-visible:ring-2 focus-visible:ring-ring">Brand Index</Link>
+            </div>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
             <AccountLink />
             <LanguageSwitcher />
+            </div>
           </div>
         </header>}
+        {projectContext?.accountId === accountId && projectContext && <aside className="my-5 rounded-2xl border border-primary/20 bg-primary/5 p-4" aria-label={projectCopy.projects}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="min-w-0 break-words text-lg font-semibold">{projectContext.title}</h2>
+            <Link to="/projects" state={{ selectedProjectId: projectContext.id }} className="inline-flex min-h-11 items-center rounded-xl border border-border bg-card px-3 text-sm font-semibold focus-visible:ring-2 focus-visible:ring-ring">{projectCopy.back}</Link>
+          </div>
+          <p className="mt-2 text-sm leading-6">{projectCopy.context}</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">{projectCopy.budget}</p>
+        </aside>}
         {!isNativeApp && !anonymousSearchMode && (
           <div className="mb-6">
             <Top10Banner />
@@ -456,7 +509,7 @@ const Index = () => {
         {!isScanning && (domains.length === 0 || isEditingSearch) && (
           <section className={`mx-auto max-w-5xl pb-4 sm:pb-6 ${isNativeApp ? "pt-1" : "pt-8 sm:pt-10"}`} aria-labelledby="search-heading">
             {isNativeApp ? <h1 id="search-heading" className="text-2xl font-semibold tracking-tight">{nativeCopy[language].search}</h1> : <div className="mx-auto max-w-[44rem] text-center">
-              <h1 id="search-heading" className="text-balance text-3xl font-semibold leading-[1.08] tracking-[-0.04em] text-foreground sm:text-5xl">
+              <h1 id="search-heading" className="sajda-search-title text-balance font-semibold leading-[1.12] tracking-[-0.04em] text-foreground">
                 {t("search.heading")}
               </h1>
               <p className="mx-auto mt-4 max-w-2xl text-pretty text-sm leading-6 text-muted-foreground sm:text-base">
@@ -466,6 +519,7 @@ const Index = () => {
               </p>
             </div>}
 
+            <BrandWorkspaceEntry />
             <div className="sajda-search-shell mt-6 overflow-hidden rounded-[1.5rem] border p-2.5 sm:p-3 md:p-4">
               {!isNativeApp && anonymousSearchMode && <HeroOfferHeading language={language} />}
 

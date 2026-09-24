@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "sajda": {
+      "type": "streamable-http",
+      "url": "https://sajda-connector.vercel.app/api/mcp/public"
+    }
+  }
+}

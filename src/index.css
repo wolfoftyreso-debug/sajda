@@ -253,6 +253,12 @@
       0 22px 48px hsl(214 42% 24% / 0.09);
   }
 
+  /* Smooth heading growth through split-screen and tablet widths. The same
+     hierarchy is retained without the old 30px → 48px jump at 640px. */
+  .sajda-search-title {
+    font-size: clamp(1.875rem, calc(1rem + 3.5vw), 3rem);
+  }
+
   .sajda-search-shell::before {
     content: "";
     position: absolute;

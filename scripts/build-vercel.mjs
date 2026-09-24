@@ -40,6 +40,7 @@ export function createVercelBuildEnvironment(environment = process.env, deployme
     VITE_LOCAL_TEST_MODE: "false",
     VITE_SCAN_EXECUTION_MODE: "public-api",
     VITE_ACCOUNT_AUTH_ENABLED: hasAccountServer ? "true" : "false",
+    VITE_SAJDA_NAME_PROJECTS_ENABLED: hasAccountServer && environment.SAJDA_NAME_PROJECTS_ENABLED === "true" ? "true" : "false",
     ...legacyBrowserCompatEnv,
   };
   resolveSeoBuildOrigin(buildEnvironment);

@@ -9,6 +9,7 @@ import { createMcpHandler } from "../api/mcp.js";
 import { createPublicMcpExecutor, type PublicMcpExecutor } from "../api/_shared/public-mcp-tools.js";
 import { accountRequestOrigin } from "../api/_shared/account-origin.js";
 import { AccountAccessError } from "../api/_shared/account-error.js";
+import { brandIndexResultSchema } from "../shared/brand-presence-index.js";
 
 const init = (protocolVersion = "2025-11-25") => ({ jsonrpc: "2.0", id: 1, method: "initialize", params: {
   protocolVersion, capabilities: {}, clientInfo: { name: "sajda-connector-test", version: "1.0.0" },
@@ -45,10 +46,10 @@ async function serve(t: TestContext, options: { execute?: PublicMcpExecutor; par
   return { origin, url, calls, post, connect };
 }
 
-test("authless real SDK discovery exposes only two read-only noauth tools and never performs a search", async t => {
+test("authless real SDK discovery exposes six read-only noauth tools and never performs a search", async t => {
   const fixture = await serve(t), client = await fixture.connect();
   const { tools } = await client.listTools();
-  assert.deepEqual(tools.map(tool => tool.name), ["domains_suggest", "domains_check"]);
+  assert.deepEqual(tools.map(tool => tool.name), ["business_names_recommend", "domains_suggest", "domains_check", "name_packages_search", "brand_index_assess", "brand_lookup"]);
   for (const tool of tools) {
     assert.equal(tool.inputSchema.additionalProperties, false);
     assert.equal(tool.outputSchema?.type, "object");
@@ -57,11 +58,73 @@ test("authless real SDK discovery exposes only two read-only noauth tools and ne
     assert.deepEqual(tool._meta?.securitySchemes, [{ type: "noauth" }]);
   }
   assert.equal(fixture.calls.length, 0);
+  const brand = tools.find(tool => tool.name === "brand_index_assess")!;
+  assert.equal(brand.annotations?.openWorldHint, false); assert.equal(brand.annotations?.idempotentHint, true);
+  assert.match(brand.description!, /SELF_ASSESSMENT/u); assert.match(brand.description!, /verified_score remains null/u);
+  const packages = tools.find(tool => tool.name === "name_packages_search")!;
+  assert.equal(packages.annotations?.idempotentHint, false);
+  assert.equal(packages.annotations?.openWorldHint, true);
+  assert.deepEqual(packages.inputSchema.required, ["query", "tlds", "platforms"]);
+  assert.equal((packages.inputSchema.properties?.markets as { uniqueItems: boolean }).uniqueItems, true);
   const result = await client.callTool({ name: "domains_suggest", arguments: suggestion });
   assert.equal(result.structuredContent?.ok, true);
   assert.equal(result.isError, undefined);
   assert.deepEqual(fixture.calls[0], { name: "domains_suggest", args: { ...suggestion, tlds: ["com", "dev", "app"], count: 10, locale: "en" } });
   assert.deepEqual((result.structuredContent?.data as Record<string, unknown>).items, [], "Never manufacture ten matches for an empty response");
+});
+
+test("public package calls reject injected authority and budget fields before product work", async t => {
+  const fixture = await serve(t), client = await fixture.connect();
+  const args = { query: "studio", tlds: ["com"], platforms: ["github"] };
+  for (const injection of [{ aiConsent: true }, { budget: 100 }, { jurisdiction: "SE" }, { socialObservations: [] },
+    { observedAt: new Date().toISOString() }, { userId: "other" }, { sourceUrl: "http://127.0.0.1" }, { markets: ["EU"] }, { markets: ["US", "US"] }]) {
+    await assert.rejects(client.callTool({ name: "name_packages_search", arguments: { ...args, ...injection } }),
+      error => error instanceof McpError && error.code === ErrorCode.InvalidParams);
+  }
+  assert.equal(fixture.calls.length, 0);
+  await assert.rejects(client.callTool({ name: "name_packages_search", arguments: { query: "studio", tlds: ["com"] } }),
+    error => error instanceof McpError && /social platforms/u.test(error.message) && !/budget/u.test(error.message));
+});
+
+test("real public SDK validates the package output contract and preserves unknown evidence", async t => {
+  const execute = createPublicMcpExecutor({}, "req_packagepublicsdk1", {
+    search: async (_request, response) => response.status(200).json({ checkedAt: new Date().toISOString(), results: [
+      { domain: "nordform.com", status: "available", authoritative: true, checkMethod: "rdap", source: "verisign-com-rdap" },
+    ] }),
+  });
+  const client = await (await serve(t, { execute })).connect();
+  const result = await client.callTool({ name: "name_packages_search", arguments: { query: "studio", tlds: ["com"], platforms: ["github"], markets: ["US", "SE", "DE"], count: 3 } });
+  assert.equal(result.structuredContent?.ok, true); assert.equal(result.isError, undefined);
+  const data = result.structuredContent!.data as { schema_version: string; requested_count: number; returned_count: number;
+    packages: { evidence: { domains: { status: string; observed_at: null }[] } }[];
+    market_coverage: { requested_markets: string[]; checked_markets: string[]; automated_checks_available: boolean } };
+  assert.equal(data.schema_version, "sajda.name-package-intelligence.v1");
+  assert.equal(data.requested_count, 3); assert.equal(data.returned_count, 3);
+  assert.ok(data.packages.every(pkg => pkg.evidence.domains.every(domain => domain.status === "unknown" && domain.observed_at === null)));
+  assert.equal(data.packages[0].evidence.domains[0].status, "unknown");
+  assert.equal(data.packages[0].evidence.domains[0].observed_at, null);
+  assert.deepEqual([...data.market_coverage.requested_markets].sort(), ["DE", "SE", "US"]);
+  assert.deepEqual(data.market_coverage.checked_markets, []); assert.equal(data.market_coverage.automated_checks_available, false);
+});
+
+test("public SDK validates strict brand assessment output without external work or caller authority", async t => {
+  const forbidden = async () => { assert.fail("The brand calculator cannot search, fetch FX or request prices"); };
+  const execute = createPublicMcpExecutor({}, "req_brandpublicsdk1", { search: forbidden, fx: forbidden, quote: forbidden });
+  const client = await (await serve(t, { execute })).connect();
+  const args = { brand_name: "Example Brand", identity_label: "example", primary_domain: "example.com",
+    domains: ["example.com"], socials: [{ platform: "github", handle: "example" }], markets: ["US"], observations: [] };
+  const result = await client.callTool({ name: "brand_index_assess", arguments: args });
+  assert.equal(result.structuredContent?.ok, true); assert.equal(result.isError, undefined);
+  const data = brandIndexResultSchema.parse(result.structuredContent!.data);
+  assert.equal(data.index.classification, "SELF_ASSESSMENT"); assert.equal(data.index.reported_score, null);
+  assert.equal(data.index.verified_score, null); assert.equal(data.index.verified_coverage_percent, 0);
+  assert.ok(data.targets.every(target => target.classification === "USER_SUPPLIED"));
+  for (const injection of [{ verified: true }, { verified_score: 100 }, { markets: ["EU"] },
+    { observations: [{ target_id: "domain:other.com", status: "reported_owned" }] },
+    { observations: [{ target_id: "domain:example.com", status: "reported_owned", verified: true }] }]) {
+    await assert.rejects(client.callTool({ name: "brand_index_assess", arguments: { ...args, ...injection } }),
+      error => error instanceof McpError && error.code === ErrorCode.InvalidParams);
+  }
 });
 
 test("budget, private actions and injected account/provider data fail before executing anything", async t => {
@@ -111,7 +174,7 @@ test("stateless public transport negotiates versions and accepts Vercel's lazy p
     assert.equal(response.headers.get("mcp-session-id"), null);
   }
   assert.equal((await fixture.post("{")).status, 400);
-  assert.equal((await (await fixture.connect()).listTools()).tools.length, 2);
+  assert.equal((await (await fixture.connect()).listTools()).tools.length, 6);
   const notify = await fixture.post({ jsonrpc: "2.0", method: "notifications/initialized" });
   assert.equal(notify.status, 202);
 });

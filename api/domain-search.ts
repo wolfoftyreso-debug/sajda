@@ -1,7 +1,10 @@
 import { randomBytes } from "node:crypto";
-import { generateContextualNames, refineRuleCandidates, type NamingInput } from "./_shared/contextual-naming.js";
+import { generateContextualNames, refineRuleCandidates, satisfiesNamingConstraints, type NamingInput } from "./_shared/contextual-naming.js";
 import { parseSearchRefinement, type NamingGeneration, type SearchRefinement } from "../shared/search-refinement.js";
 import { parseAiConsent, type AiConsent } from "../shared/ai-consent.js";
+import { expandNamePackageDomainMatrix, NAME_PACKAGE_WEB_DOMAIN_LIMIT } from "./_shared/name-package-candidates.js";
+import { generateConnectorCandidates } from "./_shared/connector-candidates.js";
+import { isBrandNameLanguage } from "../shared/name-languages.js";
 import { asciiNameToken, joinNameWords, nameQualitySignals, interpretRdapResponse, registryRetryAt } from "./_shared/search-quality.mjs";
 import {
   createRequestId,
@@ -271,6 +274,20 @@ export function createPublicConnectorEngineRequest(
   }
   return { ...createPublicApiEngineRequest(request, body, requestId),
     [CONNECTOR_CANDIDATES]: Object.freeze([...domains]) } as TrustedApiEngineRequest;
+}
+
+/** Same bounded server-generated reserve for an already authenticated API-key
+ * owner. Both builders validate their own boundary; no public body field can
+ * select the reserve or the account identity. The normal engine quota remains. */
+export function createTrustedConnectorEngineRequest(
+  request: VercelRequestLike,
+  body: Record<string, unknown>,
+  clientId: string,
+  requestId: string,
+  domains: readonly string[],
+): VercelRequestLike {
+  return { ...createPublicConnectorEngineRequest(request, body, requestId, domains),
+    ...createTrustedApiEngineRequest(request, body, clientId, requestId) };
 }
 
 interface RateLimitEntry {
@@ -3129,6 +3146,14 @@ return async function handler(request: VercelRequestLike, response: VercelRespon
     }
     locale = normalizeLocale(body.locale);
     const swipe = isSwipeSearch(body.swipe);
+    if (body.namePackages !== undefined && typeof body.namePackages !== "boolean") {
+      sendJson(response, 400, { code: "invalid_name_package_mode", error: "namePackages must be true or false." });
+      return;
+    }
+    if (body.namePackages === true && swipe) {
+      sendJson(response, 400, { code: "invalid_name_package_mode", error: "Choose name packages or Swipe, not both." });
+      return;
+    }
     const explicitTheme = typeof body.theme === "string" ? body.theme : "";
     if (explicitTheme.length > 6_000) {
       sendJson(response, 400, { code: "theme_too_long", error: localizedText(locale,
@@ -3148,6 +3173,16 @@ return async function handler(request: VercelRequestLike, response: VercelRespon
     }
     const exactDomains = parsedExactDomains.domains ?? [];
     const isExactDomainSearch = exactDomains.length > 0;
+    // Exact checks keep their <=12-domain public boundary. A boolean cannot
+    // opt into the server-only connector reserve or a trusted account identity.
+    const namePackages = body.namePackages === true && !isExactDomainSearch;
+    // Output-name language is separate from the report/interface locale. Exact
+    // names remain untouched, including when a caller retains this preference.
+    if (body.nameLanguage !== undefined && !isBrandNameLanguage(body.nameLanguage)) {
+      sendJson(response, 400, { code: "invalid_name_language", error: "nameLanguage must be en, sv, fr, es, de, it, or pt." });
+      return;
+    }
+    const packageNameLanguage = isBrandNameLanguage(body.nameLanguage) ? body.nameLanguage : "en";
     const refinement = parseSearchRefinement(body.refinement);
     if (refinement && (swipe || isExactDomainSearch)) {
       sendJson(response, 400, { code: "refinement_not_supported", error: "Refinement is only available for creative name searches." });
@@ -3275,13 +3310,18 @@ return async function handler(request: VercelRequestLike, response: VercelRespon
     // unbounded registry scan.
     const verificationCount = swipe
       ? Math.min(MAX_SWIPE_VERIFICATIONS, requestedCount + SWIPE_VERIFICATION_BUFFER)
+      : namePackages
+      ? Math.min(NAME_PACKAGE_WEB_DOMAIN_LIMIT, requestedCount)
       : requestedCount >= 40
       ? Math.min(MAX_CANDIDATES, requestedCount + AVAILABILITY_BUFFER)
       : requestedCount;
     const namingInput: NamingInput = { theme: explicitTheme, brief, locale, refinement,
-      constraints: criteria ?? { minLength: 3, maxLength: 22, nameLanguage: "auto",
+      constraints: criteria ? { ...criteria } : { minLength: 3, maxLength: 22, nameLanguage: "auto",
         nameStyle: creativeMode ? creativeModeNameStyle(creativeMode) : "balanced", includeWords: [], excludeWords: [] },
-      requiredReferences: advanced ? themeWords(explicitTheme) : undefined };
+      // A project's title is context for package discovery, not a mandatory
+      // untranslated prefix. Explicit-name mode remains an exact check.
+      requiredReferences: advanced && !namePackages ? themeWords(explicitTheme) : undefined };
+    if (namePackages && namingInput.constraints) namingInput.constraints.nameLanguage = packageNameLanguage;
     const hasNamingContext = Boolean(explicitTheme.trim() || brief.trim());
     let capacityFallback: "ai_daily_limit" | "ai_busy" | undefined;
     const contextualNames = !swipe && !isExactDomainSearch && aiConsent && hasNamingContext
@@ -3293,7 +3333,7 @@ return async function handler(request: VercelRequestLike, response: VercelRespon
       source: contextualNames ? "ai" : "rules", refinementApplied: Boolean(refinement),
       ...(!contextualNames ? { fallbackReason: !hasNamingContext ? "no_context" as const : !aiConsent ? "ai_off" as const : capacityFallback ?? "ai_unavailable" as const } : {}),
     } : undefined;
-    const candidates = swipe
+    const generatedCandidates = swipe
       ? generateSwipeCandidates(tlds, verificationCount, parsedSwipeRange!.range!)
       : isExactDomainSearch
         ? exactDomains.map((domain) => ({ domain, namingPattern: "exactDomain" as const }))
@@ -3301,6 +3341,11 @@ return async function handler(request: VercelRequestLike, response: VercelRespon
           ? contextualNames.slice(0, verificationCount).map((name, index) => ({
             domain: `${name.label}.${tlds[index % tlds.length]}`, namingPattern: "contextual" as const,
           }))
+        : namePackages
+          ? refineRuleCandidates(generateConnectorCandidates({ query: String(candidateTheme || explicitTheme).slice(0, 100),
+            tlds, count: verificationCount, nameLanguage: packageNameLanguage,
+          }).map(candidate => ({ domain: candidate.domain, namingPattern: "contextual" as const })), namingInput)
+            .filter(candidate => satisfiesNamingConstraints(candidate.domain.split(".")[0], namingInput)).slice(0, verificationCount)
         : refineRuleCandidates(generateCandidates(
           tlds,
           verificationCount,
@@ -3311,6 +3356,9 @@ return async function handler(request: VercelRequestLike, response: VercelRespon
           creativeMode,
           refinement,
         ), namingInput).slice(0, verificationCount);
+    const candidates = namePackages
+      ? expandNamePackageDomainMatrix(generatedCandidates, tlds, verificationCount)
+      : generatedCandidates;
     const candidateTlds = isExactDomainSearch
       ? [...new Set(exactDomains.map((domain) => domain.split(".").at(-1)!))]
       : tlds;
@@ -3409,6 +3457,8 @@ return async function handler(request: VercelRequestLike, response: VercelRespon
       ...(criteria ? { criteria } : {}),
       ...(creativeMode ? { creativeMode } : {}),
       ...(generation ? { generation } : {}),
+      ...(namePackages ? { namePackages: { mode: "same_label_matrix", candidateCount: new Set(candidates.map(candidate => candidate.domain.split(".")[0])).size,
+        requestedTlds: tlds, maximumDomainChecks: verificationCount, plannedDomainChecks: candidates.length } } : {}),
       results,
     });
   } catch (error) {

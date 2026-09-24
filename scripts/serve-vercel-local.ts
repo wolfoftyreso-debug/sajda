@@ -9,16 +9,25 @@ import deepReview from "../api/deep-review";
 import health from "../api/health";
 import publicDomains from "../api/v1/public/domains";
 import protectedDomains from "../api/v1/domains";
+import publicNamePackages from "../api/v1/public/name-packages";
+import protectedNamePackages from "../api/v1/name-packages";
+import publicBusinessNames from "../api/v1/public/business-names";
+import agentCapabilities from "../api/v1/capabilities";
+import protectedBusinessNames from "../api/v1/business-names";
+import publicBrandIndex from "../api/v1/public/brand-index";
+import publicBrandLookup from "../api/v1/public/brand-lookup";
 import openapi from "../api/openapi";
 import facts from "../api/fact-signals";
 import referenceFx from "../api/reference-fx";
 import keys from "../api/developer/api-keys";
 import verifyDomain from "../api/marketplace/verify-domain";
 import savedDomains from "../api/account/saved-domains";
-import capabilities from "../api/account/capabilities";
+import accountCapabilities from "../api/account/capabilities";
 import membership from "../api/account/membership";
 import lostDomains from "../api/account/lost-domains";
 import tradingScenarios from "../api/account/trading-scenarios";
+import nameProjects from "../api/account/name-projects";
+import namePackageSocial from "../api/account/name-package-social";
 import lostDomainsCron from "../api/cron/lost-domains";
 import auth from "../api/auth";
 import contact from "../api/contact";
@@ -53,17 +62,24 @@ const handlers = new Map<string, Handler>([
   ["/api/auth",auth],
   ["/api/domain-search", search], ["/api/deep-review", deepReview], ["/api/health", health],
   ["/api/v1/public/domains", publicDomains], ["/api/v1/domains", protectedDomains],
+  ["/api/v1/public/name-packages", publicNamePackages], ["/api/v1/name-packages", protectedNamePackages],
+  ["/api/v1/public/business-names", publicBusinessNames], ["/api/v1/business-names", protectedBusinessNames],
+  ["/api/v1/capabilities", agentCapabilities],
+  ["/api/v1/public/brand-index", publicBrandIndex],
+  ["/api/v1/public/brand-lookup", publicBrandLookup],
   ["/api/v1/public/names", publicDomains], ["/api/v1/names", protectedDomains],
   ["/api/openapi", openapi], ["/api/fact-signals", facts],
   ["/api/reference-fx", referenceFx],
   ["/api/developer/api-keys", keys], ["/api/marketplace/verify-domain", verifyDomain],
   ["/api/account/saved-domains", savedDomains],
-  ["/api/account/capabilities", capabilities],
+  ["/api/account/capabilities", accountCapabilities],
   ["/api/account/membership", membership],
   ["/api/account/app-sessions", appSessions],
   ["/api/account/deletion", deletion],
   ["/api/account/lost-domains", lostDomains],
   ["/api/account/trading-scenarios", tradingScenarios],
+  ["/api/account/name-projects", nameProjects],
+  ["/api/account/name-package-social", namePackageSocial],
   ["/api/cron/lost-domains", lostDomainsCron],
   ["/api/cron/native-commerce", nativeCommerceCron],
   ["/api/contact", contact],
@@ -95,12 +111,16 @@ const server = createServer(async (req, rawRes) => {
       // boundary (with a hard size cap), while invoking the real handlers.
       const request = req as IncomingMessage & { body?: unknown; query?: Record<string, string> };
       request.query = Object.fromEntries(url.searchParams);
+      // Public /api/v1/public/brand-index keeps the stream for its own 64 KiB
+      // parser; /api/v1/public/brand-lookup owns a 6 KiB parser. MCP owns its
+      // separate 16 KiB protocol parser below;
+      // neither endpoint enters the account-only pre-parser here.
       if ((path.startsWith("/api/account/") || path === "/api/developer/api-keys") && ["POST", "DELETE"].includes(req.method || "")) {
         const chunks: Buffer[] = [];
         let size = 0;
         for await (const chunk of req) {
           size += chunk.length;
-          if (size > 16_384) { res.status(413).json({ code: "request_too_large" }); return; }
+          if (size > (path === "/api/account/name-projects" ? 32_768 : 16_384)) { res.status(413).json({ code: "request_too_large" }); return; }
           chunks.push(Buffer.from(chunk));
         }
         request.body = chunks.length ? Buffer.concat(chunks).toString("utf8") : undefined;

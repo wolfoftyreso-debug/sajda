@@ -14,6 +14,63 @@ current [AI data inventory and permission contract](AI-PRIVACY.md).
 
 ## Architecture and scope
 
+Update 2026-09-17 — **Saved projects and Trading scenarios (SOURCE / CONDITIONAL):**
+The account model also persists project titles, descriptions, audiences, desired
+style, languages, registration/renewal budgets, archive state, ordered saved-domain
+references and saved brand configurations (names, language, TLDs, platforms,
+markets and notes). Trading scenarios persist title/domain, thesis, catalyst,
+invalidation, review date, stance, analysis mode and numeric cost/sale assumptions.
+These are user input linked to owner and environment in Neon, not anonymous
+preferences or observed market forecasts. Archiving retains a project. Deleting
+a project removes its references but not separately saved domain originals.
+Both tables cascade on account deletion. Exported JSON/HTML/CSV and provider/
+backup copies have separate boundaries. See [project model](../shared/name-projects.ts),
+[project schema](../db/migrations/0019_name_projects.sql),
+[scenario model](../shared/trading-scenarios.ts) and
+[scenario schema](../db/migrations/0018_trading_scenarios.sql).
+
+Update 2026-09-17 — **Conditional quote recipient:** the configured connector can
+send up to 20 exact domains per batch to Cloudflare Registrar through the
+operator's account integration. It sends the domains, not the user's account
+email, brief or credentials. Network metadata and provider retention remain
+separate; configuration and a displayed purchase link do not prove that this
+path is active. [Adapter](../api/_shared/connector-registrar.ts).
+
+Update 2026-09-17 — **Guest cache and source filtering:** the 30-minute session
+snapshot window controls restoration, not physical erasure. Only guest results
+are written to that unowned snapshot. Brand lookup now checks Wikidata P31 types
+before returning/caching search candidates or serving direct/redirected profiles:
+Q5 human records and missing/malformed types are excluded. This is a limited
+source-classification safeguard, not a guarantee that public source text contains
+no personal information. Search uses at most two bounded Wikidata requests under
+one eight-second deadline; both are charged upfront against the existing
+per-instance 30-request hourly ceiling. Profiles cost one. No labels or profile
+fields from excluded entities are returned or cached. This does not remove the
+need for a release-specific Apple/privacy review. [Adapter](../api/_shared/brand-lookup.ts),
+[source budget](../api/_shared/brand-lookup-budget.ts),
+[public factual disclosures](../src/i18n/legalDataCopy.ts).
+
+Update 2026-09-13 — **Name packages:** the shared web/native workspace adds memory-only grouped candidate names, selected social channels, explained scores and an explicitly downloaded/shared HTML report. A user-requested GitHub check sends exact handles (not the account email or project brief) through Vercel to GitHub's public API. Only status, handle, platform, timestamp and source return; no profile payload is persisted. The existing Neon rate-limit table stores an environment-scoped owner hash/counter plus a global counter. Account deletion removes the owner hashes; bounded opportunistic pruning is not guaranteed retention. Other social platforms/company/trademark registers are manual external links, not automatic checks. Reports shared or downloaded are outside account deletion. This adds GitHub to the conditional recipient inventory and must be reconciled with operator policies and Apple's final declarations. See [Name packages](NAME-PACKAGES.md).
+
+Update 2026-09-13 — **Name-first brand lookup (SOURCE):** the public web/native
+lookup adds Wikidata as a recipient. An arbitrary name query or selected
+Wikidata Q identifier, plus language, passes through Sajda to Wikidata’s fixed
+public API. The client uses `credentials: "omit"`; the source adapter does not
+append account email, account credentials or the project brief. User-entered
+names can themselves contain personal or confidential information, and ordinary
+network metadata remains visible to the receiving infrastructure. The server
+keeps a bounded temporary memory cache, not saved cloud/account profiles: at
+most 128 entries per instance, with 5-minute search and 15-minute profile cache
+windows. Expiry is checked during later work; these source-level cache windows
+are not a guaranteed physical purge schedule or a global retention guarantee
+for Vercel, Wikidata or other recipients. User-opened source, website and social
+links contact their destination services. Returned database assertions and
+source dates do not establish ownership or legal clearance. This source update
+is **not** a completed App Store privacy declaration, verified provider policy,
+or operator retention commitment. See [lookup client](../src/lib/brandLookupClient.ts),
+[source adapter](../api/_shared/brand-lookup.ts), [public handler](../api/v1/public/brand-lookup.ts)
+and [central privacy disclosure](../src/pages/Legal.tsx).
+
 - The app bundles the product UI separately from website SEO pages. Native requests use the configured HTTPS Sajda API origin; the website uses same-origin APIs. Both reach Vercel Functions and application-owned Neon PostgreSQL tables. Better Auth is a library running there, not a separate identity-hosting recipient. [Native shell](../src/app/NativeApp.tsx), [transport](../src/lib/nativeTransport.ts), [native plugin](../ios/App/App/SajdaNativePlugin.swift), [auth factory](../api/_shared/account-server.ts).
 - Supabase-named legacy modules are not evidence of a live Supabase processor: the compatibility client has `hasSupabaseBrowserConfig = false` and no provider transport. Legacy cloud history/portfolio routes show an unavailable state, while Saved uses Neon. [Compatibility boundary](../src/integrations/supabase/client.ts), [route gate](../src/app/ProductRoutes.tsx), [Saved service](../src/lib/watchlistService.ts).
 - Off-device requests always expose transport metadata to the receiving infrastructure even when no account is required. Hashing an identifier or omitting an email does not establish that a record is anonymous or unlinked.
@@ -26,6 +83,7 @@ current [AI data inventory and permission contract](AI-PRIVACY.md).
 | **SOURCE — Connect/return to the iPhone app** | One-time authorization code, PKCE challenge/verifier, random bearer credential, linked user/web-session IDs, environment, creation/expiry/revocation times. JS receives a sanitized account/session, not the native bearer secret. | Code and native token hashes in Neon; bearer in origin-scoped iOS Keychain with `WhenUnlockedThisDeviceOnly`. Native HTTP uses ephemeral `URLSession` configuration; this does not imply the separate authentication browser has no cookies. | Codes valid for two minutes; native session bounded by source session and seven days. Account can revoke individual app connections. Sign-out/deletion cleanup is owner/generation-fenced. No claim that uninstall clears Keychain or that all expired DB rows are immediately erased. [Native auth](../api/_shared/native-auth.ts), [session management](../api/_shared/native-sessions.ts), [Keychain and HTTP](../ios/App/App/SajdaNativePlugin.swift). |
 | **SOURCE / CONDITIONAL — Developer API and MCP use** | Key name, owner ID, scopes, prefix/last four, hash, expiry, last-used/revoked times; requests/results for allowed account, search, Saved and Trading actions. Full newly created key is displayed to its owner; account quota identity is hashed. | Vercel/Neon; the user's chosen API/MCP client receives permitted output and possesses the credential. Third-party client storage, model forwarding and telemetry are outside Sajda's implementation. | Keys revoke independently and cascade on account deletion. Existing API/MCP search contracts do not invoke third-party AI. Inventory any operator legacy keys separately; do not imply every external client's copy is erased. [Key service](../api/_shared/developer-api-keys.ts), [schema](../db/migrations/0013_developer_api_keys.sql), [MCP tools](../api/_shared/mcp-tools.ts). |
 | **SOURCE / CONDITIONAL — Domain search, checks and price comparison** | Search theme/brief, exact/candidate domain names, extensions, selected criteria and language. Registry/registrar calls disclose the domain or extension needed for that check; this can expose commercially sensitive naming intent without an account email. | Vercel search engine; configured registry, registrar/price-feed and DNS paths. Current code includes Verisign, Public Interest Registry, Google Registry, Identity Digital, CentralNic/nic.biz, Loopia, Porkbun and TLDES paths. Some suffixes require an approved availability connector; the public HTTP-only DAS is not an automatic trusted Vercel fallback. Listing a purchase link is not the same as contacting every listed registrar. | Search/provider caches and abuse counters are distinct from account-owned Saved records. Exact checks remain external even with AI disabled. Confirm actual enabled providers, provider logging/retention, terms and request payloads in the release environment. [Search implementation](../api/domain-search.ts), [public product transport](../src/lib/productFetch.ts). |
+| **SOURCE / CONDITIONAL — Name-first brand lookup** | Arbitrary entered name or selected Wikidata Q identifier and language; returned candidate/profile assertions with retrieval/revision dates. Public web/native requests omit account credentials; Sajda does not add account email or project briefs to the source request. | Vercel → Wikidata public API. Temporary server-memory cache: at most 128 entries per instance, search 5 minutes/profile 15 minutes. In-memory request/source guards are not cloud profile persistence. User-opened links separately contact their destination service. | Not account-owned saved profiles or an ownership verification. Cache freshness/expiry does not establish infrastructure/provider retention, physical purge timing or account-deletion coverage. Recipient network metadata, logs and policies need operator review. [Client](../src/lib/brandLookupClient.ts), [adapter](../api/_shared/brand-lookup.ts), [source guard](../api/_shared/brand-lookup-budget.ts). |
 | **SOURCE — Saved / account watchlist** | Owner ID, domain, registrar-price and value snapshots, confidence, rationale and timestamps. This is persisted interest in specific names; it is not merely a UI preference. | Vercel/Neon `sajda.saved_domains`, owner-scoped on every query. | Individual delete is idempotent; account deletion explicitly removes the owner's Saved rows. Do not infer email alerts, complete cloud search history or other planned monitoring features from the word “watchlist.” [Saved endpoint](../api/account/saved-domains.ts), [Saved UI service](../src/lib/watchlistService.ts). |
 | **CONDITIONAL — Trading research / quote refresh** | Owner/campaign/run/work IDs, source snapshots, candidate names, gathered links, technical observations, assessments, evidence dates, quote evidence, retries and action state. Public-source observations can themselves contain identifiable or sensitive content. | Vercel jobs and Neon owner-linked research tables. Approved source/target websites, DNS/registry endpoints, Common Crawl index, and configured registrar quote connector (Porkbun) receive server-originated lookup requests. The start action does not accept an arbitrary user-supplied crawl URL. | Owner-linked runs/work/evidence/quotes cascade with account deletion; shared approved source catalog is not deleted. Evidence expiry means “not fresh,” not necessarily removal. Verify approved source list, fields retained from public pages, provider enablement, and cleanup/backups. [Input](../api/_shared/lost-domains-http.ts), [store](../api/_shared/lost-domains-store.ts), [engine](../api/_shared/lost-domains-service.ts), [provider boundaries](../api/_shared/lost-domains-providers.ts). |
 | **CONDITIONAL — Explicit AI permission plus AI-capable action** | Advanced creative brief + output language, or Deep Review theme + language + deterministic Top 10 names. Account email, ID, credentials and payment details are not prompt fields, but user text can contain personal/confidential information. | Vercel AI Gateway → Google Gemini, restricted to `google`/`vertex` inference providers. Task/model/status/HTTP status/duration/correlation ID are application log fields. | Off by default; versioned device-origin consent can be declined/revoked. Revocation affects subsequent requests, not already dispatched data. `store:false`, no-training and ZDR routing controls are source configuration, not a universal retention guarantee. Verify production routing, service agreements and metadata handling. [Gateway](../api/_shared/ai-gateway.ts), [permission](../src/lib/aiConsent.ts), [full AI inventory](AI-PRIVACY.md). |

@@ -1,0 +1,70 @@
+import type { Language } from "./languagePreference";
+
+type Card = { title: string; body: string };
+type LegalDataCopy = { operator: Card; companyInformation: string; cards: Card[]; account: string; support: string; rights: Card };
+
+/** Operator confirmed by the owner; company particulars checked against
+ * https://landvex.com/company on 2026-09-24. Legal bases and retention
+ * commitments still require separate review before a public launch. */
+export const legalDataCopy: Record<Language, LegalDataCopy> = {
+  en: {
+    operator: { title: "Who operates Sajda", body: "Sajda is operated by Landvex AB, a Swedish limited company, registration number 559141-7042. Address: Antennvägen 2, 135 48 Tyresö, Sweden. Registered office: Tyresö. Contact us below for Sajda support, privacy questions and data requests." },
+    companyInformation: "Landvex company information",
+    cards: [
+      { title: "Saved projects and Trading", body: "Saved projects store your title, brief, audience, style, languages, budgets, selected names and notes in Neon, linked to your account. Saved domains can include price snapshots and rationale. Trading stores saved scenarios, including your thesis, review date and cost and sale assumptions; enabled research also stores source observations and results. These records let you reopen your work. Archiving keeps project data. Deleting a project does not delete separately saved domains it references." },
+      { title: "Contact and support", body: "The contact form sends your name, email, subject, message and language through Vercel and Resend to dev@hypbit.com so support can respond. Abuse and retry controls store hashed request information and status in Neon. Contact messages and support mailbox copies are separate from your account and are not automatically removed when you delete it." },
+      { title: "Payments and account deletion", body: "Where purchasing is enabled, website subscriptions use Stripe-hosted checkout and iPhone subscriptions use Apple. The payment provider handles payment details. Sajda stores customer or transaction identifiers, subscription status and access dates in Neon. Deleting your Sajda account does not cancel an Apple subscription; manage it with Apple. Deletion attempts to close linked Stripe billing. It does not automatically request a refund or erase providers’ financial records." },
+      { title: "Deleting your data", body: "In Account, open Delete account, request a code sent to your account email and confirm. Completed deletion removes your account, sessions, API credentials and associated saved projects, domains, Trading and local subscription records from Sajda’s account database. Exported reports, device preferences, support messages and external provider records are separate. This is not a promise that hosting logs or backups are immediately erased. Contact support below about those copies or other data requests." },
+    ],
+    account: "Account and deletion", support: "Privacy questions and data requests",
+    rights: { title: "Names and legal rights", body: "Domain availability, social handles, company-register links and Wikidata matches do not establish trademark rights or permission to use a name. Scores, AI suggestions and comparisons are not legal clearance. Check relevant territories, goods, services and existing rights before adopting a name; seek professional advice where needed." },
+  },
+  sv: {
+    operator: { title: "Företaget bakom Sajda", body: "Sajda drivs av Landvex AB, ett svenskt aktiebolag med organisationsnummer 559141-7042. Adress: Antennvägen 2, 135 48 Tyresö, Sverige. Säte: Tyresö. Kontakta oss nedan för support om Sajda, integritetsfrågor och dataskyddsärenden." },
+    companyInformation: "Företagsinformation om Landvex",
+    cards: [
+      { title: "Sparade projekt och Trading", body: "Sparade projekt lagrar titel, beskrivning, målgrupp, stil, språk, budgetar, valda namn och anteckningar i Neon, kopplat till kontot. Sparade domäner kan innehålla prisögonblicksbilder och motiveringar. Trading lagrar sparade scenarier, inklusive tes, granskningsdatum och antaganden om kostnad och försäljning; aktiverad research lagrar även källobservationer och resultat. Det gör att du kan återuppta arbetet. Arkivering behåller projektdata. Projektradering tar inte bort separat sparade domäner som projektet hänvisar till." },
+      { title: "Kontakt och support", body: "Kontaktformuläret skickar namn, e-postadress, ämne, meddelande och språk genom Vercel och Resend till dev@hypbit.com så att support kan svara. Skydd mot missbruk och dubbla försök lagrar hashad anropsinformation och status i Neon. Kontaktmeddelanden och kopior i supportbrevlådan är separata från kontot och tas inte automatiskt bort vid kontoradering." },
+      { title: "Betalningar och kontoradering", body: "Där köp är aktiverade använder webbprenumerationer Stripes kassa och iPhone-prenumerationer Apple. Betalningsleverantören hanterar betalningsuppgifterna. Sajda lagrar kund- eller transaktions-id, prenumerationsstatus och åtkomstdatum i Neon. Kontoradering avslutar inte en Apple-prenumeration; hantera den hos Apple. Raderingen försöker avsluta kopplad Stripe-fakturering. Den begär inte automatiskt återbetalning och raderar inte leverantörernas ekonomiska historik." },
+      { title: "Radera dina uppgifter", body: "Under Konto öppnar du Radera konto, begär en kod till kontots e-postadress och bekräftar. Slutförd radering tar bort konto, sessioner, API-behörigheter och tillhörande sparade projekt, domäner, Trading-data och lokala prenumerationsposter från Sajdas kontodatabas. Exporterade rapporter, enhetsinställningar, supportmeddelanden och externa leverantörers poster är separata. Detta är inget löfte om omedelbar radering av driftloggar eller säkerhetskopior. Kontakta support nedan om sådana kopior eller andra dataskyddsärenden." },
+    ],
+    account: "Konto och radering", support: "Integritetsfrågor och dataskyddsärenden",
+    rights: { title: "Namn och juridiska rättigheter", body: "Domäntillgänglighet, sociala användarnamn, företagsregisterlänkar och Wikidata-träffar fastställer inte varumärkesrätt eller tillstånd att använda ett namn. Poäng, AI-förslag och jämförelser är ingen juridisk klarering. Kontrollera relevanta länder, varor, tjänster och befintliga rättigheter innan du väljer namn; anlita sakkunnig hjälp vid behov." },
+  },
+  es: {
+    operator: { title: "Quién opera Sajda", body: "Sajda es operado por Landvex AB, una sociedad sueca de responsabilidad limitada, con número de registro 559141-7042. Dirección: Antennvägen 2, 135 48 Tyresö, Suecia. Domicilio social: Tyresö. Contacta con nosotros abajo para obtener asistencia sobre Sajda o realizar consultas de privacidad y solicitudes sobre tus datos." },
+    companyInformation: "Información de la empresa Landvex",
+    cards: [
+      { title: "Proyectos guardados y Trading", body: "Los proyectos guardados conservan título, descripción, público, estilo, idiomas, presupuestos, nombres y notas en Neon, vinculados a la cuenta. Los dominios guardados pueden incluir precios y justificaciones. Trading conserva escenarios con tesis, fecha de revisión y supuestos de costes y venta; la investigación habilitada también guarda observaciones y resultados para retomar el trabajo. Archivar conserva los datos. Eliminar un proyecto no elimina los dominios guardados por separado que referencia." },
+      { title: "Contacto y asistencia", body: "El formulario envía nombre, correo, asunto, mensaje e idioma mediante Vercel y Resend a dev@hypbit.com para responderte. Los controles contra abusos y reintentos guardan hashes de información de solicitudes y estados en Neon. Los mensajes y las copias del buzón de asistencia son independientes de la cuenta y no se eliminan automáticamente al borrarla." },
+      { title: "Pagos y eliminación de cuenta", body: "Cuando las compras están habilitadas, las suscripciones web usan el pago alojado de Stripe y las de iPhone usan Apple. El proveedor gestiona los datos de pago. Sajda guarda identificadores de cliente o transacción, estado de suscripción y fechas de acceso en Neon. Eliminar la cuenta no cancela una suscripción de Apple; gestiónala con Apple. La eliminación intenta cerrar la facturación Stripe vinculada. No solicita automáticamente un reembolso ni borra el historial financiero de los proveedores." },
+      { title: "Eliminar tus datos", body: "En Cuenta, abre Eliminar cuenta, solicita un código al correo de la cuenta y confirma. La eliminación completada borra de la base de cuentas de Sajda tu cuenta, sesiones, credenciales API y proyectos, dominios, datos de Trading y registros locales de suscripción asociados. Informes exportados, preferencias del dispositivo, mensajes de asistencia y registros externos son independientes. Esto no promete borrar inmediatamente registros de alojamiento o copias de seguridad. Contacta con asistencia abajo para esas copias u otras solicitudes sobre tus datos." },
+    ],
+    account: "Cuenta y eliminación", support: "Consultas de privacidad y solicitudes de datos",
+    rights: { title: "Nombres y derechos legales", body: "La disponibilidad de dominios, usuarios sociales, enlaces a registros mercantiles y coincidencias de Wikidata no acredita derechos de marca ni permiso para usar un nombre. Las puntuaciones, propuestas de IA y comparaciones no constituyen autorización legal. Comprueba territorios, productos, servicios y derechos existentes antes de adoptar un nombre; solicita asesoramiento profesional cuando sea necesario." },
+  },
+  fr: {
+    operator: { title: "Qui exploite Sajda", body: "Sajda est exploité par Landvex AB, une société suédoise à responsabilité limitée, immatriculée sous le numéro 559141-7042. Adresse : Antennvägen 2, 135 48 Tyresö, Suède. Siège social : Tyresö. Contactez-nous ci-dessous pour l’assistance Sajda, les questions de confidentialité et les demandes relatives à vos données." },
+    companyInformation: "Informations sur la société Landvex",
+    cards: [
+      { title: "Projets enregistrés et Trading", body: "Les projets enregistrés conservent titre, brief, public, style, langues, budgets, noms et notes dans Neon, liés au compte. Les domaines enregistrés peuvent inclure des instantanés de prix et des explications. Trading conserve les scénarios avec thèse, date de revue et hypothèses de coûts et de vente ; la recherche activée conserve aussi observations et résultats pour reprendre le travail. Archiver conserve les données. Supprimer un projet ne supprime pas les domaines enregistrés séparément auxquels il renvoie." },
+      { title: "Contact et assistance", body: "Le formulaire transmet nom, e-mail, objet, message et langue via Vercel et Resend à dev@hypbit.com pour vous répondre. Les contrôles contre les abus et les tentatives répétées conservent des informations de requête hachées et des statuts dans Neon. Les messages et copies de la boîte d’assistance sont distincts du compte et ne sont pas automatiquement effacés avec celui-ci." },
+      { title: "Paiements et suppression du compte", body: "Lorsque les achats sont activés, les abonnements web utilisent le paiement hébergé Stripe et ceux sur iPhone utilisent Apple. Le prestataire traite les données de paiement. Sajda conserve les identifiants de client ou de transaction, le statut d’abonnement et les dates d’accès dans Neon. Supprimer le compte ne résilie pas un abonnement Apple ; gérez-le auprès d’Apple. La suppression tente de fermer la facturation Stripe liée. Elle ne demande pas automatiquement de remboursement et n’efface pas l’historique financier des prestataires." },
+      { title: "Supprimer vos données", body: "Dans Compte, ouvrez Supprimer le compte, demandez un code à l’e-mail du compte puis confirmez. La suppression terminée retire de la base de comptes Sajda le compte, les sessions, les identifiants API et les projets, domaines, données Trading et enregistrements locaux d’abonnement associés. Les rapports exportés, préférences de l’appareil, messages d’assistance et dossiers externes sont distincts. Cela ne promet pas l’effacement immédiat des journaux d’hébergement ou des sauvegardes. Contactez l’assistance ci-dessous pour ces copies ou d’autres demandes de données." },
+    ],
+    account: "Compte et suppression", support: "Confidentialité et demandes de données",
+    rights: { title: "Noms et droits juridiques", body: "Les domaines disponibles, identifiants sociaux, liens de registres d’entreprises et résultats Wikidata n’établissent pas de droits de marque ni d’autorisation d’utiliser un nom. Scores, suggestions IA et comparaisons ne constituent pas une validation juridique. Vérifiez territoires, produits, services et droits existants avant d’adopter un nom ; demandez conseil à un professionnel si nécessaire." },
+  },
+  zh: {
+    operator: { title: "Sajda 的运营公司", body: "Sajda 由瑞典有限公司 Landvex AB 运营，公司注册号为 559141-7042。地址：Antennvägen 2, 135 48 Tyresö, 瑞典。注册所在地：Tyresö。如需 Sajda 支持、隐私咨询或提交数据请求，请通过下方联系方式联系我们。" },
+    companyInformation: "Landvex 公司信息",
+    cards: [
+      { title: "已保存项目与 Trading", body: "已保存项目在 Neon 中存储标题、需求说明、受众、风格、语言、预算、名称和备注，并与账户关联。已保存域名可能包括价格快照和理由。Trading 保存包含判断、复查日期及成本和销售假设的场景；启用的研究功能还保存来源观察和结果，以便继续工作。归档会保留数据。删除项目不会删除它引用的单独保存的域名。" },
+      { title: "联系与支持", body: "联系表单通过 Vercel 和 Resend 将姓名、邮箱、主题、消息和语言发送到 dev@hypbit.com，以便回复。防滥用和重试控制在 Neon 中保存请求信息的哈希和状态。联系消息及支持邮箱中的副本与账户分开，删除账户不会自动删除这些内容。" },
+      { title: "付款与账户删除", body: "启用购买时，网站订阅使用 Stripe 托管收银台，iPhone 订阅使用 Apple。支付服务商处理支付信息。Sajda 在 Neon 中保存客户或交易标识符、订阅状态和访问日期。删除账户不会取消 Apple 订阅；请向 Apple 管理该订阅。删除会尝试关闭关联的 Stripe 计费，但不会自动申请退款或删除服务商的财务历史记录。" },
+      { title: "删除您的数据", body: "在账户页面打开删除账户，向账户邮箱请求验证码并确认。完成后，Sajda 账户数据库会删除账户、会话、API 凭据及关联的项目、域名、Trading 数据和本地订阅记录。已导出报告、设备偏好、支持消息及外部服务商记录另行处理。这不代表托管日志或备份会立即删除。如需查询这些副本或提交其他数据请求，请联系下方支持。" },
+    ],
+    account: "账户与删除", support: "隐私咨询与数据请求",
+    rights: { title: "名称与法律权利", body: "域名可用、社交用户名、企业登记链接或 Wikidata 匹配结果均不能确立商标权或名称使用许可。评分、AI 建议和比较不构成法律许可。采用名称前，请核查相关地区、商品、服务及现有权利，必要时寻求专业建议。" },
+  },
+};

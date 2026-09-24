@@ -1,4 +1,6 @@
 import { Badge } from "@/components/ui/badge";
+import { Link } from "react-router-dom";
+import { brandWorkspaceCopy } from "@/i18n/brandWorkspaceCopy";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Globe, Heart, Loader2, ExternalLink, ShieldCheck, ShieldAlert, X, ChevronDown } from "lucide-react";
@@ -629,9 +631,10 @@ const DomainCard = ({
           </div>
         </header>
 
+        <Link to="/name-packages" state={{ brandPackageSeed: domain }} className="mb-3 inline-flex min-h-11 max-w-full items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-sm font-semibold text-primary">{brandWorkspaceCopy[language].open} <span aria-hidden="true">→</span></Link>
         <section className="mb-3">
           <div className="min-w-0 rounded-2xl border border-primary/12 bg-[linear-gradient(120deg,hsl(var(--primary)/0.07),hsl(var(--card))_62%)] p-3.5">
-            <div className="flex min-w-0 items-start justify-between gap-3">
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">
                   <Globe className="h-3 w-3 text-primary" />
@@ -641,7 +644,7 @@ const DomainCard = ({
                   {primaryPriceValue}
                 </div>
               </div>
-              <div className="flex min-w-0 items-center gap-2 text-right">
+              <div className="ml-auto flex max-w-full items-center gap-2 text-right">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-foreground">{offer.registrar}</p>
                   <p className="mt-0.5 text-[11px] font-medium text-primary">{getOfferStateLabel(offer, primaryOfferState)}</p>

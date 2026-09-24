@@ -1,0 +1,73 @@
+.sajda-auth {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  padding: max(24px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  background: radial-gradient(ellipse at 15% 30%, #dfedff 0, transparent 48%), hsl(var(--background));
+}
+.sajda-auth-header { width: 100%; max-width: 1080px; margin: 0 auto 32px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.sajda-auth-logo { display: inline-flex; flex-shrink: 0; }
+.sajda-auth-logo img { width: 145px; height: auto; }
+.sajda-auth-back { display: inline-flex; align-items: center; justify-content: flex-end; gap: 8px; min-height: 44px; color: hsl(var(--muted-foreground)); font-size: 13px; font-weight: 500; }
+.sajda-auth-back svg { flex-shrink: 0; }
+.sajda-auth-back:hover { color: hsl(var(--primary)); }
+.sajda-auth-frame { display: grid; grid-template-columns: 0.9fr 1.1fr; width: 100%; max-width: 1000px; margin: auto; border: 1px solid hsl(var(--border)); border-radius: 28px; background: hsl(var(--card)); box-shadow: 0 24px 64px hsl(219 44% 12% / .065), 0 2px 8px hsl(219 44% 12% / .025); }
+.sajda-auth-brand { display: flex; flex-direction: column; justify-content: center; min-width: 0; padding: 36px; border-radius: 27px 0 0 27px; border-right: 1px solid hsl(var(--border)); background: radial-gradient(circle at 45% 28%, #fff 0, transparent 52%), linear-gradient(155deg, #edf6ff, #e2efff 70%, #dcecff); }
+.sajda-auth-emblem { position: relative; display: grid; place-items: center; width: 260px; height: 260px; margin: 0 auto 28px; }
+.sajda-auth-orbit { position: absolute; border: 1px solid hsl(213 72% 64% / .19); border-radius: 50%; }
+.sajda-auth-orbit-outer { inset: 0; }
+.sajda-auth-orbit-inner { inset: 28px; }
+.sajda-auth-emblem-tile { display: grid; place-items: center; width: 144px; height: 156px; border: 1px solid white; border-radius: 34px; background: linear-gradient(150deg, #fff, #f4f9ff); box-shadow: 0 20px 40px #2269be14, inset 0 0 0 5px #ffffff80; transform: rotate(-8deg); }
+.sajda-auth-emblem-tile img { width: 72px; height: auto; transform: rotate(8deg); }
+.sajda-auth-orbit-point { position: absolute; top: 50px; right: 14px; width: 13px; height: 13px; border: 3px solid #fff; border-radius: 50%; background: #7cbcff; box-shadow: 0 2px 8px #1b9df026; }
+.sajda-auth-brand-copy h2 { max-width: 340px; font-size: 32px; font-weight: 600; letter-spacing: -.045em; line-height: 1.2; text-wrap: balance; }
+.sajda-auth-brand-copy p { max-width: 310px; margin-top: 16px; color: hsl(var(--muted-foreground)); font-size: 15px; line-height: 1.7; }
+.sajda-auth-features { display: flex; flex-wrap: wrap; gap: 12px 18px; margin-top: 32px; padding-top: 22px; border-top: 1px solid hsl(213 42% 78% / .55); }
+.sajda-auth-features span { display: inline-flex; align-items: center; gap: 7px; color: #235283; font-size: 12px; font-weight: 600; }
+.sajda-auth-features svg { width: 15px; height: 15px; }
+.sajda-auth-content { display: flex; flex-direction: column; justify-content: center; min-width: 0; padding: 48px; }
+.sajda-auth-form-area { width: 100%; }
+.sajda-auth-heading { margin-bottom: 28px; }
+.sajda-auth h1 { font-size: 30px; font-weight: 600; line-height: 1.25; letter-spacing: -.04em; text-wrap: balance; overflow-wrap: anywhere; }
+.sajda-auth-heading > p { margin-top: 10px; color: hsl(var(--muted-foreground)); font-size: 14px; line-height: 1.7; }
+.sajda-auth input { height: 52px; border-color: hsl(var(--input)); background: #fbfdff; font-size: 16px; padding-left: 42px; }
+.sajda-auth input:focus { background: white; }
+.sajda-auth label { font-size: 13px; font-weight: 600; }
+.sajda-auth button[type="submit"], .sajda-auth-action { min-height: 52px; height: auto; white-space: normal; padding-top: 12px; padding-bottom: 12px; font-size: 15px; font-weight: 600; }
+.sajda-auth-toggle-password { position: absolute; right: 4px; top: 4px; display: grid; place-items: center; height: 44px; width: 44px; border-radius: 9px; color: hsl(var(--muted-foreground)); }
+.sajda-auth-toggle-password:hover { color: hsl(var(--primary)); background: hsl(var(--secondary)); }
+.sajda-auth-text-action { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; font-size: 13px; font-weight: 500; color: hsl(var(--primary)); }
+.sajda-auth-text-action:hover { text-decoration: underline; text-underline-offset: 4px; }
+.sajda-auth-account-note { border-top: 1px solid hsl(var(--border)); margin-top: 28px; padding-top: 20px; font-size: 12px; line-height: 1.8; text-align: center; color: hsl(var(--muted-foreground)); text-wrap: balance; }
+.sajda-auth-footer { display: flex; align-items: center; justify-content: space-between; width: 100%; max-width: 1000px; margin: 24px auto 0; gap: 16px 32px; }
+.sajda-auth-footer > p { max-width: 490px; font-size: 11px; line-height: 1.9; color: hsl(var(--muted-foreground)); }
+.sajda-auth-footer a { text-decoration: underline; text-underline-offset: 3px; }
+.sajda-auth-footer a:hover { color: hsl(var(--primary)); }
+.sajda-auth-language { flex-shrink: 0; }
+.sajda-auth-language button { min-height: 44px; min-width: 40px; }
+@media (max-width: 1023px) {
+  .sajda-auth { padding-top: max(20px, env(safe-area-inset-top)); }
+  .sajda-auth-header { max-width: 480px; margin-bottom: 28px; }
+  .sajda-auth-logo img { width: 120px; }
+  .sajda-auth-frame { display: block; max-width: 480px; margin: 0 auto; border-radius: 24px; }
+  .sajda-auth-brand { display: none; }
+  .sajda-auth-content { padding: 32px; }
+  .sajda-auth-footer { max-width: 440px; flex-direction: column; text-align: center; gap: 16px; }
+  .sajda-auth-footer > p { max-width: 340px; }
+}
+/* A centred tablet form, before there is enough room for both desktop panels. */
+@media (min-width: 600px) and (max-width: 1023px) {
+  .sajda-auth-header { max-width: 560px; }
+  .sajda-auth-logo img { width: 132px; }
+  .sajda-auth-frame { max-width: 560px; margin-block: auto; }
+  .sajda-auth-content { padding: 40px; }
+  .sajda-auth-footer { max-width: 560px; }
+}
+@media (max-width: 374px) {
+  .sajda-auth { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+  .sajda-auth-header { gap: 12px; margin-bottom: 24px; }
+  .sajda-auth-logo img { width: 106px; }
+  .sajda-auth-back { font-size: 11px; }
+  .sajda-auth-content { padding: 26px 20px; }
+  .sajda-auth h1 { font-size: 27px; }
+}
