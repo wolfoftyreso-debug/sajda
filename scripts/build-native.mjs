@@ -1,8 +1,9 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync, renameSync, copyFileSync, readdirSync } from "node:fs";
-import { resolve } from "node:path";
+import { readFileSync, writeFileSync, renameSync, copyFileSync, readdirSync, mkdirSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isIP } from "node:net";
+import { CONNECTOR_HOSTS } from "../shared/connector-catalogue.mjs";
 export function nativeApiOrigin(value) {
   if (!value) throw new Error("Set SAJDA_NATIVE_API_ORIGIN to the verified HTTPS backend origin.");
   const url = new URL(value);
@@ -18,6 +19,22 @@ export function nativeApiOrigin(value) {
   return url.origin;
 }
 const root = fileURLToPath(new URL("..", import.meta.url));
+
+/** Bundle product assets explicitly; never copy the website's crawl/SEO files. */
+export function copyNativeProductAssets(source, destination) {
+  const connectorLogos = CONNECTOR_HOSTS.map(host => {
+    if (!/^\/connectors\/[a-z0-9-]+\.svg$/u.test(host.logo)) throw new Error("Invalid native connector asset path.");
+    return host.logo.slice(1);
+  });
+  const files = ["sajda-mark.svg", "sajda-logo.svg", "sajda-pwa.svg", ...connectorLogos, "connectors/LICENSE.txt"];
+  for (const name of files) {
+    const output = resolve(destination, name);
+    mkdirSync(dirname(output), { recursive: true });
+    copyFileSync(resolve(source, name), output);
+  }
+  return files;
+}
+
 export function buildNative(env = process.env) {
   const origin = nativeApiOrigin(env.SAJDA_NATIVE_API_ORIGIN);
   const run = spawnSync(process.execPath, [resolve(root,"node_modules/vite/bin/vite.js"),"build","--config","vite.native.config.ts"], {
@@ -25,9 +42,7 @@ export function buildNative(env = process.env) {
   });
   if (run.error || run.status !== 0) throw run.error ?? new Error("Native product build failed.");
   renameSync(resolve(root,"dist-native/native.html"),resolve(root,"dist-native/index.html"));
-  for (const name of ["sajda-mark.svg","sajda-logo.svg","sajda-pwa.svg"]) {
-    copyFileSync(resolve(root,"public-clean",name),resolve(root,"dist-native",name));
-  }
+  copyNativeProductAssets(resolve(root, "public-clean"), resolve(root, "dist-native"));
   writeFileSync(resolve(root,"dist-native/sajda-native-config.json"),JSON.stringify({apiOrigin:origin}));
   const check = spawnSync(process.execPath,[resolve(root,"scripts/check-neon-build.mjs"),"dist-native"],{cwd:root,stdio:"inherit"});
   if (check.error || check.status !== 0) throw check.error ?? new Error("Native bundle contains disallowed provider or secret configuration.");

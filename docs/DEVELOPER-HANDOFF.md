@@ -43,6 +43,15 @@ same `check:ci` command available locally, and audits production dependencies.
 Superseded runs on the same branch are cancelled. There is no automatic
 production promotion in this workflow.
 
+Vercel is independently linked to this repository's `main` branch. Its
+production-only **GitHub Verify** Deployment Check requires the GitHub job
+named `verify` and blocks production aliasing until that check passes. Preserve
+that exact job name or update the Vercel requirement in the same reviewed change.
+Do not force-promote around failed checks. The check configuration was read back
+on 24 September 2026; its actual aliasing lifecycle still awaits a production
+build that passes the email/configuration gates. Native simulator jobs remain
+separate because their path-filtered workflow does not run for every web change.
+
 Action revisions are pinned to verified full commit IDs. Dependabot proposes
 bounded weekly updates for GitHub Actions and npm direct dependencies; major
 npm version updates are excluded from that routine. Update PRs still require
@@ -107,7 +116,8 @@ shipped asset source during the 24 September 2026 hygiene pass. Legitimate
 connector names, Sajda-authored export disclosures and required logo licence
 notices are not unwanted generator branding and are retained.
 
-See [release evidence](CONNECTOR-RELEASE-2026-09-24.md),
+See [current release-hardening evidence](RELEASE-HARDENING-2026-09-24.md),
+[connector release evidence](CONNECTOR-RELEASE-2026-09-24.md),
 [account API](ACCOUNT-API.md), [architecture](NEON-VERCEL.md),
 [privacy inventory](APP-PRIVACY-INVENTORY.md) and
 [legal gates](LAUNCH-LEGAL-2026-09-17.md).

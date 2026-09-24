@@ -55,8 +55,15 @@ export async function readAccountSession(): Promise<AccountSession | null> {
 
 /** API errors carry only the safe application message and correlation ID. */
 export async function accountRequest<T>(path: string, options: AccountRequestScope & { method?: string; body?: unknown }): Promise<T> {
-  const target = new URL(path, window.location.origin);
-  if (target.origin !== window.location.origin || target.username || target.password || !target.pathname.startsWith("/api/account/")) throw new Error("Invalid account API path.");
+  // Capacitor can expose an opaque ("null") origin. Native requests carry only
+  // canonical relative routes to the bridge; this base is never fetched.
+  if (isNativeApp && (typeof path !== "string" || path.length > 1000
+    || !/^\/api\/account\/[a-z-]+(?:\?[^#\\]*)?$/u.test(path) || /[\s\p{Cc}]/u.test(path))) {
+    throw new Error("Invalid account API path.");
+  }
+  const origin = isNativeApp ? "https://sajda.invalid" : window.location.origin;
+  const target = new URL(path, origin);
+  if (target.origin !== origin || target.username || target.password || !target.pathname.startsWith("/api/account/")) throw new Error("Invalid account API path.");
   // Snapshot the initiating account before an asynchronous session check.
   const { accountId, signal, body, method = "GET" } = options;
   throwIfCancelled(signal);

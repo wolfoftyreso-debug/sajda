@@ -1,5 +1,7 @@
 # Connector expansion and demo verification — 24 September 2026
 
+Historical evidence for the connector rollout. The later [release-hardening record](RELEASE-HARDENING-2026-09-24.md) supersedes its application-preview, schema, verification and repository status; this record is retained for provenance.
+
 ## Delivered
 
 - A shared, typed catalogue for 13 clients: ChatGPT, Claude, Grok, Perplexity, Cursor, Replit, Lovable, Codex, VS Code Copilot, Windsurf Cascade, Cline, Zed and Gemini CLI.
