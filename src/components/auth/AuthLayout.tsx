@@ -46,7 +46,7 @@ export default function AuthLayout({ children, screen, backLabel }: { children: 
       </main>
 
       <footer className="sajda-auth-footer">
-        <p>{copy.consent}{" "}<Link to="/legal#terms">{copy.terms}</Link>{" "}{copy.and}{" "}<Link to="/legal#privacy">{copy.privacy}</Link>{copy.end}</p>
+        <p>{copy.legalLead}{" "}<Link to="/legal#terms">{copy.terms}</Link>{" "}{copy.and}{" "}<Link to="/legal#privacy">{copy.privacy}</Link>{copy.end}</p>
         <LanguageSwitcher className="sajda-auth-language" />
       </footer>
     </div>

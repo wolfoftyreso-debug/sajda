@@ -8,7 +8,7 @@ export const authPresentationCopy = {
     oneAccount: "One Sajda account. The same sign-in for every plan.",
     showPassword: "Show password", hidePassword: "Hide password",
     showConfirmation: "Show password confirmation", hideConfirmation: "Hide password confirmation",
-    consent: "By continuing, you agree to our", terms: "Terms of Service", and: "and", privacy: "Privacy Policy", end: ".",
+    legalLead: "Read our", terms: "Terms of Service", and: "and", privacy: "Privacy Policy", end: ".",
   },
   sv: {
     brandHeading: "En plats för dina bästa namn.",
@@ -17,7 +17,7 @@ export const authPresentationCopy = {
     oneAccount: "Ett Sajda-konto. Samma inloggning för alla nivåer.",
     showPassword: "Visa lösenord", hidePassword: "Dölj lösenord",
     showConfirmation: "Visa lösenordsbekräftelse", hideConfirmation: "Dölj lösenordsbekräftelse",
-    consent: "Genom att fortsätta godkänner du våra", terms: "användarvillkor", and: "och vår", privacy: "integritetspolicy", end: ".",
+    legalLead: "Läs våra", terms: "användarvillkor", and: "och vår", privacy: "integritetspolicy", end: ".",
   },
   es: {
     brandHeading: "Un lugar para tus mejores nombres.",
@@ -26,7 +26,7 @@ export const authPresentationCopy = {
     oneAccount: "Una cuenta de Sajda. El mismo acceso para todos los planes.",
     showPassword: "Mostrar contraseña", hidePassword: "Ocultar contraseña",
     showConfirmation: "Mostrar confirmación de contraseña", hideConfirmation: "Ocultar confirmación de contraseña",
-    consent: "Al continuar, aceptas nuestros", terms: "Términos de servicio", and: "y nuestra", privacy: "Política de privacidad", end: ".",
+    legalLead: "Consulta nuestros", terms: "Términos de servicio", and: "y nuestra", privacy: "Política de privacidad", end: ".",
   },
   fr: {
     brandHeading: "Un espace pour vos meilleurs noms.",
@@ -35,7 +35,7 @@ export const authPresentationCopy = {
     oneAccount: "Un compte Sajda. Les mêmes identifiants pour toutes les offres.",
     showPassword: "Afficher le mot de passe", hidePassword: "Masquer le mot de passe",
     showConfirmation: "Afficher la confirmation du mot de passe", hideConfirmation: "Masquer la confirmation du mot de passe",
-    consent: "En continuant, vous acceptez nos", terms: "Conditions d’utilisation", and: "et notre", privacy: "Politique de confidentialité", end: ".",
+    legalLead: "Consultez nos", terms: "Conditions d’utilisation", and: "et notre", privacy: "Politique de confidentialité", end: ".",
   },
   zh: {
     brandHeading: "让好名字有个归属。",
@@ -44,6 +44,6 @@ export const authPresentationCopy = {
     oneAccount: "一个 Sajda 账户，所有方案使用同一登录方式。",
     showPassword: "显示密码", hidePassword: "隐藏密码",
     showConfirmation: "显示确认密码", hideConfirmation: "隐藏确认密码",
-    consent: "继续即表示您同意我们的", terms: "服务条款", and: "和", privacy: "隐私政策", end: "。",
+    legalLead: "请阅读我们的", terms: "服务条款", and: "和", privacy: "隐私政策", end: "。",
   },
 } satisfies Record<Language, Record<string, string>>;

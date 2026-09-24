@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createHealthHandler, storageReadinessSql } from "../api/health";
+import { readdir, readFile } from "node:fs/promises";
+import { createHealthHandler, storageReadinessParameters, storageReadinessSql } from "../api/health";
+import { DEVELOPER_API_SCOPES } from "../shared/developer-scopes";
 
 function response() {
   return { code: 0, body: undefined as unknown, headers: new Map<string, string | number>(),
@@ -44,5 +46,44 @@ test("readiness includes account, native commerce and scenario storage before ad
   for (const column of ["namespace","owner_id","payload","version","last_input_hash"]) {
     assert.ok(storageReadinessSql.includes("('trading_scenarios','"+column+"')"), column);
   }
+  assert.doesNotMatch(storageReadinessSql, /\b(?:INSERT|UPDATE|DELETE|ALTER|CREATE|DROP)\b/u);
+});
+
+test("readiness inventory covers every migrated application relation, including optional product schema", async () => {
+  const directory = new URL("../db/migrations/", import.meta.url);
+  const names = (await readdir(directory)).filter(name => /^\d{4}_[a-z0-9_]+\.sql$/u.test(name));
+  const relations = new Set<string>();
+  for (const name of names) {
+    const sql = await readFile(new URL(name, directory), "utf8");
+    for (const match of sql.matchAll(/\bCREATE\s+(?:OR\s+REPLACE\s+)?(?:TABLE|VIEW)\s+(?:IF\s+NOT\s+EXISTS\s+)?((?:public|sajda)\.[a-z_]+)/giu)) {
+      relations.add(match[1]);
+    }
+  }
+  assert.ok(relations.size >= 30, "The check must cover the actual migration catalogue");
+  for (const relation of relations) assert.ok(storageReadinessSql.includes(`'${relation}'`), `${relation} is missing from structural readiness`);
+});
+
+test("optional name-project readiness follows the route flag without interpolating environment input into SQL", () => {
+  for (const value of [undefined, "false", "1", "TRUE", "true; DROP TABLE example"]) {
+    assert.equal(storageReadinessParameters({ SAJDA_NAME_PROJECTS_ENABLED: value })[0], false);
+  }
+  assert.equal(storageReadinessParameters({ SAJDA_NAME_PROJECTS_ENABLED: "true" })[0], true);
+  assert.match(storageReadinessSql, /AND \(NOT \$1::boolean OR \(/u);
+  for (const column of ["namespace", "owner_id", "id", "payload", "version", "last_input_hash", "created_at", "updated_at"]) {
+    assert.ok(storageReadinessSql.includes(`('name_projects','${column}')`), column);
+  }
+  for (const column of ["namespace", "owner_id", "project_id", "domain", "position"]) {
+    assert.ok(storageReadinessSql.includes(`('name_project_domains','${column}')`), column);
+  }
+});
+
+test("readiness rejects old or unvalidated API-key scope constraints without writing a trial key", () => {
+  const [, scopes] = storageReadinessParameters({});
+  assert.deepEqual(scopes, [...DEVELOPER_API_SCOPES]);
+  assert.notEqual(scopes, DEVELOPER_API_SCOPES);
+  assert.match(storageReadinessSql, /scopes_constraint\.convalidated/u);
+  assert.match(storageReadinessSql, /scopes_constraint\.conname='developer_api_keys_scopes_check'/u);
+  assert.match(storageReadinessSql, /unnest\(\$2::text\[\]\)/u);
+  assert.match(storageReadinessSql, /quote_literal\(required\.scope\)/u);
   assert.doesNotMatch(storageReadinessSql, /\b(?:INSERT|UPDATE|DELETE|ALTER|CREATE|DROP)\b/u);
 });

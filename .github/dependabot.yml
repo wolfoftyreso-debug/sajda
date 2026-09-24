@@ -1,0 +1,20 @@
+# Review update PRs and their full checks; this does not enable automatic merging.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    # Keep version maintenance narrow. Security alerts remain a separate gate.
+    allow:
+      - dependency-type: direct
+    ignore:
+      - dependency-name: "*"
+        update-types:
+          - version-update:semver-major

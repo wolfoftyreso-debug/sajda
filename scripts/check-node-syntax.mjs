@@ -22,6 +22,7 @@ const files = [
   "api/_shared/fact-signals.mjs",
   "api/_shared/search-quality.mjs",
   "scripts/check-runtime.mjs",
+  "scripts/check-local-runtime.mjs",
   "scripts/runtime-http.mjs",
   "scripts/check-ui-contracts.mjs",
   "scripts/probe-search-quality.mjs",

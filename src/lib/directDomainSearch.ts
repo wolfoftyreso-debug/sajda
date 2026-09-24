@@ -60,8 +60,8 @@ function getSupportedTld(value: string | undefined): string | null {
 }
 
 function isBlockedPublicTld(value: string | undefined): boolean {
-  return Boolean(value)
-    && isPublicSearchMode()
+  if (!value) return false;
+  return isPublicSearchMode()
     && PUBLIC_UNVERIFIABLE_TLDS.has(value.toLowerCase());
 }
 

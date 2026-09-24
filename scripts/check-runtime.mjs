@@ -5,7 +5,7 @@ import { SEO_PAGES } from "./seo-routes.mjs";
 import { runtimeFetch as fetch } from "./runtime-http.mjs";
 
 const origin = process.env.SAJDA_TEST_ORIGIN || "http://127.0.0.1:8095";
-const pages = ["/", "/plus", "/pricing", "/auth", "/contact", "/story", "/how-it-works", "/developers", "/legal", "/security", "/status", "/marketplace", "/swipe",
+const pages = ["/", "/plus", "/pricing", "/auth", "/contact", "/story", "/how-it-works", "/developers", "/brand-index", "/name-packages", "/legal", "/security", "/status", "/marketplace", "/swipe",
   "/watchlist", "/projects", "/my-domains", "/history", "/account", "/install", "/top-10-today", "/admin", ...SEO_PAGES.map((page) => page.path)];
 let checks = 0;
 // Authenticated CLI startup is local process overhead, not server latency.
@@ -46,7 +46,7 @@ const publicTools = await fetch(new URL("/api/mcp/public", origin), { method: "P
   body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" }),
 });
 assert.equal(publicTools.status, 200);
-assert.deepEqual((await publicTools.json()).result.tools.map(tool => tool.name), ["domains_suggest", "domains_check"]); checks++;
+assert.deepEqual((await publicTools.json()).result.tools.map(tool => tool.name), ["business_names_recommend", "domains_suggest", "domains_check", "name_packages_search", "brand_index_assess", "brand_lookup"]); checks++;
 for (const path of ["/api/v1/domains", "/api/account/saved-domains", "/api/account/lost-domains", "/api/account/billing",
   "/api/account/membership", "/api/account/capabilities", "/api/account/app-sessions", "/api/account/trading-scenarios"]) {
   const privateRead = path.startsWith("/api/account/");

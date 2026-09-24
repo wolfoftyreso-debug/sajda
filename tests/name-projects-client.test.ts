@@ -94,6 +94,13 @@ test("project client requires owner-bound, exact-payload acknowledgements and sa
     });
     await t.test("post-response session expiry and transport error classifications never leak provider details", async () => {
       reset(); fixture.expiry = 1; await assert.rejects(client.getNameProjects({ accountId: "account-a" }), code("unauthenticated"));
+      const originalSession = fixture.session;
+      try {
+        for (const expires_at of [undefined, null, "999999999999", Number.NaN, Number.POSITIVE_INFINITY]) {
+          reset(); fixture.session = async () => ({ user: { id: fixture.owner }, expires_at });
+          await assert.rejects(client.getNameProjects({ accountId: "account-a" }), code("unauthenticated"));
+        }
+      } finally { fixture.session = originalSession; }
       reset(); for (const [detail, expected] of [[{ status: 404 }, "disabled"], [{ status: 413 }, "invalid"], [{ status: 409, code: "saved_domain_required" }, "saved_domain_required"], [{ status: 409, code: "project_limit" }, "limit"], [{ status: 503 }, "unavailable"], [null, "unavailable"]] as const) {
         fixture.reply = async () => { throw detail; }; await assert.rejects(client.getNameProjects({ accountId: "account-a" }), code(expected));
       }

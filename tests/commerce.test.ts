@@ -32,7 +32,7 @@ import { createCommerceService } from "../api/_shared/commerce-service";
 import { createBillingHandler } from "../api/account/billing";
 import { createBillingWebhookHandler } from "../api/billing-webhook";
 import { AccountAccessError } from "../api/_shared/account-error";
-import { rawWebhookBody } from "../api/_shared/commerce-http";
+import { billingAction, rawWebhookBody } from "../api/_shared/commerce-http";
 import { PLUS_PLAN } from "../shared/plus-plan";
 
 const environment = {
@@ -1054,6 +1054,21 @@ test("account endpoint rejects anonymous, cross-user, invalid body and arbitrary
     assert.equal(res.statusCode, 400);
   }
 });
+test("billing mutation parser rejects a malformed Vercel JSON getter as client input without a provider failure", async () => {
+  let reads = 0;
+  for (const parserError of [new SyntaxError("Unexpected private-body-value in JSON"), Object.assign(new Error("Invalid JSON"), { statusCode: 400 })]) {
+    reads = 0;
+    await assert.rejects(() => billingAction({ headers: { "content-type": "application/json" },
+      get body(): unknown { reads++; throw parserError; },
+    }), code("invalid_billing_request"));
+    assert.equal(reads, 1);
+  }
+  const transportFailure = new Error("stream connection interrupted");
+  await assert.rejects(() => billingAction({ headers: { "content-type": "application/json" },
+    [Symbol.asyncIterator]: async function* () { yield Buffer.from("{"); throw transportFailure; },
+  }), error => error === transportFailure, "Operational stream failures must not be mislabeled as malformed JSON");
+});
+
 test("webhook transport requires raw signed bytes and never accepts parsed objects or oversized bodies", async () => {
   await assert.rejects(
     () => rawWebhookBody({ headers: {}, body: { forged: true } }),

@@ -156,11 +156,13 @@ export function normaliseRegistrarOffer(domain: string, value: unknown): Registr
   // A broken seller URL must never silently send that seller's customer to Loopia.
   const providerPurchaseUrl = provider?.purchaseUrl(domain) ?? "";
   const expectedHost = providerPurchaseUrl ? new URL(providerPurchaseUrl).hostname.replace(/^www\./, "") : "";
-  const hasValidPurchaseUrl = isHttpsUrl(candidate.purchaseUrl)
-    && (!provider || new URL(candidate.purchaseUrl).hostname.replace(/^www\./, "") === expectedHost);
-  const hasValidPriceSourceUrl = isHttpsUrl(candidate.priceSourceUrl);
-  const purchaseUrl = hasValidPurchaseUrl ? candidate.purchaseUrl : providerPurchaseUrl;
-  const priceSourceUrl = hasValidPriceSourceUrl ? candidate.priceSourceUrl : provider?.priceSourceUrl ?? "";
+  const candidatePurchaseUrl = candidate.purchaseUrl;
+  const candidatePriceSourceUrl = candidate.priceSourceUrl;
+  const hasValidPurchaseUrl = isHttpsUrl(candidatePurchaseUrl)
+    && (!provider || new URL(candidatePurchaseUrl).hostname.replace(/^www\./, "") === expectedHost);
+  const hasValidPriceSourceUrl = isHttpsUrl(candidatePriceSourceUrl);
+  const purchaseUrl = hasValidPurchaseUrl ? candidatePurchaseUrl : providerPurchaseUrl;
+  const priceSourceUrl = hasValidPriceSourceUrl ? candidatePriceSourceUrl : provider?.priceSourceUrl ?? "";
   const currency = normaliseIsoCurrency(candidate.currency)
     ?? fallback.currency;
   const note = typeof candidate.note === "string" && candidate.note.trim()

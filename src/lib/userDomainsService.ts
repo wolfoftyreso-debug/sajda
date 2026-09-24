@@ -207,7 +207,7 @@ export async function valuateDomains(
     tld: getTLD(d.domain),
   }));
 
-  const { data, error } = await supabase.functions.invoke('value-domains', {
+  const { error } = await supabase.functions.invoke('value-domains', {
     body: { domains: domainsToValue, mode }
   });
 
@@ -216,7 +216,9 @@ export async function valuateDomains(
     throw new Error(error.message || translate(getStoredLanguage(), "service.valueDomains"));
   }
 
-  return data.valuations || [];
+  // The historical adapter has no valuation provider or successful payload.
+  // A missing result must remain unavailable, never an empty successful valuation.
+  throw new Error(translate(getStoredLanguage(), "service.valueDomains"));
 }
 
 async function valuateAndPersistDomains(domains: UserDomain[]): Promise<void> {

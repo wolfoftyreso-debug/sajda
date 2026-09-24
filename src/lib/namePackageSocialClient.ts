@@ -26,7 +26,7 @@ export async function checkPackageSocials(scope: AccountRequestScope, handles: s
       || Date.parse(item.checkedAt) > Date.now() || Date.now()-Date.parse(item.checkedAt)>30*60*1000)) throw new Error("invalid_response");
   const session = await readAccountSession();
   throwIfCancelled(signal);
-  if (!session || !Number.isFinite(session.expires_at) || session.expires_at <= Date.now()/1000) throw new Error("unauthenticated");
+  if (!session || typeof session.expires_at !== "number" || !Number.isFinite(session.expires_at) || session.expires_at <= Date.now()/1000) throw new Error("unauthenticated");
   assertAccountSessionOwner(session.user?.id,accountId);
   return result.observations;
 }

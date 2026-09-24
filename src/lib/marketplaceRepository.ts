@@ -870,7 +870,7 @@ const supabaseRepository: MarketplaceRepository = {
     if (input.currency !== undefined && !isCurrency(input.currency)) throw new Error("invalid-marketplace-currency");
 
     const updates: Database["public"]["Tables"]["marketplace_domain_listings"]["Update"] = {};
-    if (normalizedDomain !== undefined) updates.domain = normalizedDomain;
+    if (normalizedDomain !== undefined && normalizedDomain !== null) updates.domain = normalizedDomain;
     if (input.description !== undefined) updates.description = input.description.trim().slice(0, 1400);
     if (input.askingPrice !== undefined) updates.asking_price = input.askingPrice;
     if (input.currency !== undefined) updates.currency = input.currency;

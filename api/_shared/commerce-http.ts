@@ -43,7 +43,16 @@ export async function billingAction(
     !/^application\/json(?:\s*;|$)/iu.test(request.headers["content-type"])
   )
     throw new CommerceError("unsupported_media_type", 415);
-  let value = request.body;
+  // Vercel's body getter may throw while lazily parsing JSON. Keep that client
+  // error distinct from an interrupted raw stream or a provider outage.
+  let value: unknown;
+  try { value = request.body; }
+  catch (error) {
+    if (error instanceof SyntaxError || error instanceof Error && "statusCode" in error && error.statusCode === 400) {
+      throw new CommerceError("invalid_billing_request", 400);
+    }
+    throw error;
+  }
   if (value === undefined)
     value = (await rawWebhookBody(request, 2048)).toString("utf8");
   try {

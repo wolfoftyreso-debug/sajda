@@ -6,6 +6,7 @@ import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { Button } from "@/components/ui/button";
 import { applyDocumentMetadata, useLanguage } from "@/i18n/LanguageProvider";
 import { getPricingCopy } from "@/i18n/pricingCopy";
+import { legalRightsCopy } from "@/i18n/legalRightsCopy";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMembership } from "@/contexts/MembershipContext";
 
@@ -125,6 +126,11 @@ export default function Pricing() {
         <div className="mt-6 max-w-4xl space-y-3 text-sm leading-relaxed text-muted-foreground">
           <p>{copy.hierarchy}</p>
           <p>{copy.terms}</p>
+          <div className="flex flex-wrap gap-x-6 gap-y-2">
+            {[["/legal#terms", legalRightsCopy[language].termsLink], ["/legal#privacy", legalRightsCopy[language].privacyLink], ["/contact", legalRightsCopy[language].contactLink]].map(([to, label]) => (
+              <Link key={to} to={to} className="inline-flex min-h-11 items-center text-primary underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{label}</Link>
+            ))}
+          </div>
         </div>
       </main>
     </div>

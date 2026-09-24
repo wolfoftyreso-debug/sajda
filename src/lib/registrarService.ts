@@ -52,11 +52,12 @@ export async function getRegistrarSettings(): Promise<RegistrarSettings[]> {
     throw error;
   }
 
-  return (data || []).map(item => ({
+  const rows: RegistrarSettings[] = data || [];
+  return rows.map(item => ({
     ...item,
     preferred_tlds: item.preferred_tlds || [],
     excluded_patterns: item.excluded_patterns || []
-  })) as RegistrarSettings[];
+  }));
 }
 
 export async function updateRegistrarSettings(

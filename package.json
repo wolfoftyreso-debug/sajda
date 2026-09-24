@@ -16,11 +16,12 @@
     "yaml": "^2.9.0"
   },
   "scripts": {
-    "test": "tsx --test tests/*.test.ts tests/*.test.mjs",
+    "test": "tsx --test --test-concurrency=2 tests/*.test.ts tests/*.test.mjs",
     "serve:qa": "tsx scripts/serve-vercel-local.ts",
     "check:ui": "node scripts/check-ui-contracts.mjs",
     "check:language": "node scripts/check-language-contracts.mjs",
     "check:runtime": "node scripts/check-runtime.mjs",
+    "check:runtime:local": "node scripts/check-local-runtime.mjs",
     "test:live-search": "node --import tsx scripts/probe-search-quality.mjs",
     "db:plan": "node scripts/migrate-neon.mjs --plan",
     "db:check": "node --env-file-if-exists=.env.local scripts/migrate-neon.mjs --check",
@@ -42,7 +43,7 @@
     "check:seo-policy": "node scripts/check-seo-policy.mjs",
     "check:seo-local": "node scripts/check-local-seo.mjs",
     "build:vercel": "node scripts/build-vercel.mjs",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json",
     "test:legacy:supabase-functions": "deno task test:functions",
     "check:legacy:supabase-functions": "deno task check:functions",
@@ -53,6 +54,7 @@
     "check:neon-build": "node scripts/check-neon-build.mjs",
     "check:node": "node scripts/check-node-syntax.mjs",
     "check": "npm run lint && npm run typecheck && npm run check:language && npm run check:seo-policy && npm run check:neon && npm run check:node && npm run check:vercel && npm test && npm run check:ui",
+    "check:ci": "npm run check && npm run build:vercel && npm run check:runtime:local",
     "preview": "vite preview"
   },
   "dependencies": {

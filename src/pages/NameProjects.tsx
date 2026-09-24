@@ -69,7 +69,7 @@ function Workspace({ accountId, language, requestedId }: { accountId: string; la
       // so a late Saved response cannot outlive the project client's session check.
       const session = await readAccountSession();
       if (signal.aborted) return;
-      if (!session || !Number.isFinite(session.expires_at) || session.expires_at <= Date.now() / 1000) throw new NameProjectsError("unauthenticated");
+      if (!session || typeof session.expires_at !== "number" || !Number.isFinite(session.expires_at) || session.expires_at <= Date.now() / 1000) throw new NameProjectsError("unauthenticated");
       if (session.user?.id !== accountId) throw new NameProjectsError("account_changed");
       const rows = projectResult.value.projects;
       // A second service rejecting the owner must not leave a successful first response visible.

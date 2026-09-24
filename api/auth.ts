@@ -36,8 +36,26 @@ async function authBody(request: AuthRequest): Promise<string> {
   if (typeof contentType !== "string" || !/^application\/json(?:\s*;|$)/iu.test(contentType)) {
     throw new AccountAccessError("unsupported_media_type", 415, "Send an application/json request.");
   }
+  const declaredSize = request.headers["content-length"];
+  if (declaredSize !== undefined && (typeof declaredSize !== "string" || !/^\d+$/u.test(declaredSize))) {
+    throw new AccountAccessError("invalid_request", 400, "Enter valid account details.");
+  }
+  if (Number(declaredSize) > 16_384) throw new AccountAccessError("request_too_large", 413, "This account request is too large.");
+  // Vercel can parse JSON lazily when body is first read. Malformed JSON is
+  // client input, not an authentication outage; do not evaluate that getter twice.
+  let value: unknown;
+  try { value = request.body; }
+  catch (error) {
+    if (error instanceof SyntaxError || error instanceof Error && "statusCode" in error && error.statusCode === 400) {
+      throw new AccountAccessError("invalid_request", 400, "Enter valid account details.");
+    }
+    throw error;
+  }
   let text: string;
-  if (request.body !== undefined) text = typeof request.body === "string" ? request.body : JSON.stringify(request.body);
+  if (value !== undefined) {
+    try { text = typeof value === "string" ? value : Buffer.isBuffer(value) ? value.toString("utf8") : JSON.stringify(value); }
+    catch { throw new AccountAccessError("invalid_request", 400, "Enter valid account details."); }
+  }
   else {
     const chunks: Buffer[] = [];
     let size = 0;
@@ -48,6 +66,7 @@ async function authBody(request: AuthRequest): Promise<string> {
     }
     text = Buffer.concat(chunks).toString("utf8") || "{}";
   }
+  if (typeof text !== "string") throw new AccountAccessError("invalid_request", 400, "Enter valid account details.");
   if (Buffer.byteLength(text) > 16_384) throw new AccountAccessError("request_too_large", 413, "This account request is too large.");
   try {
     const body = JSON.parse(text);

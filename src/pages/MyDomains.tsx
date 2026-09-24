@@ -82,7 +82,7 @@ const MyDomains = () => {
   const isSwedish = language === "sv";
   const categoryLabel = (category: string | null) => {
     const match = DOMAIN_CATEGORIES.find((item) => item.value === category);
-    return match?.label[language as keyof typeof match.label] ?? match?.label.en ?? category;
+    return match ? match.label[isSwedish ? "sv" : "en"] : category;
   };
 
   // Get unique TLDs from domains
@@ -421,7 +421,7 @@ const MyDomains = () => {
     try {
       // Batch domains in groups of 10
       const BATCH_SIZE = 10;
-      const batches = [];
+      const batches: UserDomain[][] = [];
       for (let i = 0; i < domains.length; i += BATCH_SIZE) {
         batches.push(domains.slice(i, i + BATCH_SIZE));
       }
@@ -619,7 +619,7 @@ const MyDomains = () => {
                     className="text-xs gap-1"
                   >
                     <Tag className="h-3 w-3" />
-                    {cat.label[language]} ({count})
+                    {categoryLabel(cat.value)} ({count})
                   </Button>
                 );
               })}
@@ -724,7 +724,7 @@ const MyDomains = () => {
                             <SelectContent>
                               {DOMAIN_CATEGORIES.map(cat => (
                                 <SelectItem key={cat.value} value={cat.value}>
-                                  {cat.label[language]}
+                                  {categoryLabel(cat.value)}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -901,7 +901,7 @@ const MyDomains = () => {
                         <SelectContent>
                           {DOMAIN_CATEGORIES.map(cat => (
                             <SelectItem key={cat.value} value={cat.value}>
-                              {cat.label[language]}
+                              {categoryLabel(cat.value)}
                             </SelectItem>
                           ))}
                         </SelectContent>

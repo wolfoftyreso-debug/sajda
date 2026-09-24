@@ -8,21 +8,30 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
+    env:
+      # No production credentials or deployment privileges in this job.
+      # Build the supported Vercel surface, with indexing held in CI.
+      VERCEL_ENV: preview
+      SAJDA_SEO_INDEXING: noindex
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           cache: npm
+      - name: Use the repository's package-manager version
+        run: npm install --global npm@11.13.0 --ignore-scripts
       - name: Install locked dependencies
         run: npm ci --ignore-scripts
-      - name: Static checks and function tests
-        run: npm run check
-      - name: Build production client
-        run: npm run build
+      - name: Static checks, tests, Vercel build and credential-free HTTP smoke
+        run: npm run check:ci
       - name: Check production dependency advisories
         run: npm audit --omit=dev

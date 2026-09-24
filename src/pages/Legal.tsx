@@ -20,6 +20,7 @@ import { isNativeApp } from "@/lib/appSurface";
 import { Button } from "@/components/ui/button";
 import { useLanguage, type Language } from "@/i18n/LanguageProvider";
 import { legalDataCopy } from "@/i18n/legalDataCopy";
+import { IMY_COMPLAINT_URL, legalRightsCopy } from "@/i18n/legalRightsCopy";
 
 type LegalSection = {
   eyebrow: string;
@@ -464,6 +465,7 @@ const brandLookupPrivacy: Record<Language, { title: string; body: string }> = {
 export default function Legal() {
   const { language } = useLanguage();
   const copy = legalCopy[language];
+  const rightsCopy = legalRightsCopy[language];
 
   useEffect(() => {
     const previousTitle = document.title;
@@ -601,6 +603,18 @@ export default function Legal() {
               );
             })}
           </div>
+          <section aria-labelledby="privacy-rights-title" className="mt-8 rounded-2xl border border-border bg-card p-5 sm:p-6">
+            <h3 id="privacy-rights-title" className="text-lg font-semibold">{rightsCopy.title}</h3>
+            <div className="mt-3 max-w-4xl space-y-3 text-sm leading-6 text-muted-foreground">
+              <p>{rightsCopy.rights}</p>
+              <p>{rightsCopy.request}</p>
+              <p>{rightsCopy.complaint}</p>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+              <a href="mailto:dev@hypbit.com" className="inline-flex min-h-11 items-center underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{rightsCopy.requestAction}</a>
+              <a href={IMY_COMPLAINT_URL} className="inline-flex min-h-11 items-center underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{rightsCopy.complaintAction}</a>
+            </div>
+          </section>
         </section>
 
         <div className="mx-auto flex w-full max-w-7xl flex-wrap gap-x-6 gap-y-3 px-5 pb-8 text-sm sm:px-7">

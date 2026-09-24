@@ -345,6 +345,56 @@ test("auth boundary rejects CSRF, foreign host, malformed JSON and oversized bod
   assert.equal(calls, 0, "Rejected requests must not invoke Better Auth, database or mail");
 }));
 
+test("auth classifies malformed Vercel bodies as client errors and reads each body only once", async () => withAccountEnvironment(async () => {
+  let calls = 0;
+  let reads = 0;
+  const handler = createAuthHandler(() => ({ handler: async request => {
+    calls++;
+    assert.deepEqual(await request.json(), { email: "fixture@example.test" });
+    return Response.json({ ok: true });
+  } }), () => true);
+  const request = {
+    method: "POST", url: "/api/auth/sign-in/email",
+    headers: { host: siteHost, origin: siteOrigin, "content-type": "application/json" },
+  };
+  for (const parserError of [new SyntaxError("Unexpected private-body-value in JSON"), Object.assign(new Error("Invalid JSON"), { statusCode: 400 })]) {
+    reads = 0;
+    const malformed = recordedResponse();
+    await handler({ method: request.method, url: request.url, headers: request.headers,
+      get body() { reads++; throw parserError; },
+    }, malformed);
+    assert.equal(malformed.code, 400);
+    assert.equal((malformed.body as { code: string }).code, "invalid_request");
+    assert.doesNotMatch(JSON.stringify(malformed.body), /private-body-value/u);
+    assert.equal(reads, 1);
+  }
+  assert.equal(calls, 0);
+
+  reads = 0;
+  const valid = recordedResponse();
+  await handler({ method: request.method, url: request.url, headers: request.headers,
+    get body() { reads++; return Buffer.from('{"email":"fixture@example.test"}'); },
+  }, valid);
+  assert.equal(valid.code, 200);
+  assert.equal(reads, 1);
+  assert.equal(calls, 1);
+}));
+
+test("auth rejects invalid or oversized declared bodies before a lazy parser or stream is consumed", async () => withAccountEnvironment(async () => {
+  let calls = 0, reads = 0;
+  const handler = createAuthHandler(() => ({ handler: async () => { calls++; return Response.json({ ok: true }); } }), () => true);
+  for (const [length, status] of [["16385", 413], ["-1", 400], ["not-a-length", 400], [["1", "2"], 400]] as const) {
+    const response = recordedResponse();
+    await handler({ method: "POST", url: "/api/auth/sign-in/email",
+      headers: { host: siteHost, origin: siteOrigin, "content-type": "application/json", "content-length": Array.isArray(length) ? [...length] : length },
+      get body() { reads++; return {}; },
+    }, response);
+    assert.equal(response.code, status);
+  }
+  assert.equal(reads, 0);
+  assert.equal(calls, 0);
+}));
+
 test("email-dependent auth actions fail closed while existing login and password-token flows remain available", async () => withAccountEnvironment(async () => {
   let calls = 0;
   const handler = createAuthHandler(() => ({ handler: async () => { calls++; return Response.json({ ok: true }); } }), () => false);

@@ -23,7 +23,7 @@ export function parseNameProjectsSnapshot(value: unknown, accountId: string): Na
 export function confirmNameProjectSave(snapshot: NameProjectsSnapshot, input: NameProjectInput): NameProject {
   const row = snapshot.projects.find(project => project.id === input.id);
   const brief = (value: NameProject | NameProjectInput) => {
-    const parsed = nameProjectBriefSchema.parse(Object.fromEntries(Object.keys(nameProjectBriefSchema.shape).map(key => [key, value[key]])));
+    const parsed = nameProjectBriefSchema.parse(Object.fromEntries(Object.entries(value).filter(([key]) => Object.prototype.hasOwnProperty.call(nameProjectBriefSchema.shape, key))));
     // An older editor can omit brandShortlist. The store preserves that field;
     // a caller supplying it must receive the exact configuration it saved.
     if (input.brandShortlist === undefined) delete parsed.brandShortlist;
@@ -51,7 +51,7 @@ async function request(scope: AccountRequestScope, raw?: NameProjectInput, save 
     const snapshot = parseNameProjectsSnapshot(value, accountId);
     const session = await readAccountSession();
     throwIfCancelled(signal);
-    if (!session || !Number.isFinite(session.expires_at) || session.expires_at <= Date.now() / 1000) throw new NameProjectsError("unauthenticated");
+    if (!session || typeof session.expires_at !== "number" || !Number.isFinite(session.expires_at) || session.expires_at <= Date.now() / 1000) throw new NameProjectsError("unauthenticated");
     assertAccountSessionOwner(session.user?.id, accountId);
     if (input) confirmNameProjectSave(snapshot, input);
     return snapshot;
@@ -60,7 +60,7 @@ async function request(scope: AccountRequestScope, raw?: NameProjectInput, save 
     const detail = (cause && typeof cause === "object" ? cause : {}) as { status?: number; code?: string; requestId?: string };
     const code: NameProjectsErrorCode = detail.code === "account_changed" ? "account_changed" : detail.status === 401 ? "unauthenticated" :
       detail.status === 403 ? "verification_required" : detail.status === 404 ? "disabled" : detail.code === "project_limit" ? "limit" :
-      detail.code === "saved_domain_required" ? "saved_domain_required" : detail.status === 409 ? "conflict" : detail.status === 429 ? "rate_limited" : [400, 413].includes(detail.status) ? "invalid" : "unavailable";
+      detail.code === "saved_domain_required" ? "saved_domain_required" : detail.status === 409 ? "conflict" : detail.status === 429 ? "rate_limited" : detail.status === 400 || detail.status === 413 ? "invalid" : "unavailable";
     throw new NameProjectsError(code, typeof detail.requestId === "string" && /^req_[A-Za-z0-9_-]{16}$/u.test(detail.requestId) ? detail.requestId : undefined);
   }
 }

@@ -1,93 +1,115 @@
 # Sajda
 
-Current verification and launch blockers: [release evidence, 2026-09-08](docs/RELEASE-VERIFICATION-2026-09-08.md).
+Sajda helps people and agents find and assess names, compare domain evidence,
+build naming projects, and research domain opportunities. The website, account
+API and MCP tools share the same server-side ownership and entitlement rules.
+Availability, indicative prices, heuristic scores and legal clearance are
+different claims; the product must not silently substitute one for another.
 
-Sajda is a domain-discovery application that can run locally or on Vercel. It uses
-authoritative RDAP lookups for availability and a transparent, deterministic
-screening algorithm for ranking candidates. It no longer relies on an external
-LLM to run its core flow.
+Start with the [developer handoff](docs/DEVELOPER-HANDOFF.md) and the dated
+[24 September release evidence](docs/CONNECTOR-RELEASE-2026-09-24.md). A passing
+repository check is not an unrestricted production-release approval. Historical
+verification documents describe their observation date, not today's runtime.
 
-## Deployment
+## Supported architecture
 
-Sajda's supported product path is **Vercel Functions + Neon Postgres**. The
-browser talks only to same-origin `/api/*` routes; database credentials remain
-server-side. Managed Neon Auth and a verified-account saved-domain API are
-implemented, but require live configuration and preview verification before
-accounts are enabled. See [the Vercel guide](docs/VERCEL-DEPLOYMENT.md) and
-[the Neon architecture guide](docs/NEON-VERCEL.md).
+```text
+React / Vite website or Capacitor shell
+  → same-origin Vercel API
+    → Better Auth sessions + Neon Postgres
+    → registry / registrar evidence and optional Vercel AI Gateway
+    → Resend account/contact email; Stripe or native commerce when configured
 
-- **Public search:** anonymous domain discovery and comparison on Vercel.
-- **Private workspace:** history, watchlists, API keys and marketplace records
-  are being moved behind authenticated Vercel APIs backed by Neon.
-- **Developer API:** `POST /api/v1/public/domains` is a small, no-key,
-  CORS-enabled domain-search contract. Durable customer API keys are enabled
-  only after the Neon account and entitlement migration is verified.
-- **Marketplace:** local drafts remain available for product exploration.
-  Persistent listings, offers, DNS control proofs and payments are not marked
-  live until their Neon-backed flows have passed a preview deployment.
+External agents
+  → anonymous research MCP / REST
+  → authenticated account MCP / REST with explicitly scoped, revocable keys
+```
 
-The old `supabase/` tree and self-host documentation are historical migration
-input, not a supported deployment option.
+The supported deployment path is **Vercel Functions + Neon Postgres**. Auth is
+the same-origin Better Auth server, not managed Neon Auth or Supabase. Provider
+and database credentials stay server-side. See the [Vercel deployment guide](docs/VERCEL-DEPLOYMENT.md)
+and [Neon architecture](docs/NEON-VERCEL.md).
 
-## Start here
+- **Public research:** domain checks, business-name recommendations, name-package
+  research and Brand Index signals. Six public MCP tools cannot access accounts.
+- **Private account:** saved domains, naming projects, API keys and Trading
+  research use authenticated APIs, explicit permissions and current entitlements.
+  See [account REST API](docs/ACCOUNT-API.md) and [MCP](docs/MCP.md).
+- **Trading:** bounded research runs, dated observations and scenario records;
+  scores are not financial advice, guaranteed returns or automatic purchases.
+- **Native app:** a shared product UI in a separate Capacitor build. A successful
+  web or simulator build does not establish signed-device, StoreKit or App Store
+  approval. See the [mobile evidence](docs/LAUNCH-MOBILE-2026-09-17.md).
 
-Use the Vercel/Neon guides before deploying. The database URL belongs only in
-Vercel Function environments; do not expose it through a `VITE_*` variable.
+The isolated public connector artifact contains no account/payment handlers or
+database credentials. The authenticated application and the connector are
+separate deployments, not interchangeable URLs.
 
-For local front-end development only:
+## Local development
+
+Use **Node 24** and **npm 11.13.0**, matching CI and `packageManager`. The checked-in
+`package-lock.json` is authoritative; do not regenerate dependencies with another
+package manager. Copy `.env.example` to `.env.local` only if no local file exists.
+Never commit that file or put server secrets in `VITE_*` variables.
 
 ```sh
-cp .env.example .env.local
-npm ci
+npm ci --ignore-scripts
 npm run dev
 ```
 
-Local front-end development does not require a database credential. Neon Auth
-and persistent routes are deliberately unavailable until their server-side
-configuration exists. Never put a database URL, server credential, job secret,
-or third-party credential in a `VITE_*` variable.
-
-## Verification commands
+The Vite server is front-end development only. It is not a deployed function
+runtime and does not prove login, database, email or payment behavior. For the
+supported built surface and actual local handlers:
 
 ```sh
-npm run lint
-npm run typecheck
-npm run check
-npm run check:neon
 npm run build:vercel
-npm run serve:qa
-# In another terminal, against that local server:
-npm run check:runtime
+npm run check:runtime:local
+```
+
+The smoke runner allocates a loopback port, starts the actual Vercel handlers,
+checks read-only HTTP contracts, and stops the server. It deliberately excludes
+inherited credentials and deployment flags. A 503 `not_configured` database
+health response is expected here and is **not** evidence of a working database.
+For interactive local QA, `npm run serve:qa` serves `dist-vercel` on port 8095;
+this command does not load `.env.local` automatically.
+
+## Verification
+
+```sh
+npm run check:ci
 npm audit --omit=dev
 ```
 
-`npm run check` includes static checks, risk-focused automated tests and
-rendered UI contracts. `serve:qa` runs the actual Vercel route implementations
-with the production build locally; it does not emulate deployed infrastructure.
-Set `SAJDA_TEST_ORIGIN` to a linked preview URL to repeat the HTTP smoke checks.
-`npm run test:live-search` performs bounded real registry/price lookups and
-should not run in every CI build. Use `npm run db:plan` for an offline migration
-plan; applying migrations requires an explicitly configured isolated database.
+`check:ci` runs lint, application/API types, language and security-boundary
+contracts, automated tests, rendered UI contracts, the Vercel build and isolated
+HTTP smoke. Test concurrency is capped for predictable local/CI resource use.
+Build checks also inspect generated SEO files and prohibit legacy provider
+endpoints or server secrets in browser output.
 
-## Algorithm contract
+Live-provider, database, browser and deployment verification remain separate.
+`npm run test:live-search` makes bounded real provider requests; do not add it to
+untrusted pull-request CI. Migration planning is read-only (`npm run db:plan`);
+applying migrations requires an explicitly selected database and release review.
 
-- Candidate generation is deterministic and versioned (`2.0.0`), making a
-  scan reproducible for the same input and iteration.
-- A domain is reported as `available` only from a definitive configured
-  registry response. DNS is never positive availability evidence; timeouts,
-  rate limits, unsupported TLDs, and unrecognised registry replies are
-  `unknown`.
-- No monetary valuation is invented. A separately labelled naming score is
-  a transparent spelling/shape heuristic, not market value or a probability.
-  The public/local search path shows a timestamped Loopia first-year and renewal price only
-  when the exact TLD row can be read from Loopia's public price list; it is
-  still not a locked checkout quote.
-- Ranking combines input relevance, spelling quality and family diversity.
-  See [the search quality contract and observed tests](docs/SEARCH-QUALITY.md).
-- `.se`, `.nu` and `.io` are excluded from default discovery while no approved
-  reliable secure provider is configured. Unsupported exact checks return
-  `unknown`, never guessed availability.
+## Data and evidence rules
 
-The legacy registrar scraper is intentionally disabled until it is replaced by
-an approved registrar API adapter. This avoids presenting an invented price as
-a live quote.
+- Registry failures, unsupported TLDs and ambiguous responses mean **unknown**,
+  not available. DNS absence is not availability proof.
+- Standard TLD prices are not exact-domain checkout quotes. Keep source,
+  currency, observation time and quote scope visible.
+- Naming and Brand Index scores are documented signals, not ownership proof,
+  market valuations or legal trademark clearance.
+- Requested versus returned candidate counts and any shortfall must be explicit.
+- API key scopes never substitute for owner isolation or paid entitlement.
+
+See [search quality](docs/SEARCH-QUALITY.md), [legal release gates](docs/LAUNCH-LEGAL-2026-09-17.md)
+and [connector asset provenance](docs/connector-assets.md). Required third-party
+licence notices are retained; no generator branding is needed in product output.
+
+## Historical code
+
+`supabase/`, `infra/`, `public/`, the old Bun lockfile and `build:local` retain
+migration/reference material. They are not the supported production deployment.
+`public-clean/` is the shipped static asset source. Legacy function tests are
+explicitly named `test:legacy:supabase-functions`; do not interpret them as a
+Vercel account or commerce sign-off.

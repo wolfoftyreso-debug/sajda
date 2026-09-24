@@ -1,4 +1,5 @@
 import { createRequestId } from "./_shared/public-api.js";
+import { DEVELOPER_API_SCOPES } from "../shared/developer-scopes.js";
 import {
   getNeonSql,
   hasNeonDatabaseConfig,
@@ -17,15 +18,20 @@ interface VercelResponseLike {
 
 export const config = { maxDuration: 5 };
 
-// Structural readiness only; checksum and constraint verification belong to
-// the migration runner. Do not return this SQL or individual results publicly.
+// Structural readiness only, including the scope vocabulary of the API-key
+// constraint. Migration checksums and full constraint semantics need separate verification.
+// Do not return this SQL or individual results publicly.
 export const storageReadinessSql = `SELECT
   (SELECT bool_and(to_regclass(name) IS NOT NULL)
     FROM unnest(ARRAY['public.sajda_auth_user', 'public.sajda_auth_session',
       'public.sajda_auth_account', 'public.sajda_auth_verification', 'public.sajda_auth_rate_limit',
-      'sajda.schema_migrations', 'sajda.saved_domains', 'public.sajda_contact_submissions',
+      'sajda.schema_migrations', 'sajda.job_runs', 'sajda.function_rate_limits',
+      'sajda.saved_domains', 'sajda.account_entitlements', 'public.sajda_contact_submissions',
+      'public.sajda_ai_allowance_counters', 'public.sajda_ai_allowance_leases',
+      'sajda.lost_domain_access', 'sajda.lost_domain_sources', 'sajda.lost_domain_campaigns',
       'sajda.lost_domain_runs', 'sajda.lost_domain_work_items', 'sajda.lost_domain_assessments',
-      'sajda.lost_domain_effective_access', 'sajda.lost_domain_provider_backoff', 'sajda.commerce_events',
+      'sajda.lost_domain_attempts', 'sajda.lost_domain_effective_access', 'sajda.lost_domain_provider_backoff',
+      'sajda.commerce_events', 'sajda.commerce_customers', 'sajda.commerce_checkouts', 'sajda.commerce_access',
       'sajda.lost_domain_quote_requests', 'sajda.lost_domain_quote_observations',
       'sajda.trading_scenarios', 'sajda.developer_api_keys', 'sajda.developer_api_quotas',
       'sajda.native_authorization_codes', 'sajda.native_sessions', 'sajda.account_deletion_challenges',
@@ -43,7 +49,39 @@ export const storageReadinessSql = `SELECT
     WHERE NOT EXISTS (SELECT 1 FROM information_schema.columns actual
       WHERE actual.table_schema='sajda' AND actual.table_name=required.table_name
         AND actual.column_name=required.column_name)
-  ) AS ready`;
+  )
+  AND EXISTS (
+    SELECT 1 FROM pg_catalog.pg_constraint scopes_constraint
+    WHERE scopes_constraint.conrelid=to_regclass('sajda.developer_api_keys')
+      AND scopes_constraint.conname='developer_api_keys_scopes_check'
+      AND scopes_constraint.contype='c' AND scopes_constraint.convalidated
+      AND NOT EXISTS (
+        SELECT 1 FROM unnest($2::text[]) AS required(scope)
+        WHERE strpos(pg_catalog.pg_get_constraintdef(scopes_constraint.oid), quote_literal(required.scope))=0
+      )
+  )
+  AND (NOT $1::boolean OR (
+    (SELECT bool_and(to_regclass(name) IS NOT NULL)
+      FROM unnest(ARRAY['sajda.name_projects', 'sajda.name_project_domains']) AS required(name))
+    AND NOT EXISTS (
+      SELECT 1 FROM (VALUES
+        ('name_projects','namespace'), ('name_projects','owner_id'), ('name_projects','id'),
+        ('name_projects','payload'), ('name_projects','version'), ('name_projects','last_input_hash'),
+        ('name_projects','created_at'), ('name_projects','updated_at'),
+        ('name_project_domains','namespace'), ('name_project_domains','owner_id'),
+        ('name_project_domains','project_id'), ('name_project_domains','domain'), ('name_project_domains','position')
+      ) AS required(table_name,column_name)
+      WHERE NOT EXISTS (SELECT 1 FROM information_schema.columns actual
+        WHERE actual.table_schema='sajda' AND actual.table_name=required.table_name
+          AND actual.column_name=required.column_name)
+    )
+  )) AS ready`;
+
+export function storageReadinessParameters(env: NodeJS.ProcessEnv = process.env): [boolean, string[]] {
+  // Match the feature route's exact opt-in. Disabling an optional feature must
+  // not accidentally require its schema or turn it on through the health probe.
+  return [env.SAJDA_NAME_PROJECTS_ENABLED === "true", [...DEVELOPER_API_SCOPES]];
+}
 
 function setHealthHeaders(response: VercelResponseLike, requestId: string): void {
   response.setHeader("Cache-Control", "no-store");
@@ -95,7 +133,7 @@ export function createHealthHandler(dependencies: {
     // End before the platform's five-second limit so a slow database still
     // returns the same safe, diagnosable JSON contract instead of a gateway page.
     const ready = await (dependencies.ready ?? (async () => {
-      const rows = await getNeonSql().query(storageReadinessSql, [], {
+      const rows = await getNeonSql().query(storageReadinessSql, storageReadinessParameters(), {
         fetchOptions: { signal: AbortSignal.timeout(3_500) },
       });
       return rows[0]?.ready === true;

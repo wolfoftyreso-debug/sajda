@@ -111,6 +111,11 @@ test("mounted pricing presents the shared prices and only truthful navigation, w
         }
         assert.equal(renderer!.root.findAllByType("form").length, 0);
         assert.equal(renderer!.root.findAllByType("table").length, 0);
+        for (const href of ["/legal#terms", "/legal#privacy", "/contact"]) {
+          const link = renderer!.root.findAllByType("a").find(node => node.props.href === href);
+          assert.ok(link, `Pricing must provide an actionable ${href} link`);
+          assert.match(link.props.className, /min-h-11.*focus-visible:ring-2/);
+        }
         for (const node of renderer!.root.findAll(node => typeof node.props.className === "string")) {
           assert.doesNotMatch(node.props.className, /(?:^|[\s:])(?:fixed|sticky|absolute)(?:\s|$)|truncate/u);
         }

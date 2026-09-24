@@ -36,7 +36,7 @@ async function request(scope:AccountRequestScope, scenario?:TradingScenarioInput
     const snapshot=parseTradingScenariosSnapshot(value,accountId);
     const session=await readAccountSession();
     throwIfCancelled(signal);
-    if(!session||!Number.isFinite(session.expires_at)||session.expires_at<=Date.now()/1000)throw new TradingScenariosError("unauthenticated");
+    if(!session||typeof session.expires_at!=="number"||!Number.isFinite(session.expires_at)||session.expires_at<=Date.now()/1000)throw new TradingScenariosError("unauthenticated");
     assertAccountSessionOwner(session.user?.id,accountId);
     if(input) {
       const receipt=snapshot.scenarios.find(row=>row.id===input.id);
