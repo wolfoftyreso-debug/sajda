@@ -31,6 +31,17 @@
 
 The public connector update is deployed; the whole commercial product is **not approved for unrestricted launch**. Production domain/canonical routing, real recovery/verification/deletion email delivery, complete consumer/privacy disclosures and billing evidence remain release gates. Apple enrolment, signed device/TestFlight checks and final App Store declarations are still outstanding. A protected preview does not become a public authenticated MCP service merely because a local contract test passes.
 
-GitHub push was rejected with `This repository was archived so it is read-only` (HTTP 403). Work is committed locally; changing repository archive status requires the owner's direction. Deployment is independent of this rejected push.
+The initial GitHub push was rejected with `This repository was archived so it is read-only` (HTTP 403). After explicit owner approval, the repository was unarchived without changing visibility or its default branch. Both commits were pushed and remote `main` was verified at `c0dd2ee13233b3883c2aa5f17b770611b2940722`. Deployment remains separate from Git push.
+
+## Production recheck after launch request
+
+The owner's request was to launch unless a release objection remained. Read-only Vercel checks found concrete blockers:
+
+- The main project's production target `dpl_9A7FYyV3geWBn6DXtfeXPHKacsUq` is an old failed deployment (`unused_function`), not the successfully verified latest preview. The configured `sajda-eight.vercel.app` production hostname returned HTTP 404. A new production build must use production settings, not simply promote the preview with its test-account/database context.
+- Production environment inventory contains neither `RESEND_API_KEY` nor `SAJDA_EMAIL_FROM`. The implementation requires email verification for new password accounts, so this blocks activation, recovery and the related communication flows.
+- Production environment inventory contains no `STRIPE_*` variables. Paid checkout/webhook/entitlement lifecycle is not verified for production, and paid offers remain unavailable in the application.
+- Privacy/consumer disclosures and their operational evidence remain incomplete as described in the legal review. Apple distribution is a separate release gate and need not block a properly scoped web release.
+
+Verdict: **NO-GO for unrestricted account/payment launch**. The isolated anonymous connector is already live and can remain available. No production deployment, environment mutation, DNS change or live payment activation was performed in this recheck.
 
 See [account API](ACCOUNT-API.md), [mobile review](LAUNCH-MOBILE-2026-09-17.md), [SEO review](LAUNCH-SEO-2026-09-17.md) and [legal review](LAUNCH-LEGAL-2026-09-17.md) for the separate evidence and limitations. No live purchase, DNS change, account password reset, broad protection disablement or marketplace submission was performed.
