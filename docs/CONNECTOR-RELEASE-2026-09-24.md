@@ -24,10 +24,13 @@
 - Deployed anonymous MCP discovery: six tools, two prompts, two resources. A real business-name request returned **5 of 10** with the registered-domain shortfall, checked status and next steps explicitly reported; no fabricated missing names or legal clearance.
 - All 13 deployed logo paths returned SVG successfully. Public `/api/auth`, `/api/account/membership` and `/api/mcp` returned 404; no account cookies. Downloaded kit checksum matched the manifest.
 - Preview browser sign-in succeeded. Live membership returned `trading`; refresh retained the session; Trading layout did not overflow at four widths; all 13 developer-page logos loaded without browser exceptions.
+- Deployed authenticated account verification: 31 HTTP checks passed, including REST/MCP ownership, 21-tool discovery, matching saved domains/projects/Trading scenarios, Trading status/report reads, 403 for unauthorized writes, and 401 for anonymous/revoked access. A temporary read-only key was created for the controlled demo account, then revoked and verified unusable. No paid research was started.
 - Runtime 5xx scans at the time of these checks returned no matching logs. This is a bounded observation, not continuous monitoring or a universal absence-of-errors claim.
 
 ## Release boundary
 
 The public connector update is deployed; the whole commercial product is **not approved for unrestricted launch**. Production domain/canonical routing, real recovery/verification/deletion email delivery, complete consumer/privacy disclosures and billing evidence remain release gates. Apple enrolment, signed device/TestFlight checks and final App Store declarations are still outstanding. A protected preview does not become a public authenticated MCP service merely because a local contract test passes.
+
+GitHub push was rejected with `This repository was archived so it is read-only` (HTTP 403). Work is committed locally; changing repository archive status requires the owner's direction. Deployment is independent of this rejected push.
 
 See [account API](ACCOUNT-API.md), [mobile review](LAUNCH-MOBILE-2026-09-17.md), [SEO review](LAUNCH-SEO-2026-09-17.md) and [legal review](LAUNCH-LEGAL-2026-09-17.md) for the separate evidence and limitations. No live purchase, DNS change, account password reset, broad protection disablement or marketplace submission was performed.
