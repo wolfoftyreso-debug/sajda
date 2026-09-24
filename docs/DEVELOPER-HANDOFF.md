@@ -54,9 +54,12 @@ separate because their path-filtered workflow does not run for every web change.
 
 Action revisions are pinned to verified full commit IDs. Dependabot proposes
 bounded weekly updates for GitHub Actions and npm direct dependencies; major
-npm version updates are excluded from that routine. Update PRs still require
-review and passing checks. There is no automatic merge. Lint warnings fail the
-standard gate, rather than being silently accepted.
+npm version updates are excluded from that routine. The working agreement is to
+review update PRs and require passing checks before merging; there is no automatic
+merge. Readback on 24 September found no GitHub branch protection or ruleset on
+`main`, so this review requirement is not yet enforced at the merge boundary.
+The Vercel check blocks production aliasing, not Git pushes or PR merges. Lint
+warnings fail the standard verification gate, rather than being silently accepted.
 
 `check:runtime:local` starts the actual function handlers on loopback with an
 allowlisted process environment. Production/database/provider credentials,
