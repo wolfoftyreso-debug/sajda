@@ -17,7 +17,9 @@ import { createLostDomainsHandler } from "../api/account/lost-domains.js";
 import type { lostDomainsService } from "../api/_shared/lost-domains-service.js";
 import { brandIndexResultSchema } from "../shared/brand-presence-index.js";
 
-const accountA: ApiKeyPrincipal = { userId: "mcp-owner-a", keyId: randomUUID(), scopes: [...API_KEY_SCOPES], environment: "development" };
+const environment = process.env.VERCEL_ENV || "development";
+assert.ok(environment === "development" || environment === "preview" || environment === "production");
+const accountA: ApiKeyPrincipal = { userId: "mcp-owner-a", keyId: randomUUID(), scopes: [...API_KEY_SCOPES], environment };
 const accountB: ApiKeyPrincipal = { ...accountA, userId: "mcp-owner-b", keyId: randomUUID() };
 const requestQuota = async () => ({ allowed: true, remaining: 100, resetAt: Date.now() + 60_000 });
 const initialize = (protocolVersion = "2025-11-25") => ({ jsonrpc: "2.0", id: 1, method: "initialize",
@@ -297,6 +299,8 @@ test("SDK tools share real product handlers, isolate accounts and never start wo
   await a.listTools();
   assert.deepEqual(products.calls, []);
   const membership = await a.callTool({ name: "account_membership", arguments: {} });
+  assert.equal(membership.isError, undefined);
+  assert.equal(membership.structuredContent?.status, 200);
   assert.equal((membership.structuredContent?.data as { accountId: string }).accountId, accountA.userId);
   const status = await a.callTool({ name: "trading_status", arguments: {} });
   assert.equal("candidates" in (status.structuredContent?.data as object), false);

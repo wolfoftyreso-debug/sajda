@@ -24,6 +24,11 @@ export async function runtimeFetch(url, options = {}) {
     // Do not print command/error objects: CLI authentication must stay private.
     throw new Error(`Vercel HTTP verification failed for ${target.pathname}`);
   }
+  return parseVercelHttpResponse(stdout);
+}
+
+/** Preserve cookie presence for assertions without exposing session values. */
+export function parseVercelHttpResponse(stdout) {
   let rest = stdout;
   let status;
   let headers;
@@ -40,8 +45,8 @@ export async function runtimeFetch(url, options = {}) {
       const colon = line.indexOf(":");
       if (colon < 1) continue;
       const name = line.slice(0, colon).toLowerCase();
-      if (name === "set-cookie" || name.includes("bypass")) continue;
-      headers.append(name, line.slice(colon + 1).trim());
+      if (name.includes("bypass")) continue;
+      headers.append(name, name === "set-cookie" ? "[redacted]" : line.slice(colon + 1).trim());
     }
   } while (rest.startsWith("HTTP/"));
   return new Response([204, 205, 304].includes(status) ? null : rest, { status, headers });

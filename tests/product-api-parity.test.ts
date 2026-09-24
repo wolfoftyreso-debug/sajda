@@ -15,7 +15,9 @@ import { createNameProjectsHandler } from "../api/account/name-projects.js";
 import { createTradingScenariosHandler } from "../api/account/trading-scenarios.js";
 import { businessNamesResultSchema } from "../api/_shared/business-names-contract.js";
 
-const principal: ApiKeyPrincipal = { userId: "parity-owner", keyId: "parity-key", environment: "development", scopes: [...API_KEY_SCOPES] };
+const environment = process.env.VERCEL_ENV || "development";
+assert.ok(environment === "development" || environment === "preview" || environment === "production");
+const principal: ApiKeyPrincipal = { userId: "parity-owner", keyId: "parity-key", environment, scopes: [...API_KEY_SCOPES] };
 const quota = async () => ({ allowed: true, remaining: 10, resetAt: Date.now() + 60000 });
 const input = { businessDescription: "A bakery making artisan bread", nameLanguage: "fr", tlds: ["com"], platforms: ["github"], count: 3 };
 const headers = { "content-type": "application/json" };
@@ -110,6 +112,10 @@ test("private parity delegates exact owner and method without spoofable HTTP cre
       projects: [project, { id: "unrelated", title: "private project" }], scenarios: [scenario, { id: "unrelated", title: "private scenario" }] });
   };
   const execute = createMcpProductExecutor({ nameProjects: handler("projects"), socialProfiles: handler("social"), tradingScenarios: handler("scenarios") });
+  await assert.rejects(execute("name_projects_list", {}, {
+    ...principal, environment: environment === "preview" ? "production" : "preview",
+  }), error => error instanceof AccountAccessError && error.code === "insufficient_scope" && error.status === 403);
+  assert.equal(calls.length, 0, "Credentials from another deployment must never reach an account handler.");
   for (const [operation, args, name, body] of [
     ["name_projects_list", {}, "projects", undefined], ["name_projects_save", { project }, "projects", { action: "save", project }],
     ["social_profiles_check", { handles: [" OctoCat "] }, "social", { handles: ["octocat"] }],
