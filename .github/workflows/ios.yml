@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ["ios/**", "src/**", "shared/**", "native.html", "capacitor.config.ts", "vite.native.config.ts", "scripts/build-native.mjs", "scripts/smoke-ios.sh", "scripts/assert-ios-ready.mjs", "scripts/ios-simulator-target.mjs", "package*.json", ".github/workflows/ios.yml"]
+    paths: ["ios/**", "src/**", "shared/**", "native.html", "capacitor.config.ts", "vite.native.config.ts", "scripts/build-native.mjs", "scripts/smoke-ios.sh", "scripts/assert-ios-ready.mjs", "scripts/collect-ios-diagnostics.mjs", "scripts/ios-simulator-target.mjs", "package*.json", ".github/workflows/ios.yml"]
 permissions:
   contents: read
 concurrency:
@@ -33,7 +33,7 @@ jobs:
       - name: Package simulator app with preserved permissions
         run: ditto -c -k --keepParent ios/App/build/Build/Products/Debug-iphonesimulator/App.app ios/App/build/Sajda-Simulator.zip
       - name: Boot the app in a real iPhone simulator
-        timeout-minutes: 20
+        timeout-minutes: 25
         run: bash scripts/smoke-ios.sh
       - name: Simulator app artifact (not installable on a physical iPhone)
         if: always()
@@ -44,4 +44,6 @@ jobs:
             ios/App/build/Sajda-Simulator.zip
             ios/App/build/sajda-iphone-smoke.png
             ios/App/build/sajda-ui-smoke.json
+            ios/App/build/sajda-iphone-smoke.log
+            ios/App/build/sajda-diagnostics.json
           retention-days: 7
