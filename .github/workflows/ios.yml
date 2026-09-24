@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ["ios/**", "src/**", "shared/**", "native.html", "capacitor.config.ts", "vite.native.config.ts", "scripts/build-native.mjs", "scripts/smoke-ios.sh", "scripts/ios-simulator-target.mjs", "package*.json", ".github/workflows/ios.yml"]
+    paths: ["ios/**", "src/**", "shared/**", "native.html", "capacitor.config.ts", "vite.native.config.ts", "scripts/build-native.mjs", "scripts/smoke-ios.sh", "scripts/assert-ios-ready.mjs", "scripts/ios-simulator-target.mjs", "package*.json", ".github/workflows/ios.yml"]
 permissions:
   contents: read
 concurrency:
@@ -43,4 +43,5 @@ jobs:
           path: |
             ios/App/build/Sajda-Simulator.zip
             ios/App/build/sajda-iphone-smoke.png
+            ios/App/build/sajda-ui-smoke.json
           retention-days: 7

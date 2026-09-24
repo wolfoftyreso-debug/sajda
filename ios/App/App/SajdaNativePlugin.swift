@@ -5,6 +5,7 @@ import CryptoKit
 import Security
 import UIKit
 import StoreKit
+import WebKit
 
 // One bounded collector per request. Delegate callbacks and auth state share the
 // main queue; the session is invalidated on every terminal path (no retain cycle).
@@ -646,4 +647,64 @@ public final class SajdaViewController: CAPBridgeViewController {
     public override func capacitorDidLoad() {
         bridge?.registerPluginInstance(SajdaNativePlugin())
     }
+
+    #if DEBUG && targetEnvironment(simulator)
+    // Opt-in diagnostics for a fresh CI simulator only. No account content,
+    // credentials or native network payloads are inspected or exported.
+    private var smokeStarted = false
+
+    public override func webView(with frame: CGRect, configuration: WKWebViewConfiguration) -> WKWebView {
+        if ProcessInfo.processInfo.environment["SAJDA_CI_SMOKE"] == "1" {
+            let diagnostics = """
+            window.__sajdaSmokeErrors = [];
+            const record = value => {
+              if (window.__sajdaSmokeErrors.length < 8) window.__sajdaSmokeErrors.push(String(value).slice(0, 400));
+            };
+            window.addEventListener('error', event => record(event.message || 'Resource failed'), true);
+            window.addEventListener('unhandledrejection', event => record(event.reason?.message || 'Unhandled rejection'));
+            window.addEventListener('securitypolicyviolation', event => record('CSP: ' + event.effectiveDirective + ' ' + event.blockedURI));
+            """
+            configuration.userContentController.addUserScript(WKUserScript(source: diagnostics, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        }
+        return super.webView(with: frame, configuration: configuration)
+    }
+
+    public override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        guard !smokeStarted, ProcessInfo.processInfo.environment["SAJDA_CI_SMOKE"] == "1" else { return }
+        smokeStarted = true
+        inspectSmokeReadiness(attempt: 0)
+    }
+
+    private func inspectSmokeReadiness(attempt: Int) {
+        let probe = """
+        (() => {
+          const visible = element => !!element && element.getBoundingClientRect().width > 0
+            && element.getBoundingClientRect().height > 0 && getComputedStyle(element).visibility !== 'hidden';
+          const navigation = Array.from(document.querySelectorAll('.sajda-native-navigation a')).filter(visible).length;
+          const heading = visible(document.querySelector('#search-heading'));
+          const input = visible(document.querySelector('#domain-theme:not(:disabled)'));
+          const errors = window.__sajdaSmokeErrors || [];
+          return { ready: document.readyState === 'complete' && navigation === 5 && heading && input && errors.length === 0,
+            navigation, heading, input, errors, documentState: document.readyState,
+            rootChildren: document.querySelector('#root')?.childElementCount || 0 };
+        })()
+        """
+        webView?.evaluateJavaScript(probe) { [weak self] value, error in
+            guard let self = self else { return }
+            var snapshot = value as? [String: Any] ?? ["ready": false]
+            snapshot["attempt"] = attempt
+            if error != nil { snapshot["evaluationFailed"] = true }
+            let file = FileManager.default.temporaryDirectory.appendingPathComponent("sajda-ui-smoke.json")
+            if let data = try? JSONSerialization.data(withJSONObject: snapshot, options: [.sortedKeys]) {
+                try? data.write(to: file, options: .atomic)
+            }
+            if snapshot["ready"] as? Bool != true && attempt < 60 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+                    self?.inspectSmokeReadiness(attempt: attempt + 1)
+                }
+            }
+        }
+    }
+    #endif
 }
