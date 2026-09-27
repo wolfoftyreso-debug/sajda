@@ -4,6 +4,12 @@ import { parseSearchRefinement, type NamingGeneration, type SearchRefinement } f
 import { parseAiConsent, type AiConsent } from "../shared/ai-consent.js";
 import { expandNamePackageDomainMatrix, NAME_PACKAGE_WEB_DOMAIN_LIMIT } from "./_shared/name-package-candidates.js";
 import { generateConnectorCandidates } from "./_shared/connector-candidates.js";
+import {
+  CLOUDFLARE_REGISTRAR_PRICE_SOURCE_URL,
+  fetchRegistrarBridgeOffers,
+  registrarBridgeConfigured,
+  type RegistrarBridgeResult,
+} from "./_shared/registrar-bridge.js";
 import { isBrandNameLanguage } from "../shared/name-languages.js";
 import { asciiNameToken, joinNameWords, nameQualitySignals, interpretRdapResponse, registryRetryAt } from "./_shared/search-quality.mjs";
 import {
@@ -2251,6 +2257,9 @@ function providerPriceConnector(providerId: ProviderId): Pick<RegistrarOffer, "d
   if (providerId === "porkbun") {
     return { dataSource: "official_provider_api", connectorState: "public_source_active" };
   }
+  if (providerId === "cloudflare" && registrarBridgeConfigured()) {
+    return { dataSource: "official_provider_api", connectorState: "public_source_active" };
+  }
   if (tldesPriceFeedConfigured()) {
     return { dataSource: "tldes_price_feed", connectorState: "aggregated_price_feed_configured" };
   }
@@ -2266,6 +2275,16 @@ function providerPriceConnectionNote(
 ): string {
   if (provider.id === "porkbun" && connectorState === "public_source_active") {
     return localizedPorkbunPriceNote(locale);
+  }
+  if (provider.id === "cloudflare" && connectorState === "public_source_active") {
+    return localizedText(
+      locale,
+      "Cloudflare exact-domain standard prices are checked through Sajda's isolated read-only registrar connector. Premium or unavailable domains do not receive a numeric price.",
+      "Cloudflares standardpris för den exakta domänen kontrolleras genom Sajdas isolerade skrivskyddade registratorkoppling. Premiumdomäner och otillgängliga domäner får inget numeriskt pris.",
+      "Los precios estándar exactos de Cloudflare se comprueban mediante el conector aislado y de solo lectura de Sajda. Los dominios premium o no disponibles no reciben un precio numérico.",
+      "Les prix standard exacts de Cloudflare sont vérifiés via le connecteur de bureau d’enregistrement isolé et en lecture seule de Sajda. Les domaines premium ou indisponibles ne reçoivent pas de prix numérique.",
+      "Cloudflare 的精确域名标准价格通过 Sajda 的隔离只读注册商连接器进行检查。高级域名或不可用域名不会显示数值价格。",
+    );
   }
   if (connectorState === "aggregated_price_feed_configured") {
     return localizedText(
@@ -2303,13 +2322,16 @@ function providerComparisonOffer(
   tld: string,
   tldesPriceFeedLookup: TldesPriceFeedLookup,
   porkbunPriceLookup: RegistrarPriceLookup,
+  cloudflarePriceLookup: RegistrarBridgeResult,
   locale: Locale,
 ): RegistrarOffer {
   const provider = PROVIDER_CATALOG[providerId];
   const connector = providerPriceConnector(providerId);
-  const directOffer = providerId === "porkbun" ? porkbunPriceLookup.offers.get(tld) : undefined;
+  const directOffer = providerId === "porkbun" ? porkbunPriceLookup.offers.get(tld)
+    : providerId === "cloudflare" ? cloudflarePriceLookup.offers.get(domain) : undefined;
   if (directOffer) {
-    return { ...directOffer, purchaseUrl: provider.purchaseUrl(domain), note: localizedPorkbunPriceNote(locale) };
+    return { ...directOffer, connectorState: "public_source_active", purchaseUrl: provider.purchaseUrl(domain), note: providerId === "porkbun"
+      ? localizedPorkbunPriceNote(locale) : providerPriceConnectionNote(provider, "public_source_active", locale) };
   }
   const tldesOffer = tldesPriceFeedLookup.offers.get(tldesOfferKey(providerId, tld));
   if (tldesOffer) {
@@ -2330,6 +2352,20 @@ function providerComparisonOffer(
         `No se obtuvo un precio publicado actual de .${tld} en Porkbun. Abre el proveedor para comprobar disponibilidad y total.`,
         `Aucun prix publié actuel du .${tld} n’a été obtenu de Porkbun. Vérifiez la disponibilité et le total chez le fournisseur.`,
         `未能从 Porkbun 获取 .${tld} 当前公开价格。请在服务商处确认可用性和结算总额。`),
+    };
+  }
+  if (providerId === "cloudflare" && cloudflarePriceLookup.configured) {
+    return {
+      providerId, registrar: provider.registrar, purchaseUrl: provider.purchaseUrl(domain),
+      priceSourceUrl: CLOUDFLARE_REGISTRAR_PRICE_SOURCE_URL, priceStatus: "unavailable",
+      dataSource: "official_provider_api", connectorState: "public_source_active",
+      checkedAt: cloudflarePriceLookup.checkedAt, priceVerified: false,
+      note: localizedText(locale,
+        `No verified standard-price offer was returned for ${domain}. It may be unavailable, premium, unsupported, or the live check may have failed. Confirm with Cloudflare before buying.`,
+        `Inget verifierat standardpriserbjudande returnerades för ${domain}. Domänen kan vara upptagen, premiumklassad eller sakna stöd, alternativt kan livekontrollen ha misslyckats. Bekräfta hos Cloudflare före köp.`,
+        `No se obtuvo una oferta estándar verificada para ${domain}. Puede no estar disponible, ser premium, no ser compatible o haber fallado la comprobación en directo. Confírmalo con Cloudflare antes de comprar.`,
+        `Aucune offre standard vérifiée n’a été retournée pour ${domain}. Le domaine peut être indisponible, premium, non pris en charge, ou la vérification en direct peut avoir échoué. Confirmez auprès de Cloudflare avant l’achat.`,
+        `${domain} 未返回经验证的标准价格。该域名可能不可用、属于高级域名、不受支持，或实时检查失败。购买前请向 Cloudflare 确认。`),
     };
   }
   const priceFeedConfigured = connector.connectorState === "aggregated_price_feed_configured";
@@ -2357,11 +2393,12 @@ function registrarOffersForDomain(
   loopiaPriceLookup: RegistrarPriceLookup,
   tldesPriceFeedLookup: TldesPriceFeedLookup,
   porkbunPriceLookup: RegistrarPriceLookup,
+  cloudflarePriceLookup: RegistrarBridgeResult,
   locale: Locale,
 ): RegistrarOffer[] {
   return providerIds.map((providerId) => providerId === "loopia"
     ? loopiaPriceLookup.offers.get(tld) ?? { ...defaultRegistrarOffer(tld, locale), checkedAt: loopiaPriceLookup.checkedAt }
-    : providerComparisonOffer(providerId, domain, tld, tldesPriceFeedLookup, porkbunPriceLookup, locale));
+    : providerComparisonOffer(providerId, domain, tld, tldesPriceFeedLookup, porkbunPriceLookup, cloudflarePriceLookup, locale));
 }
 
 function selectedProviderMetadata(providerIds: readonly ProviderId[], locale: Locale): Array<{
@@ -2385,7 +2422,9 @@ function selectedProviderMetadata(providerIds: readonly ProviderId[], locale: Lo
       searchUrl: provider.purchaseUrl(""),
       priceSourceUrl: connector.dataSource === "tldes_price_feed"
         ? TLDES_PRICE_FEED_DOCS_URL
-        : providerId === "porkbun" ? PORKBUN_PRICE_API_URL : provider.priceSourceUrl,
+        : providerId === "porkbun" ? PORKBUN_PRICE_API_URL
+        : providerId === "cloudflare" && connector.connectorState === "public_source_active"
+          ? CLOUDFLARE_REGISTRAR_PRICE_SOURCE_URL : provider.priceSourceUrl,
       livePriceConnection,
       ...connector,
       note: providerId === "loopia"
@@ -3378,10 +3417,15 @@ return async function handler(request: VercelRequestLike, response: VercelRespon
     const porkbunPricesPromise = providerIds.includes("porkbun")
       ? getPorkbunPrices()
       : Promise.resolve<RegistrarPriceLookup>({ checkedAt: null, offers: new Map<string, RegistrarOffer>() });
+    const cloudflarePricesPromise = providerIds.includes("cloudflare")
+      ? fetchRegistrarBridgeOffers([...new Set(candidates.map(candidate => candidate.domain))])
+      : Promise.resolve<RegistrarBridgeResult>({ configured: false, status: "not_configured", checkedAt: null,
+        checkedDomains: 0, offers: new Map() });
 
     if (swipe) {
       const swipeRun = await verifySwipeCandidates(candidates, requestedCount, registryDeadline);
-      const [loopiaPriceLookup, tldesPriceFeedLookup, porkbunPriceLookup] = await Promise.all([registrarOffersPromise, tldesPriceFeedPromise, porkbunPricesPromise]);
+      const [loopiaPriceLookup, tldesPriceFeedLookup, porkbunPriceLookup, cloudflarePriceLookup] = await Promise.all(
+        [registrarOffersPromise, tldesPriceFeedPromise, porkbunPricesPromise, cloudflarePricesPromise]);
       const results: SearchResult[] = swipeRun.available.map(({ candidate, availability }, index) => {
         const registrarOffers = registrarOffersForDomain(
           candidate.domain,
@@ -3390,6 +3434,7 @@ return async function handler(request: VercelRequestLike, response: VercelRespon
           loopiaPriceLookup,
           tldesPriceFeedLookup,
           porkbunPriceLookup,
+          cloudflarePriceLookup,
           locale,
         );
         return {
@@ -3429,7 +3474,8 @@ return async function handler(request: VercelRequestLike, response: VercelRespon
         ...screening(candidate.domain, candidate.namingPattern, locale),
       };
     });
-    const [loopiaPriceLookup, tldesPriceFeedLookup, porkbunPriceLookup] = await Promise.all([registrarOffersPromise, tldesPriceFeedPromise, porkbunPricesPromise]);
+    const [loopiaPriceLookup, tldesPriceFeedLookup, porkbunPriceLookup, cloudflarePriceLookup] = await Promise.all(
+      [registrarOffersPromise, tldesPriceFeedPromise, porkbunPricesPromise, cloudflarePricesPromise]);
     const results: SearchResult[] = screenedResults.map((result, index) => {
       const registrarOffers = registrarOffersForDomain(
         result.domain,
@@ -3438,6 +3484,7 @@ return async function handler(request: VercelRequestLike, response: VercelRespon
         loopiaPriceLookup,
         tldesPriceFeedLookup,
         porkbunPriceLookup,
+        cloudflarePriceLookup,
         locale,
       );
       return {

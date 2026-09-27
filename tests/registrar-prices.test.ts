@@ -4,6 +4,7 @@ import handler from "../api/domain-search";
 
 const porkbunUrl = "https://api.porkbun.com/api/json/v3/pricing/get";
 const loopiaUrl = "https://www.loopia.se/domannamn/detaljerad_prislista/";
+const cloudflareBridgeUrl = "https://sajda-connector.vercel.app/api/internal/registrar/cloudflare";
 const hour = 60 * 60_000;
 let sequence = 0;
 let clockSequence = 0;
@@ -53,7 +54,8 @@ async function request(body: Record<string, unknown> = {}) {
 function fixture(t: TestContext) {
   const now = Date.UTC(2030, 0, 1) + ++clockSequence * 4 * hour;
   t.mock.timers.enable({ apis: ["Date"], now });
-  const envNames = ["TLDES_API_KEY", "NAME_QUEST_PROVIDER_PORKBUN_PRICE_API_URL", "NAME_QUEST_PROVIDER_PORKBUN_PRICE_API_TOKEN"];
+  const envNames = ["TLDES_API_KEY", "NAME_QUEST_PROVIDER_PORKBUN_PRICE_API_URL", "NAME_QUEST_PROVIDER_PORKBUN_PRICE_API_TOKEN",
+    "SAJDA_REGISTRAR_BRIDGE_TOKEN"];
   const saved = envNames.map(name => [name, process.env[name]] as const);
   envNames.forEach(name => { delete process.env[name]; });
   t.after(() => { for (const [name, value] of saved) {
@@ -69,12 +71,14 @@ function fixture(t: TestContext) {
     registryTaken: false,
     loopia: async (): Promise<Response> => new Response('<table><tr><td>.com </td><td><span class="with_tax">249,00</span><span class="without_tax">199,20</span></td><td><span class="with_tax">349,00</span></td></tr></table>', { headers: { "content-type": "text/html" } }),
     tldes: () => Response.json({ updated: new Date().toISOString(), registrars: [] }),
+    bridge: async (_init?: RequestInit): Promise<Response> => { assert.fail("Cloudflare bridge called without a test implementation"); },
   };
   t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
     calls.push({ url, init });
     if (url === porkbunUrl) return control.price(init);
     if (url === loopiaUrl) return control.loopia();
+    if (url === cloudflareBridgeUrl) return control.bridge(init);
     if (new URL(url).hostname === "tldes.com") return control.tldes();
     assert.match(url, /^https:\/\/(rdap\.verisign\.com|pubapi\.registry\.google|rdap\.publicinterestregistry\.org|rdap\.identitydigital\.services|rdap\.centralnic\.com|rdap\.nic\.biz)\//);
     const domain = decodeURIComponent(new URL(url).pathname.split("/domain/").at(-1)!);
@@ -295,6 +299,39 @@ test("Porkbun is fetched only when selected and works in Swipe with no price fee
   assert.ok(payload.results.every(result => result.status === "available" && result.registrarOffers[0].currency === "USD"));
   assert.equal(f.priceCalls().length, 1);
   assert.equal(f.calls.filter(call => new URL(call.url).hostname === "tldes.com").length, 0);
+});
+
+test("Cloudflare bridge returns a fresh exact-domain offer without exposing its credential", async t => {
+  const f = fixture(t);
+  const bridgeToken = "bridge_fixture_token_12345678901234567890";
+  process.env.SAJDA_REGISTRAR_BRIDGE_TOKEN = bridgeToken;
+  f.control.bridge = async init => {
+    assert.equal(init?.method, "POST");
+    assert.equal(init?.redirect, "error");
+    assert.equal(init?.cache, "no-store");
+    assert.equal(init?.credentials, "omit");
+    assert.equal((init?.headers as Record<string, string>).Authorization, `Bearer ${bridgeToken}`);
+    const domains = (JSON.parse(String(init?.body)) as { domains: string[] }).domains;
+    assert.equal(domains.length, 1);
+    const checkedAt = new Date(f.now).toISOString();
+    return Response.json({ status: "ok", checkedDomains: domains.length, offers: { [domains[0]]: {
+      providerId: "cloudflare", registrar: "Cloudflare", purchaseUrl: "https://www.cloudflare.com/domains/",
+      priceSourceUrl: "https://developers.cloudflare.com/api/resources/registrar/methods/check/",
+      priceStatus: "verified", priceVerified: true, dataSource: "official_provider_api", priceScope: "exact_domain_offer",
+      domain: domains[0], availability: "available", checkedAt, expiresAt: new Date(f.now + 300_000).toISOString(),
+      currency: "USD", registrationPrice: 10.46, renewalPrice: 10.46, taxTreatment: "unknown", priceType: "standard",
+    } } });
+  };
+  const payload = await request({ providers: ["cloudflare"] });
+  const exact = offer(payload, "cloudflare");
+  assert.equal(exact.priceStatus, "verified");
+  assert.equal(exact.priceScope, "exact_domain_offer");
+  assert.equal(exact.registrationPrice, 10.46);
+  assert.equal(exact.renewalPrice, 10.46);
+  assert.equal(exact.dataSource, "official_provider_api");
+  assert.equal(exact.connectorState, "public_source_active");
+  assert.equal(payload.providers[0].livePriceConnection, true);
+  assert.doesNotMatch(JSON.stringify(payload) + JSON.stringify(f.diagnostics), /bridge_fixture_token/);
 });
 
 test("configured TLDES remains a fallback with its own provenance and provider links", async t => {

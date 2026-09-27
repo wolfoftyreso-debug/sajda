@@ -16,6 +16,7 @@ if (origin.protocol !== "https:" || origin.username || origin.password || origin
   || !origin.hostname.endsWith(".vercel.app")) throw new Error("Use the verified dedicated Vercel production alias.");
 const endpoint = new URL("/api/mcp/public", origin).href;
 await mkdir(resolve(output, "functions/api/mcp/public.func"), { recursive: true });
+await mkdir(resolve(output, "functions/api/internal/registrar/cloudflare.func"), { recursive: true });
 await mkdir(resolve(output, "static"), { recursive: true });
 await mkdir(resolve(output, "static/connectors"), { recursive: true });
 const connectorAssets = [...CONNECTOR_HOSTS.map(host => host.logo.slice(1)), "connectors/LICENSE.txt"];
@@ -40,16 +41,26 @@ const bundle = await build({ entryPoints: [resolve(root, "infra/public-connector
     "AI_GATEWAY_API_KEY", "VERCEL_OIDC_TOKEN", "TLDES_API_KEY", "PORKBUN_API_KEY", "PORKBUN_SECRET_API_KEY",
     "STRIPE_SECRET_KEY", "RESEND_API_KEY"].map(key => [`process.env.${key}`, "undefined"])),
 });
-const inputs = Object.keys(bundle.metafile.inputs).map(path => path.replaceAll("\\", "/"));
+const registrarBundle = await build({ entryPoints: [resolve(root, "infra/public-connector/internal-registrar.ts")],
+  outfile: resolve(output, "functions/api/internal/registrar/cloudflare.func/index.mjs"), bundle: true,
+  platform: "node", target: "node24", format: "esm", minify: true, metafile: true,
+  banner: { js: 'import { createRequire as __sajdaCreateRequire } from "node:module"; const require = __sajdaCreateRequire(import.meta.url);' },
+});
+const inputs = [...new Set([...Object.keys(bundle.metafile.inputs), ...Object.keys(registrarBundle.metafile.inputs)])]
+  .map(path => path.replaceAll("\\", "/"));
 const forbidden = inputs.filter(path => /api\/(?:account|native|developer|auth|billing)|api\/_shared\/(?:account-server|mcp-product|developer-api-keys)|node_modules\/(?:pg|stripe|better-auth|@neondatabase)\//u.test(path));
 if (forbidden.length) throw new Error(`Private dependencies entered the public release: ${forbidden.join(", ")}`);
 await writeFile(resolve(output, "functions/api/mcp/public.func/.vc-config.json"), JSON.stringify({
+  runtime: "nodejs24.x", handler: "index.mjs", launcherType: "Nodejs", shouldAddHelpers: true, maxDuration: 60,
+}, null, 2));
+await writeFile(resolve(output, "functions/api/internal/registrar/cloudflare.func/.vc-config.json"), JSON.stringify({
   runtime: "nodejs24.x", handler: "index.mjs", launcherType: "Nodejs", shouldAddHelpers: true, maxDuration: 60,
 }, null, 2));
 await writeFile(resolve(output, "config.json"), JSON.stringify({ version: 3, routes: [
   { src: "/(.*)", headers: { "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex, nofollow",
     "Content-Security-Policy": "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'" }, continue: true },
   { src: "/api/mcp/public", dest: "/api/mcp/public" },
+  { src: "/api/internal/registrar/cloudflare", dest: "/api/internal/registrar/cloudflare" },
   { handle: "filesystem" },
   { src: "/(.*)", status: 404, dest: "/404.html" },
 ] }, null, 2));
@@ -66,6 +77,7 @@ async function files(directory) {
 }
 const allowed = new Set(["vercel.json", ".vercel/project.json", ".vercel/README.txt", ".gitignore", ".vercel/output/config.json",
   ".vercel/output/functions/api/mcp/public.func/index.mjs", ".vercel/output/functions/api/mcp/public.func/.vc-config.json",
+  ".vercel/output/functions/api/internal/registrar/cloudflare.func/index.mjs", ".vercel/output/functions/api/internal/registrar/cloudflare.func/.vc-config.json",
   ".vercel/output/static/index.html", ".vercel/output/static/404.html", ".vercel/output/static/robots.txt",
   ".vercel/output/static/downloads/sajda-connector.zip", ".vercel/output/static/downloads/sajda-connector.sha256",
   ".vercel/output/static/host-instructions.txt", ".vercel/output/static/policy.json", ".vercel/output/static/connector.json", ".vercel/output/static/llms.txt"]);

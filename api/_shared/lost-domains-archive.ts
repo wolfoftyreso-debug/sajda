@@ -121,6 +121,14 @@ export function createArchiveInspector(deps: {
     if (options.signal?.aborted) return empty(domain, checkedAt, "aborted");
     const timeout = AbortSignal.timeout(Math.max(1, Math.ceil(deadline - startedAt)));
     const signal = options.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
+    // Timer dispatch can be delayed while a busy process resumes another
+    // promise. Recheck the absolute deadline after every awaited gate so a
+    // late gate resolution can never start provider I/O before the timeout
+    // signal's event has had a chance to run.
+    const assertWithinDeadline = () => {
+      if (options.signal?.aborted) throw new LostDomainsFetchError("aborted");
+      if (timeout.aborted || now() >= deadline) throw new LostDomainsFetchError("timeout");
+    };
     let collection: string | null = null;
     busy = true;
     const boundedFetch: ArchiveFetch = async url => {
@@ -128,6 +136,7 @@ export function createArchiveInspector(deps: {
       const delay = Math.max(0, nextRequestAt - now());
       if (now() + delay >= deadline) throw new ArchiveError("timeout");
       if (delay) await withAbort(wait(delay, signal), signal);
+      assertWithinDeadline();
       if (deps.gate) {
         try {
           if (!await withAbort(deps.gate(signal), signal)) throw new ArchiveError("rate_limited");
@@ -136,6 +145,7 @@ export function createArchiveInspector(deps: {
           throw new ArchiveError("unavailable");
         }
       }
+      assertWithinDeadline();
       let response: SafeFetchResponse;
       try {
         response = await withAbort(fetch(url, { deadline, signal, maxBytes: url === COLLECTION_URL ? 131_072 : 32_768,

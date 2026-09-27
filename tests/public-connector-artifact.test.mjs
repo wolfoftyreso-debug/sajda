@@ -16,12 +16,19 @@ test("isolated public deployment bundles no private services and serves only ano
   const config = JSON.parse(await readFile(new URL("config.json", output), "utf8"));
   assert.equal(config.version, 3);
   assert.deepEqual(config.routes.filter(route => route.dest === "/api/mcp/public").map(route => route.src), ["/api/mcp/public"]);
+  assert.deepEqual(config.routes.filter(route => route.dest === "/api/internal/registrar/cloudflare").map(route => route.src),
+    ["/api/internal/registrar/cloudflare"]);
   assert.equal(config.routes.at(-1).status, 404);
   assert.equal(config.crons, undefined);
   const functionConfig = JSON.parse(await readFile(new URL("functions/api/mcp/public.func/.vc-config.json", output), "utf8"));
   assert.equal(functionConfig.runtime, "nodejs24.x");
   assert.equal(functionConfig.maxDuration, 60);
   assert.equal(functionConfig.environment, undefined);
+  const registrarFunctionConfig = JSON.parse(await readFile(
+    new URL("functions/api/internal/registrar/cloudflare.func/.vc-config.json", output), "utf8"));
+  assert.equal(registrarFunctionConfig.runtime, "nodejs24.x");
+  assert.equal(registrarFunctionConfig.maxDuration, 60);
+  assert.equal(registrarFunctionConfig.environment, undefined);
   const { default: handler } = await import(new URL("functions/api/mcp/public.func/index.mjs", output));
   const server = createServer((req, res) => void handler(req, res));
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
