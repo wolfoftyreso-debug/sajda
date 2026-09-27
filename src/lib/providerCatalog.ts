@@ -45,8 +45,12 @@ export interface ProviderCatalogEntry {
   livePriceConnected: boolean;
 }
 
-/** Compare every supported seller by default; users can narrow this before search. */
-export const DEFAULT_PROVIDER_IDS: ProviderId[] = [...PROVIDER_IDS];
+/**
+ * Start with the reviewed public price sources. The remaining providers stay
+ * available as clearly labelled checkout links instead of looking like live
+ * integrations before an operator connects the aggregated price feed.
+ */
+export const DEFAULT_PROVIDER_IDS: ProviderId[] = ["loopia", "porkbun"];
 
 export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
   {
@@ -102,7 +106,7 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     logoFallbackColor: "#ea5b33",
     purchaseUrl: () => "https://porkbun.com/products/domains",
     priceSourceUrl: "https://porkbun.com/products/domains",
-    livePriceConnected: false,
+    livePriceConnected: true,
   },
   {
     id: "dynadot",

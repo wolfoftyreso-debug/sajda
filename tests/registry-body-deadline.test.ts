@@ -102,7 +102,7 @@ for (const provider of ["porkbun", "tldes"] as const) test(`${provider} body sha
   f.control[provider] = async () => body.response;
   if (provider === "tldes") process.env.TLDES_API_KEY = "synthetic-test-key";
   const pending = invoke([provider === "tldes" ? "cloudflare" : provider]);
-  await nextTurn(); t.mock.timers.tick(7500);
+  await nextTurn(); t.mock.timers.tick(provider === "porkbun" ? 15_000 : 7_500);
   const payload = await pending;
   assert.equal(payload.results[0].status, "available");
   assert.notEqual(offer(payload, provider === "tldes" ? "cloudflare" : provider).priceStatus, "verified");

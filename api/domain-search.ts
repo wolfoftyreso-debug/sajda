@@ -407,7 +407,11 @@ const LOOPIA_PRICE_FETCH_TIMEOUT_MS = 7_500;
 const LOOPIA_PRICE_RESPONSE_LIMIT_BYTES = 1_000_000;
 const PORKBUN_PRICE_CACHE_TTL_MS = 15 * 60_000;
 const PORKBUN_PRICE_FAILURE_CACHE_TTL_MS = 60_000;
-const PORKBUN_PRICE_FETCH_TIMEOUT_MS = 7_500;
+// Porkbun's public all-TLD snapshot is consistently slower than the smaller
+// provider documents (roughly 9s from Vercel during release verification).
+// Keep it bounded below the function deadline, but do not abort a healthy
+// response before the complete price catalogue arrives.
+const PORKBUN_PRICE_FETCH_TIMEOUT_MS = 15_000;
 const PORKBUN_PRICE_RESPONSE_LIMIT_BYTES = 1_000_000;
 // TLDES refreshes the source hourly. Cache a complete, filtered public
 // provider snapshot just under an hour so repeated domain checks do not turn
@@ -1149,9 +1153,9 @@ function normalizeProviderIds(
   input: unknown,
   locale: Locale,
 ): { providerIds?: PublicProviderId[]; error?: string } {
-  // Existing clients did not send provider choices. Keep their established
-  // Loopia offer while new clients can opt into a transparent comparison.
-  if (input === undefined) return { providerIds: ["loopia"] };
+  // Existing clients may omit provider choices. Return both reviewed public
+  // price sources by default; link-only providers remain explicit opt-ins.
+  if (input === undefined) return { providerIds: ["loopia", "porkbun"] };
   if (!Array.isArray(input)) {
     return {
       error: localizedText(

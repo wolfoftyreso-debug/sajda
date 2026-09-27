@@ -280,7 +280,7 @@ test("a stalled JSON body is aborted by the price timeout", async t => {
   };
   const pending = request();
   await reading;
-  t.mock.timers.tick(7_500);
+  t.mock.timers.tick(15_000);
   assert.equal(offer(await pending).priceStatus, "unavailable");
   assert.equal(signal?.aborted, true);
   assert.deepEqual(f.diagnostics, [{ event: "registrar_price_unavailable", provider: "porkbun", reason: "timeout" }]);

@@ -1172,7 +1172,7 @@ export default function Developers() {
     "tlds": ["com", "dev"],
     "count": 3,
     "locale": "en",
-    "providers": ["loopia"],
+    "providers": ["loopia", "porkbun"],
     "creativeMode": "medium"
   }'`, [origin]);
 
@@ -1194,7 +1194,7 @@ export default function Developers() {
           tlds: ["com", "dev"],
           count: 3,
           locale: "en",
-          providers: ["loopia"],
+          providers: ["loopia", "porkbun"],
           creativeMode: "medium",
         }),
       });

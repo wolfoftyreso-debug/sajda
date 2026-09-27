@@ -92,7 +92,7 @@ const ProviderSelector = ({
                   aria-label={`${provider.name} — ${provider.livePriceConnected ? t("providers.livePrice") : t("providers.checkPrice")}`}
                   title={`${provider.name} — ${provider.livePriceConnected ? t("providers.livePrice") : t("providers.checkPrice")}`}
                   className={cn(
-                    "relative flex min-h-14 items-center rounded-xl border px-3 py-2 pr-9 text-left text-sm transition-[background-color,border-color,color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                    "relative flex min-h-16 items-center rounded-xl border px-3 py-2.5 pr-9 text-left text-sm transition-[background-color,border-color,color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                     isSelected
                       ? "border-foreground bg-card text-foreground shadow-[0_1px_2px_rgba(15,23,42,0.08)]"
                       : "border-border bg-card text-muted-foreground hover:border-foreground/40 hover:bg-secondary/65 hover:text-foreground",
@@ -101,7 +101,12 @@ const ProviderSelector = ({
                 >
                   <span className="flex min-w-0 items-center gap-2.5 pr-1">
                     <ProviderLogo provider={provider} size="sm" />
-                    <span className="min-w-0 truncate font-medium leading-5">{provider.name}</span>
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium leading-5">{provider.name}</span>
+                      <span className="block truncate text-[11px] leading-4 text-muted-foreground">
+                        {provider.livePriceConnected ? t("providers.livePrice") : t("providers.checkPrice")}
+                      </span>
+                    </span>
                   </span>
                   <span
                     aria-hidden="true"
