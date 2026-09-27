@@ -161,7 +161,7 @@ remain false. Temporary local QA was stopped and viewport overrides reset.
 
 ## Next five release actions
 
-1. Provision the approved Resend plan and verify `mail.hypbit.com`; inspect
+1. Provision the approved Resend plan and verify `mail.sajda.com` (owner's updated selection, 2026-09-24); inspect
    actual delivered account/reset/deletion and support messages.
 2. Review a customer-reachable backend and production configuration; apply
    production migrations only in that separate reviewed release operation.

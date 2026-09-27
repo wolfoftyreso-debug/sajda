@@ -5,7 +5,7 @@ Status: **operator review required**, 24 September 2026. Internal release worksh
 ## Already established — do not ask the owner again
 
 - Sajda's operator is **Landvex AB**, confirmed by the owner. Company-published particulars: Swedish registration number **559141-7042**, Antennvägen 2, 135 48 Tyresö, Sweden, registered office Tyresö; telephone +46 10 198 58 81. [Company source](https://landvex.com/company).
-- Contact and support recipient: **dev@hypbit.com**. Intended account-email sender domain: **mail.hypbit.com**. Reset links and deletion codes go to the account holder, never automatically to support.
+- Contact and support recipient: **dev@hypbit.com**. Intended account-email sender domain: **mail.sajda.com**, selected by the owner on 2026-09-24 in place of the previous Hypbit sender domain. Reset links and deletion codes go to the account holder, never automatically to support.
 - Infrastructure intent: Vercel and Neon. Better Auth runs in the application. Source includes conditional Resend, Stripe, Apple, registry/registrar requests and optional AI. A source reference is not proof that a vendor is enabled in production.
 - Website pricing is USD/month. Current shared prices are in `shared/plans.ts`; do not duplicate amounts here. The pricing page explicitly distinguishes current functionality from planned paid features and does not offer Basic/Premium checkout.
 - Apple enrolment is not yet completed. This does not by itself prevent a separately ready web release; it does prevent claiming an App Store release is ready.

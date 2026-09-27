@@ -67,6 +67,8 @@ was introduced. Bas/Premium purchases remain unimplemented/inactive.
 
 ## Resend
 
+**2026-09-24 update:** the owner changed the intended sender domain to `mail.sajda.com`. The observations below record the earlier configuration, not the current target or proof of active email delivery. See [current release status](RELEASE-HARDENING-2026-09-24.md).
+
 The operator chose `mail.hypbit.com` as the sender domain. Preview/development
 sender configuration is `Sajda <noreply@mail.hypbit.com>`; the contact recipient
 remains `dev@hypbit.com`. Verification/reset emails belong to the account holder,
