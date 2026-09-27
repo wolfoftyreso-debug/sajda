@@ -10,6 +10,10 @@ const ready = () => ({
   DATABASE_URL: "postgresql://user:fixture@ep-production-pooler.eu.neon.tech/app",
   DATABASE_URL_UNPOOLED: "postgresql://user:fixture@ep-production.eu.neon.tech/app",
   RESEND_API_KEY: "re_fixtureNotARealKey", SAJDA_EMAIL_FROM: "Sajda <hello@sajda.dev>",
+  GOOGLE_CLIENT_ID: "google-fixture-id", GOOGLE_CLIENT_SECRET: "google-fixture-secret",
+  GITHUB_CLIENT_ID: "github-fixture-id", GITHUB_CLIENT_SECRET: "github-fixture-secret",
+  TWITTER_CLIENT_ID: "twitter-fixture-id", TWITTER_CLIENT_SECRET: "twitter-fixture-secret",
+  APPLE_CLIENT_ID: "apple-fixture-id", APPLE_CLIENT_SECRET: "apple.fixture.secret",
 });
 
 test("production builds reject missing account/email dependencies without exposing values", () => {
@@ -17,10 +21,20 @@ test("production builds reject missing account/email dependencies without exposi
   assert.ok(issues.includes("production_email_key_required"));
   assert.ok(issues.includes("production_auth_secret_required"));
   assert.ok(issues.includes("production_database_identity_not_confirmed"));
+  assert.ok(issues.includes("production_google_oauth_required"));
+  assert.ok(issues.includes("production_apple_oauth_required"));
   assert.throws(() => createVercelBuildEnvironment({ VERCEL_ENV: "production" }), /Production release blocked/u);
   assert.doesNotThrow(() => createVercelBuildEnvironment({ VERCEL_ENV: "preview" }));
   const sensitive = { ...ready(), DATABASE_URL: "private-do-not-log", BETTER_AUTH_SECRET: "private" };
   assert.throws(() => assertProductionConfiguration(sensitive), error => !error.message.includes("private"));
+});
+
+test("production requires every promised social sign-in provider and rejects partial pairs", () => {
+  for (const [provider, key] of [["google", "GOOGLE_CLIENT_SECRET"], ["github", "GITHUB_CLIENT_ID"],
+    ["twitter", "TWITTER_CLIENT_SECRET"], ["apple", "APPLE_CLIENT_ID"]]) {
+    assert.ok(productionConfigurationIssues({ ...ready(), [key]: "" }).includes(`production_${provider}_oauth_required`));
+  }
+  assert.deepEqual(productionConfigurationIssues(ready()), []);
 });
 
 test("production target, pooled connection and canonical cannot silently drift", () => {

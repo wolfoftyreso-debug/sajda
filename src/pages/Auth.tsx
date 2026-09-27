@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Mail, Lock, Loader2, ArrowLeft, ArrowRight, CheckCircle2, KeyRound, Eye, EyeOff } from "lucide-react";
 import AuthLayout from "@/components/auth/AuthLayout";
+import SocialAuthButtons from "@/components/auth/SocialAuthButtons";
+import type { SocialAuthProviderId } from "@/integrations/neon/social-auth";
 import { useToast } from "@/hooks/use-toast";
 import { isAccountAuthConfigured, accountAuthUnavailableReason } from "@/integrations/neon/auth";
 import { passwordRecoveryToken, safeAccountPath } from "@/lib/authNavigation";
@@ -358,6 +360,7 @@ const Auth = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [visiblePasswords, setVisiblePasswords] = useState({ password: false, confirmation: false });
   const [loading, setLoading] = useState(false);
+  const [socialBusy, setSocialBusy] = useState<SocialAuthProviderId | null>(null);
   const [resetEmailSent, setResetEmailSent] = useState(false);
   const [passwordUpdated, setPasswordUpdated] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -365,7 +368,8 @@ const Auth = () => {
   const [recoveryToken, setRecoveryToken] = useState(() => passwordRecoveryToken(location.search));
   const [errors, setErrors] = useState<{ email?: string; password?: string; confirmPassword?: string }>({});
 
-  const { signIn, signUp, requestPasswordReset, requestEmailVerification, updatePassword, user, loading: authLoading } = useAuth();
+  const { signIn, signInSocial, signUp, requestPasswordReset, requestEmailVerification, updatePassword, user, loading: authLoading,
+    socialProviders, socialProvidersLoading } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { language } = useLanguage();
@@ -388,6 +392,14 @@ const Auth = () => {
     setVisiblePasswords({ password: false, confirmation: false });
     if (requestedMode !== "update-password") setRecoveryToken(null);
   }, [requestedMode]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("oauth") !== "failed") return;
+    setFormError(presentation.socialUnable);
+    params.delete("oauth"); params.delete("error"); params.delete("error_description");
+    navigate({ pathname: location.pathname, search: params.size ? `?${params.toString()}` : "" }, { replace: true });
+  }, [location.pathname, location.search, navigate, presentation.socialUnable]);
 
   // Recovery is authorized by a one-use server-issued token, never by an ordinary
   // signed-in session. Keep it in memory and remove it from visible navigation.
@@ -530,6 +542,18 @@ const Auth = () => {
     }
   };
 
+  const handleSocialSignIn = async (provider: SocialAuthProviderId) => {
+    if (loading || socialBusy) return;
+    setFormError(null); setSocialBusy(provider);
+    try {
+      const { error } = await signInSocial(provider, nextPath);
+      if (error) {
+        setFormError(presentation.socialUnable);
+        toast({ title: presentation.socialFailed, description: presentation.socialUnable, variant: "destructive" });
+      }
+    } finally { setSocialBusy(null); }
+  };
+
   const handleResetRequestSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (loading) return;
@@ -614,7 +638,7 @@ const Auth = () => {
             setErrors((current) => ({ ...current, email: undefined }));
           }}
           className="pl-10"
-          disabled={loading}
+          disabled={loading || socialBusy !== null}
           aria-invalid={Boolean(errors.email)}
           aria-describedby={errors.email ? "email-error" : undefined}
         />
@@ -654,7 +678,7 @@ const Auth = () => {
               setErrors((current) => ({ ...current, [confirm ? "confirmPassword" : "password"]: undefined }));
             }}
             className="pl-10 pr-14"
-            disabled={loading}
+            disabled={loading || socialBusy !== null}
             aria-invalid={Boolean(error)}
             aria-describedby={error ? `${fieldId}-error` : !isSignIn && !confirm ? "password-requirements" : undefined}
           />
@@ -665,7 +689,7 @@ const Auth = () => {
             aria-label={visibilityLabel}
             aria-pressed={visible}
             aria-controls={fieldId}
-            disabled={loading}
+            disabled={loading || socialBusy !== null}
             onClick={() => setVisiblePasswords((current) => ({ ...current, [visibilityKey]: !current[visibilityKey] }))}
           >
             {visible ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
@@ -753,30 +777,35 @@ const Auth = () => {
               </div>
 
               {(isSignIn || isSignUp) && (
-                <form noValidate onSubmit={handleCredentialsSubmit} className="space-y-4">
-                  {renderEmailField()}
-                  {renderPasswordField()}
-                  {renderFormError()}
-                  {isSignIn && verificationRequired && (
-                    <Button type="button" variant="outline" disabled={loading} onClick={() => void handleVerificationRequest()} className="sajda-auth-action w-full whitespace-normal">
-                      {verifyCopy.resend}
-                    </Button>
-                  )}
-                  {isSignIn && (
-                    <div className="flex justify-end">
-                      <button type="button" disabled={loading} onClick={() => changeScreen("request-reset")} className="sajda-auth-text-action">
-                        {copy.forgotPassword}
-                      </button>
-                    </div>
-                  )}
-                  <Button type="submit" disabled={loading} className="w-full gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
-                    {loading ? (
-                      <><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /><span>{isSignIn ? copy.signingIn : copy.creatingAccount}</span></>
-                    ) : (
-                      <>{isSignIn ? copy.signIn : copy.createAccount}<ArrowRight className="h-4 w-4" aria-hidden="true" /></>
+                <>
+                  {socialProvidersLoading ? <p role="status" className="sajda-social-auth-loading"><Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />{presentation.checkingMethods}</p>
+                    : <SocialAuthButtons providers={socialProviders} copy={presentation} busyProvider={socialBusy}
+                      disabled={loading || socialBusy !== null} onSelect={provider => void handleSocialSignIn(provider)} />}
+                  <form noValidate onSubmit={handleCredentialsSubmit} className="space-y-4">
+                    {renderEmailField()}
+                    {renderPasswordField()}
+                    {renderFormError()}
+                    {isSignIn && verificationRequired && (
+                      <Button type="button" variant="outline" disabled={loading || socialBusy !== null} onClick={() => void handleVerificationRequest()} className="sajda-auth-action w-full whitespace-normal">
+                        {verifyCopy.resend}
+                      </Button>
                     )}
-                  </Button>
-                </form>
+                    {isSignIn && (
+                      <div className="flex justify-end">
+                        <button type="button" disabled={loading || socialBusy !== null} onClick={() => changeScreen("request-reset")} className="sajda-auth-text-action">
+                          {copy.forgotPassword}
+                        </button>
+                      </div>
+                    )}
+                    <Button type="submit" disabled={loading || socialBusy !== null} className="w-full gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
+                      {loading ? (
+                        <><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /><span>{isSignIn ? copy.signingIn : copy.creatingAccount}</span></>
+                      ) : (
+                        <>{isSignIn ? copy.signIn : copy.createAccount}<ArrowRight className="h-4 w-4" aria-hidden="true" /></>
+                      )}
+                    </Button>
+                  </form>
+                </>
               )}
 
               {isResetRequest && (
@@ -812,7 +841,7 @@ const Auth = () => {
                 {isSignIn || isSignUp ? (
                   <p className="text-sm leading-6 text-muted-foreground">
                     {isSignIn ? copy.noAccount : copy.alreadyHaveAccount}{" "}
-                    <button type="button" disabled={loading} onClick={() => changeScreen(isSignIn ? "sign-up" : "sign-in")} className="sajda-auth-text-action">{isSignIn ? copy.register : copy.signIn}</button>
+                    <button type="button" disabled={loading || socialBusy !== null} onClick={() => changeScreen(isSignIn ? "sign-up" : "sign-in")} className="sajda-auth-text-action">{isSignIn ? copy.register : copy.signIn}</button>
                   </p>
                 ) : (
                   <button type="button" disabled={loading} onClick={() => changeScreen("sign-in")} className="sajda-auth-text-action">

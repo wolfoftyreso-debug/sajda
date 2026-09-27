@@ -24,6 +24,12 @@ export function passwordRecoveryUrl(origin: string, nextPath?: string): string {
   return callback.toString();
 }
 
+export function socialAuthErrorUrl(origin: string, nextPath?: string): string {
+  const callback = new URL(accountCallbackUrl(origin, nextPath));
+  callback.searchParams.set("oauth", "failed");
+  return callback.toString();
+}
+
 /** The provider validates authenticity/expiry; this bounds untrusted URL input. */
 export function passwordRecoveryToken(search: string): string | null {
   const token = new URLSearchParams(search).get("token");

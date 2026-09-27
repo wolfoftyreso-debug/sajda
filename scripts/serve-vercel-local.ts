@@ -30,6 +30,7 @@ import nameProjects from "../api/account/name-projects";
 import namePackageSocial from "../api/account/name-package-social";
 import lostDomainsCron from "../api/cron/lost-domains";
 import auth from "../api/auth";
+import authProviders from "../api/auth-providers";
 import contact from "../api/contact";
 import billing from "../api/account/billing";
 import billingWebhook from "../api/billing-webhook";
@@ -60,6 +61,7 @@ const handlers = new Map<string, Handler>([
   ["/api/native/auth",nativeAuth], ["/api/native/account",nativeAccount],
   ["/api/native/commerce",nativeCommerce], ["/api/app-store-webhook",appStoreWebhook],
   ["/api/auth",auth],
+  ["/api/auth-providers",authProviders],
   ["/api/domain-search", search], ["/api/deep-review", deepReview], ["/api/health", health],
   ["/api/v1/public/domains", publicDomains], ["/api/v1/domains", protectedDomains],
   ["/api/v1/public/name-packages", publicNamePackages], ["/api/v1/name-packages", protectedNamePackages],

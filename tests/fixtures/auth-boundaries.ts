@@ -12,7 +12,9 @@ export function authFixtureBoundary(id: string): string | undefined {
     };
     export const useAuth=()=>({
       user:qa.user,loading:qa.loading,
+      socialProviders:qa.socialProviders??['google','twitter','github','apple'].map(id=>({id,enabled:true})),socialProvidersLoading:false,
       signIn:(email,password)=>call('signIn',{email,passwordLength:password.length}),
+      signInSocial:(provider,nextPath)=>call('signInSocial',{provider,nextPath}),
       signUp:(email,password,nextPath)=>call('signUp',{email,passwordLength:password.length,nextPath}),
       requestPasswordReset:(email,nextPath)=>call('requestPasswordReset',{email,nextPath}),
       requestEmailVerification:(email,nextPath)=>call('requestEmailVerification',{email,nextPath}),

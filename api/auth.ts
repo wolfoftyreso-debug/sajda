@@ -16,8 +16,9 @@ interface AuthResponse {
 }
 
 export const config = { maxDuration: 30 };
-const postActions = new Set(["sign-in/email", "sign-up/email", "sign-out", "request-password-reset", "reset-password", "send-verification-email"]);
+const postActions = new Set(["sign-in/email", "sign-in/social", "sign-up/email", "sign-out", "request-password-reset", "reset-password", "send-verification-email"]);
 const mailActions = new Set(["sign-up/email", "request-password-reset", "send-verification-email"]);
+const oauthCallback = /^callback\/(?:google|twitter|github|apple)$/u;
 
 export function authAction(request: AuthRequest): { action: string; search: URLSearchParams } {
   const url = new URL(request.url ?? "/api/auth", "https://routing.invalid");
@@ -31,9 +32,11 @@ export function authAction(request: AuthRequest): { action: string; search: URLS
   return { action, search: url.searchParams };
 }
 
-async function authBody(request: AuthRequest): Promise<string> {
+async function authBody(request: AuthRequest, allowForm = false): Promise<string> {
   const contentType = request.headers["content-type"];
-  if (typeof contentType !== "string" || !/^application\/json(?:\s*;|$)/iu.test(contentType)) {
+  const json = typeof contentType === "string" && /^application\/json(?:\s*;|$)/iu.test(contentType);
+  const form = allowForm && typeof contentType === "string" && /^application\/x-www-form-urlencoded(?:\s*;|$)/iu.test(contentType);
+  if (!json && !form) {
     throw new AccountAccessError("unsupported_media_type", 415, "Send an application/json request.");
   }
   const declaredSize = request.headers["content-length"];
@@ -53,7 +56,18 @@ async function authBody(request: AuthRequest): Promise<string> {
   }
   let text: string;
   if (value !== undefined) {
-    try { text = typeof value === "string" ? value : Buffer.isBuffer(value) ? value.toString("utf8") : JSON.stringify(value); }
+    try {
+      if (typeof value === "string") text = value;
+      else if (Buffer.isBuffer(value)) text = value.toString("utf8");
+      else if (form && value && typeof value === "object" && !Array.isArray(value)) {
+        const params = new URLSearchParams();
+        for (const [key, item] of Object.entries(value)) {
+          if (typeof item !== "string") throw new Error();
+          params.set(key, item);
+        }
+        text = params.toString();
+      } else text = JSON.stringify(value);
+    }
     catch { throw new AccountAccessError("invalid_request", 400, "Enter valid account details."); }
   }
   else {
@@ -69,8 +83,13 @@ async function authBody(request: AuthRequest): Promise<string> {
   if (typeof text !== "string") throw new AccountAccessError("invalid_request", 400, "Enter valid account details.");
   if (Buffer.byteLength(text) > 16_384) throw new AccountAccessError("request_too_large", 413, "This account request is too large.");
   try {
-    const body = JSON.parse(text);
-    if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error();
+    if (json) {
+      const body = JSON.parse(text);
+      if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error();
+    } else {
+      const body = new URLSearchParams(text);
+      if (![...body.keys()].every(key => /^[a-z_]{1,32}$/u.test(key))) throw new Error();
+    }
   } catch { throw new AccountAccessError("invalid_request", 400, "Enter valid account details."); }
   return text;
 }
@@ -98,23 +117,24 @@ export function createAuthHandler(resolveAuth: (origin: string) => Pick<AccountA
     })) response.setHeader(name, value);
     try {
       const { action, search } = authAction(request);
+      const isOauthCallback = oauthCallback.test(action);
       const getAllowed = action === "get-session" || action === "verify-email" || /^reset-password\/[A-Za-z0-9_-]{1,256}$/u.test(action);
-      const allowed = getAllowed ? "GET" : postActions.has(action) ? "POST" : undefined;
-      if (!allowed) throw new AccountAccessError("not_found", 404, "Account endpoint not found.");
-      if (request.method !== allowed) {
-        response.setHeader("Allow", allowed);
-        throw new AccountAccessError("method_not_allowed", 405, `Use ${allowed} for this account action.`);
+      const allowed = isOauthCallback ? ["GET", "POST"] : getAllowed ? ["GET"] : postActions.has(action) ? ["POST"] : [];
+      if (!allowed.length) throw new AccountAccessError("not_found", 404, "Account endpoint not found.");
+      if (!request.method || !allowed.includes(request.method)) {
+        response.setHeader("Allow", allowed.join(", "));
+        throw new AccountAccessError("method_not_allowed", 405, `Use ${allowed.join(" or ")} for this account action.`);
       }
       const origin = accountRequestOrigin(request.headers);
-      if (allowed === "POST") requireSameOrigin(request.headers, origin);
-      const body = allowed === "POST" ? await authBody(request) : undefined;
+      if (request.method === "POST" && !isOauthCallback) requireSameOrigin(request.headers, origin);
+      const body = request.method === "POST" ? await authBody(request, isOauthCallback) : undefined;
       if (mailActions.has(action) && !emailReady()) {
         throw new AccountAccessError("email_not_configured", 503, "Account email is not available yet. Please try again later.");
       }
       const headers = accountWebHeaders(request.headers);
       // Local QA has one real client address; never accept a browser's spoofed proxy IP.
       if (!process.env.VERCEL) headers.set("x-vercel-forwarded-for", "127.0.0.1");
-      const result = await resolveAuth(origin).handler(new Request(`${origin}/api/auth/${action}?${search}`, { method: allowed, headers, body }));
+      const result = await resolveAuth(origin).handler(new Request(`${origin}/api/auth/${action}?${search}`, { method: request.method, headers, body }));
       const retryAfter = result.headers.get("retry-after") ?? result.headers.get("x-retry-after");
       if (retryAfter && /^\d{1,6}$/u.test(retryAfter)) response.setHeader("Retry-After", retryAfter);
       for (const name of ["content-type", "location", "retry-after"]) {

@@ -14,7 +14,7 @@ export default function AuthLayout({ children, screen, backLabel }: { children: 
     <div className="sajda-auth">
       <header className="sajda-auth-header">
         <Link to="/" className="sajda-auth-logo rounded-lg">
-          <img src="/sajda-logo.svg" alt="Sajda" width="760" height="240" fetchPriority="high" />
+          <img src="/sajda-logo.svg" alt="Sajda" width="760" height="240" />
         </Link>
         <Link to="/" className="sajda-auth-back">
           <ArrowLeft size={16} aria-hidden="true" />{backLabel}

@@ -4,6 +4,7 @@ import { AccountAccessError } from "./account-error.js";
 import { sendAccountEmail, type AccountEmailMessage } from "./account-email.js";
 import { emailLanguage } from "../../shared/account-email-copy.js";
 import { createAccountRateLimitStorage } from "./account-rate-limit.js";
+import { socialAuthProviders } from "./social-auth.js";
 
 /** pg returns int8 as text by default, but the SDK limiter performs date arithmetic. */
 export function createAccountPool(connectionString: string): Pool {
@@ -25,13 +26,22 @@ export function createAccountAuth(options: {
   secret: string;
   pool: Pool;
   sendEmail?: (message: AccountEmailMessage) => Promise<void>;
+  environment?: NodeJS.ProcessEnv;
 }) {
   const sendEmail = options.sendEmail ?? sendAccountEmail;
+  const secureCookies = new URL(options.origin).protocol === "https:";
   return betterAuth({
     appName: "Sajda", baseURL: options.origin, basePath: "/api/auth", secret: options.secret,
     database: options.pool, trustedOrigins: [options.origin],
     user: { modelName: "sajda_auth_user" },
-    account: { modelName: "sajda_auth_account", accountLinking: { enabled: false } },
+    account: {
+      modelName: "sajda_auth_account", encryptOAuthTokens: true,
+      accountLinking: {
+        enabled: true, disableImplicitLinking: false, requireLocalEmailVerified: true,
+        allowDifferentEmails: false, allowUnlinkingAll: false, updateUserInfoOnLink: false,
+      },
+    },
+    socialProviders: socialAuthProviders(options.environment),
     verification: { modelName: "sajda_auth_verification" },
     session: {
       modelName: "sajda_auth_session", expiresIn: 7 * 24 * 60 * 60, updateAge: 24 * 60 * 60,
@@ -51,14 +61,18 @@ export function createAccountAuth(options: {
       customStorage: createAccountRateLimitStorage(options.pool),
       customRules: {
         "/sign-in/email": { window: 60, max: 5 },
+        "/sign-in/social": { window: 60, max: 10 },
         "/sign-up/email": { window: 600, max: 5 },
         "/request-password-reset": { window: 600, max: 3 },
         "/send-verification-email": { window: 600, max: 3 },
       },
     },
     advanced: {
-      cookiePrefix: "sajda", useSecureCookies: new URL(options.origin).protocol === "https:",
+      cookiePrefix: "sajda", useSecureCookies: secureCookies,
       defaultCookieAttributes: { httpOnly: true, sameSite: "lax", path: "/" },
+      // Apple returns authorization by cross-site form POST. Only the short-lived,
+      // signed OAuth state cookie needs SameSite=None; the session remains Lax.
+      ...(secureCookies ? { cookies: { state: { attributes: { httpOnly: true, secure: true, sameSite: "none", path: "/", maxAge: 300 } } } } : {}),
       ipAddress: { ipAddressHeaders: ["x-vercel-forwarded-for"] },
     },
     // Never forward library payloads (which may contain credentials) into logs.

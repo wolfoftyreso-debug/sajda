@@ -13,7 +13,7 @@ function label(node: ReactTestInstance): string { return node.children.map(child
 test("auth presentation preserves validation, return destinations and recovery boundaries", async t => {
   const original = Object.getOwnPropertyDescriptor(globalThis, AUTH_FIXTURE_KEY);
   const originalFetch = globalThis.fetch;
-  type Call = { method: string; email?: string; passwordLength?: number; nextPath?: string; token?: string };
+  type Call = { method: string; email?: string; passwordLength?: number; nextPath?: string; token?: string; provider?: string };
   const fixture = { calls: [] as Call[], toasts: [] as unknown[], user: null as null | { id: string }, configured: true, loading: false, delay: 0, errorCode: null as string | null, language: "en" };
   Object.defineProperty(globalThis, AUTH_FIXTURE_KEY, { configurable: true, value: fixture });
   let networkCalls = 0;
@@ -73,6 +73,12 @@ test("auth presentation preserves validation, return destinations and recovery b
       assert.deepEqual(fixture.calls[0], { method: "signUp", email: "fixture@example.invalid", passwordLength: 22, nextPath: "/developers#access" });
       assert.equal(new URLSearchParams(currentLocation().search).get("mode"), null);
       assert.equal(new URLSearchParams(currentLocation().search).get("next"), "/developers#access");
+    });
+    await t.test("social sign-in uses the same safe return destination and four labelled provider actions", async () => {
+      await mount();
+      for (const provider of ["Google", "X", "GitHub", "Apple"]) assert.ok(button(provider));
+      await click("Google");
+      assert.deepEqual(fixture.calls, [{ method: "signInSocial", provider: "google", nextPath: "/developers#access" }]);
     });
     await t.test("password visibility uses a labelled native button and resets on mode changes", async () => {
       await mount(); await credentials();

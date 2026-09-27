@@ -11,6 +11,17 @@ function httpsOrigin(value) {
   } catch { return null; }
 }
 
+const socialProviders = [
+  ["google", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
+  ["github", "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET"],
+  ["twitter", "TWITTER_CLIENT_ID", "TWITTER_CLIENT_SECRET"],
+  ["apple", "APPLE_CLIENT_ID", "APPLE_CLIENT_SECRET"],
+];
+function oauthCredential(value, maximum = 4096) {
+  const normalized = value?.trim();
+  return typeof normalized === "string" && normalized.length >= 3 && normalized.length <= maximum && !/[\u0000-\u001f\u007f]/u.test(normalized);
+}
+
 export function productionConfigurationIssues(env = process.env, deployment = {}) {
   if (env.VERCEL_ENV !== "production") return [];
   const issues = [];
@@ -38,6 +49,11 @@ export function productionConfigurationIssues(env = process.env, deployment = {}
     }
   } catch { issues.push("production_database_connections_invalid"); }
   if ((env.BETTER_AUTH_SECRET?.trim().length ?? 0) < 32) issues.push("production_auth_secret_required");
+  for (const [provider, idVariable, secretVariable] of socialProviders) {
+    const hasId = oauthCredential(env[idVariable], 512);
+    const hasSecret = oauthCredential(env[secretVariable], provider === "apple" ? 8192 : 4096);
+    if (!hasId || !hasSecret) issues.push(`production_${provider}_oauth_required`);
+  }
   if (!/^re_[A-Za-z0-9_-]{10,}$/u.test(env.RESEND_API_KEY?.trim() ?? "")) {
     issues.push("production_email_key_required");
   }

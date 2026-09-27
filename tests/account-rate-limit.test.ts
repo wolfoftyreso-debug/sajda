@@ -159,7 +159,8 @@ test("the real Better Auth HTTP chain uses the custom limiter for sustained anon
     const auth = createAccountAuth({ origin: "https://sajda.test", secret: "fixture-only-secret-not-a-real-credential".repeat(2), pool,
       sendEmail: async () => { assert.fail("The session limiter test must never send email"); } });
     assert.deepEqual(auth.options.rateLimit?.customRules, {
-      "/sign-in/email": { window: 60, max: 5 }, "/sign-up/email": { window: 600, max: 5 },
+      "/sign-in/email": { window: 60, max: 5 }, "/sign-in/social": { window: 60, max: 10 },
+      "/sign-up/email": { window: 600, max: 5 },
       "/request-password-reset": { window: 600, max: 3 }, "/send-verification-email": { window: 600, max: 3 },
     });
     const request = () => new Request("https://sajda.test/api/auth/get-session", { headers: { "x-vercel-forwarded-for": "192.0.2.9" } });

@@ -2,7 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 /* eslint-disable react-refresh/only-export-components -- The provider and consumer hook belong together. */
 import type { AccountSession, AccountUser } from "@/integrations/neon/account-types";
 import { accountError, getAccountAuthClient, isAccountAuthConfigured, readAccountSession } from "@/integrations/neon/auth";
-import { accountCallbackUrl, passwordRecoveryUrl } from "@/lib/authNavigation";
+import { accountCallbackUrl, passwordRecoveryUrl, socialAuthErrorUrl } from "@/lib/authNavigation";
+import { readSocialAuthProviders, verifiedSocialAuthorizationUrl, type SocialAuthProviderAvailability, type SocialAuthProviderId } from "@/integrations/neon/social-auth";
 import { isNativeApp } from "@/lib/appSurface";
 import { nativeSignIn, nativeSignOut, forgetDeletedAccount } from "@/lib/nativeTransport";
 import { useLanguage } from "@/i18n/LanguageProvider";
@@ -14,7 +15,10 @@ interface AuthContextType {
   session: AccountSession | null;
   loading: boolean;
   error: Error | null;
+  socialProviders: SocialAuthProviderAvailability[];
+  socialProvidersLoading: boolean;
   signIn: (email: string, password: string) => Promise<AuthResult>;
+  signInSocial: (provider: SocialAuthProviderId, redirectPath?: string) => Promise<AuthResult>;
   signInNative: () => Promise<AuthResult>;
   signUp: (email: string, password: string, redirectPath?: string) => Promise<AuthResult>;
   requestPasswordReset: (email: string, redirectPath?: string) => Promise<AuthResult>;
@@ -46,6 +50,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<AccountSession | null>(null);
   const [loading, setLoading] = useState(isAccountAuthConfigured);
   const [error, setError] = useState<Error | null>(null);
+  const [socialProviders, setSocialProviders] = useState<SocialAuthProviderAvailability[]>([]);
+  const [socialProvidersLoading, setSocialProvidersLoading] = useState(isAccountAuthConfigured);
   const revision = useRef(0);
   const mounted = useRef(true);
   const channel = useRef<BroadcastChannel | null>(null);
@@ -142,6 +148,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [refresh]);
 
+  useEffect(() => {
+    if (!isAccountAuthConfigured) { setSocialProvidersLoading(false); return; }
+    let active = true;
+    void readSocialAuthProviders().then(providers => { if (active) setSocialProviders(providers); })
+      .catch(() => { if (active) setSocialProviders([]); })
+      .finally(() => { if (active) setSocialProvidersLoading(false); });
+    return () => { active = false; };
+  }, []);
+
   const signIn = async (email: string, password: string): Promise<AuthResult> => {
     try {
       const client = await getAccountAuthClient();
@@ -152,6 +167,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       channel.current?.postMessage("session-changed");
       return { error: null };
     } catch (failure) { return { error: accountError(failure, "The sign-in service is temporarily unavailable.") }; }
+  };
+
+  const signInSocial = async (provider: SocialAuthProviderId, redirectPath?: string): Promise<AuthResult> => {
+    try {
+      const configured = socialProviders.find(item => item.id === provider)?.enabled === true;
+      if (!configured) return { error: new Error("This sign-in method is not active in this environment.") };
+      const client = await getAccountAuthClient();
+      const result = await client.signIn.social({
+        provider, callbackURL: accountCallbackUrl(window.location.origin, redirectPath),
+        errorCallbackURL: socialAuthErrorUrl(window.location.origin, redirectPath),
+      });
+      if (result.error) return { error: accountError(result.error, "Social sign-in could not be started.") };
+      const authorizationUrl = verifiedSocialAuthorizationUrl(provider, result.data?.url);
+      if (!authorizationUrl || result.data?.redirect !== true) return { error: new Error("The sign-in provider returned an invalid destination.") };
+      window.location.assign(authorizationUrl);
+      return { error: null };
+    } catch (failure) { return { error: accountError(failure, "Social sign-in is temporarily unavailable.") }; }
   };
 
   const signInNative = async (): Promise<AuthResult> => {
@@ -243,7 +275,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return currentOwner.current === null;
   };
 
-  return <AuthContext.Provider value={{ user: session?.user ?? null, session, loading, error, signIn, signInNative, signUp, requestPasswordReset, requestEmailVerification, updatePassword, signOut, completeAccountDeletion }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user: session?.user ?? null, session, loading, error, socialProviders, socialProvidersLoading, signIn, signInSocial, signInNative, signUp, requestPasswordReset, requestEmailVerification, updatePassword, signOut, completeAccountDeletion }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

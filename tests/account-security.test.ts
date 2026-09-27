@@ -288,10 +288,10 @@ test("auth transport routes only supported actions and preserves recovery querie
     assert.equal(origin, siteOrigin);
     return { handler: async request => { calls.push(request); return Response.json({ ok: true }); } };
   }, () => true);
-  for (const action of ["sign-in/email", "sign-up/email", "sign-out", "request-password-reset", "reset-password", "send-verification-email"]) {
+  for (const action of ["sign-in/email", "sign-in/social", "sign-up/email", "sign-out", "request-password-reset", "reset-password", "send-verification-email"]) {
     assert.equal((await requestAuth(handler, { url: `/api/auth/${action}` })).code, 200);
   }
-  for (const action of ["get-session", "verify-email", "reset-password/fixture_token-123"]) {
+  for (const action of ["get-session", "verify-email", "reset-password/fixture_token-123", "callback/google"]) {
     assert.equal((await requestAuth(handler, { method: "GET", url: `/api/auth/${action}`, body: undefined })).code, 200);
   }
   const rewritten = await requestAuth(handler, { method: "GET", url: "/api/auth?authAction=verify-email&token=fixture_token&callbackURL=%2Fauth", body: undefined });
@@ -317,6 +317,26 @@ test("auth transport routes only supported actions and preserves recovery querie
     assert.equal(response.headers.get("allow"), allow);
   }
   assert.equal(calls.length, count, "Unknown routes and wrong methods must not invoke auth/database");
+}));
+
+test("OAuth callbacks accept only known providers and preserve Apple's bounded form post", async () => withAccountEnvironment(async () => {
+  const calls: Request[] = [];
+  const handler = createAuthHandler(() => ({ handler: async request => {
+    calls.push(request);
+    return new Response(null, { status: 302, headers: { location: `${siteOrigin}/auth` } });
+  } }), () => true);
+  const apple = await requestAuth(handler, {
+    method: "POST", url: "/api/auth/callback/apple", body: { code: "fixture-code", state: "fixture-state", user: "{}" },
+    headers: { host: siteHost, origin: "https://appleid.apple.com", "sec-fetch-site": "cross-site", "content-type": "application/x-www-form-urlencoded" },
+  });
+  assert.equal(apple.code, 302);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].method, "POST");
+  assert.equal(calls[0].headers.get("content-type"), "application/x-www-form-urlencoded");
+  assert.equal(new URLSearchParams(await calls[0].text()).get("state"), "fixture-state");
+  assert.equal((await requestAuth(handler, { method: "GET", url: "/api/auth/callback/unknown", body: undefined })).code, 404);
+  assert.equal((await requestAuth(handler, { method: "PUT", url: "/api/auth/callback/google", body: undefined })).code, 405);
+  assert.equal(calls.length, 1, "Unknown providers and methods must not reach Better Auth");
 }));
 
 test("auth boundary rejects CSRF, foreign host, malformed JSON and oversized bodies before provider access", async () => withAccountEnvironment(async () => {

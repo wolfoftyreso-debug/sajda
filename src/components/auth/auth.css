@@ -30,6 +30,19 @@
 .sajda-auth-heading { margin-bottom: 28px; }
 .sajda-auth h1 { font-size: 30px; font-weight: 600; line-height: 1.25; letter-spacing: -.04em; text-wrap: balance; overflow-wrap: anywhere; }
 .sajda-auth-heading > p { margin-top: 10px; color: hsl(var(--muted-foreground)); font-size: 14px; line-height: 1.7; }
+.sajda-social-auth { margin: -4px 0 22px; }
+.sajda-social-auth-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.sajda-social-auth-button { position: relative; display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 48px; padding: 9px 12px; border: 1px solid hsl(var(--border)); border-radius: 12px; background: #fff; color: hsl(var(--foreground)); font-size: 13px; font-weight: 600; box-shadow: 0 1px 2px hsl(219 44% 12% / .03); }
+.sajda-social-auth-button:hover:not(:disabled) { border-color: hsl(var(--primary) / .45); background: hsl(var(--secondary) / .45); }
+.sajda-social-auth-button:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+.sajda-social-auth-button:disabled { cursor: not-allowed; color: hsl(var(--muted-foreground)); background: hsl(var(--muted) / .35); box-shadow: none; }
+.sajda-social-auth-logo { display: grid; place-items: center; width: 19px; height: 19px; flex: 0 0 19px; }
+.sajda-social-auth-logo svg { width: 19px; height: 19px; }
+.sajda-social-auth-pending { position: absolute; right: 6px; top: 4px; max-width: 74px; overflow: hidden; text-overflow: ellipsis; color: hsl(var(--muted-foreground)); font-size: 8px; font-weight: 600; letter-spacing: .02em; white-space: nowrap; }
+.sajda-social-auth-divider { display: flex; align-items: center; gap: 12px; margin-top: 18px; color: hsl(var(--muted-foreground)); font-size: 11px; }
+.sajda-social-auth-divider::before, .sajda-social-auth-divider::after { content: ""; height: 1px; flex: 1; background: hsl(var(--border)); }
+.sajda-social-auth-loading { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; margin: -4px 0 22px; color: hsl(var(--muted-foreground)); font-size: 12px; }
+.sajda-social-auth-loading svg { width: 16px; height: 16px; }
 .sajda-auth input { height: 52px; border-color: hsl(var(--input)); background: #fbfdff; font-size: 16px; padding-left: 42px; }
 .sajda-auth input:focus { background: white; }
 .sajda-auth label { font-size: 13px; font-weight: 600; }
@@ -70,4 +83,5 @@
   .sajda-auth-back { font-size: 11px; }
   .sajda-auth-content { padding: 26px 20px; }
   .sajda-auth h1 { font-size: 27px; }
+  .sajda-social-auth-grid { grid-template-columns: 1fr; }
 }

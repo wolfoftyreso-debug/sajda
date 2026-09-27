@@ -35,6 +35,9 @@
     "api/auth.ts": {
       "maxDuration": 30
     },
+    "api/auth-providers.ts": {
+      "maxDuration": 10
+    },
     "api/contact.ts": {
       "maxDuration": 30
     },
