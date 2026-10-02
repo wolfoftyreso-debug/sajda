@@ -16,24 +16,29 @@ const ready = () => ({
   APPLE_CLIENT_ID: "apple-fixture-id", APPLE_CLIENT_SECRET: "apple.fixture.secret",
 });
 
-test("production builds reject missing account/email dependencies without exposing values", () => {
+test("production builds reject missing database and auth setup without exposing values", () => {
   const issues = productionConfigurationIssues({ VERCEL_ENV: "production" });
-  assert.ok(issues.includes("production_email_key_required"));
+  assert.equal(issues.includes("production_email_key_required"), false);
+  assert.equal(issues.includes("production_google_oauth_required"), false);
   assert.ok(issues.includes("production_auth_secret_required"));
   assert.ok(issues.includes("production_database_identity_not_confirmed"));
-  assert.ok(issues.includes("production_google_oauth_required"));
-  assert.ok(issues.includes("production_apple_oauth_required"));
   assert.throws(() => createVercelBuildEnvironment({ VERCEL_ENV: "production" }), /Production release blocked/u);
   assert.doesNotThrow(() => createVercelBuildEnvironment({ VERCEL_ENV: "preview" }));
   const sensitive = { ...ready(), DATABASE_URL: "private-do-not-log", BETTER_AUTH_SECRET: "private" };
   assert.throws(() => assertProductionConfiguration(sensitive), error => !error.message.includes("private"));
 });
 
-test("production requires every promised social sign-in provider and rejects partial pairs", () => {
+test("production allows social sign-in and email to stay off, and rejects a partial pair", () => {
+  const disabled = { ...ready() };
+  for (const key of ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GITHUB_CLIENT_ID", "GITHUB_CLIENT_SECRET",
+    "TWITTER_CLIENT_ID", "TWITTER_CLIENT_SECRET", "APPLE_CLIENT_ID", "APPLE_CLIENT_SECRET",
+    "RESEND_API_KEY", "SAJDA_EMAIL_FROM"]) delete disabled[key];
+  assert.deepEqual(productionConfigurationIssues(disabled), []);
   for (const [provider, key] of [["google", "GOOGLE_CLIENT_SECRET"], ["github", "GITHUB_CLIENT_ID"],
     ["twitter", "TWITTER_CLIENT_SECRET"], ["apple", "APPLE_CLIENT_ID"]]) {
     assert.ok(productionConfigurationIssues({ ...ready(), [key]: "" }).includes(`production_${provider}_oauth_required`));
   }
+  assert.ok(productionConfigurationIssues({ ...disabled, RESEND_API_KEY: "not-a-resend-key" }).includes("production_email_key_required"));
   assert.deepEqual(productionConfigurationIssues(ready()), []);
 });
 
