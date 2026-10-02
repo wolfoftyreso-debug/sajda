@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Trophy, X, ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, hasSupabaseBrowserConfig } from "@/integrations/supabase/client";
 import { isAnonymousSearchMode } from "@/lib/anonymousSearchMode";
 import { useLanguage } from "@/i18n/LanguageProvider";
 
@@ -63,7 +63,7 @@ const Top10Banner = () => {
   });
 
   useEffect(() => {
-    if (anonymousSearchMode) return;
+    if (anonymousSearchMode || !hasSupabaseBrowserConfig) return;
 
     const checkTodaysTop10 = async () => {
       // Check if user has dismissed today's banner
@@ -97,7 +97,7 @@ const Top10Banner = () => {
     setIsVisible(false);
   };
 
-  if (anonymousSearchMode || !isVisible || isDismissed || !topDomain) return null;
+  if (anonymousSearchMode || !hasSupabaseBrowserConfig || !isVisible || isDismissed || !topDomain) return null;
 
   return (
     <div className="relative overflow-hidden rounded-lg border border-primary/30 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent p-4">

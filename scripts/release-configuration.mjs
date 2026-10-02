@@ -50,17 +50,21 @@ export function productionConfigurationIssues(env = process.env, deployment = {}
   } catch { issues.push("production_database_connections_invalid"); }
   if ((env.BETTER_AUTH_SECRET?.trim().length ?? 0) < 32) issues.push("production_auth_secret_required");
   for (const [provider, idVariable, secretVariable] of socialProviders) {
-    const hasId = oauthCredential(env[idVariable], 512);
-    const hasSecret = oauthCredential(env[secretVariable], provider === "apple" ? 8192 : 4096);
-    if (!hasId || !hasSecret) issues.push(`production_${provider}_oauth_required`);
+    const idPresent = Boolean(env[idVariable]?.trim());
+    const secretPresent = Boolean(env[secretVariable]?.trim());
+    // An absent provider stays disabled at runtime. A partial pair is a broken setup.
+    if ((idPresent || secretPresent) && (!oauthCredential(env[idVariable], 512) || !oauthCredential(env[secretVariable], provider === "apple" ? 8192 : 4096))) {
+      issues.push(`production_${provider}_oauth_required`);
+    }
   }
-  if (!/^re_[A-Za-z0-9_-]{10,}$/u.test(env.RESEND_API_KEY?.trim() ?? "")) {
-    issues.push("production_email_key_required");
-  }
+  const emailKey = env.RESEND_API_KEY?.trim() ?? "";
   const from = env.SAJDA_EMAIL_FROM?.trim() ?? "";
-  if (!from || /[\r\n]/u.test(from) || !/^[^<>\s@]+@[^<>\s@]+\.[^<>\s@]+$/u.test(from.replace(/^Sajda\s*<([^<>]+)>$/u, "$1"))
-    || /@[^>]*\.(?:test|invalid|example)(?:>|$)/iu.test(from)) {
-    issues.push("production_email_sender_required");
+  if (emailKey || from) {
+    if (!/^re_[A-Za-z0-9_-]{10,}$/u.test(emailKey)) issues.push("production_email_key_required");
+    if (!from || /[\r\n]/u.test(from) || !/^[^<>\s@]+@[^<>\s@]+\.[^<>\s@]+$/u.test(from.replace(/^Sajda\s*<([^<>]+)>$/u, "$1"))
+      || /@[^>]*\.(?:test|invalid|example)(?:>|$)/iu.test(from)) {
+      issues.push("production_email_sender_required");
+    }
   }
   if (env.SAJDA_LOST_DOMAINS_CRON_ENABLED === "true") {
     if (env.SAJDA_LOST_DOMAINS_ENABLED !== "true") issues.push("production_cron_requires_engine");
