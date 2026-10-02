@@ -1,18 +1,28 @@
-# Codebase review — 2026-08-22
+# Codebase review
 
-## What is actively maintained
+The notes below from 2026-08-22 are a snapshot. They are not the current
+architecture. The supported path is the Vite client, Vercel API routes, Neon
+Postgres and Better Auth. The browser Supabase client no longer connects to a
+provider. Saved names use `/watchlist` and `/api/account/saved-domains`.
+Search history, an owned-domain portfolio and a ranked Top 10 are not stored.
+Do not treat the August private-workspace description as something to restore.
 
-Sajda has two deliberate product paths:
+## Snapshot — 2026-08-22
+
+## What was maintained then
+
+Sajda had two deliberate product paths:
 
 1. **Anonymous search** — the Vite client, `api/domain-search.ts`, and the
-   loopback full-app server. This path has no account, history, or browser
+   loopback full-app server. This path had no account, history, or browser
    database writes.
-2. **Private workspace** — the legacy Supabase client, Edge Functions, and
+2. **Private workspace** — a legacy Supabase client, Edge Functions, and
    worker for authenticated scans, saved domains, history, and watchlists.
 
-They remain separate until the private workspace has passed its own migration
-and security release gates. Removing it just because the public search exists
-would silently remove working product capabilities.
+They were kept separate until the private workspace passed its own migration
+and security release gates. That migration has since moved account data to
+Neon. The legacy client stays in the tree only so unfinished routes fail
+closed instead of calling a removed provider.
 
 ## Completed cleanup
 
@@ -31,7 +41,7 @@ would silently remove working product capabilities.
   authenticated valuation endpoint instead of a job-only endpoint.
 - Repaired scan callback dependencies and subscription lifecycle ordering.
 
-## Release gates still required
+## Release gates still required at that date
 
 These items were deliberately not papered over in a cleanup pass:
 
