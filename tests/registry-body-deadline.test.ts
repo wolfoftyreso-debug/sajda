@@ -71,7 +71,7 @@ test("Loopia headers do not disarm the body deadline; even hung cancellation ret
   let completed = false;
   const pending = invoke().then(value => { completed = true; return value; });
   await nextTurn();
-  t.mock.timers.tick(7499); await nextTurn(); assert.equal(completed, false);
+  t.mock.timers.tick(14999); await nextTurn(); assert.equal(completed, false);
   t.mock.timers.tick(1);
   const payload = await pending;
   assert.equal(payload.results[0].status, "available");
@@ -166,7 +166,7 @@ test("a provider ignoring abort before headers cannot block the deadline and its
   let deliver!: (response: Response) => void;
   f.control.loopia = () => new Promise(resolve => { deliver = resolve; });
   const pending = invoke();
-  await nextTurn(); t.mock.timers.tick(7500);
+  await nextTurn(); t.mock.timers.tick(15000);
   const payload = await pending;
   assert.equal(offer(payload, "loopia").priceStatus, "unavailable");
   deliver(body.response); await nextTurn();
