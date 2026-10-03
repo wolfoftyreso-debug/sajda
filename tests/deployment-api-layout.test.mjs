@@ -60,6 +60,15 @@ test("browser CSP permits same-origin Vercel auth but no direct Neon connection"
   const config = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
   const csp = config.headers.find(entry => entry.source === "/(.*)").headers.find(header => header.key === "Content-Security-Policy").value;
   assert.equal(csp.split(";").map(value => value.trim()).find(value => value.startsWith("connect-src")), "connect-src 'self'");
+  assert.equal(
+    csp.split(";").map(value => value.trim()).find(value => value.startsWith("frame-ancestors")),
+    "frame-ancestors 'self' https://grok.com https://*.grok.com https://grok.x.ai",
+  );
+  assert.equal(
+    config.headers.find(entry => entry.source === "/(.*)").headers.some(header => header.key === "X-Frame-Options"),
+    false,
+    "X-Frame-Options DENY would blank the page inside the Grok frame even when frame-ancestors allows it",
+  );
 });
 
 test("Vercel derives account auth from both server requirements, never stale public flags", () => {
