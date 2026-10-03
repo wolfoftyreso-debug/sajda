@@ -362,7 +362,7 @@ const DomainCard = ({
   showDeleteAction = false,
 }: DomainCardProps) => {
   const { language, t } = useLanguage();
-  const [isProviderComparisonExpanded, setIsProviderComparisonExpanded] = useState(false);
+  const [isProviderComparisonExpanded, setIsProviderComparisonExpanded] = useState(true);
   const comparisonCopy = getProviderComparisonCopy(language as string);
   const domainQuality = typeof namingScore === "number" && Number.isFinite(namingScore)
     ? Math.min(100, Math.max(0, namingScore))
@@ -505,7 +505,9 @@ const DomainCard = ({
       ? `${comparisonCopy.standardPriceDescription} ${getTaxTreatmentLabel(registrationPrice)}`
       : `${getTaxTreatmentLabel(registrationPrice)}${offer.priceType === "campaign" ? ` · ${t("domain.campaign")}` : ""}`
     : getOfferStateDescription(offer, primaryOfferState);
-  const hasMultipleProviderOffers = status === "available" && comparisonOffers.length > 1;
+  // Published extension prices are not a claim that this exact name can be
+  // registered. Taken and unknown names still need the side-by-side list.
+  const hasMultipleProviderOffers = comparisonOffers.length > 1;
 
   return (
     <article

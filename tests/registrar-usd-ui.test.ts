@@ -70,6 +70,14 @@ test("mounted standard-price cards share one FX lookup and show comparable USD i
       assert.ok(links.some(link => link.props.href === "https://porkbun.com/products/domains"));
       assert.ok(links.some(link => link.props.href === "https://www.namecheap.com/domains/domain-name-search/"));
     }
+    for (const status of ["taken", "unknown"] as const) {
+      await act(async () => {
+        renderer!.update(h(MemoryRouter, {}, h(DomainCard, { ...props, status })));
+      });
+      const text = label(renderer!.root);
+      assert.match(text, /\$11[.,]06 USD/, `${status} names still show the other provider`);
+      assert.match(text, /100[.,]00/);
+    }
   } finally {
     if (renderer) await act(async () => renderer!.unmount());
     globalThis.fetch = originalFetch;
