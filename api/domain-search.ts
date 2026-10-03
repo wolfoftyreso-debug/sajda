@@ -409,6 +409,11 @@ const MAX_CACHE_ENTRIES = 1_000;
 const REGISTRY_TIMEOUT_MS = 3_500;
 const REGISTRY_CONCURRENCY = 10;
 const REGISTRAR_PRICE_CACHE_TTL_MS = 60_000;
+// A complete Loopia list is reused like Porkbun's catalogue. Repeating the
+// 12s HTML fetch on every cold minute made ordinary searches wait. Failures
+// stay on the short cache so a bad snapshot cannot linger.
+const LOOPIA_PRICE_CACHE_TTL_MS = 15 * 60_000;
+const LOOPIA_PRICE_FAILURE_CACHE_TTL_MS = REGISTRAR_PRICE_CACHE_TTL_MS;
 // Loopia's public price list is one HTML document. From the production
 // region it was still transferring at 7.5s, so the check timed out and the
 // UI correctly refused an unverified price. Match Porkbun's slower public
@@ -757,7 +762,8 @@ const rateLimits = new Map<string, RateLimitEntry>();
 const swipeRateLimits = new Map<string, RateLimitEntry>();
 const availabilityCache = new Map<string, CacheEntry>();
 const registryCooldowns = new Map<string, number>();
-let registrarPriceCache: RegistrarPriceCacheEntry | undefined;
+let registrarPriceCache: (RegistrarPriceCacheEntry & { ttlMs: number }) | undefined;
+let loopiaPriceFetch: Promise<RegistrarPriceLookup> | undefined;
 let porkbunPriceCache: (RegistrarPriceCacheEntry & { ttlMs: number }) | undefined;
 let porkbunPriceFetch: Promise<RegistrarPriceLookup> | undefined;
 let tldesPriceFeedCache: TldesPriceFeedCacheEntry | undefined;
@@ -2871,44 +2877,57 @@ async function readResponseTextLimited(response: Response, maximumBytes: number,
   return text + decoder.decode();
 }
 
-async function getRegistrarOffers(tlds: readonly string[], locale: Locale): Promise<RegistrarPriceLookup> {
+async function fetchLoopiaPrices(checkedAt: string): Promise<RegistrarPriceLookup> {
+  const offers = new Map<string, RegistrarOffer>();
+  await fetchWithTimeout(LOOPIA_PRICE_LIST_URL, {
+    headers: { Accept: "text/html", "User-Agent": "Sajda-Price-Check/1.0" },
+    redirect: "error",
+  }, LOOPIA_PRICE_FETCH_TIMEOUT_MS, async (response, signal) => {
+    const contentType = response.headers.get("content-type") ?? "";
+    if (!response.ok) throw new RegistrarPriceSourceError("http_error", response.status);
+    if (!contentType.toLowerCase().includes("text/html")) throw new RegistrarPriceSourceError("unexpected_content_type");
+    const html = await readResponseTextLimited(response, LOOPIA_PRICE_RESPONSE_LIMIT_BYTES, signal);
+    // Populate every supported suffix at once. The snapshot is shared, so
+    // caching only the first request's TLDs would make a later suffix look
+    // unpriced until the catalogue expires.
+    for (const tld of ALLOWED_TLDS) {
+      const offer = parseLoopiaOffer(html, tld, checkedAt);
+      if (offer) offers.set(tld, offer);
+    }
+  });
+  return { checkedAt, offers };
+}
+
+async function getRegistrarOffers(_tlds: readonly string[], locale: Locale): Promise<RegistrarPriceLookup> {
+  const now = Date.now();
   const cached = registrarPriceCache;
-  if (cached && Date.now() - cached.createdAt < REGISTRAR_PRICE_CACHE_TTL_MS) {
+  if (cached && now >= cached.createdAt && now - cached.createdAt < cached.ttlMs) {
     return { checkedAt: cached.checkedAt, offers: localizedRegistrarOffers(cached.offers, locale) };
   }
-
-  const offers = new Map<string, RegistrarOffer>();
-  // Even a failed price-list request is a real check attempt. Returning this
-  // timestamp lets the UI distinguish an unavailable Loopia quote from a
-  // provider that was never queried at all.
-  const checkedAt = new Date().toISOString();
-  try {
-    await fetchWithTimeout(LOOPIA_PRICE_LIST_URL, {
-      headers: { Accept: "text/html", "User-Agent": "Sajda-Price-Check/1.0" },
-      redirect: "error",
-    }, LOOPIA_PRICE_FETCH_TIMEOUT_MS, async (response, signal) => {
-      const contentType = response.headers.get("content-type") ?? "";
-      if (!response.ok) throw new RegistrarPriceSourceError("http_error", response.status);
-      if (!contentType.toLowerCase().includes("text/html")) throw new RegistrarPriceSourceError("unexpected_content_type");
-      const html = await readResponseTextLimited(response, LOOPIA_PRICE_RESPONSE_LIMIT_BYTES, signal);
-      // Populate every supported suffix at once. The serverless cache is
-      // shared by requests, so caching only the first request's TLDs would
-      // make a following .com/.nu query incorrectly look like its price was
-      // unavailable for up to a minute.
-      for (const tld of new Set([...ALLOWED_TLDS, ...tlds.map((value) => value.toLowerCase())])) {
-        const offer = parseLoopiaOffer(html, tld, checkedAt);
-        if (offer) offers.set(tld, offer);
-      }
-      if (!offers.size) logRegistrarPriceFailure("loopia", new RegistrarPriceSourceError("no_usable_prices"));
-    });
-  } catch (error) {
-    logRegistrarPriceFailure("loopia", error);
-    // Price failures are explicitly rendered as unavailable rather than a
-    // stale/static quote. Availability verification remains independent.
+  // One HTML fetch serves every concurrent search on this instance.
+  if (!loopiaPriceFetch) {
+    const checkedAt = new Date(now).toISOString();
+    loopiaPriceFetch = fetchLoopiaPrices(checkedAt)
+      .then((lookup) => {
+        if (!lookup.offers.size) logRegistrarPriceFailure("loopia", new RegistrarPriceSourceError("no_usable_prices"));
+        registrarPriceCache = {
+          ...lookup,
+          createdAt: now,
+          ttlMs: lookup.offers.size ? LOOPIA_PRICE_CACHE_TTL_MS : LOOPIA_PRICE_FAILURE_CACHE_TTL_MS,
+        };
+        return lookup;
+      })
+      .catch((error: unknown) => {
+        logRegistrarPriceFailure("loopia", error);
+        // Price failures stay unavailable. Do not keep a previous list.
+        const lookup = { checkedAt, offers: new Map<string, RegistrarOffer>() };
+        registrarPriceCache = { ...lookup, createdAt: Date.now(), ttlMs: LOOPIA_PRICE_FAILURE_CACHE_TTL_MS };
+        return lookup;
+      })
+      .finally(() => { loopiaPriceFetch = undefined; });
   }
-
-  registrarPriceCache = { createdAt: Date.now(), checkedAt, offers };
-  return { checkedAt, offers: localizedRegistrarOffers(offers, locale) };
+  const lookup = await loopiaPriceFetch;
+  return { checkedAt: lookup.checkedAt, offers: localizedRegistrarOffers(lookup.offers, locale) };
 }
 
 function unknown(domain: string, tld: string, source: string, errorCode: AvailabilityErrorCode): AvailabilityResult {

@@ -21,6 +21,7 @@ interface Offer {
   registrationPrice?: number;
   renewalPrice?: number;
   registrationPriceInclVat?: number;
+  registrationPriceExVat?: number;
   taxTreatment?: string;
   checkedAt: string | null;
   priceVerified: boolean;
@@ -165,6 +166,43 @@ test("content, parser and transport failures never forward untrusted error detai
   await request({ providers: ["loopia", "porkbun"] });
   assert.equal(f.diagnostics.filter(row => (row as { reason: string }).reason === "request_failed").length, 2);
   assert.doesNotMatch(JSON.stringify(f.diagnostics), /secret|private|https?:/);
+});
+
+test("Loopia price lists coalesce, stay verified for fifteen minutes, and refresh failures after one minute", async t => {
+  const f = fixture(t);
+  let release!: (value: Response) => void;
+  let loopiaFetches = 0;
+  f.control.loopia = () => {
+    loopiaFetches += 1;
+    return new Promise(resolve => { release = resolve; });
+  };
+  const html = '<table><tr><td>.com </td><td><span class="with_tax">161,25</span><span class="without_tax">129</span></td><td><span class="with_tax">373,75</span></td></tr>'
+    + '<tr><td>.se </td><td><span class="with_tax">11,25</span><span class="without_tax">9</span></td><td><span class="with_tax">11,25</span></td></tr></table>';
+  const first = request({ providers: ["loopia"], domains: ["loopia-cache.com"] });
+  const second = request({ providers: ["loopia"], domains: ["loopia-cache.se"] });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(loopiaFetches, 1);
+  release(new Response(html, { headers: { "content-type": "text/html" } }));
+  const [com, se] = await Promise.all([first, second]);
+  assert.equal(offer(com, "loopia").registrationPriceExVat, 129);
+  assert.equal(offer(se, "loopia", "se").registrationPriceExVat, 9);
+  t.mock.timers.setTime(f.now + 15 * 60_000 - 1);
+  await request({ providers: ["loopia"], domains: ["loopia-cache-later.com"] });
+  assert.equal(loopiaFetches, 1);
+  t.mock.timers.setTime(f.now + 15 * 60_000);
+  f.control.loopia = async () => { loopiaFetches += 1; return new Response("<html>No price table</html>", { headers: { "content-type": "text/html" } }); };
+  assert.equal(offer(await request({ providers: ["loopia"] }), "loopia").priceVerified, false);
+  assert.equal(loopiaFetches, 2);
+  t.mock.timers.setTime(f.now + 16 * 60_000 - 1);
+  await request({ providers: ["loopia"] });
+  assert.equal(loopiaFetches, 2);
+  t.mock.timers.setTime(f.now + 16 * 60_000);
+  f.control.loopia = async () => {
+    loopiaFetches += 1;
+    return new Response(html, { headers: { "content-type": "text/html" } });
+  };
+  assert.equal(offer(await request({ providers: ["loopia"] }), "loopia").registrationPriceExVat, 129);
+  assert.equal(loopiaFetches, 3);
 });
 
 test("empty supported price snapshots produce one diagnostic without inventing offers", async t => {
