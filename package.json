@@ -96,7 +96,6 @@
     "sonner": "^1.7.4",
     "stripe": "22.6.1",
     "tailwind-merge": "^2.6.0",
-    "tailwindcss-animate": "^1.0.7",
     "tldts": "7.4.12",
     "zod": "^3.25.76"
   },
@@ -120,6 +119,7 @@
     "postcss": "^8.5.26",
     "react-test-renderer": "18.3.1",
     "tailwindcss": "^3.4.17",
+    "tailwindcss-animate": "^1.0.7",
     "tsx": "4.23.13",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.67.0",
