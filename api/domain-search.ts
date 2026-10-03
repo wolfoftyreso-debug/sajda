@@ -2911,7 +2911,8 @@ async function getRegistrarOffers(_tlds: readonly string[], locale: Locale): Pro
       .then((lookup) => {
         if (!lookup.offers.size) logRegistrarPriceFailure("loopia", new RegistrarPriceSourceError("no_usable_prices"));
         registrarPriceCache = {
-          ...lookup,
+          checkedAt,
+          offers: lookup.offers,
           createdAt: now,
           ttlMs: lookup.offers.size ? LOOPIA_PRICE_CACHE_TTL_MS : LOOPIA_PRICE_FAILURE_CACHE_TTL_MS,
         };
