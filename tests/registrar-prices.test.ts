@@ -372,6 +372,35 @@ test("Cloudflare bridge returns a fresh exact-domain offer without exposing its 
   assert.doesNotMatch(JSON.stringify(payload) + JSON.stringify(f.diagnostics), /bridge_fixture_token/);
 });
 
+test("Cloudflare cent prices that are not binary-exact still compare, and a third decimal does not", async t => {
+  const f = fixture(t);
+  process.env.SAJDA_REGISTRAR_BRIDGE_TOKEN = "bridge_fixture_token_12345678901234567890";
+  const offerFor = (domain: string, registrationPrice: number, renewalPrice: number) => {
+    const checkedAt = new Date(f.now).toISOString();
+    return {
+      providerId: "cloudflare", registrar: "Cloudflare", purchaseUrl: "https://www.cloudflare.com/domains/",
+      priceSourceUrl: "https://developers.cloudflare.com/api/resources/registrar/methods/check/",
+      priceStatus: "verified", priceVerified: true, dataSource: "official_provider_api", priceScope: "exact_domain_offer",
+      domain, availability: "available", checkedAt, expiresAt: new Date(f.now + 300_000).toISOString(),
+      currency: "USD", registrationPrice, renewalPrice, taxTreatment: "unknown", priceType: "standard",
+    };
+  };
+  f.control.bridge = async init => {
+    const domains = (JSON.parse(String(init?.body)) as { domains: string[] }).domains;
+    return Response.json({ status: "ok", checkedDomains: domains.length, offers: {
+      [domains[0]]: offerFor(domains[0], 9.95, 9.95),
+    } });
+  };
+  assert.equal(offer(await request({ providers: ["cloudflare"], domains: ["cent-price.net"] }), "cloudflare", "net").registrationPrice, 9.95);
+  f.control.bridge = async init => {
+    const domains = (JSON.parse(String(init?.body)) as { domains: string[] }).domains;
+    return Response.json({ status: "ok", checkedDomains: domains.length, offers: {
+      [domains[0]]: offerFor(domains[0], 10.461, 10.46),
+    } });
+  };
+  assert.equal(offer(await request({ providers: ["cloudflare"], domains: ["third-decimal.com"] }), "cloudflare").priceStatus, "unavailable");
+});
+
 test("configured TLDES remains a fallback with its own provenance and provider links", async t => {
   const f = fixture(t);
   process.env.TLDES_API_KEY = "test-key-not-for-output";

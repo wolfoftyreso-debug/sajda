@@ -1169,9 +1169,9 @@ function normalizeProviderIds(
   input: unknown,
   locale: Locale,
 ): { providerIds?: PublicProviderId[]; error?: string } {
-  // Existing clients may omit provider choices. Return both reviewed public
-  // price sources by default; link-only providers remain explicit opt-ins.
-  if (input === undefined) return { providerIds: ["loopia", "porkbun"] };
+  // Existing clients may omit provider choices. Loopia and Porkbun are public
+  // catalogues. Cloudflare is the prepared exact-domain connector.
+  if (input === undefined) return { providerIds: ["loopia", "porkbun", "cloudflare"] };
   if (!Array.isArray(input)) {
     return {
       error: localizedText(

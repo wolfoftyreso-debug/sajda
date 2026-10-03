@@ -50,7 +50,7 @@ export interface ProviderCatalogEntry {
  * available as clearly labelled checkout links instead of looking like live
  * integrations before an operator connects the aggregated price feed.
  */
-export const DEFAULT_PROVIDER_IDS: ProviderId[] = ["loopia", "porkbun"];
+export const DEFAULT_PROVIDER_IDS: ProviderId[] = ["loopia", "porkbun", "cloudflare"];
 
 export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
   {
@@ -73,7 +73,7 @@ export const PROVIDER_CATALOG: readonly ProviderCatalogEntry[] = [
     logoFallbackColor: "#f48120",
     purchaseUrl: (domain) => `https://domains.cloudflare.com/?domain=${encodeURIComponent(domain)}`,
     priceSourceUrl: "https://domains.cloudflare.com/",
-    livePriceConnected: false,
+    livePriceConnected: true,
   },
   {
     id: "godaddy",
