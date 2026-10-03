@@ -409,7 +409,11 @@ const MAX_CACHE_ENTRIES = 1_000;
 const REGISTRY_TIMEOUT_MS = 3_500;
 const REGISTRY_CONCURRENCY = 10;
 const REGISTRAR_PRICE_CACHE_TTL_MS = 60_000;
-const LOOPIA_PRICE_FETCH_TIMEOUT_MS = 7_500;
+// Loopia's public price list is one HTML document. From the production
+// region it was still transferring at 7.5s, so the check timed out and the
+// UI correctly refused an unverified price. Match Porkbun's slower public
+// catalogue: stay under the 30s function limit, but do not abort a live list.
+const LOOPIA_PRICE_FETCH_TIMEOUT_MS = 15_000;
 const LOOPIA_PRICE_RESPONSE_LIMIT_BYTES = 1_000_000;
 const PORKBUN_PRICE_CACHE_TTL_MS = 15 * 60_000;
 const PORKBUN_PRICE_FAILURE_CACHE_TTL_MS = 60_000;
