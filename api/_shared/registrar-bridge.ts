@@ -58,8 +58,11 @@ export function registrarBridgeConfigured(env?: Record<string, string | undefine
 }
 
 function validAmount(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 100_000_000
-    && Math.round(value * 100) === value * 100;
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 100_000_000) return false;
+  const cents = Math.round(value * 100);
+  // Binary floats such as 9.95 are real two-decimal prices. Reject anything
+  // that is not already within a millionth of a cent.
+  return Math.abs(value * 100 - cents) < 1e-6;
 }
 
 function exactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {

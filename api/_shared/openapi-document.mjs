@@ -761,7 +761,7 @@ export const openApiDocument = {
             minItems: 1,
             maxItems: 20,
             uniqueItems: true,
-            default: ["loopia", "porkbun"],
+            default: ["loopia", "porkbun", "cloudflare"],
             items: { type: "string", enum: providerIds },
           },
           creativeMode: { type: "string", enum: ["light", "medium", "heavy", "deep"] },

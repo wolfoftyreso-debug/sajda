@@ -61,7 +61,7 @@ test("private executor checks scope and strict input before shared domain quota 
   const execute = createMcpProductExecutor({ quota: async (_principal, bucket) => { quotas++; assert.equal(bucket, "domains"); return quota(); },
     domainSearch: async (request, res) => {
       searches++; assert.deepEqual(request.headers, {});
-      assert.deepEqual(request.body, { theme: "creative studio", tlds: ["com", "dev"], count: 3, locale: "en", providers: ["loopia", "porkbun"] });
+      assert.deepEqual(request.body, { theme: "creative studio", tlds: ["com", "dev"], count: 3, locale: "en", providers: ["loopia", "porkbun", "cloudflare"] });
       const reserve = Object.getOwnPropertySymbols(request).map(symbol => Reflect.get(request, symbol)).find(Array.isArray);
       assert.deepEqual(reserve, generateNamePackageCandidates(parseNamePackageSearchRequest(input)).domains);
       res.status(200).json(rawPayload());

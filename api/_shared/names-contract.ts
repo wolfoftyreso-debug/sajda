@@ -80,7 +80,7 @@ function parseDomains(value: unknown): string[] | undefined {
 }
 
 function parseProviders(value: unknown): string[] {
-  if (value === undefined) return ["loopia", "porkbun"];
+  if (value === undefined) return ["loopia", "porkbun", "cloudflare"];
   if (!Array.isArray(value) || value.length < 1 || value.length > NAMES_API_PROVIDERS.length) {
     throw new Error(`providers must contain 1–${NAMES_API_PROVIDERS.length} supported provider IDs.`);
   }
