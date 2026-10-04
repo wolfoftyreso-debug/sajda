@@ -511,16 +511,12 @@ const DomainCard = ({
 
   return (
     <article
-      className={`group relative overflow-hidden rounded-[1.35rem] border bg-card p-4 shadow-[0_14px_42px_-30px_rgba(15,34,53,0.42)] transition-[border-color,box-shadow,transform] duration-200 sm:p-5 ${
+      className={`group relative overflow-hidden rounded-[1.75rem] bg-card p-4 shadow-[0_10px_28px_rgba(15,23,42,0.06)] sm:p-5 ${
         isPending
-          ? "border-dashed border-primary/35 animate-pulse"
-          : "border-border/90 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[0_22px_50px_-30px_rgba(15,34,53,0.38)]"
+          ? "border border-dashed border-primary/30"
+          : "border border-black/[0.04]"
       }`}
     >
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-primary/45 to-transparent opacity-70"
-      />
       <div className="relative">
         <header className="mb-4 flex items-start gap-3 sm:gap-4">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-primary/10 bg-primary/[0.06] shadow-sm">
@@ -528,7 +524,7 @@ const DomainCard = ({
           </div>
 
           <div className="min-w-0 flex-1">
-            <h3 className="truncate text-[1.3rem] font-semibold tracking-[-0.045em] text-foreground sm:text-[1.45rem]">{domain}</h3>
+            <h3 className="truncate text-[1.55rem] font-semibold tracking-[-0.045em] text-foreground sm:text-[1.7rem]">{domain}</h3>
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
               <Badge
                 variant={hasAuthoritativeAvailability ? "default" : "secondary"}
@@ -635,14 +631,14 @@ const DomainCard = ({
 
         <Link to="/name-packages" state={{ brandPackageSeed: domain }} className="mb-3 inline-flex min-h-11 max-w-full items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-sm font-semibold text-primary">{brandWorkspaceCopy[language].open} <span aria-hidden="true">→</span></Link>
         <section className="mb-3">
-          <div className="min-w-0 rounded-2xl border border-primary/12 bg-[linear-gradient(120deg,hsl(var(--primary)/0.07),hsl(var(--card))_62%)] p-3.5">
+          <div className="min-w-0 rounded-[1.35rem] bg-secondary/70 p-4">
             <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
-                <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">
-                  <Globe className="h-3 w-3 text-primary" />
+                <div className="flex items-center gap-1.5 text-[13px] font-semibold text-primary">
+                  <Globe className="h-3.5 w-3.5" />
                   {hasVerifiedRegistrarPrice ? t("domain.registrationPrice") : getOfferStateLabel(offer, primaryOfferState)}
                 </div>
-                <div className="mt-1.5 text-[1.3rem] font-semibold tracking-[-0.045em] text-foreground">
+                <div className="mt-1 text-[1.85rem] font-semibold tracking-[-0.045em] text-foreground">
                   {primaryPriceValue}
                 </div>
               </div>

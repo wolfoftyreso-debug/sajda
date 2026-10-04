@@ -3,7 +3,7 @@
   display: flex;
   flex-direction: column;
   padding: max(24px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
-  background: radial-gradient(ellipse at 15% 30%, #dfedff 0, transparent 48%), hsl(var(--background));
+  background: hsl(var(--background));
 }
 .sajda-auth-header { width: 100%; max-width: 1080px; margin: 0 auto 32px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .sajda-auth-logo { display: inline-flex; flex-shrink: 0; }
@@ -12,7 +12,7 @@
 .sajda-auth-back svg { flex-shrink: 0; }
 .sajda-auth-back:hover { color: hsl(var(--primary)); }
 .sajda-auth-frame { display: grid; grid-template-columns: 0.9fr 1.1fr; width: 100%; max-width: 1000px; margin: auto; border: 1px solid hsl(var(--border)); border-radius: 28px; background: hsl(var(--card)); box-shadow: 0 24px 64px hsl(219 44% 12% / .065), 0 2px 8px hsl(219 44% 12% / .025); }
-.sajda-auth-brand { display: flex; flex-direction: column; justify-content: center; min-width: 0; padding: 36px; border-radius: 27px 0 0 27px; border-right: 1px solid hsl(var(--border)); background: radial-gradient(circle at 45% 28%, #fff 0, transparent 52%), linear-gradient(155deg, #edf6ff, #e2efff 70%, #dcecff); }
+.sajda-auth-brand { display: flex; flex-direction: column; justify-content: center; min-width: 0; padding: 36px; border-radius: 27px 0 0 27px; border-right: 1px solid hsl(var(--border)); background: #f4f4f7; }
 .sajda-auth-emblem { position: relative; display: grid; place-items: center; width: 260px; height: 260px; margin: 0 auto 28px; }
 .sajda-auth-orbit { position: absolute; border: 1px solid hsl(213 72% 64% / .19); border-radius: 50%; }
 .sajda-auth-orbit-outer { inset: 0; }
@@ -32,7 +32,7 @@
 .sajda-auth-heading > p { margin-top: 10px; color: hsl(var(--muted-foreground)); font-size: 14px; line-height: 1.7; }
 .sajda-social-auth { margin: -4px 0 22px; }
 .sajda-social-auth-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.sajda-social-auth-button { position: relative; display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 48px; padding: 9px 12px; border: 1px solid hsl(var(--border)); border-radius: 12px; background: #fff; color: hsl(var(--foreground)); font-size: 13px; font-weight: 600; box-shadow: 0 1px 2px hsl(219 44% 12% / .03); }
+.sajda-social-auth-button { position: relative; display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 48px; padding: 9px 12px; border: 1px solid hsl(var(--border)); border-radius: 999px; background: #fff; color: hsl(var(--foreground)); font-size: 13px; font-weight: 600; box-shadow: 0 1px 2px hsl(240 10% 10% / .04); }
 .sajda-social-auth-button:hover:not(:disabled) { border-color: hsl(var(--primary) / .45); background: hsl(var(--secondary) / .45); }
 .sajda-social-auth-button:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
 .sajda-social-auth-button:disabled { cursor: not-allowed; color: hsl(var(--muted-foreground)); background: hsl(var(--muted) / .35); box-shadow: none; }
@@ -43,7 +43,7 @@
 .sajda-social-auth-divider::before, .sajda-social-auth-divider::after { content: ""; height: 1px; flex: 1; background: hsl(var(--border)); }
 .sajda-social-auth-loading { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; margin: -4px 0 22px; color: hsl(var(--muted-foreground)); font-size: 12px; }
 .sajda-social-auth-loading svg { width: 16px; height: 16px; }
-.sajda-auth input { height: 52px; border-color: hsl(var(--input)); background: #fbfdff; font-size: 16px; padding-left: 42px; }
+.sajda-auth input { height: 52px; border-color: transparent; background: #f2f2f7; font-size: 16px; padding-left: 42px; border-radius: 16px; }
 .sajda-auth input:focus { background: white; }
 .sajda-auth label { font-size: 13px; font-weight: 600; }
 .sajda-auth button[type="submit"], .sajda-auth-action { min-height: 52px; height: auto; white-space: normal; padding-top: 12px; padding-bottom: 12px; font-size: 15px; font-weight: 600; }

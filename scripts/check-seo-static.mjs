@@ -19,7 +19,9 @@ const appShell = load(await read("index.html"));
 let serviceWorker = "";
 try { serviceWorker = await read("sw.js"); } catch (error) { if (error.code !== "ENOENT") throw error; }
 
-assert.equal(appShell('meta[name="robots"]').attr("content"), "noindex, nofollow", "interactive shell must remain noindex");
+assert.equal(appShell('meta[property="og:image"]').attr("content"), `${canonicalOrigin}/og.png`, "the app shell needs a share image");
+assert.equal(appShell('meta[name="twitter:card"]').attr("content"), "summary_large_image");
+assert.equal(appShell('meta[name="twitter:image"]').attr("content"), `${canonicalOrigin}/og.png`);
 assert.equal(appShell('meta[name="sajda-seo-indexing"]').length, 1, "one immutable build policy");
 assert.equal(appShell('meta[name="sajda-seo-indexing"]').attr("content"), noindex ? "noindex" : "index");
 assert.doesNotMatch(serviceWorker, /robots\.txt|sitemap\.xml/iu, "crawler controls must never be precached");
@@ -60,6 +62,11 @@ for (const page of SEO_PAGES) {
   for (const [key, value] of Object.entries({
     "og:title": page.title, "og:description": page.description, "og:url": canonical, "og:locale": "sv_SE",
   })) assert.equal($(`meta[property="${key}"]`).attr("content"), value, page.path);
+  assert.equal($('meta[property="og:image"]').attr("content"), `${canonicalOrigin}/og.png`, page.path);
+  assert.equal($('meta[property="og:image:width"]').attr("content"), "1200", page.path);
+  assert.equal($('meta[property="og:image:height"]').attr("content"), "630", page.path);
+  assert.equal($('meta[name="twitter:card"]').attr("content"), "summary_large_image", page.path);
+  assert.equal($('meta[name="twitter:image"]').attr("content"), `${canonicalOrigin}/og.png`, page.path);
   assert.equal($('meta[name="twitter:title"]').attr("content"), page.title);
   assert.equal($('meta[name="twitter:description"]').attr("content"), page.description);
   assert.equal($("main").length, 1, "one main landmark");

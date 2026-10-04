@@ -23,11 +23,11 @@ const StatsCard = ({ title, value, icon: Icon, subtitle, trend }: StatsCardProps
   }[language];
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
+    <div className="rounded-[1.6rem] border border-black/[0.04] bg-card p-5 shadow-[0_8px_24px_rgba(15,23,42,0.05)]">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 [overflow-wrap:anywhere]">
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <p className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{value}</p>
+          <p className="text-[13px] font-semibold text-primary">{title}</p>
+          <p className="mt-2 text-[2rem] font-semibold leading-none tracking-[-0.04em] text-foreground">{value}</p>
           {subtitle && (
             <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
           )}

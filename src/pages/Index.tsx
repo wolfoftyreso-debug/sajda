@@ -464,9 +464,9 @@ const Index = () => {
   const unconfirmedCount = domains.filter((domain) => !domain.availabilityVerified).length;
 
   return (
-    <div className="sajda-canvas min-h-screen pb-1">
+    <div className="sajda-canvas min-h-screen pb-28 md:pb-8">
       <main className="mx-auto w-full max-w-[1280px] px-4 py-5 sm:px-6 sm:py-6">
-        {!isNativeApp && <header className="sajda-search-header grid min-h-10 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/80 pb-4 xl:grid-cols-[auto_auto_minmax(0,1fr)]" aria-label="Sajda">
+        {!isNativeApp && <header className="sajda-search-header grid min-h-10 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 pb-2 xl:grid-cols-[auto_auto_minmax(0,1fr)]" aria-label="Sajda">
           <a
             href="/"
             className="inline-flex items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
@@ -478,12 +478,12 @@ const Index = () => {
               className="h-7 w-auto sm:h-10"
             />
           </a>
-          <a href="/pricing" className="inline-flex min-h-11 items-center rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-sm font-semibold text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{language === "sv" ? "Priser & nivåer" : language === "es" ? "Precios y planes" : language === "fr" ? "Tarifs et offres" : language === "zh" ? "价格与方案" : "Pricing & plans"}</a>
+          <a href="/pricing" className="inline-flex min-h-11 items-center rounded-full px-3 py-2 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{language === "sv" ? "Priser & nivåer" : language === "es" ? "Precios y planes" : language === "fr" ? "Tarifs et offres" : language === "zh" ? "价格与方案" : "Pricing & plans"}</a>
           <div className="col-span-2 flex min-w-0 flex-wrap items-center justify-between gap-3 xl:col-span-1 xl:justify-end">
             <div className="flex min-w-0 flex-wrap items-center gap-1">
-            {nameProjectsEnabled && <Link to="/projects" className="inline-flex min-h-11 items-center rounded-xl px-3 text-sm font-medium text-primary focus-visible:ring-2 focus-visible:ring-ring">{projectCopy.projects}</Link>}
-            <Link to="/name-packages" className="inline-flex min-h-11 items-center rounded-xl px-3 text-sm font-medium text-primary focus-visible:ring-2 focus-visible:ring-ring">{namePackageEntryCopy[language].title}</Link>
-            <Link to="/brand-index" aria-label={brandLookupCopy[language].entry} className="inline-flex min-h-11 items-center rounded-xl px-3 text-sm font-medium text-primary focus-visible:ring-2 focus-visible:ring-ring">Brand Index</Link>
+            {nameProjectsEnabled && <Link to="/projects" className="inline-flex min-h-11 items-center rounded-full px-3 text-sm font-medium text-foreground focus-visible:ring-2 focus-visible:ring-ring">{projectCopy.projects}</Link>}
+            <Link to="/name-packages" className="inline-flex min-h-11 items-center rounded-full px-3 text-sm font-medium text-foreground focus-visible:ring-2 focus-visible:ring-ring">{namePackageEntryCopy[language].title}</Link>
+            <Link to="/brand-index" aria-label={brandLookupCopy[language].entry} className="inline-flex min-h-11 items-center rounded-full px-3 text-sm font-medium text-foreground focus-visible:ring-2 focus-visible:ring-ring">Brand Index</Link>
             </div>
             <div className="flex min-w-0 flex-wrap items-center gap-2">
             <AccountLink />
@@ -508,11 +508,11 @@ const Index = () => {
         {/* Setup Section */}
         {!isScanning && (domains.length === 0 || isEditingSearch) && (
           <section className={`mx-auto max-w-5xl pb-4 sm:pb-6 ${isNativeApp ? "pt-1" : "pt-8 sm:pt-10"}`} aria-labelledby="search-heading">
-            {isNativeApp ? <h1 id="search-heading" className="text-2xl font-semibold tracking-tight">{nativeCopy[language].search}</h1> : <div className="mx-auto max-w-[44rem] text-center">
-              <h1 id="search-heading" className="sajda-search-title text-balance font-semibold leading-[1.12] tracking-[-0.04em] text-foreground">
+            {isNativeApp ? <h1 id="search-heading" className="text-2xl font-semibold tracking-tight">{nativeCopy[language].search}</h1> : <div className="max-w-[40rem] text-left">
+              <h1 id="search-heading" className="sajda-search-title text-balance font-semibold leading-[1.08] tracking-[-0.045em] text-foreground">
                 {t("search.heading")}
               </h1>
-              <p className="mx-auto mt-4 max-w-2xl text-pretty text-sm leading-6 text-muted-foreground sm:text-base">
+              <p className="mt-3 max-w-xl text-pretty text-[15px] leading-6 text-muted-foreground sm:text-base">
                 {anonymousSearchMode
                   ? t("search.intro")
                   : t("search.introLegacy")}
@@ -520,10 +520,10 @@ const Index = () => {
             </div>}
 
             <BrandWorkspaceEntry />
-            <div className="sajda-search-shell mt-6 overflow-hidden rounded-[1.5rem] border p-2.5 sm:p-3 md:p-4">
+            <div className="sajda-search-shell mt-6 overflow-hidden rounded-[1.75rem] border p-3 sm:p-4">
               {!isNativeApp && anonymousSearchMode && <HeroOfferHeading language={language} />}
 
-              <form ref={searchControlsRef} onSubmit={(event) => { event.preventDefault(); handleStartSearch(); }} className="sajda-main-search-row relative z-10 grid scroll-mt-24 gap-2 rounded-[1.125rem] border p-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-stretch sm:p-2" role="search">
+              <form ref={searchControlsRef} onSubmit={(event) => { event.preventDefault(); handleStartSearch(); }} className="sajda-main-search-row relative z-10 grid scroll-mt-24 gap-2 rounded-full border p-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-stretch sm:p-1.5" role="search">
                 <label htmlFor="domain-theme" className="sr-only">
                   {isExactDomainSearch ? t("search.exactCheck") : advancedSearch ? advancedCopy.shortThemeLabel : t("search.label")}
                 </label>
