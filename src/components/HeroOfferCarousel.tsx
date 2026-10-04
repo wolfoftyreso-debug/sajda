@@ -234,7 +234,7 @@ export default function HeroOfferCarousel({
   ];
 
   const renderAction = (offerId: OfferId, action: string) => {
-    const className = "inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
+    const className = "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
 
     if (offerId === "swipe") {
       return (
@@ -269,7 +269,7 @@ export default function HeroOfferCarousel({
             <article
               key={offer.id}
               data-search-path={offer.id}
-              className="flex min-h-0 flex-col overflow-hidden rounded-[1.75rem] border border-black/[0.04] bg-card shadow-[0_10px_30px_rgba(15,23,42,0.06)]"
+              className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
             >
               <div className="relative h-40 overflow-hidden bg-[#eef1f6]" aria-hidden="true">
                 <SearchPathGraphic offerId={offer.id} />

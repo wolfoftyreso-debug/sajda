@@ -511,7 +511,7 @@ const DomainCard = ({
 
   return (
     <article
-      className={`group relative overflow-hidden rounded-[1.75rem] bg-card p-4 shadow-[0_10px_28px_rgba(15,23,42,0.06)] sm:p-5 ${
+      className={`group relative overflow-hidden rounded-xl bg-card p-4 shadow-[0_1px_2px_rgba(0,0,0,0.04)] sm:p-5 ${
         isPending
           ? "border border-dashed border-primary/30"
           : "border border-black/[0.04]"

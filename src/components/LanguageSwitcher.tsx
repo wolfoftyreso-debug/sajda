@@ -18,7 +18,7 @@ const LanguageSwitcher = ({ className }: LanguageSwitcherProps) => {
 
   return (
     <div
-      className={cn("inline-grid max-w-full grid-cols-5 items-center rounded-2xl border border-border bg-background p-1", className)}
+      className={cn("inline-grid max-w-full grid-cols-5 items-center rounded-lg bg-[#e3e3e8] p-0.5", className)}
       role="group"
       aria-label={t("language.label")}
     >
@@ -30,10 +30,10 @@ const LanguageSwitcher = ({ className }: LanguageSwitcherProps) => {
           aria-pressed={selectedLanguage === option.code}
           aria-label={t(option.nameKey)}
           className={cn(
-            "min-h-11 min-w-10 rounded-xl border border-transparent px-2 text-xs font-semibold transition-[background-color,border-color,color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+            "min-h-8 rounded-md border border-transparent px-2 text-xs font-semibold transition-[background-color,color,box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
             selectedLanguage === option.code
-              ? "border-foreground bg-card text-foreground shadow-[0_1px_2px_rgba(15,23,42,0.08)]"
-              : "text-muted-foreground hover:bg-secondary/65 hover:text-foreground",
+              ? "bg-card text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.12)]"
+              : "text-muted-foreground",
           )}
         >
           {option.shortLabel}
