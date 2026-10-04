@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { Search, History, FolderOpen, Heart, User, Layers, House } from "lucide-react";
+import { History, FolderOpen, Heart, User, Layers, House } from "lucide-react";
 import { nameProjectsEnabled } from "@/lib/nameProjectsFeature";
 import { projectEntryCopy } from "@/i18n/projectEntryCopy";
 import { hasSupabaseBrowserConfig } from "@/integrations/supabase/client";
@@ -111,71 +111,50 @@ const FooterNav = () => {
     }
   };
 
-  const focusSearch = () => {
-    const openSearch = () => {
-      const field = document.getElementById("domain-theme");
-      if (!(field instanceof HTMLInputElement)) return;
-      field.scrollIntoView({ block: "center" });
-      field.focus();
-    };
-    if (location.pathname !== "/") {
-      navigate("/");
-      window.setTimeout(openSearch, 280);
-      return;
-    }
-    openSearch();
-  };
-
   const itemClass = (isActive: boolean) => cn(
-    "flex h-12 min-w-[4.25rem] flex-1 flex-col items-center justify-center gap-0.5 rounded-full px-2 text-[11px] font-semibold transition-colors",
-    isActive ? "bg-[#e8e8ed] text-foreground" : "text-muted-foreground hover:text-foreground",
+    "flex min-h-11 min-w-0 flex-col items-center justify-center gap-0.5 px-1 text-[10px] font-medium leading-tight",
+    isActive ? "text-primary" : "text-muted-foreground",
   );
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-3 pb-[max(0.7rem,env(safe-area-inset-bottom))] md:hidden">
-      <div className="mx-auto flex max-w-lg items-end justify-center gap-3">
-        <nav
-          aria-label={copy.navigation}
-          className="pointer-events-auto flex h-[4.4rem] min-w-0 flex-1 items-center gap-1 overflow-x-auto rounded-full border border-black/[0.05] bg-white/92 px-2 shadow-[0_12px_40px_rgba(15,23,42,0.16)] backdrop-blur-xl"
-        >
-          {navItems.map((item) => {
-            const isActive = location.pathname === item.path;
-            const Icon = item.icon;
+    <nav
+      aria-label={copy.navigation}
+      className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background/95 backdrop-blur-xl md:hidden"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
+      <div
+        className="mx-auto grid h-14 max-w-lg"
+        style={{ gridTemplateColumns: `repeat(${navItems.length + 1}, minmax(0, 1fr))` }}
+      >
+        {navItems.map((item) => {
+          const isActive = location.pathname === item.path;
+          const Icon = item.icon;
 
-            return (
-              <button
-                key={item.path}
-                onClick={() => handleNavigation(item.path, item.requiresAuth)}
-                aria-label={item.label}
-                aria-current={isActive ? "page" : undefined}
-                className={itemClass(isActive)}
-              >
-                <Icon className="h-5 w-5" />
-                <span className="max-w-full truncate">{item.label}</span>
-              </button>
-            );
-          })}
+          return (
+            <button
+              key={item.path}
+              onClick={() => handleNavigation(item.path, item.requiresAuth)}
+              aria-label={item.label}
+              aria-current={isActive ? "page" : undefined}
+              className={itemClass(isActive)}
+            >
+              <Icon className="h-5 w-5" />
+              <span className="max-w-full truncate">{item.label}</span>
+            </button>
+          );
+        })}
 
-          <button
-            onClick={() => navigate(user ? "/account" : "/auth")}
-            aria-label={copy.account}
-            aria-current={location.pathname === "/auth" || location.pathname === "/account" ? "page" : undefined}
-            className={itemClass(location.pathname === "/auth" || location.pathname === "/account")}
-          >
-            <User className="h-5 w-5" />
-            <span className="max-w-full truncate">{copy.account}</span>
-          </button>
-        </nav>
         <button
-          type="button"
-          onClick={focusSearch}
-          aria-label={copy.search}
-          className="pointer-events-auto flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-black/[0.05] bg-white text-foreground shadow-[0_12px_40px_rgba(15,23,42,0.16)]"
+          onClick={() => navigate(user ? "/account" : "/auth")}
+          aria-label={copy.account}
+          aria-current={location.pathname === "/auth" || location.pathname === "/account" ? "page" : undefined}
+          className={itemClass(location.pathname === "/auth" || location.pathname === "/account")}
         >
-          <Search className="h-6 w-6" />
+          <User className="h-5 w-5" />
+          <span className="max-w-full truncate">{copy.account}</span>
         </button>
       </div>
-    </div>
+    </nav>
   );
 };
 
