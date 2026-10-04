@@ -1,5 +1,5 @@
 import { SEO_CANONICAL_ORIGIN } from "./seoCanonicalOrigin";
-import { applyDocumentMetadata, type Language } from "@/i18n/LanguageProvider";
+import { applyDocumentMetadata, applySharePreviewMetadata, type Language } from "@/i18n/LanguageProvider";
 import { seoDocumentForPath, seoRobotsForLocation, seoStructuredData } from "./seoDocuments";
 
 function setHeadValue(tag: "meta" | "link", attribute: string, key: string, field: string, value: string) {
@@ -21,6 +21,7 @@ export function applyWebSeoMetadata(pathname: string, search: string, origin: st
   }));
   setHeadValue("link", "rel", "canonical", "href", canonical);
   setHeadValue("meta", "property", "og:url", "content", canonical);
+  applySharePreviewMetadata();
   if (!page) {
     applyDocumentMetadata(language, pathname.startsWith("/se/") ? "/" : pathname);
     return;

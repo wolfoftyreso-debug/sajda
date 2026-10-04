@@ -19,26 +19,26 @@
   :root {
     color-scheme: light;
 
-    --background: 211 57% 97.2%;
-    --foreground: 221 39% 12%;
+    --background: 240 20% 96%;
+    --foreground: 240 8% 10%;
 
     --card: 0 0% 100%;
-    --card-foreground: 221 39% 12%;
+    --card-foreground: 240 8% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 221 39% 12%;
+    --popover-foreground: 240 8% 10%;
 
     /* #1673E8 — Sajda's action blue from the supplied CI package. */
     --primary: 213 82% 50%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 211 72% 94.7%;
-    --secondary-foreground: 221 39% 12%;
+    --secondary: 240 12% 93%;
+    --secondary-foreground: 240 8% 10%;
 
-    --muted: 211 55% 95.4%;
-    --muted-foreground: 216 18% 43%;
+    --muted: 240 12% 93%;
+    --muted-foreground: 240 4% 42%;
 
-    --accent: 207 91% 93.5%;
+    --accent: 213 70% 95%;
     --accent-foreground: 213 82% 36%;
 
     --destructive: 0 72% 46%;
@@ -51,12 +51,12 @@
     --warning: 34 86% 35%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 213 42% 86%;
-    --input: 213 40% 80%;
+    --border: 240 8% 90%;
+    --input: 240 6% 86%;
     --ring: 213 82% 50%;
 
-    /* Four-pixel geometry. Keep shared corners crisp rather than pill-like. */
-    --radius: 0.75rem;
+    /* Grouped cards use a large corner, closer to a quiet mobile summary than a dashboard. */
+    --radius: 1.15rem;
     --sj-radius-1: 0.25rem;
     --sj-radius-2: 0.5rem;
     --sj-radius-3: 0.75rem;
@@ -98,22 +98,22 @@
   /* Keep an accidental `.dark` class from turning the tool back into a dark page. */
   .dark {
     color-scheme: light;
-    --background: 211 57% 97.2%;
-    --foreground: 221 39% 12%;
+    --background: 240 20% 96%;
+    --foreground: 240 8% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 221 39% 12%;
+    --card-foreground: 240 8% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 221 39% 12%;
+    --popover-foreground: 240 8% 10%;
     --primary: 213 82% 50%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 211 72% 94.7%;
-    --secondary-foreground: 221 39% 12%;
-    --muted: 211 55% 95.4%;
-    --muted-foreground: 216 18% 43%;
-    --accent: 207 91% 93.5%;
+    --secondary: 240 12% 93%;
+    --secondary-foreground: 240 8% 10%;
+    --muted: 240 12% 93%;
+    --muted-foreground: 240 4% 42%;
+    --accent: 213 70% 95%;
     --accent-foreground: 213 82% 36%;
-    --border: 213 42% 86%;
-    --input: 213 40% 80%;
+    --border: 240 8% 90%;
+    --input: 240 6% 86%;
     --ring: 213 82% 50%;
   }
 }
@@ -182,29 +182,11 @@
     }
   }
 
-  /* A restrained ambient field makes the light canvas feel intentional without
-     competing with the search and results. Product graphics stay CSS-native. */
+  /* A quiet grouped canvas. Product graphics stay in the cards, not on a grid. */
   .sajda-canvas {
     isolation: isolate;
     position: relative;
-    background:
-      radial-gradient(circle at 12% 6%, hsl(207 94% 93% / 0.8), transparent 34rem),
-      radial-gradient(circle at 89% 13%, hsl(216 94% 94% / 0.74), transparent 34rem),
-      hsl(var(--background));
-  }
-
-  .sajda-canvas::before {
-    content: "";
-    position: absolute;
-    z-index: -1;
-    inset: 0;
-    pointer-events: none;
-    opacity: 0.2;
-    background-image:
-      linear-gradient(hsl(213 66% 47% / 0.1) 1px, transparent 1px),
-      linear-gradient(90deg, hsl(213 66% 47% / 0.1) 1px, transparent 1px);
-    background-size: 48px 48px;
-    mask-image: linear-gradient(to bottom, black, transparent 34rem);
+    background: hsl(var(--background));
   }
 
 
@@ -240,45 +222,25 @@
     box-shadow: var(--sj-shadow-sm);
   }
 
-  /* The search is the centre of the product.  Give it a deliberate light-blue
-     field so the controls read as one system before the user gets into the
-     more detailed configuration. */
+  /* The search sits in one white card. The field itself is a soft grouped pill. */
   .sajda-search-shell {
     isolation: isolate;
     position: relative;
-    border-color: hsl(210 62% 81%);
-    background: hsl(209 83% 95.7%);
-    box-shadow:
-      0 1px 0 hsl(0 0% 100% / 0.86) inset,
-      0 22px 48px hsl(214 42% 24% / 0.09);
+    border-color: hsl(240 8% 90%);
+    background: hsl(var(--card));
+    box-shadow: 0 10px 32px hsl(240 10% 10% / 0.05);
   }
 
   /* Smooth heading growth through split-screen and tablet widths. The same
      hierarchy is retained without the old 30px → 48px jump at 640px. */
   .sajda-search-title {
-    font-size: clamp(1.875rem, calc(1rem + 3.5vw), 3rem);
-  }
-
-  .sajda-search-shell::before {
-    content: "";
-    position: absolute;
-    z-index: -1;
-    inset: 0;
-    pointer-events: none;
-    opacity: 0.78;
-    background-image:
-      linear-gradient(90deg, hsl(210 72% 66% / 0.1) 1px, transparent 1px),
-      linear-gradient(hsl(210 72% 66% / 0.1) 1px, transparent 1px);
-    background-size: 32px 32px;
-    mask-image: linear-gradient(to bottom, black, transparent 30rem);
+    font-size: clamp(2rem, calc(1.2rem + 2.8vw), 2.75rem);
   }
 
   .sajda-main-search-row {
-    border-color: hsl(210 55% 80%);
-    background: hsl(0 0% 100% / 0.9);
-    box-shadow:
-      0 1px 0 hsl(0 0% 100% / 0.98) inset,
-      0 9px 22px hsl(214 46% 25% / 0.055);
+    border-color: transparent;
+    background: hsl(240 14% 95%);
+    box-shadow: none;
   }
 
   /* Search paths are code-native graphic cards. Keep the outer rhythm and

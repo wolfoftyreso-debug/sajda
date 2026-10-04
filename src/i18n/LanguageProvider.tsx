@@ -1390,8 +1390,43 @@ const routeMetadataCopy: Readonly<Record<Language, {
   },
 };
 
+const SHARE_IMAGE_ALT = "Sajda — domain search with verified prices";
+
+function setMeta(attribute: "name" | "property", key: string, value: string) {
+  const selector = `meta[${attribute}='${key}']`;
+  let node = document.head.querySelector(selector);
+  if (!node) {
+    node = document.createElement("meta");
+    node.setAttribute(attribute, key);
+    document.head.appendChild(node);
+  }
+  node.setAttribute("content", value);
+}
+
+/** Link unfurls need an absolute image even after a client-side route change. */
+export function applySharePreviewMetadata(): void {
+  if (typeof document === "undefined" || !document.head?.querySelector) return;
+  const canonical = document.head.querySelector("link[rel='canonical']")?.getAttribute("href") ?? "";
+  let image = "https://sajda.dev/og.png";
+  try {
+    if (canonical) image = new URL("/og.png", canonical).toString();
+  } catch {
+    image = "https://sajda.dev/og.png";
+  }
+  setMeta("property", "og:image", image);
+  setMeta("property", "og:image:secure_url", image);
+  setMeta("property", "og:image:type", "image/png");
+  setMeta("property", "og:image:width", "1200");
+  setMeta("property", "og:image:height", "630");
+  setMeta("property", "og:image:alt", SHARE_IMAGE_ALT);
+  setMeta("name", "twitter:card", "summary_large_image");
+  setMeta("name", "twitter:image", image);
+  setMeta("name", "twitter:image:alt", SHARE_IMAGE_ALT);
+}
+
 /** Route overrides live with the global language metadata, not in competing effects. */
 export function applyDocumentMetadata(language: Language, pathname: string): void {
+  applySharePreviewMetadata();
   // Market pages own their static, localized metadata. Never replace that
   // content or save a language preference merely because a URL was opened.
   if (isSwedishMarketPath(pathname)) {
