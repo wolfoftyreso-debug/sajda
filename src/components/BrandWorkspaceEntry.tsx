@@ -5,7 +5,7 @@ import { brandWorkspaceCopy } from "@/i18n/brandWorkspaceCopy";
 
 export default function BrandWorkspaceEntry({ compact = false }: { compact?: boolean }) {
   const { language } = useLanguage(), c = brandWorkspaceCopy[language];
-  return <section className="my-5 rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/10 to-card p-5 sm:p-6">
+  return <section className={`rounded-[1.75rem] border border-black/[0.04] bg-card shadow-[0_8px_24px_rgba(15,23,42,0.05)] ${compact ? "my-4 p-4" : "mt-8 p-5 sm:p-6"}`}>
     <p className="flex items-center gap-2 text-sm font-semibold text-primary"><Layers className="h-5 w-5 shrink-0" aria-hidden="true" />Sajda Brand Index</p>
     <h2 className="mt-3 text-xl font-semibold tracking-tight sm:text-2xl">{c.overview}</h2>
     {!compact && <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">{c.overviewBody}</p>}

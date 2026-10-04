@@ -16,7 +16,7 @@ import TLDSelector from "@/components/TLDSelector";
 import ProviderSelector from "@/components/ProviderSelector";
 import ScanModeSelector from "@/components/ScanModeSelector";
 import AdvancedSearchBrief from "@/components/AdvancedSearchBrief";
-import HeroOfferCarousel, { HeroOfferHeading } from "@/components/HeroOfferCarousel";
+import HeroOfferCarousel from "@/components/HeroOfferCarousel";
 import DeepReviewPanel from "@/components/DeepReviewPanel";
 import SearchResultHelp from "@/components/SearchResultHelp";
 import SearchRefinement from "@/components/SearchRefinement";
@@ -466,7 +466,8 @@ const Index = () => {
   return (
     <div className="sajda-canvas min-h-screen pb-28 md:pb-8">
       <main className="mx-auto w-full max-w-[1280px] px-4 py-5 sm:px-6 sm:py-6">
-        {!isNativeApp && <header className="sajda-search-header grid min-h-10 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 pb-2 xl:grid-cols-[auto_auto_minmax(0,1fr)]" aria-label="Sajda">
+        {!isNativeApp && <header className="pb-1" aria-label="Sajda">
+          <div className="flex items-center justify-between gap-3">
           <a
             href="/"
             className="inline-flex items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
@@ -478,18 +479,29 @@ const Index = () => {
               className="h-7 w-auto sm:h-10"
             />
           </a>
-          <a href="/pricing" className="inline-flex min-h-11 items-center rounded-full px-3 py-2 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{language === "sv" ? "Priser & nivåer" : language === "es" ? "Precios y planes" : language === "fr" ? "Tarifs et offres" : language === "zh" ? "价格与方案" : "Pricing & plans"}</a>
-          <div className="col-span-2 flex min-w-0 flex-wrap items-center justify-between gap-3 xl:col-span-1 xl:justify-end">
-            <div className="flex min-w-0 flex-wrap items-center gap-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <details className="relative md:hidden">
+              <summary className="flex min-h-11 cursor-pointer list-none items-center rounded-full px-3 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+                {language === "sv" ? "Mer" : language === "es" ? "Más" : language === "fr" ? "Plus" : language === "zh" ? "更多" : "More"}
+              </summary>
+              <div className="absolute right-0 z-30 mt-2 flex w-60 flex-col rounded-[1.25rem] border border-black/[0.06] bg-card p-2 shadow-[0_16px_40px_rgba(15,23,42,0.12)]">
+                <a href="/pricing" className="min-h-11 rounded-xl px-3 py-2 text-sm font-semibold text-foreground">{language === "sv" ? "Priser & nivåer" : language === "es" ? "Precios y planes" : language === "fr" ? "Tarifs et offres" : language === "zh" ? "价格与方案" : "Pricing & plans"}</a>
+                {nameProjectsEnabled && <Link to="/projects" className="inline-flex min-h-11 items-center rounded-xl px-3 text-sm font-medium text-foreground">{projectCopy.projects}</Link>}
+                <Link to="/name-packages" className="inline-flex min-h-11 items-center rounded-xl px-3 text-sm font-medium text-foreground">{namePackageEntryCopy[language].title}</Link>
+                <Link to="/brand-index" aria-label={brandLookupCopy[language].entry} className="inline-flex min-h-11 items-center rounded-xl px-3 text-sm font-medium text-foreground">Brand Index</Link>
+              </div>
+            </details>
+            <AccountLink />
+            <LanguageSwitcher className="hidden md:inline-grid" />
+          </div>
+          </div>
+          <LanguageSwitcher className="mt-3 grid w-full md:hidden" />
+          <nav className="mt-2 hidden w-full items-center gap-1 md:flex" aria-label={language === "sv" ? "Fler sidor" : "More pages"}>
+            <a href="/pricing" className="inline-flex min-h-11 items-center rounded-full px-3 py-2 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{language === "sv" ? "Priser & nivåer" : language === "es" ? "Precios y planes" : language === "fr" ? "Tarifs et offres" : language === "zh" ? "价格与方案" : "Pricing & plans"}</a>
             {nameProjectsEnabled && <Link to="/projects" className="inline-flex min-h-11 items-center rounded-full px-3 text-sm font-medium text-foreground focus-visible:ring-2 focus-visible:ring-ring">{projectCopy.projects}</Link>}
             <Link to="/name-packages" className="inline-flex min-h-11 items-center rounded-full px-3 text-sm font-medium text-foreground focus-visible:ring-2 focus-visible:ring-ring">{namePackageEntryCopy[language].title}</Link>
             <Link to="/brand-index" aria-label={brandLookupCopy[language].entry} className="inline-flex min-h-11 items-center rounded-full px-3 text-sm font-medium text-foreground focus-visible:ring-2 focus-visible:ring-ring">Brand Index</Link>
-            </div>
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <AccountLink />
-            <LanguageSwitcher />
-            </div>
-          </div>
+          </nav>
         </header>}
         {projectContext?.accountId === accountId && projectContext && <aside className="my-5 rounded-2xl border border-primary/20 bg-primary/5 p-4" aria-label={projectCopy.projects}>
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -507,7 +519,7 @@ const Index = () => {
 
         {/* Setup Section */}
         {!isScanning && (domains.length === 0 || isEditingSearch) && (
-          <section className={`mx-auto max-w-5xl pb-4 sm:pb-6 ${isNativeApp ? "pt-1" : "pt-8 sm:pt-10"}`} aria-labelledby="search-heading">
+          <section className={`mx-auto max-w-5xl pb-4 sm:pb-6 ${isNativeApp ? "pt-1" : "pt-5 sm:pt-8"}`} aria-labelledby="search-heading">
             {isNativeApp ? <h1 id="search-heading" className="text-2xl font-semibold tracking-tight">{nativeCopy[language].search}</h1> : <div className="max-w-[40rem] text-left">
               <h1 id="search-heading" className="sajda-search-title text-balance font-semibold leading-[1.08] tracking-[-0.045em] text-foreground">
                 {t("search.heading")}
@@ -519,9 +531,7 @@ const Index = () => {
               </p>
             </div>}
 
-            <BrandWorkspaceEntry />
-            <div className="sajda-search-shell mt-6 overflow-hidden rounded-[1.75rem] border p-3 sm:p-4">
-              {!isNativeApp && anonymousSearchMode && <HeroOfferHeading language={language} />}
+            <div className="sajda-search-shell mt-5 overflow-hidden rounded-[1.75rem] border p-3 sm:p-4">
 
               <form ref={searchControlsRef} onSubmit={(event) => { event.preventDefault(); handleStartSearch(); }} className="sajda-main-search-row relative z-10 grid scroll-mt-24 gap-2 rounded-full border p-1.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-stretch sm:p-1.5" role="search">
                 <label htmlFor="domain-theme" className="sr-only">
@@ -562,7 +572,6 @@ const Index = () => {
                     language={language}
                     onExploreTrending={handleExploreTrending}
                     onOpenAdvancedSearch={handleOpenAdvancedSearch}
-                    showHeading={false}
                   />
                 </div>
               )}
@@ -682,6 +691,7 @@ const Index = () => {
                 <AiPrivacyControl />
               </details>}
             </div>
+            <BrandWorkspaceEntry />
           </section>
         )}
 
