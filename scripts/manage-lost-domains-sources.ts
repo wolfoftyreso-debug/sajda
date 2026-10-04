@@ -11,7 +11,7 @@ const usage = `Source operator tool (no automatic grants, global switches or sch
   register --manifest <reviewed.json> --apply --database-host <exact-host> --shared-catalog
                                                     Insert disabled sources; never overwrite existing records.
   enable --manifest <reviewed.json> --network --apply --database-host <exact-host> --shared-catalog
-                                                    Fresh source/robots probe and enable only matching registered IDs.
+                                                    Fresh source/robots probe; enable or renew only matching registered IDs.
   collections --network                             Up to5 current Common Crawl collection IDs.
   index --host <exact-host> --prefix </public/path/> --collection <CC-MAIN-YYYY-NN> --network
                                                     Up to10 historical source-page hints, no page/archive downloads.

@@ -84,10 +84,15 @@ export function productionConfigurationIssues(env = process.env, deployment = {}
       issues.push("production_registrar_credentials_required");
     }
   }
-  if (env.STRIPE_CHECKOUT_ENABLED === "true" && (env.STRIPE_MODE !== "live"
+  const paidCheckoutEnabled = env.STRIPE_CHECKOUT_ENABLED === "true"
+    || env.STRIPE_BASIC_CHECKOUT_ENABLED === "true" || env.STRIPE_PREMIUM_CHECKOUT_ENABLED === "true";
+  const multiPlanBilling = env.STRIPE_BASIC_CHECKOUT_ENABLED === "true" || env.STRIPE_PREMIUM_CHECKOUT_ENABLED === "true"
+    || Boolean(env.STRIPE_BASIC_PRICE_ID || env.STRIPE_PREMIUM_PRICE_ID || env.STRIPE_TRADING_PRICE_ID);
+  if (paidCheckoutEnabled && (env.STRIPE_MODE !== "live"
     || env.STRIPE_LIVE_ENABLED !== "true" || !/^sk_live_/u.test(env.STRIPE_SECRET_KEY ?? "")
     || !/^whsec_/u.test(env.STRIPE_WEBHOOK_SECRET ?? "")
-    || !/^price_/u.test(env.STRIPE_PLUS_PRICE_ID ?? "")
+    || !/^price_/u.test(env.STRIPE_TRADING_PRICE_ID ?? env.STRIPE_PLUS_PRICE_ID ?? "")
+    || multiPlanBilling && (!/^price_/u.test(env.STRIPE_BASIC_PRICE_ID ?? "") || !/^price_/u.test(env.STRIPE_PREMIUM_PRICE_ID ?? ""))
     || !/^bpc_/u.test(env.STRIPE_PORTAL_CONFIGURATION_ID ?? ""))) {
     issues.push("production_billing_requires_live_configuration");
   }

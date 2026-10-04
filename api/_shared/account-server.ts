@@ -77,7 +77,9 @@ export function createAccountAuth(options: {
     },
     // Never forward library payloads (which may contain credentials) into logs.
     logger: { log: (level) => {
-      if (level === "error" || level === "warn") console.error(JSON.stringify({ event: "account_auth_library", level }));
+      const event = JSON.stringify({ event: "account_auth_library", level });
+      if (level === "error") console.error(event);
+      else if (level === "warn") console.info(event);
     } },
   });
 }

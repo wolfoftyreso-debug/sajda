@@ -9,7 +9,13 @@ export const PLANS = Object.freeze({
 } as const);
 
 export type PlanId = keyof typeof PLANS;
+export type PaidPlanId = Exclude<PlanId, "free">;
 export const PLAN_ORDER = Object.freeze(["free", "basic", "premium", "trading"] as const);
+export const PAID_PLAN_ORDER = Object.freeze(["basic", "premium", "trading"] as const satisfies readonly PaidPlanId[]);
+
+export function isPaidPlanId(value: unknown): value is PaidPlanId {
+  return typeof value === "string" && PAID_PLAN_ORDER.includes(value as PaidPlanId);
+}
 
 export function formatPlanMonthlyPrice(planId: PlanId, language: string): string {
   const locales: Record<string, string> = { en: "en-US", sv: "sv-SE", es: "es-ES", fr: "fr-FR", zh: "zh-CN" };

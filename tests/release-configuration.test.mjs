@@ -52,6 +52,7 @@ test("automated crawling and real checkout require their independent configurati
   assert.ok(productionConfigurationIssues({ ...ready(), SAJDA_LOST_DOMAINS_CRON_ENABLED: "true" }).includes("production_cron_requires_engine"));
   assert.ok(productionConfigurationIssues({ ...ready(), STRIPE_CHECKOUT_ENABLED: "true", STRIPE_SECRET_KEY: "sk_test_fixture" }).includes("production_billing_requires_live_configuration"));
   assert.deepEqual(productionConfigurationIssues({ ...ready(), STRIPE_CHECKOUT_ENABLED: "false" }), []);
+  assert.ok(productionConfigurationIssues({ ...ready(), STRIPE_BASIC_CHECKOUT_ENABLED: "true" }).includes("production_billing_requires_live_configuration"));
 });
 
 test("an enabled Trading scheduler needs a real bounded Vercel schedule, not just environment flags", () => {

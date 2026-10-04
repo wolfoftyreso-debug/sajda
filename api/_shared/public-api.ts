@@ -1,4 +1,6 @@
 import { randomBytes } from "node:crypto";
+export { hasRequestQueryParameters } from "./request-query.js";
+export type { RequestUrlQueryLike } from "./request-query.js";
 
 /**
  * Shared response policy for Sajda's deliberately anonymous API surfaces.

@@ -246,7 +246,7 @@ test("verified saved-domain requests stay owner-scoped, idempotent and reject fo
     const own = await perform("GET", "account-a");
     assert.equal((own.body as { items: unknown[] }).items.length, 1);
     const foreign = await perform("GET", "account-b", undefined, { user_id: "account-a" });
-    assert.equal((foreign.body as { items: unknown[] }).items.length, 0);
+    assert.equal(foreign.code, 400, "Undocumented ownership query parameters must be rejected, not ignored");
     await perform("DELETE", "account-b", { domain: "example.com" });
     assert.equal(records.size, 1, "Another account cannot delete the saved row");
     await perform("DELETE", "account-a", { domain: "example.com" });

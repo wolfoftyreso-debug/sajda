@@ -16,6 +16,7 @@ import {
   type CommerceStore,
   type CommerceLease,
 } from "./commerce-store.js";
+import { PAID_PLAN_ORDER, type PaidPlanId } from "../../shared/plans.js";
 
 export interface BillingSnapshot {
   ready: boolean;
@@ -26,6 +27,8 @@ export interface BillingSnapshot {
   canManage: boolean;
   accessExpiresAt: string | null;
   appStoreManaged?: boolean;
+  activePlan: PaidPlanId | null;
+  plans: Record<PaidPlanId, { ready: boolean; price: CommercePrice | null; canCheckout: boolean }>;
 }
 const terminal = (status: SubscriptionStatus) =>
   ["none", "canceled", "incomplete_expired"].includes(status);
@@ -81,7 +84,7 @@ export function createCommerceService(
             canCheckout: false,
             canManage: false,
             accessExpiresAt: null,
-          };
+          } as BillingSnapshot;
         throw error;
       }
       const { config, store, provider } = services;
@@ -108,25 +111,31 @@ export function createCommerceService(
           );
         }
       }
-      let price: CommercePrice | null = null;
-      try {
-        price = await provider.price();
-      } catch {
-        console.error(JSON.stringify({ event: "commerce_price_read_failed" }));
-      }
-      const ready = config.checkoutEnabled && price !== null && reconciled;
+      const availablePlans = config.priceIds ? PAID_PLAN_ORDER : (["trading"] as const);
+      const priceResults = await Promise.all(availablePlans.map(async plan => {
+        try { return [plan, await provider.price(plan)] as const; }
+        catch { console.error(JSON.stringify({ event: "commerce_price_read_failed", plan })); return [plan, null] as const; }
+      }));
+      const prices = Object.fromEntries(priceResults) as Partial<Record<PaidPlanId, CommercePrice | null>>;
+      const eligible = !appStoreManaged && terminal(customer?.status ?? "none") && !customer?.paymentHold;
+      const plans = Object.fromEntries(PAID_PLAN_ORDER.map(plan => {
+        const price = prices[plan] ?? null;
+        const enabled = config.checkoutPlans?.[plan] ?? (plan === "trading" && config.checkoutEnabled);
+        const ready = enabled && price !== null && reconciled;
+        return [plan, { ready, price, canCheckout: ready && eligible }];
+      })) as BillingSnapshot["plans"];
+      const price = plans.trading.price;
+      const ready = plans.trading.ready;
       return {
         ready,
         mode: config.mode,
         price,
         status: customer?.status ?? "none",
-        canCheckout:
-          ready &&
-          !appStoreManaged &&
-          terminal(customer?.status ?? "none") &&
-          !customer?.paymentHold,
+        canCheckout: plans.trading.canCheckout,
         canManage: Boolean(customer?.customerId),
         accessExpiresAt: customer?.accessExpiresAt ?? null,
+        activePlan: customer?.activePlan ?? null,
+        plans,
         ...(appStoreManaged ? { appStoreManaged: true } : {}),
       };
     },
@@ -134,13 +143,17 @@ export function createCommerceService(
       ownerId: string,
       requestKey: string,
       origin: string,
+      plan: PaidPlanId = "trading",
     ): Promise<string> {
       const { config, store, provider } = resolve();
-      if (!config.checkoutEnabled)
+      const enabled = config.checkoutPlans?.[plan] ?? (plan === "trading" && config.checkoutEnabled);
+      if (!enabled)
         throw new CommerceError("checkout_disabled", 503);
       if (await store.appStoreSubscription(ownerId))
         throw new CommerceError("app_store_subscription_exists", 409);
-      await provider.price();
+      const priceId = config.priceIds?.[plan] ?? (plan === "trading" ? config.priceId : "");
+      if (!priceId) throw new CommerceError("billing_price_unavailable");
+      await provider.price(plan);
       return withLease(store, ownerId, async (lease) => {
         if (await store.appStoreSubscription(ownerId, lease))
           throw new CommerceError("app_store_subscription_exists", 409);
@@ -165,8 +178,9 @@ export function createCommerceService(
         let reservation = await store.reservation(
           lease,
           requestKey,
-          config.priceId,
+          priceId,
           origin,
+          plan,
         );
         if (
           reservation.state === "creating" &&
@@ -179,6 +193,7 @@ export function createCommerceService(
             customerId,
             reservation.id,
             reservation.createdAt,
+            reservation.plan ?? "trading",
           );
           if (recovered) {
             await store.saveCheckout(lease, reservation.id, recovered);
@@ -196,8 +211,9 @@ export function createCommerceService(
             reservation = await store.reservation(
               lease,
               requestKey,
-              config.priceId,
+              priceId,
               origin,
+              plan,
             );
           }
         }
@@ -205,6 +221,7 @@ export function createCommerceService(
           const existing = await provider.checkout(
             reservation.sessionId,
             customerId,
+            reservation.plan ?? "trading",
           );
           await store.saveCheckout(lease, reservation.id, existing);
           if (existing.status === "open")
@@ -216,13 +233,14 @@ export function createCommerceService(
           reservation = await store.reservation(
             lease,
             requestKey,
-            config.priceId,
+            priceId,
             origin,
+            plan,
           );
         }
         if (
           reservation.state !== "creating" ||
-          reservation.priceId !== config.priceId
+          reservation.priceId !== priceId || (reservation.plan ?? "trading") !== plan
         )
           throw new CommerceError("checkout_expired", 409);
         // Fixed persisted parameters keep retries identical; before its one-hour
@@ -234,6 +252,7 @@ export function createCommerceService(
           customerId,
           origin: reservation.origin,
           createdAt: reservation.createdAt,
+          plan,
         });
         await store.saveCheckout(lease, reservation.id, created);
         if (created.status !== "open")

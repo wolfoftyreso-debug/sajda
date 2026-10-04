@@ -7,6 +7,9 @@
   "outputDirectory": "dist-vercel",
   "cleanUrls": true,
   "trailingSlash": false,
+  "crons": [
+    { "path": "/api/cron/lost-domains", "schedule": "*/5 * * * *" }
+  ],
   "functions": {
     "api/v1/business-names.ts": { "maxDuration": 30 },
     "api/v1/public/business-names.ts": { "maxDuration": 30 },

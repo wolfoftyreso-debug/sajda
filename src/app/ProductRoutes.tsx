@@ -1,8 +1,7 @@
 import { lazy, type ReactNode } from "react";
-import { Routes, Route } from "react-router-dom";
+import { Navigate, Routes, Route } from "react-router-dom";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import { hasSupabaseBrowserConfig } from "@/integrations/supabase/client";
-import AccountFeatureUnavailable from "@/pages/AccountFeatureUnavailable";
+import { nameProjectsEnabled } from "@/lib/nameProjectsFeature";
 
 const Index = lazy(() => import("@/pages/Index"));
 const Watchlist = lazy(() => import("@/pages/Watchlist"));
@@ -10,10 +9,7 @@ const NameProjects = lazy(() => import("@/pages/NameProjects"));
 const NamePackages = lazy(() => import("@/pages/NamePackages"));
 const BrandIndex = lazy(() => import("@/pages/BrandIndex"));
 const BrandIndexAssessment = lazy(() => import("@/pages/BrandIndexAssessment"));
-const MyDomains = lazy(() => import("@/pages/MyDomains"));
-const SearchHistory = lazy(() => import("@/pages/SearchHistory"));
 const Account = lazy(() => import("@/pages/Account"));
-const Top10Today = lazy(() => import("@/pages/Top10Today"));
 const Admin = lazy(() => import("@/pages/Admin"));
 const Swipe = lazy(() => import("@/pages/Swipe"));
 const Developers = lazy(() => import("@/pages/Developers"));
@@ -47,9 +43,11 @@ export default function ProductRoutes({ children, authElement }: { children?: Re
     <Route path="/name-packages" element={<ProtectedRoute><NamePackages /></ProtectedRoute>} />
     <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
     <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
-    <Route path="/my-domains" element={<ProtectedRoute>{hasSupabaseBrowserConfig ? <MyDomains /> : <AccountFeatureUnavailable />}</ProtectedRoute>} />
-    <Route path="/history" element={<ProtectedRoute>{hasSupabaseBrowserConfig ? <SearchHistory /> : <AccountFeatureUnavailable />}</ProtectedRoute>} />
-    <Route path="/top-10-today" element={<ProtectedRoute>{hasSupabaseBrowserConfig ? <Top10Today /> : <AccountFeatureUnavailable />}</ProtectedRoute>} />
+    {/* Retired Supabase-era URLs keep working without exposing a dead product
+        surface. Their maintained equivalents are Neon-backed and owner-scoped. */}
+    <Route path="/my-domains" element={<ProtectedRoute><Navigate replace to="/watchlist" /></ProtectedRoute>} />
+    <Route path="/history" element={<ProtectedRoute><Navigate replace to={nameProjectsEnabled ? "/projects" : "/watchlist"} /></ProtectedRoute>} />
+    <Route path="/top-10-today" element={<ProtectedRoute><Navigate replace to="/plus" /></ProtectedRoute>} />
     {children}
     <Route path="*" element={<NotFound />} />
   </Routes>;

@@ -2,9 +2,12 @@
  * No company audit, login, storage, external registry lookup or commercial action. */
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { promisify } from "node:util";
 
 const origin = process.env.SAJDA_TEST_ORIGIN, cli = process.env.SAJDA_VERCEL_CLI;
+const publicMcpVersion = JSON.parse(readFileSync(new URL("../api/_shared/agent-product-openapi.json", import.meta.url), "utf8")).publicMcpVersion;
+assert.match(publicMcpVersion, /^\d+\.\d+\.\d+$/u, "The checked-in public MCP contract must expose a semantic version");
 if (!cli || !/^https:\/\/sajda-[a-z0-9]+-hypbit\.vercel\.app$/u.test(origin ?? "")) throw new Error("Select the Sajda preview and CLI explicitly.");
 const execute = promisify(execFile);
 async function request(path, body) {
@@ -55,7 +58,7 @@ for (const invalid of [{ ...fixture, verified: true }, { ...full, observations: 
 }
 const init = await request("/api/mcp/public", { jsonrpc: "2.0", id: 1, method: "initialize",
   params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "sajda-brand-preview-smoke", version: "1.0.0" } } });
-assert.equal(init.status, 200); assert.equal(init.data.result.serverInfo.version, "1.5.1");
+assert.equal(init.status, 200); assert.equal(init.data.result.serverInfo.version, publicMcpVersion);
 const discovery = await request("/api/mcp/public", { jsonrpc: "2.0", id: 2, method: "tools/list" });
 assert.equal(discovery.status, 200); const tool = discovery.data.result.tools.find(tool => tool.name === "brand_index_assess");
 assert.ok(tool); assert.equal(tool.annotations.readOnlyHint, true); assert.equal(tool.annotations.openWorldHint, false);

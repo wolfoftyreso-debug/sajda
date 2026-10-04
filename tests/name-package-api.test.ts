@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { AccountAccessError } from "../api/_shared/account-error.js";
 import type { ApiKeyPrincipal } from "../api/_shared/developer-api-keys.js";
+import { assertNamePackageQuery } from "../api/_shared/name-package-http.js";
 import { parseNamePackageSearchRequest } from "../api/_shared/name-package-contract.js";
 import { createMcpProductExecutor } from "../api/_shared/mcp-product.js";
 import { createPublicMcpExecutor } from "../api/_shared/public-mcp-tools.js";
@@ -167,6 +168,29 @@ test("public REST rejects credentials, malformed, oversized and undocumented req
     const res = response(); await handler(sample, res); assert.equal(res.code, sample.status);
   }
   assert.equal(calls, 0);
+});
+
+test("name-package query validation never invokes Vercel's legacy query getter", () => {
+  let queryReads = 0;
+  const request = {
+    headers: {}, url: "/api/v1/public/name-packages",
+    get query(): Record<string, unknown> {
+      queryReads++;
+      throw new Error("The legacy query getter must not be evaluated.");
+    },
+  };
+  assert.doesNotThrow(() => assertNamePackageQuery(request));
+  assert.equal(queryReads, 0);
+  const queried = Object.defineProperty(
+    { headers: {}, url: "/api/v1/public/name-packages?query=override" },
+    "query",
+    Object.getOwnPropertyDescriptor(request, "query")!,
+  );
+  assert.throws(
+    () => assertNamePackageQuery(queried),
+    error => error instanceof AccountAccessError && error.status === 400,
+  );
+  assert.equal(queryReads, 0);
 });
 
 test("authenticated REST enforces credential scopes and request quota without granting browser access", async () => {

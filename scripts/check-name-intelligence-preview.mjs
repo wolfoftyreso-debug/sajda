@@ -2,9 +2,12 @@
  * search; no app login, saved data, social checks or purchases. */
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { promisify } from "node:util";
 
 const origin = process.env.SAJDA_TEST_ORIGIN, cli = process.env.SAJDA_VERCEL_CLI;
+const publicMcpVersion = JSON.parse(readFileSync(new URL("../api/_shared/agent-product-openapi.json", import.meta.url), "utf8")).publicMcpVersion;
+assert.match(publicMcpVersion, /^\d+\.\d+\.\d+$/u, "The checked-in public MCP contract must expose a semantic version");
 if (!cli || !/^https:\/\/sajda-[a-z0-9]+-hypbit\.vercel\.app$/u.test(origin ?? "")) {
   throw new Error("Select the Sajda preview and CLI explicitly.");
 }
@@ -73,7 +76,7 @@ assert.ok(specification.data.paths["/api/v1/public/name-packages"]);
 const initialized = await request("/api/mcp/public", { jsonrpc: "2.0", id: 1, method: "initialize",
   params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "sajda-preview-check", version: "1.0.0" } } });
 assert.equal(initialized.status, 200);
-assert.equal(initialized.data.result.serverInfo.version, "1.5.1");
+assert.equal(initialized.data.result.serverInfo.version, publicMcpVersion);
 const catalogue = await request("/api/mcp/public", { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
 const tool = catalogue.data.result.tools.find(tool => tool.name === "name_packages_search");
 assert.ok(tool?.outputSchema);

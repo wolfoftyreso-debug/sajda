@@ -1,3 +1,5 @@
+import { PAID_PLAN_ORDER, type PaidPlanId } from "../../shared/plans.js";
+
 export class CommerceError extends Error {
   constructor(
     readonly code: string,
@@ -12,9 +14,12 @@ export interface CommerceConfig {
   mode: "test" | "live";
   secretKey: string;
   webhookSecret: string;
+  /** @deprecated Trading alias kept while existing test fixtures migrate. */
   priceId: string;
+  priceIds?: Record<PaidPlanId, string>;
   portalConfigurationId: string;
   checkoutEnabled: boolean;
+  checkoutPlans?: Record<PaidPlanId, boolean>;
 }
 export function commerceConfig(
   env: NodeJS.ProcessEnv = process.env,
@@ -34,12 +39,21 @@ export function commerceConfig(
     throw new CommerceError("billing_not_configured");
   const secretKey = env.STRIPE_SECRET_KEY ?? "",
     webhookSecret = env.STRIPE_WEBHOOK_SECRET ?? "",
-    priceId = env.STRIPE_PLUS_PRICE_ID ?? "",
+    tradingPriceId = env.STRIPE_TRADING_PRICE_ID ?? env.STRIPE_PLUS_PRICE_ID ?? "",
+    configuredPriceIds = {
+      basic: env.STRIPE_BASIC_PRICE_ID ?? "",
+      premium: env.STRIPE_PREMIUM_PRICE_ID ?? "",
+      trading: tradingPriceId,
+    },
     portalConfigurationId = env.STRIPE_PORTAL_CONFIGURATION_ID ?? "";
+  const multiPlanConfigured = Boolean(configuredPriceIds.basic || configuredPriceIds.premium || env.STRIPE_TRADING_PRICE_ID);
+  const priceIds = multiPlanConfigured ? configuredPriceIds : undefined;
   if (
     !new RegExp(`^sk_${mode}_[A-Za-z0-9]{12,}$`, "u").test(secretKey) ||
     !/^whsec_[A-Za-z0-9]{12,}$/u.test(webhookSecret) ||
-    !/^price_[A-Za-z0-9]+$/u.test(priceId) ||
+    !/^price_[A-Za-z0-9]+$/u.test(tradingPriceId) ||
+    (priceIds !== undefined && (PAID_PLAN_ORDER.some(plan => !/^price_[A-Za-z0-9]+$/u.test(priceIds[plan])) ||
+      new Set(Object.values(priceIds)).size !== PAID_PLAN_ORDER.length)) ||
     !/^bpc_[A-Za-z0-9]+$/u.test(portalConfigurationId)
   )
     throw new CommerceError("billing_not_configured");
@@ -48,10 +62,22 @@ export function commerceConfig(
     mode: mode as CommerceConfig["mode"],
     secretKey,
     webhookSecret,
-    priceId,
+    priceId: tradingPriceId,
+    priceIds,
     portalConfigurationId,
     checkoutEnabled: env.STRIPE_CHECKOUT_ENABLED === "true",
+    checkoutPlans: {
+      basic: env.STRIPE_BASIC_CHECKOUT_ENABLED === "true",
+      premium: env.STRIPE_PREMIUM_CHECKOUT_ENABLED === "true",
+      trading: env.STRIPE_CHECKOUT_ENABLED === "true",
+    },
   };
+}
+
+export function commercePriceId(config: Pick<CommerceConfig, "priceId"> & Partial<Pick<CommerceConfig, "priceIds">>, plan: PaidPlanId): string {
+  const value = config.priceIds?.[plan] ?? (plan === "trading" ? config.priceId : "");
+  if (!/^price_[A-Za-z0-9]+$/u.test(value)) throw new CommerceError("billing_price_unavailable");
+  return value;
 }
 export const commerceId = (value: unknown, prefix: string): string => {
   const id =

@@ -2,9 +2,10 @@ import { AccountAccessError, requireAccount } from "../_shared/account-auth.js";
 import type { AccountHeaders } from "../_shared/account-origin.js";
 import { readDelegatedAccount } from "../_shared/delegated-account.js";
 import { createRequestId } from "../_shared/public-api.js";
+import { hasRequestQueryParameters } from "../_shared/request-query.js";
 import { accountDeletionInput, createAccountDeletionService } from "../_shared/account-deletion.js";
 
-interface RequestLike { method?: string; headers?: AccountHeaders; query?: Record<string, unknown>; body?: unknown }
+interface RequestLike { method?: string; headers?: AccountHeaders; query?: Record<string, unknown>; url?: string; body?: unknown }
 interface ResponseLike {
   setHeader(name: string, value: string | number): void;
   status(code: number): ResponseLike;
@@ -29,7 +30,7 @@ export function createAccountDeletionHandler(authorize = requireAccount, service
       // Unverified accounts can delete too. The fresh email code proves control
       // of the account's email; verification is not an artificial removal barrier.
       const account = await authorize(request.headers, { method: "POST" });
-      if (Object.keys(request.query ?? {}).length) throw new AccountAccessError("invalid_request", 400, "Do not include query parameters.");
+      if (hasRequestQueryParameters(request)) throw new AccountAccessError("invalid_request", 400, "Do not include query parameters.");
       if (typeof request.headers?.["content-type"] !== "string" || !/^application\/json(?:\s*;|$)/iu.test(request.headers["content-type"])) {
         throw new AccountAccessError("unsupported_media_type", 415, "Send application/json.");
       }

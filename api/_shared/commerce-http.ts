@@ -33,8 +33,12 @@ const action = z
   .object({
     action: z.enum(["checkout", "portal"]),
     requestKey: z.string().uuid(),
+    plan: z.enum(["basic", "premium", "trading"]).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    if (value.action === "portal" && value.plan !== undefined) context.addIssue({ code: "custom", path: ["plan"], message: "plan is only valid for checkout" });
+  });
 export async function billingAction(
   request: BillingRequest,
 ): Promise<z.infer<typeof action>> {

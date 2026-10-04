@@ -138,6 +138,22 @@ test("enable requires matching registered policy and fresh in-process robots/HTM
   assert.equal(unregistered.statements.at(-1)?.sql, "ROLLBACK");
 });
 
+test("enable renews an expired dated review only after a fresh probe without changing source identity", async () => {
+  const next = manifest();
+  next.sources[0].review.reviewedAt = new Date(now - 500).toISOString();
+  next.sources[0].review.expiresAt = new Date(now + 2 * 86_400_000).toISOString();
+  const previous = stored(true);
+  previous.policy_reviewed_at = new Date(now - 10 * 86_400_000);
+  previous.policy_expires_at = new Date(now - 1);
+  const db = database(previous);
+  const result = await applySourceManifest(next, "enable", db.pool, { now: () => now, discover: discovery });
+  assert.equal(result.changes[0].enabled, true);
+  const update = db.statements.find(row => row.sql.startsWith("UPDATE"))!;
+  assert.match(update.sql, /policy_reviewed_at=\$3::timestamptz/u);
+  assert.equal(update.values[2], next.sources[0].review.reviewedAt);
+  assert.equal(update.values[3], next.sources[0].review.expiresAt);
+});
+
 test("failed live policy check never opens a write transaction; conflicts never overwrite sources", async () => {
   const db = database(stored());
   await assert.rejects(applySourceManifest(manifest(), "enable", db.pool, { now: () => now, discover: async () => { throw new Error("robots_disallowed"); } }));

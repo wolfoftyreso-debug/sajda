@@ -109,6 +109,21 @@ test("public REST returns the exact shared assessment with safe headers and no p
   assert.equal(res.headers.get("x-ratelimit-limit"), "120");
 });
 
+test("public REST reads the canonical URL without invoking Vercel's legacy query getter", async () => {
+  let queryReads = 0;
+  const request = {
+    method: "POST", headers, body: input, url: "/api/v1/public/brand-index",
+    get query(): Record<string, unknown> {
+      queryReads++;
+      throw new Error("The legacy query getter must not be evaluated.");
+    },
+  };
+  const res = response();
+  await createPublicBrandIndexHandler({ now: () => now })(request, res);
+  assert.equal(res.code, 200);
+  assert.equal(queryReads, 0);
+});
+
 test("public REST rejects credentials, query parameters and invalid bodies before calculation", async () => {
   let calls = 0;
   const handler = createPublicBrandIndexHandler({ assess: () => { calls++; return executeBrandIndexAssessment(input, now); } });

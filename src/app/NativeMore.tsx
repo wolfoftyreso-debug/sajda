@@ -3,7 +3,6 @@ import { ArrowRight } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { nativeCopy } from "./nativeCopy";
-import { hasSupabaseBrowserConfig } from "@/integrations/supabase/client";
 import { nameProjectsEnabled } from "@/lib/nameProjectsFeature";
 import { projectEntryCopy } from "@/i18n/projectEntryCopy";
 import { namePackageEntryCopy } from "@/i18n/namePackageEntryCopy";
@@ -20,13 +19,6 @@ export default function NativeMore() {
     ...(nameProjectsEnabled ? [{ to: "/projects", label: projectEntryCopy[language].projects }, { to: "/plus", label: copy.trading }] : []),
     { to: "/marketplace", label: copy.marketplace },
     { to: "/developers", label: copy.developers },
-    // These legacy features have not been migrated to the active account store.
-    // Keep direct routes honest, but do not advertise unusable app destinations.
-    ...(hasSupabaseBrowserConfig ? [
-      { to: "/history", label: copy.history },
-      { to: "/my-domains", label: copy.domains },
-      { to: "/top-10-today", label: copy.today },
-    ] : []),
     { to: "/help", label: copy.help },
     { to: "/contact", label: copy.support },
     { to: "/legal#privacy", label: copy.privacy },

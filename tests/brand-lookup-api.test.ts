@@ -81,6 +81,21 @@ test("public REST returns the same versioned search/profile contracts with anony
   }
 });
 
+test("public REST reads the canonical URL without invoking Vercel's legacy query getter", async () => {
+  let queryReads = 0;
+  const request = {
+    method: "POST", headers, body: search, url: "/api/v1/public/brand-lookup",
+    get query(): Record<string, unknown> {
+      queryReads++;
+      throw new Error("The legacy query getter must not be evaluated.");
+    },
+  };
+  const res = response();
+  await createPublicBrandLookupHandler({ execute: lookupFixture })(request, res);
+  assert.equal(res.code, 200);
+  assert.equal(queryReads, 0);
+});
+
 test("public REST rejects undocumented transport/input variants before lookup and keeps preflight free", async () => {
   let calls = 0;
   const execute = async (value: unknown) => { calls++; return lookupFixture(value); };

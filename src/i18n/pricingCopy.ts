@@ -210,3 +210,15 @@ const zh: PricingCopy = {
 export function getPricingCopy(language: string): PricingCopy {
   return ({ en, sv, es, fr, zh } as Record<string, PricingCopy>)[language] ?? en;
 }
+
+export function getPlanPurchaseCopy(language: string) {
+  return ({
+    en: { choose: "Choose", manage: "Manage subscription", checking: "Checking secure checkout…", opening: "Opening secure checkout…", unavailable: "Checkout is not available in this environment.", failed: "Billing could not be verified. Try again or contact support.", readyTitle: "Secure checkout is available for the plans marked below.", ready: "Your verified account starts checkout with Stripe. Access changes only after Sajda verifies Stripe’s signed event and paid period." },
+    sv: { choose: "Välj", manage: "Hantera abonnemang", checking: "Kontrollerar säker betalning…", opening: "Öppnar säker betalning…", unavailable: "Betalning är inte tillgänglig i den här miljön.", failed: "Betalningen kunde inte verifieras. Försök igen eller kontakta supporten.", readyTitle: "Säker betalning är tillgänglig för paketen som är markerade nedan.", ready: "Ditt verifierade konto startar betalningen hos Stripe. Åtkomsten ändras först när Sajda har verifierat Stripes signerade händelse och betalda period." },
+    es: { choose: "Elegir", manage: "Gestionar suscripción", checking: "Comprobando el pago seguro…", opening: "Abriendo el pago seguro…", unavailable: "El pago no está disponible en este entorno.", failed: "No se pudo verificar la facturación. Inténtalo de nuevo o contacta con soporte.", readyTitle: "El pago seguro está disponible para los planes indicados abajo.", ready: "Tu cuenta verificada inicia el pago con Stripe. El acceso solo cambia cuando Sajda verifica el evento firmado y el periodo pagado." },
+    fr: { choose: "Choisir", manage: "Gérer l’abonnement", checking: "Vérification du paiement sécurisé…", opening: "Ouverture du paiement sécurisé…", unavailable: "Le paiement n’est pas disponible dans cet environnement.", failed: "La facturation n’a pas pu être vérifiée. Réessayez ou contactez l’assistance.", readyTitle: "Le paiement sécurisé est disponible pour les offres indiquées ci-dessous.", ready: "Votre compte vérifié lance le paiement chez Stripe. L’accès ne change qu’après vérification par Sajda de l’événement signé et de la période payée." },
+    zh: { choose: "选择", manage: "管理订阅", checking: "正在检查安全支付…", opening: "正在打开安全支付…", unavailable: "此环境暂不支持支付。", failed: "无法验证账单状态，请重试或联系支持团队。", readyTitle: "下方标记的方案已支持安全支付。", ready: "已验证账户会在 Stripe 发起支付。只有在 Sajda 验证 Stripe 的签名事件和已付款周期后，权限才会变更。" },
+  } as const)[language as "en" | "sv" | "es" | "fr" | "zh"] ?? {
+    choose: "Choose", manage: "Manage subscription", checking: "Checking secure checkout…", opening: "Opening secure checkout…", unavailable: "Checkout is not available in this environment.", failed: "Billing could not be verified. Try again or contact support.", readyTitle: "Secure checkout is available for the plans marked below.", ready: "Your verified account starts checkout with Stripe. Access changes only after Sajda verifies Stripe’s signed event and paid period.",
+  };
+}

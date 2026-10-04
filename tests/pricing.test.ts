@@ -75,7 +75,7 @@ test("mounted pricing presents the shared prices and only truthful navigation, w
   try {
     const { default: Pricing } = await vite.ssrLoadModule("/src/pages/Pricing.tsx");
     for (const language of ["en", "sv", "es", "fr", "zh"]) {
-      await t.test(`${language}: four prices, disabled Basic/Premium and no overflow-prone controls`, async () => {
+      await t.test(`${language}: four prices, authenticated purchase entry and no overflow-prone controls`, async () => {
         setLanguage(language);
         if (renderer) await act(async () => renderer!.unmount());
         await act(async () => { renderer = create(h(MemoryRouter, { initialEntries: ["/pricing"], future: { v7_startTransition: true, v7_relativeSplatPath: true } }, h(Pricing))); });
@@ -96,17 +96,15 @@ test("mounted pricing presents the shared prices and only truthful navigation, w
           const scope = card.findByProps({ "data-plan-scope": id === "free" ? "available" : "planned" });
           assert.equal(label(scope), id === "free" ? getPricingCopy(language).contents : getPricingCopy(language).plannedContents);
           if (id === "basic" || id === "premium") {
-            const button = card.findByType("button");
-            assert.equal(button.props.disabled, true);
-            assert.equal(button.props.onClick, undefined);
-            assert.equal(label(button), getPricingCopy(language).unavailable);
-            assert.match(button.props.className, /min-h-11/);
-            assert.match(button.props.className, /whitespace-normal/);
-            assert.equal(card.findAllByType("a").length, 0);
+            const link = card.findByType("a");
+            assert.equal(link.props.href, "/auth?next=%2Fpricing");
+            assert.equal(label(link), getPricingCopy(language).signIn);
+            assert.match(link.props.className, /min-h-11/);
+            assert.match(link.props.className, /whitespace-normal/);
           } else {
             const link = card.findByType("a");
-            assert.equal(link.props.href, id === "free" ? "/" : "/plus");
-            assert.equal(label(link), id === "free" ? getPricingCopy(language).trySearch : getPricingCopy(language).exploreTrading);
+            assert.equal(link.props.href, id === "free" ? "/" : "/auth?next=%2Fpricing");
+            assert.equal(label(link), id === "free" ? getPricingCopy(language).trySearch : getPricingCopy(language).signIn);
           }
         }
         assert.equal(renderer!.root.findAllByType("form").length, 0);

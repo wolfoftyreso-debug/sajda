@@ -1,28 +1,63 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowRight, Info } from "lucide-react";
 import { Link } from "react-router-dom";
 import { PLAN_ORDER, formatPlanMonthlyPrice, type PlanId } from "../../shared/plans";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { Button } from "@/components/ui/button";
 import { applyDocumentMetadata, useLanguage } from "@/i18n/LanguageProvider";
-import { getPricingCopy } from "@/i18n/pricingCopy";
+import { getPlanPurchaseCopy, getPricingCopy } from "@/i18n/pricingCopy";
 import { legalRightsCopy } from "@/i18n/legalRightsCopy";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMembership } from "@/contexts/MembershipContext";
+import { getPlusBilling, openPlusBilling, type PlusBillingSnapshot } from "@/lib/plusBilling";
+import { isNativeApp } from "@/lib/appSurface";
 
 const actionClass = "h-auto min-h-11 w-full whitespace-normal px-4 py-3 text-center leading-snug";
 
 export default function Pricing() {
   const { language } = useLanguage();
   const copy = getPricingCopy(language);
+  const purchaseCopy = getPlanPurchaseCopy(language);
   const { user, loading: authLoading } = useAuth();
   const { membership, loading: membershipLoading, error: membershipError } = useMembership();
   const currentMembership = user && !authLoading && !membershipLoading && !membershipError ? membership : null;
+  const [billing, setBilling] = useState<PlusBillingSnapshot | null>(null);
+  const [billingBusy, setBillingBusy] = useState<PlanId | "load" | "portal" | null>(null);
+  const [billingError, setBillingError] = useState(false);
+  const billingRequest = useRef<AbortController | null>(null);
+  const checkoutAvailable = Boolean(billing && Object.values(billing.plans).some(plan => plan.ready));
 
   useEffect(() => {
     applyDocumentMetadata(language, "/pricing");
     return () => applyDocumentMetadata(language, window.location.pathname);
   }, [language]);
+
+  useEffect(() => {
+    billingRequest.current?.abort();
+    setBilling(null); setBillingError(false);
+    if (!user || isNativeApp) { setBillingBusy(null); return; }
+    const controller = new AbortController();
+    billingRequest.current = controller; setBillingBusy("load");
+    void getPlusBilling({ accountId: user.id, signal: controller.signal })
+      .then(value => { if (!controller.signal.aborted) setBilling(value); })
+      .catch(error => { if (!controller.signal.aborted && !(error instanceof Error && error.name === "AbortError")) setBillingError(true); })
+      .finally(() => { if (!controller.signal.aborted) { billingRequest.current = null; setBillingBusy(null); } });
+    return () => controller.abort();
+  }, [user]);
+
+  const openBilling = useCallback(async (action: "checkout" | "portal", plan: Exclude<PlanId, "free"> = "trading") => {
+    if (!user || billingRequest.current && billingBusy || isNativeApp) return;
+    const controller = new AbortController(); billingRequest.current = controller;
+    setBillingBusy(action === "portal" ? "portal" : plan); setBillingError(false);
+    try {
+      const url = await openPlusBilling({ accountId: user.id, signal: controller.signal }, action, crypto.randomUUID(), plan);
+      if (!controller.signal.aborted) window.location.assign(url);
+    } catch (error) {
+      if (!controller.signal.aborted && !(error instanceof Error && error.name === "AbortError")) setBillingError(true);
+    } finally {
+      if (!controller.signal.aborted) { billingRequest.current = null; setBillingBusy(null); }
+    }
+  }, [billingBusy, user]);
 
   const renderPlan = (id: PlanId) => {
     const plan = copy.plans[id];
@@ -41,17 +76,25 @@ export default function Pricing() {
             {plan.points.map(point => <li key={point} className="flex min-w-0 items-start gap-2.5 text-sm leading-relaxed"><span aria-hidden="true" className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" /><span>{point}</span></li>)}
           </ul>
         </div>
-        <div className="mt-auto">
+        <div className="mt-auto" data-plan-action={id}>
           {id === "free" ? (
             <Button asChild className={actionClass}><Link to="/">{copy.trySearch}<ArrowRight aria-hidden="true" /></Link></Button>
-          ) : isCurrent && id !== "trading" ? (
-            <Button asChild variant="outline" className={actionClass}><Link to="/account">{copy.account}<ArrowRight aria-hidden="true" /></Link></Button>
+          ) : isCurrent ? (
+            <Button asChild variant="outline" className={actionClass}><Link to={id === "trading" ? "/plus" : "/account"}>{id === "trading" ? copy.openTrading : copy.account}<ArrowRight aria-hidden="true" /></Link></Button>
           ) : isIncluded ? (
             <Button type="button" disabled variant="secondary" className={`${actionClass} disabled:opacity-100`}>{copy.included}</Button>
+          ) : !user ? (
+            <Button asChild variant="outline" className={actionClass}><Link to="/auth?next=%2Fpricing">{copy.signIn}<ArrowRight aria-hidden="true" /></Link></Button>
+          ) : isNativeApp ? (
+            <Button type="button" disabled variant="secondary" className={`${actionClass} disabled:opacity-100`}>{purchaseCopy.unavailable}</Button>
+          ) : billing?.canManage ? (
+            <Button type="button" variant="outline" disabled={Boolean(billingBusy)} className={actionClass} onClick={() => void openBilling("portal")}>{billingBusy === "portal" ? purchaseCopy.opening : purchaseCopy.manage}<ArrowRight aria-hidden="true" /></Button>
+          ) : billing?.plans[id].canCheckout ? (
+            <Button type="button" disabled={Boolean(billingBusy)} className={actionClass} onClick={() => void openBilling("checkout", id)}>{billingBusy === id ? purchaseCopy.opening : `${purchaseCopy.choose} ${plan.name}`}<ArrowRight aria-hidden="true" /></Button>
           ) : id === "trading" ? (
-            <Button asChild variant="outline" className={actionClass}><Link to="/plus">{currentMembership?.capabilities.trading ? copy.openTrading : copy.exploreTrading}<ArrowRight aria-hidden="true" /></Link></Button>
+            <Button asChild variant="outline" className={actionClass}><Link to="/plus">{copy.exploreTrading}<ArrowRight aria-hidden="true" /></Link></Button>
           ) : (
-            <Button type="button" disabled variant="secondary" className={`${actionClass} disabled:opacity-100`} aria-describedby="pricing-availability-title">{copy.unavailable}</Button>
+            <Button type="button" disabled variant="secondary" className={`${actionClass} disabled:opacity-100`} aria-describedby="pricing-availability-title">{billingBusy === "load" ? purchaseCopy.checking : copy.unavailable}</Button>
           )}
         </div>
       </article>
@@ -95,10 +138,11 @@ export default function Pricing() {
         <aside className="my-8 flex min-w-0 items-start gap-3 rounded-xl border border-border bg-secondary/40 p-4 sm:my-10 sm:p-5" aria-labelledby="pricing-availability-title">
           <Info aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
           <div className="min-w-0">
-            <h2 id="pricing-availability-title" className="font-semibold leading-snug">{copy.noticeTitle}</h2>
-            <p className="mt-2 max-w-4xl text-sm leading-relaxed text-muted-foreground">{copy.notice}</p>
+            <h2 id="pricing-availability-title" className="font-semibold leading-snug">{checkoutAvailable ? purchaseCopy.readyTitle : copy.noticeTitle}</h2>
+            <p className="mt-2 max-w-4xl text-sm leading-relaxed text-muted-foreground">{checkoutAvailable ? purchaseCopy.ready : copy.notice}</p>
           </div>
         </aside>
+        {billingError && <p role="alert" className="-mt-5 mb-8 text-sm font-medium text-destructive">{purchaseCopy.failed}</p>}
 
         <section aria-labelledby="pricing-founder-title" data-plan-group="founder">
           <h2 id="pricing-founder-title" className="text-2xl font-semibold leading-tight tracking-tight">{copy.founderTitle}</h2>

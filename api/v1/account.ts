@@ -4,11 +4,13 @@ import { assertApiKeyScopes, consumeApiKeyQuota, requireApiKey } from "../_share
 import { executeMcpProduct } from "../_shared/mcp-product.js";
 import { parseProductOperationInput, productOperationScope, type McpOperation, type McpProductExecutor } from "../_shared/mcp-tools.js";
 import { createRequestId } from "../_shared/public-api.js";
+import { readRequestQuery } from "../_shared/request-query.js";
 
 interface RequestLike {
   method?: string;
   headers: Record<string, string | string[] | undefined>;
   query?: Record<string, unknown>;
+  url?: string;
   body?: unknown;
 }
 interface ResponseLike {
@@ -85,7 +87,7 @@ export function createAccountApiHandler(dependencies: {
         throw new AccountAccessError("invalid_origin", 403, "This request origin is not allowed.");
       }
       const principal = await (dependencies.authorize ?? requireApiKey)(request.headers);
-      const query = request.query ?? {};
+      const query = readRequestQuery(request);
       const resource = query.resource;
       if (typeof resource !== "string" || !["membership", "saved-domains", "trading", "trading-status", "name-projects", "social-profiles", "trading-scenarios"].includes(resource)) {
         throw new AccountAccessError("invalid_resource", 400, "Choose a documented account resource: membership, saved-domains, name-projects, social-profiles, trading, trading-status or trading-scenarios.");

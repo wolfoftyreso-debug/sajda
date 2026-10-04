@@ -1,9 +1,10 @@
 import Stripe from "stripe";
 import { createHash } from "node:crypto";
-import { PLUS_PLAN } from "../../shared/plus-plan.js";
+import { PAID_PLAN_ORDER, PLANS, type PaidPlanId } from "../../shared/plans.js";
 import {
   CommerceError,
   commerceId,
+  commercePriceId,
   safeStripeUrl,
   type CommerceConfig,
 } from "./commerce-config.js";
@@ -32,6 +33,7 @@ export interface BillingState {
   subscriptionId: string | null;
   cancelAtPeriodEnd: boolean;
   grant: {
+    plan?: PaidPlanId;
     subscriptionId: string;
     invoiceId: string;
     priceId: string;
@@ -54,7 +56,7 @@ export interface BillingEvent {
   hold: boolean;
 }
 export interface CommerceProvider {
-  price(): Promise<CommercePrice>;
+  price(plan?: PaidPlanId): Promise<CommercePrice>;
   createCustomer(key: string, ownerId: string): Promise<string>;
   reconcile(customerId: string): Promise<BillingState>;
   createCheckout(input: {
@@ -62,12 +64,14 @@ export interface CommerceProvider {
     customerId: string;
     origin: string;
     createdAt: string;
+    plan?: PaidPlanId;
   }): Promise<CheckoutState>;
-  checkout(sessionId: string, customerId: string): Promise<CheckoutState>;
+  checkout(sessionId: string, customerId: string, plan?: PaidPlanId): Promise<CheckoutState>;
   recoverCheckout(
     customerId: string,
     reservationId: string,
     createdAt: string,
+    plan?: PaidPlanId,
   ): Promise<CheckoutState | null>;
   portal(
     customerId: string,
@@ -115,23 +119,34 @@ export function validatePlusPrice(
   config: Pick<CommerceConfig, "mode" | "priceId">,
   requireActive = true,
 ): CommercePrice {
+  return validateCommercePrice(value, config, "trading", requireActive);
+}
+
+export function validateCommercePrice(
+  value: unknown,
+  config: Pick<CommerceConfig, "mode" | "priceId"> & Partial<Pick<CommerceConfig, "priceIds">>,
+  plan: PaidPlanId,
+  requireActive = true,
+): CommercePrice {
   const price = obj(value);
   const recurring = obj(price.recurring);
+  const contract = PLANS[plan];
+  const expectedPriceId = commercePriceId(config, plan);
   const decimal = price.unit_amount_decimal;
   const exactDecimal =
     decimal == null ||
     (typeof decimal === "string" &&
-      new RegExp(`^${PLUS_PLAN.unitAmount}(?:\\.0{1,12})?$`, "u").test(
+      new RegExp(`^${contract.unitAmount}(?:\\.0{1,12})?$`, "u").test(
         decimal,
       ));
   if (
     price.object !== "price" ||
-    price.id !== config.priceId ||
+    price.id !== expectedPriceId ||
     typeof price.active !== "boolean" ||
     (requireActive && !price.active) ||
     price.livemode !== (config.mode === "live") ||
-    price.currency !== PLUS_PLAN.currency ||
-    price.unit_amount !== PLUS_PLAN.unitAmount ||
+    price.currency !== contract.currency ||
+    price.unit_amount !== contract.unitAmount ||
     !Number.isSafeInteger(price.unit_amount) ||
     !exactDecimal ||
     price.type !== "recurring" ||
@@ -140,8 +155,8 @@ export function validatePlusPrice(
     price.tiers != null ||
     price.transform_quantity != null ||
     price.custom_unit_amount != null ||
-    recurring.interval !== PLUS_PLAN.interval ||
-    recurring.interval_count !== PLUS_PLAN.intervalCount ||
+    recurring.interval !== contract.interval ||
+    recurring.interval_count !== contract.intervalCount ||
     recurring.usage_type !== "licensed" ||
     !["inclusive", "exclusive", "unspecified"].includes(
       String(price.tax_behavior ?? ""),
@@ -167,7 +182,17 @@ export function validatePlusCheckout(
   customerId: string,
   config: Pick<CommerceConfig, "mode" | "priceId">,
 ): CheckoutState {
+  return validateCommerceCheckout(value, customerId, config, "trading");
+}
+
+export function validateCommerceCheckout(
+  value: unknown,
+  customerId: string,
+  config: Pick<CommerceConfig, "mode" | "priceId"> & Partial<Pick<CommerceConfig, "priceIds">>,
+  plan: PaidPlanId,
+): CheckoutState {
   const session = obj(value);
+  const contract = PLANS[plan];
   if (
     session.livemode !== (config.mode === "live") ||
     identity(session.customer) !== customerId ||
@@ -181,14 +206,14 @@ export function validatePlusCheckout(
     if (
       lines.length !== 1 ||
       lines[0].quantity !== 1 ||
-      lines[0].currency !== PLUS_PLAN.currency ||
-      session.currency !== PLUS_PLAN.currency
+      lines[0].currency !== contract.currency ||
+      session.currency !== contract.currency
     ) {
       throw new CommerceError("billing_price_unavailable");
     }
     // Validate the unit Price rather than pre-tax subtotal or after-tax total;
     // those totals have different meanings for inclusive/exclusive tax.
-    validatePlusPrice(lines[0].price, config);
+    validateCommercePrice(lines[0].price, config, plan);
   }
   return {
     id: commerceId(session.id, config.mode === "live" ? "cs_live" : "cs_test"),
@@ -206,7 +231,7 @@ export function evaluateSubscription(
   sub: unknown,
   invoices: unknown,
   customerId: string,
-  config: Pick<CommerceConfig, "mode" | "priceId">,
+  config: Pick<CommerceConfig, "mode" | "priceId"> & Partial<Pick<CommerceConfig, "priceIds">>,
   now = Date.now(),
 ): BillingState {
   const s = obj(sub),
@@ -240,16 +265,15 @@ export function evaluateSubscription(
     items[0].quantity !== 1
   )
     return state;
-  try {
-    validatePlusPrice(items[0].price, config, false);
-  } catch (error) {
-    if (
-      error instanceof CommerceError &&
-      error.code === "billing_price_unavailable"
-    )
-      return state;
-    throw error;
-  }
+  const plan = PAID_PLAN_ORDER.find(candidate => {
+    try { validateCommercePrice(items[0].price, config, candidate, false); return true; }
+    catch (error) {
+      if (error instanceof CommerceError && error.code === "billing_price_unavailable") return false;
+      throw error;
+    }
+  });
+  if (!plan) return state;
+  const contract = PLANS[plan], expectedPriceId = commercePriceId(config, plan);
   const item = items[0],
     periodEnd = epoch(item.current_period_end),
     periodStart = epoch(item.current_period_start),
@@ -271,7 +295,7 @@ export function evaluateSubscription(
       throw new CommerceError("provider_owner_mismatch");
     if (
       invoice.status !== "paid" ||
-      invoice.currency !== PLUS_PLAN.currency ||
+      invoice.currency !== contract.currency ||
       typeof invoice.amount_paid !== "number" ||
       invoice.amount_paid <= 0 ||
       typeof invoice.amount_due !== "number" ||
@@ -282,11 +306,11 @@ export function evaluateSubscription(
       const parent = obj(obj(line.parent).subscription_item_details);
       if (
         line.livemode !== live ||
-        line.currency !== PLUS_PLAN.currency ||
+        line.currency !== contract.currency ||
         identity(parent.subscription) !== subscriptionId ||
         parent.proration !== false ||
         identity(obj(obj(line.pricing).price_details).price) !==
-          config.priceId ||
+          expectedPriceId ||
         line.quantity !== 1
       )
         continue;
@@ -309,9 +333,10 @@ export function evaluateSubscription(
   }
   if (best)
     state.grant = {
+      plan,
       subscriptionId,
       invoiceId: best.invoiceId,
-      priceId: config.priceId,
+      priceId: expectedPriceId,
       validFrom: new Date(best.start * 1000).toISOString(),
       expiresAt: new Date(best.end * 1000).toISOString(),
     };
@@ -329,12 +354,12 @@ export function createCommerceProvider(
   const mode = config.mode === "live";
   const ownerHash = (ownerId: string) =>
     createHash("sha256").update(`${config.namespace}:${ownerId}`).digest("hex");
-  const checkoutResult = (session: Stripe.Checkout.Session, customerId: string) =>
-    validatePlusCheckout(stripeSdkPayload(session), customerId, config);
+  const checkoutResult = (session: Stripe.Checkout.Session, customerId: string, plan: PaidPlanId) =>
+    validateCommerceCheckout(stripeSdkPayload(session), customerId, config, plan);
   return {
-    async price() {
-      const price = await stripe.prices.retrieve(config.priceId);
-      return validatePlusPrice(stripeSdkPayload(price), config);
+    async price(plan = "trading") {
+      const price = await stripe.prices.retrieve(commercePriceId(config, plan));
+      return validateCommercePrice(stripeSdkPayload(price), config, plan);
     },
     async createCustomer(key, ownerId) {
       const customer = await stripe.customers.create(
@@ -406,42 +431,47 @@ export function createCommerceProvider(
       );
     },
     async createCheckout(input) {
+      const plan = input.plan ?? "trading";
+      const contract = PLANS[plan];
       const session = await stripe.checkout.sessions.create(
         {
           mode: "subscription",
           customer: input.customerId,
-          currency: PLUS_PLAN.currency,
+          currency: contract.currency,
           adaptive_pricing: { enabled: false },
           payment_method_types: ["card"],
-          line_items: [{ price: config.priceId, quantity: 1 }],
+          line_items: [{ price: commercePriceId(config, plan), quantity: 1 }],
           expand: ["line_items.data.price"],
-          success_url: `${input.origin}/plus?billing=success`,
-          cancel_url: `${input.origin}/plus?billing=cancel`,
+          success_url: `${input.origin}/${plan === "trading" ? "plus" : "pricing"}?billing=success`,
+          cancel_url: `${input.origin}/${plan === "trading" ? "plus" : "pricing"}?billing=cancel`,
           expires_at: Math.floor(Date.parse(input.createdAt) / 1000) + 3600,
           metadata: {
             sajda_namespace: config.namespace,
             sajda_checkout: input.id,
+            sajda_plan: plan,
           },
           subscription_data: {
             metadata: {
               sajda_namespace: config.namespace,
               sajda_checkout: input.id,
+              sajda_plan: plan,
             },
           },
         },
         { idempotencyKey: `sajda-checkout-${input.id}` },
       );
-      return checkoutResult(session, input.customerId);
+      return checkoutResult(session, input.customerId, plan);
     },
-    async checkout(sessionId, customerId) {
+    async checkout(sessionId, customerId, plan = "trading") {
       return checkoutResult(
         await stripe.checkout.sessions.retrieve(sessionId, {
           expand: ["line_items.data.price"],
         }),
         customerId,
+        plan,
       );
     },
-    async recoverCheckout(customerId, reservationId, createdAt) {
+    async recoverCheckout(customerId, reservationId, createdAt, plan = "trading") {
       const result = await stripe.checkout.sessions.list({
         customer: customerId,
         created: { gte: Math.floor(Date.parse(createdAt) / 1000) - 60 },
@@ -456,7 +486,8 @@ export function createCommerceProvider(
       const matches = result.data.filter(
         (item) =>
           item.metadata?.sajda_namespace === config.namespace &&
-          item.metadata?.sajda_checkout === reservationId,
+          item.metadata?.sajda_checkout === reservationId &&
+          item.metadata?.sajda_plan === plan,
       );
       if (matches.length > 1)
         throw new CommerceError("billing_reconciliation_required", 409);
@@ -468,6 +499,7 @@ export function createCommerceProvider(
           expand: ["line_items.data.price"],
         }),
         customerId,
+        plan,
       );
     },
     async portal(customerId, origin, requestKey) {

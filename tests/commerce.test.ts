@@ -15,6 +15,8 @@ import {
   createCommerceProvider,
   validatePlusPrice,
   validatePlusCheckout,
+  validateCommercePrice,
+  validateCommerceCheckout,
   stripeSdkPayload,
   type BillingState,
   type CommerceProvider,
@@ -34,6 +36,7 @@ import { createBillingWebhookHandler } from "../api/billing-webhook";
 import { AccountAccessError } from "../api/_shared/account-error";
 import { billingAction, rawWebhookBody } from "../api/_shared/commerce-http";
 import { PLUS_PLAN } from "../shared/plus-plan";
+import { PAID_PLAN_ORDER, PLANS } from "../shared/plans";
 
 const environment = {
   STRIPE_SECRET_KEY: "sk_test_fixtureNotARealKey123",
@@ -149,6 +152,31 @@ const fixtures = () => {
 };
 const code = (value: string) => (error: unknown) =>
   error instanceof CommerceError && error.code === value;
+
+test("multi-plan configuration keeps Basic, Premium and Trading prices distinct and exact", () => {
+  const multi = commerceConfig({
+    ...environment,
+    STRIPE_PLUS_PRICE_ID: undefined,
+    STRIPE_BASIC_PRICE_ID: "price_basicfixture",
+    STRIPE_PREMIUM_PRICE_ID: "price_premiumfixture",
+    STRIPE_TRADING_PRICE_ID: "price_tradingfixture",
+    STRIPE_BASIC_CHECKOUT_ENABLED: "true",
+    STRIPE_PREMIUM_CHECKOUT_ENABLED: "false",
+  });
+  assert.deepEqual(multi.checkoutPlans, { basic: true, premium: false, trading: true });
+  for (const plan of PAID_PLAN_ORDER) {
+    const contract = PLANS[plan], priceId = multi.priceIds![plan];
+    const candidate = { ...stripePrice(), id: priceId, currency: contract.currency, unit_amount: contract.unitAmount,
+      unit_amount_decimal: String(contract.unitAmount), recurring: { ...stripePrice().recurring, interval: contract.interval, interval_count: contract.intervalCount } };
+    assert.equal(validateCommercePrice(candidate, multi, plan).unitAmount, contract.unitAmount);
+    for (const other of PAID_PLAN_ORDER.filter(value => value !== plan)) {
+      assert.throws(() => validateCommercePrice(candidate, multi, other), code("billing_price_unavailable"));
+    }
+    const checkout = { ...stripeCheckout(), currency: contract.currency,
+      line_items: { has_more: false, data: [{ quantity: 1, currency: contract.currency, price: candidate }] } };
+    assert.equal(validateCommerceCheckout(checkout, "cus_fixture", multi, plan).id, "cs_test_fixture");
+  }
+});
 
 const invalidPrices = () => [
   { ...stripePrice(), id: "price_wrong" },
@@ -652,7 +680,7 @@ function memory() {
     customer: async (_lease, id) => {
       customerId = id;
     },
-    reservation: async (_lease, key, priceId, origin) => {
+    reservation: async (_lease, key, priceId, origin, plan = "trading") => {
       if (
         !reservation ||
         (reservation.requestKey !== key &&
@@ -663,6 +691,7 @@ function memory() {
           requestKey: key,
           priceId,
           origin,
+          plan,
           state: "creating",
           sessionId: null,
           createdAt: new Date().toISOString(),

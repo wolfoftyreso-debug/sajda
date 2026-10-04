@@ -7,6 +7,7 @@ import type {
   CheckoutState,
   SubscriptionStatus,
 } from "./commerce-provider.js";
+import type { PaidPlanId } from "../../shared/plans.js";
 
 export interface CommerceClient {
   query(
@@ -27,6 +28,7 @@ export interface CommerceCustomer {
   subscriptionId: string | null;
   paymentHold: boolean;
   accessExpiresAt: string | null;
+  activePlan?: PaidPlanId | null;
   syncedAt: string | null;
 }
 export interface CommerceLease extends CommerceCustomer {
@@ -37,6 +39,7 @@ export interface CheckoutReservation {
   id: string;
   requestKey: string;
   priceId: string;
+  plan?: PaidPlanId;
   origin: string;
   state: "creating" | "open" | "complete" | "expired" | "abandoned";
   sessionId: string | null;
@@ -54,12 +57,14 @@ const mapped = (r: Record<string, unknown>): CommerceCustomer => ({
     typeof r.subscription_id === "string" ? r.subscription_id : null,
   paymentHold: r.payment_hold === true,
   accessExpiresAt: r.access_expires_at ? date(r.access_expires_at) : null,
+  activePlan: ["basic", "premium", "trading"].includes(String(r.active_plan)) ? r.active_plan as PaidPlanId : null,
   syncedAt: r.synced_at ? date(r.synced_at) : null,
 });
 const checkout = (r: Record<string, unknown>): CheckoutReservation => ({
   id: String(r.id),
   requestKey: String(r.request_key),
   priceId: String(r.price_id),
+  plan: ["basic", "premium", "trading"].includes(String(r.plan)) ? r.plan as PaidPlanId : "trading",
   origin: String(r.origin),
   state: r.state as CheckoutReservation["state"],
   sessionId: typeof r.session_id === "string" ? r.session_id : null,
@@ -174,7 +179,7 @@ export function createCommerceStore(
     async read(ownerId: string): Promise<CommerceCustomer | null> {
       return transaction(async (client) => {
         const result = await client.query(
-          `/* commerce:read */ SELECT c.*,a.expires_at AS access_expires_at FROM sajda.commerce_customers c
+          `/* commerce:read */ SELECT c.*,a.expires_at AS access_expires_at,a.plan AS active_plan FROM sajda.commerce_customers c
         LEFT JOIN sajda.commerce_access a ON a.namespace=c.namespace AND a.owner_id=c.owner_id AND a.revoked_at IS NULL AND a.expires_at>clock_timestamp()
         WHERE c.namespace=$1 AND c.owner_id=$2 AND c.livemode=$3`,
           [ns, ownerId, live],
@@ -240,6 +245,7 @@ export function createCommerceStore(
       requestKey: string,
       priceId: string,
       origin: string,
+      plan: PaidPlanId = "trading",
     ): Promise<CheckoutReservation> {
       return transaction(async (client) => {
         await fence(client, lease);
@@ -256,9 +262,9 @@ export function createCommerceStore(
         if (Number(count.rows[0]?.n) >= 5)
           throw new CommerceError("checkout_limit", 429);
         const created = await client.query(
-          `/* commerce:checkout-reserve */ INSERT INTO sajda.commerce_checkouts(id,namespace,owner_id,request_key,price_id,origin)
-        VALUES($1::uuid,$2,$3,$4::uuid,$5,$6) RETURNING *`,
-          [randomUUID(), ns, lease.ownerId, requestKey, priceId, origin],
+          `/* commerce:checkout-reserve */ INSERT INTO sajda.commerce_checkouts(id,namespace,owner_id,request_key,price_id,origin,plan)
+        VALUES($1::uuid,$2,$3,$4::uuid,$5,$6,$7) RETURNING *`,
+          [randomUUID(), ns, lease.ownerId, requestKey, priceId, origin, plan],
         );
         return checkout(created.rows[0]);
       });
@@ -311,10 +317,10 @@ export function createCommerceStore(
         if (state.grant && !hold) {
           const grant = state.grant;
           await client.query(
-            `/* commerce:grant */ INSERT INTO sajda.commerce_access(namespace,owner_id,subscription_id,price_id,invoice_id,livemode,valid_from,expires_at)
-          VALUES($1,$2,$3,$4,$5,$6,$7::timestamptz,$8::timestamptz)
+            `/* commerce:grant */ INSERT INTO sajda.commerce_access(namespace,owner_id,subscription_id,price_id,invoice_id,livemode,valid_from,expires_at,plan)
+          VALUES($1,$2,$3,$4,$5,$6,$7::timestamptz,$8::timestamptz,$9)
           ON CONFLICT(namespace,owner_id) DO UPDATE SET subscription_id=EXCLUDED.subscription_id,price_id=EXCLUDED.price_id,invoice_id=EXCLUDED.invoice_id,
-            livemode=EXCLUDED.livemode,valid_from=EXCLUDED.valid_from,expires_at=EXCLUDED.expires_at,revoked_at=NULL,verified_at=clock_timestamp()`,
+            livemode=EXCLUDED.livemode,valid_from=EXCLUDED.valid_from,expires_at=EXCLUDED.expires_at,plan=EXCLUDED.plan,revoked_at=NULL,verified_at=clock_timestamp()`,
             [
               ns,
               lease.ownerId,
@@ -324,6 +330,7 @@ export function createCommerceStore(
               live,
               grant.validFrom,
               grant.expiresAt,
+              grant.plan ?? "trading",
             ],
           );
         } else

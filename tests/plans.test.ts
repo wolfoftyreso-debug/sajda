@@ -42,14 +42,19 @@ test("pricing route is reachable, linked and noindex until commercial activation
   assert.match(await readFile(new URL("src/pages/Index.tsx", root), "utf8"), /href="\/pricing"/);
 });
 
-test("sandbox setup reads the same catalog and versions only its immutable Price", async () => {
+test("sandbox setup reads every paid plan from the shared catalog and only creates immutable test objects", async () => {
   const setup = await readFile(new URL("../scripts/setup-stripe-sandbox.mjs", import.meta.url), "utf8");
-  assert.match(setup, /import \{ PLUS_PLAN \} from "\.\.\/shared\/plus-plan\.ts"/);
-  assert.match(setup, /unit_amount: PLUS_PLAN\.unitAmount/);
-  assert.match(setup, /const catalogKey = `sajda_trading_\$\{PLUS_PLAN\.currency\}_\$\{PLUS_PLAN\.unitAmount\}_cents_monthly_test_v2`/);
-  assert.match(setup, /idempotencyKey: `sajda-sandbox-price-\$\{expectedAccount\}-\$\{catalogKey\}`/);
+  assert.match(setup, /import \{ PAID_PLAN_ORDER, PLANS \} from "\.\.\/shared\/plans\.ts"/);
+  assert.match(setup, /for \(const plan of PAID_PLAN_ORDER\)/);
+  assert.match(setup, /unit_amount: PLANS\[plan\]\.unitAmount/);
+  assert.match(setup, /const catalogKey = plan => `sajda_\$\{plan\}_\$\{PLANS\[plan\]\.currency\}_\$\{PLANS\[plan\]\.unitAmount\}_cents_monthly_test_v1`/);
+  assert.match(setup, /idempotencyKey: `sajda-sandbox-price-\$\{expectedAccount\}-\$\{key\}`/);
   assert.match(setup, /if \(!price && apply\)/);
   assert.match(setup, /if \(!product && apply\)/);
   assert.match(setup, /if \(!portal && apply\)/);
-  assert.doesNotMatch(setup, /188000|188_000|1880_monthly|\.subscriptions\.(?:create|update)|\.prices\.update|\.checkout\./);
+  assert.match(setup, /portalProductAllowlistReadback: "not_exposed_by_provider"/);
+  assert.match(setup, /checkoutConfigurationChanged: false/);
+  assert.match(setup, /webhookConfigurationChanged: false/);
+  assert.match(setup, /paymentSubmitted: false/);
+  assert.doesNotMatch(setup, /188000|188_000|1880_monthly|\.subscriptions\.(?:create|update)|\.prices\.update|\.checkout\.|\.paymentIntents\./);
 });

@@ -7,7 +7,7 @@ import { assertPublicBrowserBundle } from "../scripts/check-neon-build.mjs";
 
 const appRoutes = ["/auth", "/connect/native", "/contact", "/plus", "/pricing", "/story", "/how-it-works", "/developers", "/legal", "/security", "/status", "/marketplace", "/marketplace/:listingId", "/swipe", "/watchlist", "/projects", "/name-packages", "/brand-index", "/brand-index/assessment", "/my-domains", "/history", "/account", "/install", "/top-10-today", "/admin"];
 
-test("Plus is private/noindex and bounded worker functions do not activate a crawl schedule", async () => {
+test("Plus is private/noindex and the bounded worker has one explicit five-minute schedule", async () => {
   const config = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
   const headers = config.headers.find(entry => entry.source === "/plus").headers;
   assert.ok(headers.some(header => header.key === "X-Robots-Tag" && header.value === "noindex, nofollow"));
@@ -18,7 +18,7 @@ test("Plus is private/noindex and bounded worker functions do not activate a cra
     assert.match(handler, /export const config = \{ maxDuration: 60 \}/u, `${path} matches its Vercel duration`);
   }
   assert.equal(config.functions["api/cron/lost-domains.ts"].maxDuration, 60);
-  assert.equal(config.crons, undefined, "Source review and scheduling activation remain explicit pilot gates");
+  assert.deepEqual(config.crons, [{ path: "/api/cron/lost-domains", schedule: "*/5 * * * *" }]);
 });
 
 test("clean-URL application rewrites target the served root, not an excluded .html URL", async () => {

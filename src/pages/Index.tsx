@@ -26,7 +26,6 @@ import { searchRefinementCopy, refinementText, getSearchGenerationNote } from "@
 import { FIRST_RESULTS_COUNT, getVisibleSearchResults, nextSearchResultCount } from "@/lib/searchRefinement";
 import { countAdvancedBriefWords } from "@/lib/advancedSearchBrief";
 import FooterNav from "@/components/FooterNav";
-import Top10Banner from "@/components/Top10Banner";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useScan, getModeTargets, type DiscoveredDomain } from "@/contexts/ScanContext";
@@ -513,7 +512,6 @@ const Index = () => {
         </aside>}
         {!isNativeApp && !anonymousSearchMode && (
           <div className="mb-6">
-            <Top10Banner />
           </div>
         )}
 

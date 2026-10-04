@@ -3,8 +3,9 @@ import { nameProjectInputSchema } from "../../shared/name-projects.js";
 import { AccountAccessError, requireAccount } from "../_shared/account-auth.js";
 import { nameProjectsStore } from "../_shared/name-projects-store.js";
 import { createRequestId } from "../_shared/public-api.js";
+import { hasRequestQueryParameters } from "../_shared/request-query.js";
 
-interface RequestLike { method?: string; headers?: Record<string, string | string[] | undefined>; query?: Record<string, unknown>; body?: unknown }
+interface RequestLike { method?: string; headers?: Record<string, string | string[] | undefined>; query?: Record<string, unknown>; url?: string; body?: unknown }
 interface ResponseLike { setHeader(name: string, value: string | number): void; status(code: number): ResponseLike; json(value: unknown): void }
 const saveSchema = z.object({ action: z.literal("save"), project: nameProjectInputSchema }).strict();
 export const config = { maxDuration: 15 };
@@ -42,7 +43,7 @@ export function createNameProjectsHandler(deps: {
     }
     try {
       const account = await (deps.authorize ?? requireAccount)(request.headers, { verifiedEmail: true, method: request.method });
-      if (Object.keys(request.query ?? {}).length) throw new AccountAccessError("invalid_request", 400, "This route does not accept query parameters.");
+      if (hasRequestQueryParameters(request)) throw new AccountAccessError("invalid_request", 400, "This route does not accept query parameters.");
       const input = request.method === "POST" ? body(request) : null;
       const store = deps.store ?? nameProjectsStore;
       await store.limit(account.id);

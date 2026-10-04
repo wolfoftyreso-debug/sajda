@@ -1,7 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { ArrowUpRight } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { hasSupabaseBrowserConfig } from "@/integrations/supabase/client";
 import { isAccountAuthConfigured } from "@/integrations/neon/auth";
 import { isLocalTestMode } from "@/lib/localTestMode";
 import { useLanguage, type Language } from "@/i18n/LanguageProvider";
@@ -333,7 +332,7 @@ export default function SajdaFooter() {
   const location = useLocation();
   const copy = footerCopy[language];
   const authDisabled = !isAccountAuthConfigured;
-  const developerKeyPortalEnabled = isLocalTestMode() || hasSupabaseBrowserConfig;
+  const developerKeyPortalEnabled = isLocalTestMode() || isAccountAuthConfigured;
   const hasTaskNavigation = !authDisabled && taskNavigationPaths.has(location.pathname);
   const currentYear = new Date().getFullYear();
 
@@ -371,11 +370,6 @@ export default function SajdaFooter() {
                 <>
                   <FooterLink to="/account">{accountNavigationCopy[language].account}</FooterLink>
                   <FooterLink to="/watchlist">{copy.watchlist}</FooterLink>
-                  {hasSupabaseBrowserConfig && <>
-                    <FooterLink to="/top-10-today">{copy.today}</FooterLink>
-                    <FooterLink to="/history">{copy.history}</FooterLink>
-                    <FooterLink to="/my-domains">{copy.domains}</FooterLink>
-                  </>}
                 </>
               ) : !authDisabled ? (
                 <FooterLink to="/auth" description={copy.signInHint}>{copy.signIn}</FooterLink>

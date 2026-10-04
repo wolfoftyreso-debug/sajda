@@ -1,5 +1,6 @@
 import { AccountAccessError } from "./account-error.js";
 import { NAMES_API_MAX_BODY_BYTES } from "./names-contract.js";
+import { hasRequestQueryParameters } from "./public-api.js";
 
 export interface NamePackageHttpRequest {
   method?: string;
@@ -38,8 +39,7 @@ export function readNamePackageHeader(request: NamePackageHttpRequest, name: str
 }
 
 export function assertNamePackageQuery(request: NamePackageHttpRequest): void {
-  if (request.query && Object.keys(request.query).length
-    || request.url && new URL(request.url, "https://sajda.invalid").searchParams.size) {
+  if (hasRequestQueryParameters(request)) {
     throw new AccountAccessError("invalid_request", 400, "Name-package searches do not accept URL query parameters.");
   }
 }

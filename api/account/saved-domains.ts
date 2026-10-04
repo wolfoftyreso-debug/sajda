@@ -2,12 +2,14 @@ import { createHash } from "node:crypto";
 import { getNeonSql } from "../_shared/neon.js";
 import { AccountAccessError, requireAccount, type VerifiedAccount } from "../_shared/account-auth.js";
 import { createRequestId } from "../_shared/public-api.js";
+import { readRequestQuery } from "../_shared/request-query.js";
 import { parseSavedDomainCursor, removeDomainInput, saveDomainInput } from "../_shared/saved-domain-input.js";
 
 interface RequestLike {
   method?: string;
   headers?: Record<string, string | string[] | undefined>;
   query?: Record<string, unknown>;
+  url?: string;
   body?: unknown;
 }
 
@@ -77,11 +79,16 @@ return async function handler(request: RequestLike, response: ResponseLike): Pro
     const account = await authorize(request.headers, { verifiedEmail: true, method: request.method });
     let body: ReturnType<typeof saveDomainInput.parse> | ReturnType<typeof removeDomainInput.parse> | undefined;
     let cursor: string | null = null;
+    const query = readRequestQuery(request);
     if (request.method === "GET") {
-      try { cursor = parseSavedDomainCursor(request.query?.cursor); } catch {
+      if (Object.keys(query).some(key => key !== "cursor")) {
+        throw new AccountAccessError("invalid_request", 400, "Use only a saved-domain page cursor.");
+      }
+      try { cursor = parseSavedDomainCursor(query.cursor); } catch {
         throw new AccountAccessError("invalid_cursor", 400, "Use a valid saved-domain page cursor.");
       }
     } else {
+      if (Object.keys(query).length) throw new AccountAccessError("invalid_request", 400, "Use the request body, not URL parameters.");
       const parsed = (request.method === "POST" ? saveDomainInput : removeDomainInput).safeParse(requestBody(request));
       if (!parsed.success) throw new AccountAccessError("invalid_request", 400, "Enter a valid domain and valid saved-domain details.");
       body = parsed.data;

@@ -1,9 +1,11 @@
-# Sajda Trading billing operations (legacy Plus identifiers)
+# Sajda web billing operations
 
 The site now has Gratis, Bas, Premium and Trading. Current monthly prices are
-USD 0 / 9 / 19 / 49 in `shared/plans.ts`, revised on 2026-09-11. This billing implementation applies
-only to **Trading**, retaining the `sajda-plus` identity and `STRIPE_PLUS_*`
-configuration for compatibility. Bas/Premium purchases are not activated.
+USD 0 / 9 / 19 / 49 in `shared/plans.ts`, revised on 2026-09-11. The website
+billing contract supports **Basic, Premium and Trading** as distinct plans.
+`STRIPE_PLUS_PRICE_ID` remains a temporary Trading-only alias for existing
+sandbox configuration; new environments use the three explicit plan Price IDs.
+Each plan has an independent checkout release flag.
 See `PRICING-TIERS-2026-09-09.md` for the tier/feature activation boundaries.
 
 ## What is implemented (not a claim that Stripe has been activated)
@@ -14,10 +16,9 @@ event ledger and finite, namespaced Plus grants in Neon. Browser success URLs
 never grant access. No product, price, customer, subscription, invoice or active
 grant is created by the migration or build.
 
-The approved price is **USD 49 per month**, sourced from the shared catalog by
-`shared/plus-plan.ts` as 4,900 cents, USD, one-month billing. A lower catalog
-price does not activate checkout or prove commercial readiness. The actual
-configured Stripe Price must match that contract:
+The approved contracts are **USD 9 / 19 / 49 per month**, sourced from
+`shared/plans.ts`. A catalog price does not activate checkout or prove
+commercial readiness. Every configured Stripe Price must match its contract:
 licensed, per-unit recurring billing with exactly one unit and no tiers,
 quantity transformations or customer-chosen amount. Both new-checkout price
 reads and subscription entitlement reconciliation validate the expanded Stripe
@@ -31,8 +32,10 @@ tax-inclusive totals are not mistaken for the Price's unit amount. A stored
 session from an older price cannot bypass the current contract.
 Tax treatment, cancellation terms and actual service/payment
 verification still need to be completed before sales are enabled.
-Trials, annual plans, seat quantities, upgrades, proration-based grants and
-zero-value invoices are intentionally unsupported in this first paid plan.
+Trials, annual plans, seat quantities and zero-value invoices are unsupported.
+Plan switching is delegated to the reviewed Stripe customer portal and its
+explicit Basic/Premium/Trading product allow-list; direct API plan mutation is
+not exposed to the browser.
 
 ## Environment contract
 
@@ -44,9 +47,14 @@ All variables below are **server-only** and must never have a `VITE_` prefix.
 | `STRIPE_MODE`                             | Defaults to `test`; only `test` or `live`                                                 |
 | `STRIPE_SECRET_KEY`                       | `sk_test_...` in preview/development, `sk_live_...` in production                         |
 | `STRIPE_WEBHOOK_SECRET`                   | Endpoint signing secret, not the API key                                                  |
-| `STRIPE_PLUS_PRICE_ID`                    | Existing Price matching exactly USD 49 (4,900 cents), every one month                |
+| `STRIPE_BASIC_PRICE_ID`                   | Existing Price matching exactly USD 9 (900 cents), every one month                  |
+| `STRIPE_PREMIUM_PRICE_ID`                 | Existing Price matching exactly USD 19 (1,900 cents), every one month               |
+| `STRIPE_TRADING_PRICE_ID`                 | Existing Price matching exactly USD 49 (4,900 cents), every one month               |
+| `STRIPE_PLUS_PRICE_ID`                    | Legacy alias for `STRIPE_TRADING_PRICE_ID`; do not use for new multi-plan setup      |
 | `STRIPE_PORTAL_CONFIGURATION_ID`          | Existing customer portal configuration                                                    |
-| `STRIPE_CHECKOUT_ENABLED`                 | Exactly `true` to permit new checkout                                                     |
+| `STRIPE_BASIC_CHECKOUT_ENABLED`           | Exactly `true` to permit new Basic checkout                                                |
+| `STRIPE_PREMIUM_CHECKOUT_ENABLED`         | Exactly `true` to permit new Premium checkout                                              |
+| `STRIPE_CHECKOUT_ENABLED`                 | Exactly `true` to permit new Trading checkout                                              |
 | `STRIPE_LIVE_ENABLED`                     | Exactly `true`, **in addition** to live mode and production, to permit live configuration |
 | `BETTER_AUTH_URL` and Vercel URL metadata | Existing trusted origin/callback configuration                                            |
 
@@ -57,7 +65,7 @@ a paid subscription does not secretly remove an independently granted operator
 permission. Billing does not copy a separate Swipe undo grant; active Trading
 membership inherits Premium capabilities through the central membership reader.
 
-Disable new sales by setting `STRIPE_CHECKOUT_ENABLED=false`. Keep API and
+Disable each new-sale path with its matching flag. Keep API and
 webhook credentials configured: existing customers must retain portal access,
 cancellation and reconciliation while new sales are paused. A price-read outage
 disables checkout but does not disable the mapped customer's billing portal.
@@ -82,8 +90,8 @@ node --import tsx scripts/setup-stripe-sandbox.mjs --account=acct_1UDqPlAJ7seQoN
 node --import tsx scripts/setup-stripe-sandbox.mjs --account=acct_1UDqPlAJ7seQoN51 --apply
 ```
 
-The setup script reads the central Trading amount and versions the Price lookup
-and idempotency keys with that amount. It reuses the existing product and portal
+The setup script reads the complete paid catalog and versions Price lookup and
+idempotency keys with each plan and amount. It preserves existing products and portals
 and preserves older Prices. Changing a catalog number never edits an immutable
 Stripe Price, starts checkout, updates Vercel configuration or migrates a
 subscription. Until the USD 49 Price exists and is explicitly configured, the
@@ -105,12 +113,15 @@ could remove valid paid access. No subscriber migration is performed here.
 ## Endpoints and Stripe configuration
 
 - `GET /api/account/billing`: verified session, account identity race guard,
-  private/no-store response. Returns configured price and server capabilities.
+  private/no-store response. Returns each configured plan price, the active plan
+  and server-derived checkout/portal capabilities.
   Billing snapshots older than 60 seconds are reconciled with current Stripe
   state under the same fenced lease, repairing missed webhooks on return visits.
 - `POST /api/account/billing`: strict JSON `{ action: "checkout" | "portal",
-requestKey: "UUID" }`; verified email, session, exact same-origin and
-  `x-sajda-account` required. Caller cannot select price, customer or subscription.
+requestKey: "UUID", plan?: "basic" | "premium" | "trading" }`; `plan` is
+  accepted only for checkout. Verified email, session, exact same-origin and
+  `x-sajda-account` are required. The caller selects a catalog plan, never a
+  Price ID, customer or subscription.
 - `POST /api/billing-webhook`: raw signed bytes, 256 KiB maximum; signature age
   tolerance 300 seconds. Do not put JSON middleware in front of this handler.
   It deliberately bypasses Vercel's lazy parsed `req.body` getter and reads the

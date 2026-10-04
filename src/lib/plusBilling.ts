@@ -2,6 +2,7 @@ import { accountRequest, readAccountSession } from "@/integrations/neon/auth";
 import { throwIfCancelled } from "./abort";
 import { assertAccountSessionOwner, type AccountRequestScope } from "@/lib/accountRequestScope";
 import { PLUS_PLAN } from "../../shared/plus-plan";
+import { PAID_PLAN_ORDER, PLANS, type PaidPlanId } from "../../shared/plans";
 
 export const billingStatuses = ["none", "incomplete", "incomplete_expired", "trialing", "active", "past_due", "canceled", "unpaid", "paused", "conflict"] as const;
 export type PlusBillingStatus = typeof billingStatuses[number];
@@ -17,6 +18,8 @@ export interface PlusBillingSnapshot {
   canManage: boolean;
   accessExpiresAt: string | null;
   appStoreManaged?: boolean;
+  activePlan: PaidPlanId | null;
+  plans: Record<PaidPlanId, { ready: boolean; price: PlusBillingSnapshot["price"]; canCheckout: boolean }>;
 }
 export type PlusBillingErrorCode = "unavailable" | "invalid_response" | "unauthenticated" | "account_changed" | "rate_limited" | "not_ready"
   | "email_verification_required" | "subscription_changed" | "checkout_expired" | "review_required" | "app_store_subscription_exists";
@@ -47,10 +50,34 @@ export function parsePlusBilling(value: unknown, accountId: string): PlusBilling
       || row.interval !== PLUS_PLAN.interval || row.intervalCount !== PLUS_PLAN.intervalCount || !["inclusive", "exclusive", "unspecified"].includes(String(row.taxBehavior))) return invalid();
     price = { currency: "usd", unitAmount: Number(row.unitAmount), interval: "month", intervalCount: 1, taxBehavior: row.taxBehavior as NonNullable<PlusBillingSnapshot["price"]>["taxBehavior"] };
   }
+  const parsePlan = (plan: PaidPlanId, value: unknown) => {
+    const row = object(value);
+    if (!row || typeof row.ready !== "boolean" || typeof row.canCheckout !== "boolean" || row.canCheckout && !row.ready) return invalid();
+    let planPrice: PlusBillingSnapshot["price"] = null;
+    if (row.price !== null) {
+      const item = object(row.price), contract = PLANS[plan];
+      if (!item || item.currency !== contract.currency || item.unitAmount !== contract.unitAmount || item.interval !== contract.interval
+        || item.intervalCount !== contract.intervalCount || !["inclusive", "exclusive", "unspecified"].includes(String(item.taxBehavior))) return invalid();
+      planPrice = { currency: "usd", unitAmount: Number(item.unitAmount), interval: "month", intervalCount: 1, taxBehavior: item.taxBehavior as NonNullable<PlusBillingSnapshot["price"]>["taxBehavior"] };
+    }
+    if (row.ready && !planPrice) return invalid();
+    return { ready: row.ready, price: planPrice, canCheckout: row.canCheckout };
+  };
+  const rawPlans = object(payload.plans);
+  const plans = rawPlans
+    ? Object.fromEntries(PAID_PLAN_ORDER.map(plan => [plan, parsePlan(plan, rawPlans[plan])])) as PlusBillingSnapshot["plans"]
+    : {
+        basic: { ready: false, price: null, canCheckout: false },
+        premium: { ready: false, price: null, canCheckout: false },
+        trading: { ready: payload.ready as boolean, price, canCheckout: payload.canCheckout as boolean },
+      };
+  const activePlan = payload.activePlan === undefined || payload.activePlan === null ? null
+    : PAID_PLAN_ORDER.includes(payload.activePlan as PaidPlanId) ? payload.activePlan as PaidPlanId : invalid();
   if (payload.ready && (!price || !payload.mode) || payload.canCheckout && !payload.ready || payload.canManage && !payload.mode
     || payload.canCheckout && ["active", "trialing", "past_due", "unpaid", "paused", "conflict"].includes(String(payload.status))) return invalid();
   return { accountId, requestId: String(payload.requestId), ready: payload.ready as boolean, mode: payload.mode as PlusBillingSnapshot["mode"], price,
     status: payload.status as PlusBillingStatus, canCheckout: payload.canCheckout as boolean, canManage: payload.canManage as boolean, accessExpiresAt: payload.accessExpiresAt as string | null,
+    activePlan, plans,
     ...(payload.appStoreManaged === true ? { appStoreManaged: true } : {}) };
 }
 export function parseBillingRedirect(value: unknown, accountId: string, action: PlusBillingAction): string {
@@ -76,7 +103,7 @@ function safeFailure(error: unknown): Error {
   if (["billing_review_required", "billing_reconciliation_required"].includes(String(row?.code))) return new PlusBillingError("review_required", requestId);
   return new PlusBillingError("unavailable", requestId);
 }
-async function request<T>(scope: AccountRequestScope, parse: (value: unknown) => T, body?: { action: PlusBillingAction; requestKey: string }): Promise<T> {
+async function request<T>(scope: AccountRequestScope, parse: (value: unknown) => T, body?: { action: PlusBillingAction; requestKey: string; plan?: PaidPlanId }): Promise<T> {
   try {
     const result = parse(await accountRequest<unknown>("/api/account/billing", { ...scope, ...(body ? { method: "POST", body } : {}) }));
     throwIfCancelled(scope.signal);
@@ -88,7 +115,7 @@ async function request<T>(scope: AccountRequestScope, parse: (value: unknown) =>
   } catch (error) { throw safeFailure(error); }
 }
 export const getPlusBilling = (scope: AccountRequestScope) => request(scope, value => parsePlusBilling(value, scope.accountId));
-export function openPlusBilling(scope: AccountRequestScope, action: PlusBillingAction, requestKey: string): Promise<string> {
+export function openPlusBilling(scope: AccountRequestScope, action: PlusBillingAction, requestKey: string, plan: PaidPlanId = "trading"): Promise<string> {
   if (!["checkout", "portal"].includes(action) || !uuid.test(requestKey)) return Promise.reject(new PlusBillingError("invalid_response"));
-  return request(scope, value => parseBillingRedirect(value, scope.accountId, action), { action, requestKey });
+  return request(scope, value => parseBillingRedirect(value, scope.accountId, action), { action, requestKey, ...(action === "checkout" && plan !== "trading" ? { plan } : {}) });
 }
