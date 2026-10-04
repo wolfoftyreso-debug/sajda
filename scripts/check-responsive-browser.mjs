@@ -57,7 +57,7 @@ try {
   });
   const page = await context.newPage();
   page.on("pageerror", error => { const detail = { url: page.url(), message: error.message }; errors.push(detail); console.log(JSON.stringify({ event: "runtime_error", ...detail })); });
-  const widths = process.env.SAJDA_RESPONSIVE_WIDTHS?.split(",").map(Number) || [360, 390, 768, 820, 1024, 1180, 1440];
+  const widths = process.env.SAJDA_RESPONSIVE_WIDTHS?.split(",").map(Number) || [320, 360, 390, 768, 820, 1024, 1180, 1440];
   const routes = process.env.SAJDA_RESPONSIVE_ROUTES?.split(",") || ["/", "/auth", "/pricing", "/brand-index", "/name-packages", "/developers", "/swipe", "/trading"];
   const languages = process.env.SAJDA_RESPONSIVE_LANGUAGES?.split(",") || ["en", "sv"];
   const cases = process.env.SAJDA_RESPONSIVE_CASES ? JSON.parse(process.env.SAJDA_RESPONSIVE_CASES) :
@@ -71,7 +71,10 @@ try {
         rect: Object.fromEntries(["x", "y", "width", "height", "right", "bottom"].map(key => [key, Math.round(element.getBoundingClientRect()[key] * 10) / 10])) });
       const elements = [...document.querySelectorAll("h1,h2,h3,h4,p,span,a,button,label,input,textarea,select,pre,td,th,[role=dialog],[role=tab],article")].filter(element => {
         const box = element.getBoundingClientRect(), style = getComputedStyle(element);
-        return box.width > 0 && box.height > 0 && (element.tagName !== "SPAN" || element.textContent?.trim()) && style.visibility !== "hidden" && style.display !== "none" && !element.closest('[aria-hidden="true"]') && !element.classList.contains("sr-only");
+        const closedDetails = element.closest("details:not([open])");
+        return box.width > 0 && box.height > 0 && (!closedDetails || element.closest("summary"))
+          && (element.tagName !== "SPAN" || element.textContent?.trim()) && style.visibility !== "hidden" && style.display !== "none"
+          && !element.closest('[aria-hidden="true"]') && !element.classList.contains("sr-only");
       });
       const outside = elements.filter(element => { const box = element.getBoundingClientRect(); return box.left < -1 || box.right > viewport + 1; }).map(brief);
       const clipped = [];
@@ -140,6 +143,13 @@ try {
         await page.evaluate(() => document.fonts.ready);
         await page.waitForTimeout(100);
         await capture(route, state, language, width);
+        if (route === "/" && state === "empty" && width < 768) {
+          const more = page.locator("header details summary").first();
+          await more.click();
+          await page.locator("header details[open]").waitFor();
+          await capture(route, "mobile-menu-open", language, width);
+          await more.click();
+        }
         if (route === "/swipe") {
           const dialog = page.getByRole("dialog");
           if (await dialog.isVisible()) { await page.keyboard.press("Escape"); await dialog.waitFor({ state: "hidden" }); }

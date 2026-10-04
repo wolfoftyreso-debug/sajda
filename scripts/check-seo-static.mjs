@@ -19,6 +19,7 @@ const appShell = load(await read("index.html"));
 let serviceWorker = "";
 try { serviceWorker = await read("sw.js"); } catch (error) { if (error.code !== "ENOENT") throw error; }
 
+assert.equal(appShell('meta[name="robots"]').attr("content"), "noindex, nofollow", "interactive shell must remain noindex");
 assert.equal(appShell('meta[property="og:image"]').attr("content"), `${canonicalOrigin}/og.png`, "the app shell needs a share image");
 assert.equal(appShell('meta[name="twitter:card"]').attr("content"), "summary_large_image");
 assert.equal(appShell('meta[name="twitter:image"]').attr("content"), `${canonicalOrigin}/og.png`);

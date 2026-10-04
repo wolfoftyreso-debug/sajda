@@ -71,6 +71,18 @@ test("browser CSP permits same-origin Vercel auth but no direct Neon connection"
   );
 });
 
+test("Grok framing is limited to public product surfaces", async () => {
+  const config = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
+  const sensitive = config.headers.find(entry => entry.source.startsWith("/:sensitive("));
+  assert.ok(sensitive, "sensitive application routes need a dedicated anti-framing policy");
+  const csp = sensitive.headers.find(header => header.key === "Content-Security-Policy")?.value ?? "";
+  assert.equal(csp.split(";").map(value => value.trim()).find(value => value.startsWith("frame-ancestors")), "frame-ancestors 'none'");
+  assert.ok(sensitive.headers.some(header => header.key === "X-Frame-Options" && header.value === "DENY"));
+  for (const route of ["auth", "account", "watchlist", "projects", "my-domains", "history", "plus", "admin", "top-10-today", "pricing", "connect", "name-packages", "brand-index"]) {
+    assert.ok(sensitive.source.includes(route), `${route} must not render inside a third-party frame`);
+  }
+});
+
 test("Vercel derives account auth from both server requirements, never stale public flags", () => {
   const stale = { VITE_ACCOUNT_AUTH_ENABLED: "true", VITE_NEON_AUTH_URL: "https://old-auth.example.neon.tech", VITE_SUPABASE_URL: "https://old.supabase.co" };
   for (const environment of [
