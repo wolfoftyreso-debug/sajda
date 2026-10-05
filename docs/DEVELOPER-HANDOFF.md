@@ -123,4 +123,8 @@ See [current release-hardening evidence](RELEASE-HARDENING-2026-09-24.md),
 [connector release evidence](CONNECTOR-RELEASE-2026-09-24.md),
 [account API](ACCOUNT-API.md), [architecture](NEON-VERCEL.md),
 [privacy inventory](APP-PRIVACY-INVENTORY.md) and
-[legal gates](LAUNCH-LEGAL-2026-09-17.md).
+[legal gates](LAUNCH-LEGAL-2026-09-17.md). External account, DNS, provider and
+production work must follow the ordered
+[Grok launch execution handoff](GROK-LAUNCH-EXECUTION-ORDER-2026-10-05.md) and
+return a redacted copy of the accompanying
+[`LAUNCH-EXTERNAL-EVIDENCE.template.json`](LAUNCH-EXTERNAL-EVIDENCE.template.json).
