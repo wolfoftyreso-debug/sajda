@@ -3,14 +3,21 @@ import test from "node:test";
 import path from "node:path";
 import { load } from "cheerio";
 import { createServer } from "vite";
-import { seoDocuments, seoDocumentForPath, seoHreflangAlternates, seoStructuredData, seoRobotsForLocation, SEO_HREFLANG_LOCALES, SEO_INDEX_ROBOTS, SEO_NOINDEX_ROBOTS } from "../src/lib/seoDocuments";
+import { seoDocuments, seoDocumentForPath, seoHreflangAlternates, seoStructuredData, seoRobotsForLocation, SEO_HREFLANG_LOCALES, SEO_INDEX_ROBOTS, SEO_NOINDEX_ROBOTS, isPublicIndexPath, isPrivateResultPath } from "../src/lib/seoDocuments";
 
 test("SEO indexing requires a clean approved URL, canonical host and explicit build policy", () => {
   const base = { pathname: "/se/sok-doman", search: "", origin: "https://sajda.dev", canonicalOrigin: "https://sajda.dev", buildPolicy: "index" };
   assert.equal(seoRobotsForLocation(base), SEO_INDEX_ROBOTS);
+  assert.equal(seoRobotsForLocation({ ...base, pathname: "/pricing" }), SEO_INDEX_ROBOTS);
+  assert.equal(seoRobotsForLocation({ ...base, pathname: "/brand-index" }), SEO_INDEX_ROBOTS);
+  assert.equal(isPublicIndexPath("/pricing"), true);
+  assert.equal(isPublicIndexPath("/brand-index/assessment"), false);
+  assert.equal(isPrivateResultPath("/brand-index/assessment"), true);
   for (const override of [
     { pathname: "/" }, { pathname: "/account" }, { pathname: "/se/not-a-page" },
+    { pathname: "/brand-index/assessment" },
     { search: "?q=my-private-name.test" }, { search: "?sort=price" },
+    { pathname: "/pricing", search: "?plan=trading" },
     { origin: "https://sajda-test-hypbit.vercel.app" }, { origin: "http://127.0.0.1:8095" },
     { buildPolicy: "noindex" }, { buildPolicy: null },
   ]) assert.equal(seoRobotsForLocation({ ...base, ...override }), SEO_NOINDEX_ROBOTS, JSON.stringify(override));
@@ -124,6 +131,18 @@ test("actual SEO product HTML and route metadata remain aligned before JavaScrip
       applyWebSeoMetadata("/pricing", "", "https://sajda.dev", "fr");
       assert.equal($("html").attr("lang"), "fr");
       assert.match($("title").text(), /Tarifs/u);
+      assert.equal($('meta[name="robots"]').attr("content"), SEO_INDEX_ROBOTS);
+      assert.equal($('link[rel="canonical"]').attr("href"), "https://sajda.dev/pricing");
+      assert.equal($('link[hreflang="x-default"]').attr("href"), "https://sajda.dev/pricing");
+      applyWebSeoMetadata("/brand-index", "", "https://sajda.dev", "en");
+      assert.equal($('meta[name="robots"]').attr("content"), SEO_INDEX_ROBOTS);
+      assert.equal($('link[rel="canonical"]').attr("href"), "https://sajda.dev/brand-index");
+      assert.match($("title").text(), /Look up an existing brand/u);
+      applyWebSeoMetadata("/brand-index/assessment", "", "https://sajda.dev", "en");
+      assert.equal($('meta[name="robots"]').attr("content"), SEO_NOINDEX_ROBOTS);
+      assert.equal($('link[rel="canonical"]').attr("href"), "https://sajda.dev/");
+      applyWebSeoMetadata("/pricing", "?plan=trading", "https://sajda.dev", "en");
+      assert.equal($('meta[name="robots"]').attr("content"), SEO_NOINDEX_ROBOTS);
       applyWebSeoMetadata("/se", "", "https://preview.vercel.app");
       assert.equal($('meta[name="robots"]').attr("content"), SEO_NOINDEX_ROBOTS);
       $('meta[name="sajda-seo-indexing"]').attr("content", "noindex");

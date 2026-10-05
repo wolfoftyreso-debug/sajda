@@ -46,10 +46,40 @@ test("noindex policy stamps X-Robots-Tag on clean SEO documents", () => {
     { VERCEL_ENV: "production", SAJDA_SEO_INDEXING: "index", SAJDA_CANONICAL_ORIGIN: "https://sajda.dev" },
   );
   assert.equal(branded.headers.get("x-robots-tag"), null);
+  const brandedPricing = applySeoRobotsHeaders(
+    new URL("https://sajda.dev/pricing"),
+    new Response(null, { headers: { "x-middleware-next": "1" } }),
+    { VERCEL_ENV: "production", SAJDA_SEO_INDEXING: "index", SAJDA_CANONICAL_ORIGIN: "https://sajda.dev" },
+  );
+  assert.equal(brandedPricing.headers.get("x-robots-tag"), null);
+  const brandedBrandIndex = applySeoRobotsHeaders(
+    new URL("https://sajda.dev/brand-index"),
+    new Response(null, { headers: { "x-middleware-next": "1" } }),
+    { VERCEL_ENV: "production", SAJDA_SEO_INDEXING: "index", SAJDA_CANONICAL_ORIGIN: "https://sajda.dev" },
+  );
+  assert.equal(brandedBrandIndex.headers.get("x-robots-tag"), null);
+  const assessment = applySeoRobotsHeaders(
+    new URL("https://sajda.dev/brand-index/assessment"),
+    new Response(null, { headers: { "x-middleware-next": "1" } }),
+    { VERCEL_ENV: "production", SAJDA_SEO_INDEXING: "index", SAJDA_CANONICAL_ORIGIN: "https://sajda.dev" },
+  );
+  assert.equal(assessment.headers.get("x-robots-tag"), "noindex, nofollow");
+  const queryPricing = applySeoRobotsHeaders(
+    new URL("https://sajda.dev/pricing?plan=trading"),
+    new Response(null, { headers: { "x-middleware-next": "1" } }),
+    { VERCEL_ENV: "production", SAJDA_SEO_INDEXING: "index", SAJDA_CANONICAL_ORIGIN: "https://sajda.dev" },
+  );
+  assert.equal(queryPricing.headers.get("x-robots-tag"), "noindex, nofollow");
+  assert.equal(queryPricing.headers.get("x-sajda-query-policy"), "noindex");
 });
 
 test("official Vercel middleware continues static routing and marks all query keys", async () => {
-  assert.deepEqual(config.matcher, ["/((?:/|%2[fF])*(?:s|%73)(?:e|%65)(?:/.*|%2[fF].*)?)"]);
+  assert.deepEqual(config.matcher, [
+    "/((?:/|%2[fF])*(?:s|%73)(?:e|%65)(?:/.*|%2[fF].*)?)",
+    "/pricing",
+    "/brand-index",
+    "/brand-index/assessment",
+  ]);
   for (const suffix of queryVariants) {
     const response = middleware(new Request(`https://sajda-eight.vercel.app/se/sok-doman${suffix}`));
     assert.equal(response.status, 200);

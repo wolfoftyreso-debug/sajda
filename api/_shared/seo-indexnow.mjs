@@ -1,4 +1,4 @@
-import { SEO_PAGES, canonicalUrl } from "../../scripts/seo-routes.mjs";
+import { INDEXABLE_PAGES, canonicalUrl } from "../../scripts/seo-routes.mjs";
 import { indexNowSubmission, resolveSeoOrigin } from "../../scripts/seo-policy.mjs";
 
 const INDEXNOW_ENDPOINT = "https://api.indexnow.org/indexnow";
@@ -8,7 +8,7 @@ export function indexNowPayload(origin, key, host) {
     host,
     key,
     keyLocation: `${origin}/${key}.txt`,
-    urlList: SEO_PAGES.map((page) => canonicalUrl(page.path, origin)),
+    urlList: INDEXABLE_PAGES.map((page) => canonicalUrl(page.path, origin)),
   };
 }
 

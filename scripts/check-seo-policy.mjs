@@ -3,8 +3,12 @@ import {
   AI_CRAWLERS,
   DEFAULT_SEO_ORIGIN,
   PRIVATE_CRAWL_PATHS,
+  PRIVATE_RESULT_PATHS,
+  PUBLIC_INDEX_PATHS,
   SEARCH_CRAWLERS,
   SEO_LOCALES,
+  isPrivateResultPath,
+  isPublicIndexPath,
   hreflangAlternates,
   htmlRobotsContent,
   indexNowSubmission,
@@ -94,7 +98,20 @@ assert.match(noindexRobots, /User-agent: \*\nDisallow: \//u);
 assert.doesNotMatch(noindexRobots, /Sitemap:/u);
 assert.match(indexRobots, /User-agent: \*\nAllow: \//u);
 assert.match(indexRobots, /Sitemap: https:\/\/sajda.dev\/sitemap.xml/u);
+assert.deepEqual([...PUBLIC_INDEX_PATHS], ["/pricing", "/brand-index"]);
+assert.deepEqual([...PRIVATE_RESULT_PATHS], ["/brand-index/assessment"]);
+assert.equal(isPublicIndexPath("/pricing/"), true);
+assert.equal(isPublicIndexPath("/brand-index"), true);
+assert.equal(isPublicIndexPath("/brand-index/assessment"), false);
+assert.equal(isPrivateResultPath("/brand-index/assessment"), true);
+assert.equal(isPrivateResultPath("/brand-index/assessment/share"), true);
+assert.equal(isPrivateResultPath("/brand-index"), false);
+assert.ok(!PRIVATE_CRAWL_PATHS.includes("/pricing"));
+assert.ok(!PRIVATE_CRAWL_PATHS.includes("/brand-index"));
+assert.ok(PRIVATE_CRAWL_PATHS.includes("/brand-index/assessment"));
 for (const path of PRIVATE_CRAWL_PATHS) assert.match(indexRobots, new RegExp(`Disallow: ${path}`, "u"));
+assert.doesNotMatch(indexRobots, /Disallow: \/pricing(?:\n|$)/u);
+assert.doesNotMatch(indexRobots, /Disallow: \/brand-index(?:\n|$)/u);
 assert.ok(AI_CRAWLERS.includes("OAI-SearchBot") && AI_CRAWLERS.includes("ChatGPT-User")
   && AI_CRAWLERS.includes("Claude-SearchBot") && AI_CRAWLERS.includes("Perplexity-User")
   && AI_CRAWLERS.includes("Applebot-Extended"));
