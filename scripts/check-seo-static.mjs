@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { load } from "cheerio";
 import {
-  AI_TRAINING_CRAWLERS,
+  AI_CRAWLERS,
   PRIVATE_CRAWL_PATHS,
   SEARCH_CRAWLERS,
   SEO_PAGES,
@@ -54,7 +54,7 @@ if (noindex) {
   assert.equal(sitemapPages("lastmod").length, 0);
   assert.match(robots, /User-agent:\s*\*\s*\r?\nDisallow:\s*\//u);
   assert.doesNotMatch(robots, /Sitemap:/iu);
-  for (const agent of [...SEARCH_CRAWLERS, ...AI_TRAINING_CRAWLERS]) {
+  for (const agent of [...SEARCH_CRAWLERS, ...AI_CRAWLERS]) {
     assert.match(robots, new RegExp(`User-agent:\\s*${agent}\\s*\\r?\\nDisallow:\\s*/`, "u"), agent);
   }
 } else {
@@ -63,9 +63,8 @@ if (noindex) {
   assert.match(robots, /Allow:\s*\//u);
   assert.ok(robots.includes(`Sitemap: ${canonicalOrigin}/sitemap.xml`));
   for (const path of PRIVATE_CRAWL_PATHS) assert.match(robots, new RegExp(`Disallow:\\s*${path.replaceAll("/", "\\/")}`, "u"), path);
-  for (const agent of SEARCH_CRAWLERS) assert.match(robots, new RegExp(`User-agent:\\s*${agent}`, "u"), agent);
-  for (const agent of AI_TRAINING_CRAWLERS) {
-    assert.match(robots, new RegExp(`User-agent:\\s*${agent}\\s*\\r?\\nDisallow:\\s*/`, "u"), agent);
+  for (const agent of [...SEARCH_CRAWLERS, ...AI_CRAWLERS]) {
+    assert.match(robots, new RegExp(`User-agent:\\s*${agent}\\s*\\r?\\nAllow:\\s*/`, "u"), agent);
   }
 }
 if (shouldPublishIndexNow()) {

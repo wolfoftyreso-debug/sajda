@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import {
-  AI_TRAINING_CRAWLERS,
+  AI_CRAWLERS,
   DEFAULT_SEO_ORIGIN,
   PRIVATE_CRAWL_PATHS,
   SEARCH_CRAWLERS,
@@ -95,11 +95,16 @@ assert.doesNotMatch(noindexRobots, /Sitemap:/u);
 assert.match(indexRobots, /User-agent: \*\nAllow: \//u);
 assert.match(indexRobots, /Sitemap: https:\/\/sajda.dev\/sitemap.xml/u);
 for (const path of PRIVATE_CRAWL_PATHS) assert.match(indexRobots, new RegExp(`Disallow: ${path}`, "u"));
-for (const agent of [...SEARCH_CRAWLERS, ...AI_TRAINING_CRAWLERS]) {
+assert.ok(AI_CRAWLERS.includes("OAI-SearchBot") && AI_CRAWLERS.includes("ChatGPT-User")
+  && AI_CRAWLERS.includes("Claude-SearchBot") && AI_CRAWLERS.includes("Perplexity-User")
+  && AI_CRAWLERS.includes("Applebot-Extended"));
+for (const agent of [...SEARCH_CRAWLERS, ...AI_CRAWLERS]) {
   assert.match(noindexRobots, new RegExp(`User-agent: ${agent}\\nDisallow: /`, "u"), agent);
-}
-for (const agent of AI_TRAINING_CRAWLERS) {
-  assert.match(indexRobots, new RegExp(`User-agent: ${agent}\\nDisallow: /`, "u"), agent);
+  assert.match(indexRobots, new RegExp(`User-agent: ${agent}\\nAllow: /`, "u"), agent);
+  for (const path of PRIVATE_CRAWL_PATHS) {
+    assert.match(indexRobots, new RegExp(`User-agent: ${agent}\\nAllow: /\\n[\\s\\S]*?Disallow: ${path}`, "u"), `${agent} ${path}`);
+  }
+  assert.doesNotMatch(indexRobots, new RegExp(`User-agent: ${agent}\\nDisallow: /\\n`, "u"), agent);
 }
 assert.equal(htmlRobotsContent(true), "noindex, nofollow");
 assert.match(htmlRobotsContent(false), /^index, follow/u);
