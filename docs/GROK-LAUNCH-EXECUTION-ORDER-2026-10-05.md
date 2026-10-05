@@ -9,10 +9,10 @@ before unrestricted production launch.
 
 - Repository: `https://github.com/wolfoftyreso-debug/sajda.git`
 - Release branch: `codex/launch-hardening`
-- Reviewed release commit: `825d076`
+- Reviewed release commit: `a5c5b0a`
 - Current remote `main`: `c01565e`
 - Current public Vercel alias: `https://sajda-eight.vercel.app`
-- Latest verified release preview: `https://sajda-kg0n0tw09-hypbit.vercel.app`
+- Latest verified release preview: `https://sajda-ncc7h1ifz-hypbit.vercel.app`
 - Vercel project: `hypbit/sajda`
 - Database architecture: Vercel-managed Neon Postgres and application-owned
   Better Auth. Do not enable Supabase or Neon Auth.
@@ -60,7 +60,7 @@ npm run check:ci
 npm audit --omit=dev
 ```
 
-Expected reviewed commit is `825d076`. If remote HEAD is newer, inspect the
+Expected reviewed commit is `a5c5b0a`. If remote HEAD is newer, inspect the
 diff and repeat the complete gate rather than resetting to the old commit. The
 production audit must remain zero vulnerabilities. The five currently known
 high advisories are confined to the Tailwind 3 development toolchain and are
