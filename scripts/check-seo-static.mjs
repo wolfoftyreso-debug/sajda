@@ -5,7 +5,10 @@ import { fileURLToPath } from "node:url";
 import { load } from "cheerio";
 import {
   AI_CRAWLERS,
+  INDEXABLE_PAGES,
   PRIVATE_CRAWL_PATHS,
+  PUBLIC_INDEX_PAGES,
+  PUBLIC_INDEX_PATHS,
   SEARCH_CRAWLERS,
   SEO_PAGES,
   SITEMAP_PAGES_PATH,
@@ -45,7 +48,7 @@ for (const tag of siteVerificationTags()) {
 assert.doesNotMatch(serviceWorker, /robots\.txt|sitemap\.xml|sitemap-pages\.xml/iu, "crawler controls must never be precached");
 assert.equal(sitemapPages("urlset").attr("xmlns"), "http://www.sitemaps.org/schemas/sitemap/0.9");
 const pageUrls = sitemapPages("url > loc").map((_, node) => sitemapPages(node).text()).get();
-const expectedUrls = noindex ? [] : SEO_PAGES.map(page => canonicalUrl(page.path, canonicalOrigin));
+const expectedUrls = noindex ? [] : INDEXABLE_PAGES.map(page => canonicalUrl(page.path, canonicalOrigin));
 assert.deepEqual([...pageUrls].sort(), [...expectedUrls].sort(), "page sitemap must contain exactly the approved canonical URLs");
 if (noindex) {
   assert.equal(sitemap("urlset").attr("xmlns"), "http://www.sitemaps.org/schemas/sitemap/0.9");
@@ -75,7 +78,7 @@ if (shouldPublishIndexNow()) {
 }
 
 const knownPaths = new Set(SEO_PAGES.map(page => page.path));
-const allowedProductPaths = new Set(["/", "/legal"]);
+const allowedProductPaths = new Set(["/", "/legal", ...PUBLIC_INDEX_PAGES.map(page => page.path)]);
 const allowedSources = new Set(["https://www.registry.google/domains/app/", "https://www.registry.google/domains/dev/"]);
 const graph = new Map();
 for (const key of ["path", "title", "description", "h1"]) {
@@ -166,4 +169,26 @@ while (pending.length) {
   pending.push(...graph.get(path));
 }
 assert.equal(reachable.size, SEO_PAGES.length, "every sitemap page must be reachable from the Swedish hub");
-console.log(`SEO static: OK (${SEO_PAGES.length} Swedish ${noindex ? "noindex preview" : "index-eligible"} routes; HTML content, metadata, structured data, assets and crawl graph).`);
+
+assert.deepEqual(PUBLIC_INDEX_PAGES.map(page => page.path), [...PUBLIC_INDEX_PATHS]);
+for (const page of PUBLIC_INDEX_PAGES) {
+  const $ = load(await read(`${page.path.slice(1)}.html`));
+  const canonical = canonicalUrl(page.path, canonicalOrigin);
+  assert.equal($("title").text(), page.title, page.path);
+  assert.equal($('meta[name="description"]').attr("content"), page.description, page.path);
+  assert.equal($('meta[name="robots"]').attr("content"), expectedRobots, page.path);
+  assert.equal($('link[rel="canonical"]').attr("href"), canonical, page.path);
+  assert.equal($('meta[property="og:url"]').attr("content"), canonical, page.path);
+  assert.equal($('meta[property="og:title"]').attr("content"), page.title, page.path);
+  assert.equal($('link[hreflang="x-default"]').attr("href"), canonical, page.path);
+  assert.equal($('link[hreflang="en"]').length, 0, "do not invent unbuilt translated public URLs");
+  assert.doesNotMatch($("html").html() ?? "", /\/brand-index\/assessment/u);
+}
+
+assert.doesNotMatch(robots, /Disallow:\s*\/pricing(?:\s|$)/u);
+assert.doesNotMatch(robots, /Disallow:\s*\/brand-index(?:\s|$)/u);
+if (!noindex) {
+  assert.match(robots, /Disallow:\s*\/brand-index\/assessment/u);
+}
+
+console.log(`SEO static: OK (${SEO_PAGES.length} Swedish and ${PUBLIC_INDEX_PAGES.length} public ${noindex ? "noindex preview" : "index-eligible"} routes; HTML content, metadata, structured data, assets and crawl graph).`);

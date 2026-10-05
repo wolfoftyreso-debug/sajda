@@ -3,6 +3,8 @@ import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer } from "vite";
 import {
+  INDEXABLE_PAGES,
+  PUBLIC_INDEX_PAGES,
   SEO_PAGES,
   canonicalUrl,
   hreflangAlternates,
@@ -59,6 +61,83 @@ function replaceRequired(html, expression, replacement, label) {
   }
 
   return html.replace(expression, replacement);
+}
+
+function publicIndexHead(page) {
+  return hreflangAlternates(page.path, canonicalOrigin)
+    .map((link) => `<link rel="alternate" hreflang="${escapeHtml(link.hreflang)}" href="${escapeHtml(link.href)}" data-sajda-seo-document />`)
+    .join("\n");
+}
+
+function renderPublicIndexHtml(shell, page) {
+  const canonical = canonicalUrl(page.path, canonicalOrigin);
+  let html = shell;
+  html = replaceRequired(html, /<title>[\s\S]*?<\/title>/i, `<title>${escapeHtml(page.title)}</title>`, "the page title");
+  html = replaceRequired(
+    html,
+    /<meta\s+name=(['"])description\1\s+content=(['"])[\s\S]*?\2\s*\/>/i,
+    `<meta name="description" content="${escapeHtml(page.description)}" />`,
+    "the meta description",
+  );
+  html = replaceRequired(
+    html,
+    /<meta\s+name=(['"])robots\1\s+content=(['"])[\s\S]*?\2\s*\/>/i,
+    `<meta name="robots" content="${robotsContent}" />`,
+    "the meta robots directive",
+  );
+  html = replaceRequired(
+    html,
+    /<link\s+rel=(['"])canonical\1\s+href=(['"])[\s\S]*?\2\s*\/>/i,
+    `<link rel="canonical" href="${escapeHtml(canonical)}" />`,
+    "the canonical link",
+  );
+  html = replaceRequired(
+    html,
+    /<meta\s+property=(['"])og:title\1\s+content=(['"])[\s\S]*?\2\s*\/>/i,
+    `<meta property="og:title" content="${escapeHtml(page.title)}" />`,
+    "the Open Graph title",
+  );
+  html = replaceRequired(
+    html,
+    /<meta\s+property=(['"])og:description\1\s+content=(['"])[\s\S]*?\2\s*\/>/i,
+    `<meta property="og:description" content="${escapeHtml(page.description)}" />`,
+    "the Open Graph description",
+  );
+  html = replaceRequired(
+    html,
+    /<meta\s+property=(['"])og:url\1\s+content=(['"])[\s\S]*?\2\s*\/>/i,
+    `<meta property="og:url" content="${escapeHtml(canonical)}" />`,
+    "the Open Graph URL",
+  );
+  html = replaceRequired(
+    html,
+    /<meta\s+name=(['"])twitter:title\1\s+content=(['"])[\s\S]*?\2\s*\/>/i,
+    `<meta name="twitter:title" content="${escapeHtml(page.title)}" />`,
+    "the Twitter title",
+  );
+  html = replaceRequired(
+    html,
+    /<meta\s+name=(['"])twitter:description\1\s+content=(['"])[\s\S]*?\2\s*\/>/i,
+    `<meta name="twitter:description" content="${escapeHtml(page.description)}" />`,
+    "the Twitter description",
+  );
+  html = replaceRequired(html, /<\/head>/i, `${publicIndexHead(page)}\n</head>`, "the head closing tag");
+  return html;
+}
+
+function validatePublicIndexPage(page, html) {
+  const canonical = canonicalUrl(page.path, canonicalOrigin);
+  const requiredFragments = [
+    `<title>${escapeHtml(page.title)}</title>`,
+    `<link rel="canonical" href="${escapeHtml(canonical)}" />`,
+    `<meta name="robots" content="${robotsContent}" />`,
+    `<link rel="alternate" hreflang="x-default" href="${escapeHtml(canonical)}" data-sajda-seo-document />`,
+    '<script type="module" crossorigin src="/assets/',
+    '<link rel="stylesheet" crossorigin href="/assets/',
+  ];
+  if (requiredFragments.some((fragment) => !html.includes(fragment))) {
+    throw new Error(`Static public-index validation failed for ${page.path}.`);
+  }
 }
 
 function renderPageHtml(shell, page, markup, records) {
@@ -171,7 +250,7 @@ function sitemapDocuments() {
   if (noindex) {
     return { index: emptySitemapXml(), pages: emptySitemapXml() };
   }
-  const urls = SEO_PAGES.map((page) => escapeXml(canonicalUrl(page.path, canonicalOrigin)));
+  const urls = INDEXABLE_PAGES.map((page) => escapeXml(canonicalUrl(page.path, canonicalOrigin)));
   return {
     index: sitemapIndexXml(canonicalOrigin, lastmod),
     pages: sitemapPagesXml(urls, lastmod),
@@ -220,6 +299,13 @@ async function main() {
       await mkdir(dirname(target), { recursive: true });
       await writeFile(target, html, "utf8");
     }));
+    await Promise.all(PUBLIC_INDEX_PAGES.map(async page => {
+      const target = resolve(outputDirectory, `${page.path.slice(1)}.html`);
+      const html = renderPublicIndexHtml(shell, page);
+      validatePublicIndexPage(page, html);
+      await mkdir(dirname(target), { recursive: true });
+      await writeFile(target, html, "utf8");
+    }));
   } finally {
     await renderer.close();
   }
@@ -237,7 +323,7 @@ async function main() {
   await Promise.all(outputs);
 
   const mode = noindex ? "noindex preview" : "index-eligible";
-  console.log(`SEO static: wrote ${SEO_PAGES.length} ${mode} Swedish pages to ${relative(projectRoot, outputDirectory) || outputDirectory}.`);
+  console.log(`SEO static: wrote ${SEO_PAGES.length} Swedish and ${PUBLIC_INDEX_PAGES.length} public ${mode} pages to ${relative(projectRoot, outputDirectory) || outputDirectory}.`);
 }
 
 await main();

@@ -32,11 +32,15 @@ test("displayed prices and legacy Trading commerce use one source of truth", () 
   assert.ok(PLANS.premium.unitAmount !== Number(PLUS_PLAN.unitAmount));
 });
 
-test("pricing route is reachable, linked and noindex until commercial activation", async () => {
+test("pricing route is reachable, linked and indexable under the shared SEO policy", async () => {
   const root = new URL("../", import.meta.url);
   const config = JSON.parse(await readFile(new URL("vercel.json", root), "utf8"));
   assert.equal(config.rewrites.find((row: {source: string}) => row.source === "/pricing")?.destination, "/");
-  assert.ok(config.headers.find((row: {source: string}) => row.source === "/pricing")?.headers.some((header: {key: string; value: string}) => header.key === "X-Robots-Tag" && /noindex/.test(header.value)));
+  assert.equal(
+    config.headers.find((row: {source: string}) => row.source === "/pricing")?.headers.some((header: {key: string; value: string}) => header.key === "X-Robots-Tag"),
+    false,
+    "pricing X-Robots-Tag is owned by the SEO policy middleware",
+  );
   assert.match(await readFile(new URL("src/App.tsx", root), "utf8"), /path="\/pricing" element=\{<Pricing \/>\}/);
   assert.match(await readFile(new URL("src/components/SajdaFooter.tsx", root), "utf8"), /to="\/pricing"/);
   assert.match(await readFile(new URL("src/pages/Index.tsx", root), "utf8"), /href="\/pricing"/);

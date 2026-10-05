@@ -88,11 +88,32 @@ export function seoStructuredData(page: SeoDocument, origin: string): Record<str
   return records;
 }
 
-/** Query-bearing, preview, unknown and interactive URLs never become indexable. */
+export const PUBLIC_INDEX_PATHS = ["/pricing", "/brand-index"] as const;
+export const PRIVATE_RESULT_PATHS = ["/brand-index/assessment"] as const;
+
+export function normalizePublicPath(pathname: string): string {
+  const path = pathname.replace(/\/+$/u, "");
+  return path || "/";
+}
+
+export function isPublicIndexPath(pathname: string): boolean {
+  return (PUBLIC_INDEX_PATHS as readonly string[]).includes(normalizePublicPath(pathname));
+}
+
+export function isPrivateResultPath(pathname: string): boolean {
+  const path = normalizePublicPath(pathname);
+  return PRIVATE_RESULT_PATHS.some(prefix => path === prefix || path.startsWith(`${prefix}/`));
+}
+
+export function isIndexablePublicPath(pathname: string): boolean {
+  return Boolean(seoDocumentForPath(pathname) || isPublicIndexPath(pathname));
+}
+
+/** Query-bearing, preview, unknown, private-result and interactive URLs never become indexable. */
 export function seoRobotsForLocation(input: {
   pathname: string; search: string; origin: string; canonicalOrigin: string; buildPolicy: string | null;
 }): string {
   return input.buildPolicy === "index" && input.origin === input.canonicalOrigin
-    && !input.search && seoDocumentForPath(input.pathname)
+    && !input.search && !isPrivateResultPath(input.pathname) && isIndexablePublicPath(input.pathname)
     ? SEO_INDEX_ROBOTS : SEO_NOINDEX_ROBOTS;
 }

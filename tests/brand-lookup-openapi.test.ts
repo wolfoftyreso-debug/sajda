@@ -37,10 +37,20 @@ test("brand lookup and separate assessment keep distinct public SPA routes and p
   const config = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
   for (const path of ["/brand-index", "/brand-index/assessment"]) {
     assert.ok(config.rewrites.some((route: { source: string; destination: string }) => route.source === path && route.destination === "/"));
-    const page = config.headers.find((entry: { source: string }) => entry.source === path);
-    const headers = Object.fromEntries(page.headers.map((header: { key: string; value: string }) => [header.key, header.value]));
-    assert.equal(headers["X-Robots-Tag"], "noindex, nofollow"); assert.equal(headers["Cache-Control"], "private, no-store");
+    assert.ok(config.headers.find((entry: { source: string }) => entry.source === path));
   }
+  const landing = Object.fromEntries(
+    config.headers.find((entry: { source: string }) => entry.source === "/brand-index").headers
+      .map((header: { key: string; value: string }) => [header.key, header.value]),
+  );
+  const assessment = Object.fromEntries(
+    config.headers.find((entry: { source: string }) => entry.source === "/brand-index/assessment").headers
+      .map((header: { key: string; value: string }) => [header.key, header.value]),
+  );
+  assert.equal(landing["X-Robots-Tag"], undefined, "public Brand Index landing uses the shared SEO policy");
+  assert.equal(landing["Cache-Control"], "no-store");
+  assert.equal(assessment["X-Robots-Tag"], "noindex, nofollow");
+  assert.equal(assessment["Cache-Control"], "private, no-store");
   assert.equal(config.functions["api/v1/public/brand-lookup.ts"].maxDuration, 15);
   const adapter = await readFile(new URL("../scripts/serve-vercel-local.ts", import.meta.url), "utf8");
   assert.match(adapter, /\["\/api\/v1\/public\/brand-lookup", publicBrandLookup\]/u);

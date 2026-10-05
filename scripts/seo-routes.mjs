@@ -12,6 +12,8 @@ export {
   AI_TRAINING_CRAWLERS,
   DEFAULT_SEO_ORIGIN,
   PRIVATE_CRAWL_PATHS,
+  PRIVATE_RESULT_PATHS,
+  PUBLIC_INDEX_PATHS,
   SEARCH_CRAWLERS,
   SEO_INDEX_ROBOTS,
   SEO_LOCALES,
@@ -24,9 +26,12 @@ export {
   indexNowSubmission,
   isIndexableCanonicalOrigin,
   isNoindexBuild,
+  isPrivateResultPath,
+  isPublicIndexPath,
   namedCrawlers,
   localizedSeoPath,
   normalizeSeoOrigin,
+  normalizeSeoPath,
   organizationStructuredData,
   resolveIndexNowKey,
   resolveSeoBuildOrigin,
@@ -733,8 +738,34 @@ export const SEO_PAGES = Object.freeze([
 
 export const SEO_PAGE_BY_PATH = new Map(SEO_PAGES.map((page) => [page.path, page]));
 
+/**
+ * Public product landings that share INDEX-mode crawl/index rules with the
+ * Swedish documents. They keep their own English default metadata and do not
+ * invent translated URL variants.
+ */
+export const PUBLIC_INDEX_PAGES = Object.freeze([
+  {
+    path: "/pricing",
+    title: "Pricing & plans — Sajda",
+    description:
+      "Compare Free, Basic, Premium and Trading. Clear monthly prices in USD, with current details on features and access.",
+    h1: "Pricing & plans",
+  },
+  {
+    path: "/brand-index",
+    title: "Look up an existing brand — Sajda",
+    description:
+      "Enter a name, choose the right organization and explore the websites and social profiles listed in public data.",
+    h1: "Look up an existing brand",
+  },
+]);
+
+export const PUBLIC_INDEX_PAGE_BY_PATH = new Map(PUBLIC_INDEX_PAGES.map((page) => [page.path, page]));
+export const INDEXABLE_PAGES = Object.freeze([...SEO_PAGES, ...PUBLIC_INDEX_PAGES]);
+export const INDEXABLE_PAGE_BY_PATH = new Map(INDEXABLE_PAGES.map((page) => [page.path, page]));
+
 export function canonicalUrl(path, origin = resolveSeoOrigin()) {
-  if (!SEO_PAGE_BY_PATH.has(path)) {
+  if (!INDEXABLE_PAGE_BY_PATH.has(path)) {
     throw new Error(`Unknown SEO route: ${path}`);
   }
 

@@ -40,13 +40,24 @@ export const AI_CRAWLERS = Object.freeze([
 ]);
 export const AI_TRAINING_CRAWLERS = AI_CRAWLERS;
 
+/** Public app landings that become crawlable/indexable only in INDEX mode. */
+export const PUBLIC_INDEX_PATHS = Object.freeze([
+  "/pricing",
+  "/brand-index",
+]);
+
+/** Per-user Brand Index results stay noindex even when the landing page is public. */
+export const PRIVATE_RESULT_PATHS = Object.freeze([
+  "/brand-index/assessment",
+]);
+
 /** Application, account, and API surfaces stay out of every crawl mode. */
 export const PRIVATE_CRAWL_PATHS = Object.freeze([
   "/account",
   "/admin",
   "/api",
   "/auth",
-  "/brand-index",
+  "/brand-index/assessment",
   "/connect",
   "/history",
   "/install",
@@ -54,12 +65,25 @@ export const PRIVATE_CRAWL_PATHS = Object.freeze([
   "/my-domains",
   "/name-packages",
   "/plus",
-  "/pricing",
   "/projects",
   "/swipe",
   "/top-10-today",
   "/watchlist",
 ]);
+
+export function normalizeSeoPath(pathname) {
+  const path = String(pathname ?? "").replace(/\/+$/u, "");
+  return path || "/";
+}
+
+export function isPublicIndexPath(pathname) {
+  return PUBLIC_INDEX_PATHS.includes(normalizeSeoPath(pathname));
+}
+
+export function isPrivateResultPath(pathname) {
+  const path = normalizeSeoPath(pathname);
+  return PRIVATE_RESULT_PATHS.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+}
 
 /**
  * UI languages. Only locales with a published SEO surface emit hreflang.

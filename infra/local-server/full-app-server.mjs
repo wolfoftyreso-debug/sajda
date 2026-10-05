@@ -67,10 +67,8 @@ const LOCAL_NOINDEX_SPA_PATHS = new Set([
   "/top-10-today",
   "/admin",
   "/plus",
-  "/pricing",
   "/projects",
   "/name-packages",
-  "/brand-index",
   "/brand-index/assessment",
   "/connect/native",
 ]);
@@ -810,7 +808,8 @@ function localRobotsHeader(pathname, search = "") {
   if (LOCAL_NOINDEX_SPA_PATHS.has(normalized) || /^\/marketplace\/[^/]+$/u.test(normalized)) {
     return "noindex, nofollow";
   }
-  if ((normalized === "/se" || normalized.startsWith("/se/")) && (search || isNoindexBuild())) {
+  if ((normalized === "/se" || normalized.startsWith("/se/") || normalized === "/pricing" || normalized === "/brand-index")
+    && (search || isNoindexBuild())) {
     return "noindex, nofollow";
   }
   return undefined;
