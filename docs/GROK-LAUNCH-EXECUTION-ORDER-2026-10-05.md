@@ -9,11 +9,12 @@ before unrestricted production launch.
 
 - Repository: `https://github.com/wolfoftyreso-debug/sajda.git`
 - Release branch: `codex/launch-hardening`
-- Required reviewed code baseline: `a5c5b0a` (use the current remote branch
+- Required reviewed code baseline: `754980a` (use the current remote branch
   HEAD; later handoff-only commits are expected)
 - Current remote `main`: `c01565e`
 - Current public Vercel alias: `https://sajda-eight.vercel.app`
-- Latest verified release preview: `https://sajda-ncc7h1ifz-hypbit.vercel.app`
+- Latest verified release preview: `https://sajda-97kprjcr9-hypbit.vercel.app`
+- Latest verified Vercel deployment: `dpl_GUk8nYGXSKoiexgYuFZB9LQV9Bet`
 - Vercel project: `hypbit/sajda`
 - Database architecture: Vercel-managed Neon Postgres and application-owned
   Better Auth. Do not enable Supabase or Neon Auth.
@@ -25,6 +26,33 @@ before unrestricted production launch.
 Production currently serves `main`, not the release branch. The public alias
 returns HTTP 200 but also `X-Robots-Tag: noindex, nofollow`. Do not change that
 header or merge the release branch merely to make the deployment appear live.
+
+## Latest verified preview evidence
+
+The protected Preview deployment above was verified on 2026-10-05 from commit
+`754980a`:
+
+- `npm run build:vercel` passed and generated 22 Swedish pages plus two public
+  application pages;
+- the complete test run reported 1,842 tests: 1,834 passed, zero failed and
+  eight explicitly opt-in tests skipped;
+- lint, type checking, language dictionaries, SEO policy, Neon boundary,
+  server syntax, Vercel types and UI contracts passed;
+- `npm audit --omit=dev` reported zero production vulnerabilities;
+- `/`, `/pricing`, `/brand-index`, `/brand-index/assessment` and
+  `/se/sok-doman` returned HTTP 200 with preview-safe `noindex, nofollow`;
+- `/brand-index/assessment` additionally returned private, no-store caching;
+- `/robots.txt` disallowed crawling and `/sitemap.xml` returned a valid empty
+  URL set, as required while indexing is disabled;
+- the private IndexNow endpoint returned 405 to GET and 401 to an
+  unauthenticated POST;
+- browser checks of `/pricing` and `/brand-index` rendered real localized UI
+  without an error overlay, console error or console warning;
+- the inspected runtime log window contained the expected probes and no HTTP
+  500 event.
+
+This evidence proves the current protected Preview baseline only. It does not
+prove provider lifecycles or authorize production promotion.
 
 ## Non-negotiable operating rules
 
@@ -61,7 +89,7 @@ npm run check:ci
 npm audit --omit=dev
 ```
 
-The checked-out commit must contain `a5c5b0a` as an ancestor. Inspect every
+The checked-out commit must contain `754980a` as an ancestor. Inspect every
 later diff and repeat the complete gate rather than resetting to the old commit. The
 production audit must remain zero vulnerabilities. The five currently known
 high advisories are confined to the Tailwind 3 development toolchain and are
