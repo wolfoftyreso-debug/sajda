@@ -1,4 +1,4 @@
-import { submitIndexNow } from "../scripts/seo-indexnow.mjs";
+import { submitIndexNow } from "./_shared/seo-indexnow.mjs";
 
 interface VercelRequestLike {
   method?: string;
