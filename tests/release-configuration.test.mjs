@@ -9,7 +9,7 @@ const ready = () => ({
   NEON_PROJECT_ID: "test-production", SAJDA_PRODUCTION_NEON_PROJECT: "test-production",
   DATABASE_URL: "postgresql://user:fixture@ep-production-pooler.eu.neon.tech/app",
   DATABASE_URL_UNPOOLED: "postgresql://user:fixture@ep-production.eu.neon.tech/app",
-  RESEND_API_KEY: "re_fixtureNotARealKey", SAJDA_EMAIL_FROM: "Sajda <hello@sajda.dev>",
+  RESEND_API_KEY: "re_fixtureNotARealKey", SAJDA_EMAIL_FROM: "Sajda <noreply@mail.sajda.com>",
   GOOGLE_CLIENT_ID: "google-fixture-id", GOOGLE_CLIENT_SECRET: "google-fixture-secret",
   GITHUB_CLIENT_ID: "github-fixture-id", GITHUB_CLIENT_SECRET: "github-fixture-secret",
   TWITTER_CLIENT_ID: "twitter-fixture-id", TWITTER_CLIENT_SECRET: "twitter-fixture-secret",
@@ -46,6 +46,14 @@ test("production target, pooled connection and canonical cannot silently drift",
     { SAJDA_CANONICAL_ORIGIN: "" }, { SAJDA_EMAIL_FROM: "test@sajda.test" },
     { SAJDA_EMAIL_FROM: "Sajda <sender@host.dev>\r\nBcc: extra@host.dev" },
   ]) assert.ok(productionConfigurationIssues({ ...ready(), ...change }).length > 0, JSON.stringify(Object.keys(change)));
+});
+
+test("production email is bound to the operator-selected Sajda sending domain", () => {
+  for (const sender of ["Sajda <noreply@hypbit.com>", "hello@sajda.dev", "Sajda <noreply@sub.mail.sajda.com>"]) {
+    assert.ok(productionConfigurationIssues({ ...ready(), SAJDA_EMAIL_FROM: sender })
+      .includes("production_email_sender_domain_required"), sender);
+  }
+  assert.deepEqual(productionConfigurationIssues({ ...ready(), SAJDA_EMAIL_FROM: "support@MAIL.SAJDA.COM" }), []);
 });
 
 test("automated crawling and real checkout require their independent configuration", () => {

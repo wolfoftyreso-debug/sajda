@@ -309,3 +309,14 @@ Return only:
 
 Do not return another generic backlog. Fix every safely fixable failure, rerun
 its test, and report only remaining blockers.
+
+Save the redacted result as a new JSON file based on
+`LAUNCH-EXTERNAL-EVIDENCE.template.json`, then run:
+
+```text
+npm run check:launch-evidence -- path/to/redacted-launch-evidence.json
+```
+
+The validator rejects unsupported GO verdicts, evidence-free verified gates,
+unknown fields and common credential material. A passing file is a structured
+receipt; it does not replace the underlying provider evidence.

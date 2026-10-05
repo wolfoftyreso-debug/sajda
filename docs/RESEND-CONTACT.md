@@ -10,6 +10,9 @@
   must never be forwarded to an operator.
 - Both flows use the server-only `RESEND_API_KEY` and `SAJDA_EMAIL_FROM`.
   No value belongs in browser-prefixed environment variables or source control.
+- The approved production sender is `Sajda <noreply@mail.sajda.com>`. The release
+  configuration rejects other sender domains so an older Hypbit sender cannot
+  silently reach production.
 - A successful provider response means accepted for sending, not inbox delivery.
   Missing configuration, rejection or ambiguous responses must not display success.
 
@@ -38,8 +41,8 @@ Successful structured logs correlate the UI `requestId` with the email's
    whether sending is approved.
 2. Create/use a project-specific, sending-only API key scoped to the verified
    sender domain. Store it as Sensitive `RESEND_API_KEY` in Sajda's selected
-   Vercel environment, not in chat. Configure `SAJDA_EMAIL_FROM` to a single
-   sender mailbox on that domain with the display name `Sajda`.
+   Vercel environment, not in chat. Configure `SAJDA_EMAIL_FROM` exactly as
+   `Sajda <noreply@mail.sajda.com>`.
 3. Disable click/open tracking for authentication links. Keep root inbound MX
    records intact. A separate sending subdomain can isolate reputation but must
    be verified through the actual authoritative DNS provider.

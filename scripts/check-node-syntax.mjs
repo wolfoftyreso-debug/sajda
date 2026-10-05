@@ -12,6 +12,7 @@ const files = [
   "scripts/build-public-connector.mjs",
   "scripts/probe-public-mcp.mjs",
   "scripts/release-configuration.mjs",
+  "scripts/check-launch-evidence.mjs",
   "scripts/check-vercel-types.mjs",
   "scripts/seo-routes.mjs",
   "scripts/generate-seo-static.mjs",

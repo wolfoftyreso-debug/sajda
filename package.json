@@ -36,6 +36,7 @@
     "serve:full": "node --env-file-if-exists=.env.local infra/local-server/full-app-server.mjs",
     "start:local-search": "node infra/local-server/server.mjs",
     "check:local": "node infra/local-server/check-page.mjs",
+    "check:launch-evidence": "node scripts/check-launch-evidence.mjs",
     "build": "node scripts/build-static.mjs",
     "build:local": "node scripts/build-static.mjs --local-test",
     "generate:seo": "node scripts/generate-seo-static.mjs",

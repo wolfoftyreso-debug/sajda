@@ -57,9 +57,12 @@ export function productionConfigurationIssues(env = process.env, deployment = {}
   const emailKey = env.RESEND_API_KEY?.trim() ?? "";
   if (!/^re_[A-Za-z0-9_-]{10,}$/u.test(emailKey)) issues.push("production_email_key_required");
   const from = env.SAJDA_EMAIL_FROM?.trim() ?? "";
-  if (!from || /[\r\n]/u.test(from) || !/^[^<>\s@]+@[^<>\s@]+\.[^<>\s@]+$/u.test(from.replace(/^Sajda\s*<([^<>]+)>$/u, "$1"))
+  const senderAddress = from.replace(/^Sajda\s*<([^<>]+)>$/u, "$1");
+  if (!from || /[\r\n]/u.test(from) || !/^[^<>\s@]+@[^<>\s@]+\.[^<>\s@]+$/u.test(senderAddress)
     || /@[^>]*\.(?:test|invalid|example)(?:>|$)/iu.test(from)) {
     issues.push("production_email_sender_required");
+  } else if (senderAddress.slice(senderAddress.lastIndexOf("@") + 1).toLowerCase() !== "mail.sajda.com") {
+    issues.push("production_email_sender_domain_required");
   }
   if (env.SAJDA_LOST_DOMAINS_CRON_ENABLED === "true") {
     if (env.SAJDA_LOST_DOMAINS_ENABLED !== "true") issues.push("production_cron_requires_engine");
