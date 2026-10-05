@@ -408,7 +408,7 @@
   "rewrites": [
     {
       "source": "/api/auth/:authAction*",
-      "destination": "/api/auth?authAction=:authAction*"
+      "destination": "/api/auth"
     },
     { "source": "/name-packages", "destination": "/" },
     { "source": "/brand-index", "destination": "/" },

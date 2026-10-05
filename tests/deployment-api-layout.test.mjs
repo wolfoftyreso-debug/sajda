@@ -43,16 +43,13 @@ test("clean-URL application rewrites target the served root, not an excluded .ht
 test("nested auth routes reach one same-origin Vercel function, never the SPA shell", async () => {
   const config = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
   const apiRewrites = config.rewrites.filter(route => route.source.startsWith("/api/"));
-  assert.deepEqual(apiRewrites, [{ source: "/api/auth/:authAction*", destination: "/api/auth?authAction=:authAction*" }]);
+  assert.deepEqual(apiRewrites, [{ source: "/api/auth/:authAction*", destination: "/api/auth" }]);
   assert.equal(config.rewrites[0], apiRewrites[0], "Auth is explicitly routed before application pages");
   assert.equal(config.functions["api/auth.ts"].maxDuration, 30);
-  // Vercel's documented :path* substitution works inside destination queries.
-  // This guards the configured mapping, not a claim of deployed-router testing.
-  for (const action of ["get-session", "sign-in/email", "sign-up/email", "reset-password", "verify-email"]) {
-    const target = new URL(apiRewrites[0].destination.replace(":authAction*", action), "https://sajda.example.test");
-    assert.equal(target.pathname, "/api/auth");
-    assert.equal(target.searchParams.get("authAction"), action);
-  }
+  // Named rewrite parameters are forwarded as destination query parameters by
+  // Vercel. Keeping the destination path-only avoids reparsing a standalone
+  // `:authAction*` token while preserving the handler's authAction contract.
+  assert.equal(apiRewrites[0].destination.includes("?"), false);
   assert.ok(!config.rewrites.some(route => ["/:path*", "/(.*)", "/api/:path*"].includes(route.source)), "Unknown app/API paths must not become a soft 404");
 });
 
