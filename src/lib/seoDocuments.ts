@@ -38,6 +38,26 @@ export function seoBreadcrumbs(page: SeoDocument): Array<{ path: string; name: s
   return [...trail, { path: page.path, name: page.label }];
 }
 
+export const SEO_HREFLANG_LOCALES = [
+  { language: "sv", hreflang: "sv-SE", published: true, xDefault: true },
+  { language: "en", hreflang: "en", published: false, xDefault: false },
+  { language: "es", hreflang: "es", published: false, xDefault: false },
+  { language: "fr", hreflang: "fr", published: false, xDefault: false },
+  { language: "zh", hreflang: "zh-Hans", published: false, xDefault: false },
+] as const;
+
+export function seoHreflangAlternates(path: string, origin: string): Array<{ hreflang: string; href: string }> {
+  if (path !== "/se" && !path.startsWith("/se/")) return [];
+  const href = `${origin}${path}`;
+  const links: Array<{ hreflang: string; href: string }> = [];
+  for (const locale of SEO_HREFLANG_LOCALES) {
+    if (!locale.published) continue;
+    links.push({ hreflang: locale.hreflang, href });
+    if (locale.xDefault) links.push({ hreflang: "x-default", href });
+  }
+  return links;
+}
+
 export function seoStructuredData(page: SeoDocument, origin: string): Record<string, unknown>[] {
   const records: Record<string, unknown>[] = [{
     "@context": "https://schema.org", "@type": "WebPage", name: page.h1,
@@ -52,14 +72,44 @@ export function seoStructuredData(page: SeoDocument, origin: string): Record<str
       "@type": "ListItem", position: index + 1, name: item.name, item: `${origin}${item.path}`,
     })),
   });
+  records.push({
+    "@context": "https://schema.org", "@type": "Organization",
+    name: "Sajda", url: `${origin}/se`, logo: `${origin}/og.png`,
+  });
+  records.push({
+    "@context": "https://schema.org", "@type": "WebSite",
+    name: "Sajda", url: `${origin}/se`, inLanguage: "sv-SE",
+    publisher: { "@type": "Organization", name: "Sajda", url: `${origin}/se` },
+  });
   return records;
 }
 
-/** Query-bearing, preview, unknown and interactive URLs never become indexable. */
+export const PUBLIC_INDEX_PATHS = ["/pricing", "/brand-index"] as const;
+export const PRIVATE_RESULT_PATHS = ["/brand-index/assessment"] as const;
+
+export function normalizePublicPath(pathname: string): string {
+  const path = pathname.replace(/\/+$/u, "");
+  return path || "/";
+}
+
+export function isPublicIndexPath(pathname: string): boolean {
+  return (PUBLIC_INDEX_PATHS as readonly string[]).includes(normalizePublicPath(pathname));
+}
+
+export function isPrivateResultPath(pathname: string): boolean {
+  const path = normalizePublicPath(pathname);
+  return PRIVATE_RESULT_PATHS.some(prefix => path === prefix || path.startsWith(`${prefix}/`));
+}
+
+export function isIndexablePublicPath(pathname: string): boolean {
+  return Boolean(seoDocumentForPath(pathname) || isPublicIndexPath(pathname));
+}
+
+/** Query-bearing, preview, unknown, private-result and interactive URLs never become indexable. */
 export function seoRobotsForLocation(input: {
   pathname: string; search: string; origin: string; canonicalOrigin: string; buildPolicy: string | null;
 }): string {
   return input.buildPolicy === "index" && input.origin === input.canonicalOrigin
-    && !input.search && seoDocumentForPath(input.pathname)
+    && !input.search && !isPrivateResultPath(input.pathname) && isIndexablePublicPath(input.pathname)
     ? SEO_INDEX_ROBOTS : SEO_NOINDEX_ROBOTS;
 }

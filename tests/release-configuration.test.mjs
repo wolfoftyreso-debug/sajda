@@ -56,6 +56,17 @@ test("production email is bound to the operator-selected Sajda sending domain", 
   assert.deepEqual(productionConfigurationIssues({ ...ready(), SAJDA_EMAIL_FROM: "support@MAIL.SAJDA.COM" }), []);
 });
 
+test("an enabled IndexNow key requires its own server-only submit credential", () => {
+  const enabled = { ...ready(), SAJDA_INDEXNOW_KEY: "abc123def456" };
+  assert.ok(productionConfigurationIssues(enabled).includes("production_indexnow_submit_secret_required"));
+  const accepted = { ...enabled, SAJDA_INDEXNOW_SUBMIT_SECRET: "indexnow-submit-only-credential-123456" };
+  assert.deepEqual(productionConfigurationIssues(accepted), []);
+  for (const secret of ["short", accepted.BETTER_AUTH_SECRET, "x".repeat(32) + "\n"]) {
+    assert.ok(productionConfigurationIssues({ ...accepted, SAJDA_INDEXNOW_SUBMIT_SECRET: secret })
+      .includes("production_indexnow_submit_secret_required"));
+  }
+});
+
 test("automated crawling and real checkout require their independent configuration", () => {
   assert.ok(productionConfigurationIssues({ ...ready(), SAJDA_LOST_DOMAINS_CRON_ENABLED: "true" }).includes("production_cron_requires_engine"));
   assert.ok(productionConfigurationIssues({ ...ready(), STRIPE_CHECKOUT_ENABLED: "true", STRIPE_SECRET_KEY: "sk_test_fixture" }).includes("production_billing_requires_live_configuration"));

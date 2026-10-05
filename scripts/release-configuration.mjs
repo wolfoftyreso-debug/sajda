@@ -64,6 +64,14 @@ export function productionConfigurationIssues(env = process.env, deployment = {}
   } else if (senderAddress.slice(senderAddress.lastIndexOf("@") + 1).toLowerCase() !== "mail.sajda.com") {
     issues.push("production_email_sender_domain_required");
   }
+  const indexNowKey = env.SAJDA_INDEXNOW_KEY?.trim() ?? "";
+  if (indexNowKey) {
+    const submitSecret = env.SAJDA_INDEXNOW_SUBMIT_SECRET;
+    if (typeof submitSecret !== "string" || !/^[\x21-\x7E]{32,256}$/u.test(submitSecret)
+      || submitSecret === env.CRON_SECRET || submitSecret === env.BETTER_AUTH_SECRET) {
+      issues.push("production_indexnow_submit_secret_required");
+    }
+  }
   if (env.SAJDA_LOST_DOMAINS_CRON_ENABLED === "true") {
     if (env.SAJDA_LOST_DOMAINS_ENABLED !== "true") issues.push("production_cron_requires_engine");
     if (typeof env.CRON_SECRET !== "string" || !/^[\x21-\x7E]{32,256}$/u.test(env.CRON_SECRET)

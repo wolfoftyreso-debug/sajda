@@ -25,6 +25,7 @@
     "api/native/auth.ts": { "maxDuration": 20 },
     "api/native/account.ts": { "maxDuration": 60 },
     "api/reference-fx.ts": { "maxDuration": 10 },
+    "api/indexnow.ts": { "maxDuration": 10 },
     "api/account/billing.ts": { "maxDuration": 30 },
     "api/account/membership.ts": { "maxDuration": 60 },
     "api/account/deletion.ts": { "maxDuration": 60 },
@@ -84,9 +85,7 @@
     {
       "source": "/brand-index",
       "headers": [
-        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
-        { "key": "Cache-Control", "value": "private, no-store" },
-        { "key": "Referrer-Policy", "value": "no-referrer" }
+        { "key": "Cache-Control", "value": "no-store" }
       ]
     },
     {
@@ -112,7 +111,6 @@
     {
       "source": "/pricing",
       "headers": [
-        { "key": "X-Robots-Tag", "value": "noindex, nofollow" },
         { "key": "Cache-Control", "value": "no-store" }
       ]
     },
@@ -186,6 +184,15 @@
     },
     {
       "source": "/sitemap.xml",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/sitemap-pages.xml",
       "headers": [
         {
           "key": "Cache-Control",

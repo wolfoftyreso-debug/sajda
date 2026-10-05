@@ -26,7 +26,7 @@ export function assertPublicBrowserBundle(buildText) {
     [/https?:\/\/[^\s"'<>\\]*\.neon\.tech\b/iu, "The public bundle must not include an external Neon origin"],
     [/VITE_NEON_AUTH_URL|NEON_AUTH_BASE_URL/iu, "The public bundle must not retain external auth configuration"],
     [/jwtClient|getAccountAccessToken|getNeonAuthClient|\/api\/auth\/token|\.token\s*\(/u, "The public bundle must not request account JWTs"],
-    [/VITE_(?:DATABASE_URL(?:_UNPOOLED)?|BETTER_AUTH_SECRET|RESEND_API_KEY|PORKBUN_(?:SECRET_)?API_KEY|CRON_SECRET)/u, "The public bundle must not read server secrets through public variables"],
+    [/VITE_(?:DATABASE_URL(?:_UNPOOLED)?|BETTER_AUTH_SECRET|RESEND_API_KEY|PORKBUN_(?:SECRET_)?API_KEY|CRON_SECRET|SAJDA_INDEXNOW_SUBMIT_SECRET)/u, "The public bundle must not read server secrets through public variables"],
     [/\b(?:pk1|sk1)_[A-Za-z0-9_-]{16,256}\b/u, "The public bundle must not contain registrar credentials"],
     [/postgres(?:ql)?:\/\//iu, "The public bundle must not contain a database connection URL"],
   ];

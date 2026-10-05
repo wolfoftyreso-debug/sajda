@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:http";
 import { once } from "node:events";
-import middleware, { config } from "../middleware";
+import middleware, { applySeoRobotsHeaders, config } from "../middleware";
 import { isNoindexBuild } from "../scripts/seo-routes.mjs";
 
 const queryVariants = [
@@ -16,14 +16,70 @@ test("production indexing fails closed without an exact explicit activation", ()
   for (const flag of [undefined, "", " ", "INDEX", "enabled", "false", "noindex"]) {
     assert.equal(isNoindexBuild({ VERCEL_ENV: "production", SAJDA_SEO_INDEXING: flag }), true);
   }
-  assert.equal(isNoindexBuild({ VERCEL_ENV: "production", SAJDA_SEO_INDEXING: "index" }), false);
+  assert.equal(isNoindexBuild({ VERCEL_ENV: "production", SAJDA_SEO_INDEXING: "index" }), true);
+  assert.equal(isNoindexBuild({
+    VERCEL_ENV: "production",
+    SAJDA_SEO_INDEXING: "index",
+    SAJDA_CANONICAL_ORIGIN: "https://sajda-eight.vercel.app",
+  }), true);
   assert.equal(isNoindexBuild({ VERCEL_ENV: "preview", SAJDA_SEO_INDEXING: "index" }), true);
   assert.equal(isNoindexBuild({ VERCEL_ENV: "development", SAJDA_SEO_INDEXING: "index" }), true);
   assert.equal(isNoindexBuild({}), false, "local static inspection build is unchanged");
 });
 
+test("noindex policy stamps X-Robots-Tag on clean SEO documents", () => {
+  const hold = {
+    VERCEL_ENV: "production",
+    SAJDA_SEO_INDEXING: "index",
+    SAJDA_CANONICAL_ORIGIN: "https://sajda-eight.vercel.app",
+  };
+  const response = applySeoRobotsHeaders(
+    new URL("https://sajda-eight.vercel.app/se/sok-doman"),
+    new Response(null, { headers: { "x-middleware-next": "1" } }),
+    hold,
+  );
+  assert.equal(response.headers.get("x-robots-tag"), "noindex, nofollow");
+  assert.equal(response.headers.get("x-sajda-query-policy"), null);
+  const branded = applySeoRobotsHeaders(
+    new URL("https://sajda.dev/se/sok-doman"),
+    new Response(null, { headers: { "x-middleware-next": "1" } }),
+    { VERCEL_ENV: "production", SAJDA_SEO_INDEXING: "index", SAJDA_CANONICAL_ORIGIN: "https://sajda.dev" },
+  );
+  assert.equal(branded.headers.get("x-robots-tag"), null);
+  const brandedPricing = applySeoRobotsHeaders(
+    new URL("https://sajda.dev/pricing"),
+    new Response(null, { headers: { "x-middleware-next": "1" } }),
+    { VERCEL_ENV: "production", SAJDA_SEO_INDEXING: "index", SAJDA_CANONICAL_ORIGIN: "https://sajda.dev" },
+  );
+  assert.equal(brandedPricing.headers.get("x-robots-tag"), null);
+  const brandedBrandIndex = applySeoRobotsHeaders(
+    new URL("https://sajda.dev/brand-index"),
+    new Response(null, { headers: { "x-middleware-next": "1" } }),
+    { VERCEL_ENV: "production", SAJDA_SEO_INDEXING: "index", SAJDA_CANONICAL_ORIGIN: "https://sajda.dev" },
+  );
+  assert.equal(brandedBrandIndex.headers.get("x-robots-tag"), null);
+  const assessment = applySeoRobotsHeaders(
+    new URL("https://sajda.dev/brand-index/assessment"),
+    new Response(null, { headers: { "x-middleware-next": "1" } }),
+    { VERCEL_ENV: "production", SAJDA_SEO_INDEXING: "index", SAJDA_CANONICAL_ORIGIN: "https://sajda.dev" },
+  );
+  assert.equal(assessment.headers.get("x-robots-tag"), "noindex, nofollow");
+  const queryPricing = applySeoRobotsHeaders(
+    new URL("https://sajda.dev/pricing?plan=trading"),
+    new Response(null, { headers: { "x-middleware-next": "1" } }),
+    { VERCEL_ENV: "production", SAJDA_SEO_INDEXING: "index", SAJDA_CANONICAL_ORIGIN: "https://sajda.dev" },
+  );
+  assert.equal(queryPricing.headers.get("x-robots-tag"), "noindex, nofollow");
+  assert.equal(queryPricing.headers.get("x-sajda-query-policy"), "noindex");
+});
+
 test("official Vercel middleware continues static routing and marks all query keys", async () => {
-  assert.deepEqual(config.matcher, ["/((?:/|%2[fF])*(?:s|%73)(?:e|%65)(?:/.*|%2[fF].*)?)"]);
+  assert.deepEqual(config.matcher, [
+    "/((?:/|%2[fF])*(?:s|%73)(?:e|%65)(?:/.*|%2[fF].*)?)",
+    "/pricing",
+    "/brand-index",
+    "/brand-index/assessment",
+  ]);
   for (const suffix of queryVariants) {
     const response = middleware(new Request(`https://sajda-eight.vercel.app/se/sok-doman${suffix}`));
     assert.equal(response.status, 200);
@@ -76,7 +132,11 @@ test("encoded SEO namespaces cannot bypass the query gate or broaden it to other
 test("production-mode HTTP fixture exposes noindex before serving an indexable HTML document", async () => {
   // Exercise the real middleware Response over HTTP with deliberately indexable
   // production HTML. This is not a substitute for the deployed Vercel probe.
-  const production = { VERCEL_ENV: "production", SAJDA_SEO_INDEXING: "index" };
+  const production = {
+    VERCEL_ENV: "production",
+    SAJDA_SEO_INDEXING: "index",
+    SAJDA_CANONICAL_ORIGIN: "https://sajda.com",
+  };
   assert.equal(isNoindexBuild(production), false);
   const html = '<!doctype html><html><head><meta name="robots" content="index, follow"></head><body><h1>Public entry</h1></body></html>';
   const server = createServer((incoming, outgoing) => {

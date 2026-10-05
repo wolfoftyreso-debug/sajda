@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { load } from "cheerio";
 import robotsParser from "robots-parser";
-import { SEO_PAGES, DEFAULT_SEO_ORIGIN } from "./seo-routes.mjs";
+import { INDEXABLE_PAGES, SEO_PAGES, DEFAULT_SEO_ORIGIN } from "./seo-routes.mjs";
 
 const run = promisify(execFile);
 
@@ -37,7 +37,7 @@ export function inspectSeoRobots(body, origin, canonicalOrigin, preview) {
   const robots = robotsParser(`${origin}/robots.txt`, body);
   const sitemap = `${canonicalOrigin}/sitemap.xml`;
   if (preview ? robots.getSitemaps().length > 0 : !robots.getSitemaps().includes(sitemap)) issues.push("robots_sitemap_mismatch");
-  const allowed = SEO_PAGES.map(page => robots.isAllowed(`${origin}${page.path}`, "Googlebot"));
+  const allowed = INDEXABLE_PAGES.map(page => robots.isAllowed(`${origin}${page.path}`, "Googlebot"));
   if (preview ? allowed.some(value => value !== false) : allowed.some(value => value !== true)) {
     issues.push(preview ? "preview_crawlable" : "canonical_page_blocked");
   }
@@ -112,6 +112,8 @@ export async function auditSeoHttp({ origin, canonicalOrigin = DEFAULT_SEO_ORIGI
   const checks = [];
   for (const path of [
     "/robots.txt", "/sitemap.xml", "/se/sok-doman/", "/sajda-audit-missing-route", "/auth",
+    "/pricing", "/brand-index", "/brand-index/assessment",
+    "/pricing?q=private-test-idea", "/brand-index?q=private-test-idea",
     "/se/sok-doman?q=private-test-idea", "/se/sok-doman?%75nrecognized=policy-test",
     "/%73e/sok-doman?q=policy-test", "/s%65/sok-doman?q=policy-test", "/%73%65/sok-doman?%75nrecognized=policy-test",
     "/se%2Fsok-doman?q=policy-test", "/se%2fsok-doman?q=policy-test", "/%73%65%2Fsok-doman?q=policy-test",
@@ -128,12 +130,34 @@ export async function auditSeoHttp({ origin, canonicalOrigin = DEFAULT_SEO_ORIGI
         if (![301, 308].includes(result.status) || !destination || new URL(destination, origin).pathname !== path.slice(0, -1)) issues.push("redirect_mismatch");
       } else if (result.status !== 200) issues.push("http_not_200");
       if (path === "/sitemap.xml") {
-        const locs = [...result.body.matchAll(/<loc>(.*?)<\/loc>/gu)].map(match => match[1]);
-        const expected = preview ? [] : SEO_PAGES.map(page => canonicalOrigin + page.path);
-        if (JSON.stringify(locs.sort()) !== JSON.stringify(expected.sort())) issues.push("sitemap_mismatch");
+        const isIndex = /<sitemapindex[\s>]/iu.test(result.body);
+        const childLocs = [...result.body.matchAll(/<loc>(.*?)<\/loc>/gu)].map(match => match[1]);
+        if (preview) {
+          if (/<url\b/iu.test(result.body) || isIndex) issues.push("sitemap_mismatch");
+        } else if (isIndex) {
+          if (childLocs.length !== 1 || childLocs[0] !== `${canonicalOrigin}/sitemap-pages.xml`) {
+            issues.push("sitemap_mismatch");
+          } else {
+            try {
+              const pages = await httpGet(origin, "/sitemap-pages.xml", cli);
+              const locs = [...pages.body.matchAll(/<loc>(.*?)<\/loc>/gu)].map(match => match[1]);
+              const expected = INDEXABLE_PAGES.map(page => canonicalOrigin + page.path);
+              if (JSON.stringify(locs.sort()) !== JSON.stringify(expected.sort())) issues.push("sitemap_mismatch");
+            } catch {
+              issues.push("sitemap_mismatch");
+            }
+          }
+        } else {
+          const expected = INDEXABLE_PAGES.map(page => canonicalOrigin + page.path);
+          if (JSON.stringify(childLocs.sort()) !== JSON.stringify(expected.sort())) issues.push("sitemap_mismatch");
+        }
       }
       if (path === "/robots.txt") issues.push(...inspectSeoRobots(result.body, origin, canonicalOrigin, preview));
-      if (path === "/auth" || path.includes("?")) {
+      if (path === "/pricing" || path === "/brand-index") {
+        if (preview ? !hasNoindex($, result.headers) : hasNoindex($, result.headers)) issues.push("indexation_mismatch");
+        if (($('link[rel="canonical"]').attr("href") ?? "") !== canonicalOrigin + path) issues.push("canonical_mismatch");
+      }
+      if (path === "/auth" || path === "/brand-index/assessment" || path.includes("?")) {
         if (!hasNoindex($, result.headers)) issues.push("private_or_query_page_indexable");
         if (path.includes("?") && result.headers["x-sajda-query-policy"] !== "noindex") issues.push("query_middleware_not_verified");
       }
