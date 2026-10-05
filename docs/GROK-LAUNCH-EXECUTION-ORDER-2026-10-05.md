@@ -9,7 +9,8 @@ before unrestricted production launch.
 
 - Repository: `https://github.com/wolfoftyreso-debug/sajda.git`
 - Release branch: `codex/launch-hardening`
-- Reviewed release commit: `a5c5b0a`
+- Required reviewed code baseline: `a5c5b0a` (use the current remote branch
+  HEAD; later handoff-only commits are expected)
 - Current remote `main`: `c01565e`
 - Current public Vercel alias: `https://sajda-eight.vercel.app`
 - Latest verified release preview: `https://sajda-ncc7h1ifz-hypbit.vercel.app`
@@ -60,8 +61,8 @@ npm run check:ci
 npm audit --omit=dev
 ```
 
-Expected reviewed commit is `a5c5b0a`. If remote HEAD is newer, inspect the
-diff and repeat the complete gate rather than resetting to the old commit. The
+The checked-out commit must contain `a5c5b0a` as an ancestor. Inspect every
+later diff and repeat the complete gate rather than resetting to the old commit. The
 production audit must remain zero vulnerabilities. The five currently known
 high advisories are confined to the Tailwind 3 development toolchain and are
 not permission for an unreviewed Tailwind 4 migration.
