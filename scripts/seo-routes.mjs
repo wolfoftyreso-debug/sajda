@@ -7,7 +7,45 @@
  * other transient states intentionally do not belong here.
  */
 
-export const DEFAULT_SEO_ORIGIN = "https://sajda.dev";
+export {
+  AI_CRAWLERS,
+  AI_TRAINING_CRAWLERS,
+  DEFAULT_SEO_ORIGIN,
+  PRIVATE_CRAWL_PATHS,
+  PRIVATE_RESULT_PATHS,
+  PUBLIC_INDEX_PATHS,
+  SEARCH_CRAWLERS,
+  SEO_INDEX_ROBOTS,
+  SEO_LOCALES,
+  SEO_NOINDEX_ROBOTS,
+  SITEMAP_PAGES_PATH,
+  emptySitemapXml,
+  hreflangAlternates,
+  htmlRobotsContent,
+  indexNowKeyPath,
+  indexNowSubmission,
+  isIndexableCanonicalOrigin,
+  isNoindexBuild,
+  isPrivateResultPath,
+  isPublicIndexPath,
+  namedCrawlers,
+  localizedSeoPath,
+  normalizeSeoOrigin,
+  normalizeSeoPath,
+  organizationStructuredData,
+  resolveIndexNowKey,
+  resolveSeoBuildOrigin,
+  resolveSeoOrigin,
+  robotsTxt,
+  shouldPublishIndexNow,
+  siteVerificationTags,
+  sitemapIndexXml,
+  sitemapLastmod,
+  sitemapPagesXml,
+  websiteStructuredData,
+} from "./seo-policy.mjs";
+
+import { resolveSeoOrigin } from "./seo-policy.mjs";
 
 /**
  * Stable, index-eligible Swedish routes. Canonicals intentionally omit a
@@ -700,66 +738,36 @@ export const SEO_PAGES = Object.freeze([
 
 export const SEO_PAGE_BY_PATH = new Map(SEO_PAGES.map((page) => [page.path, page]));
 
-export function normalizeSeoOrigin(value) {
-  const candidate = value?.trim() || DEFAULT_SEO_ORIGIN;
-  const url = new URL(candidate);
-
-  if (url.protocol !== "https:") {
-    throw new Error("SAJDA_CANONICAL_ORIGIN must use https.");
-  }
-
-  if (url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
-    throw new Error("SAJDA_CANONICAL_ORIGIN must be a bare origin, for example https://sajda.dev.");
-  }
-
-  return url.origin;
-}
-
-export function resolveSeoOrigin(value = process.env.SAJDA_CANONICAL_ORIGIN) {
-  return normalizeSeoOrigin(value);
-}
-
 /**
- * The static document and the hydrated React route must always declare the
- * same canonical origin. The browser receives the VITE_ value at bundle time;
- * the generator receives the server-only value. Refuse to publish if a manual
- * build supplied different values instead of letting two canonicals compete.
+ * Public product landings that share INDEX-mode crawl/index rules with the
+ * Swedish documents. They keep their own English default metadata and do not
+ * invent translated URL variants.
  */
-export function resolveSeoBuildOrigin(environment = process.env) {
-  const staticOrigin = normalizeSeoOrigin(environment.SAJDA_CANONICAL_ORIGIN);
-  const browserOrigin = normalizeSeoOrigin(environment.VITE_SAJDA_CANONICAL_ORIGIN);
+export const PUBLIC_INDEX_PAGES = Object.freeze([
+  {
+    path: "/pricing",
+    title: "Pricing & plans — Sajda",
+    description:
+      "Compare Free, Basic, Premium and Trading. Clear monthly prices in USD, with current details on features and access.",
+    h1: "Pricing & plans",
+  },
+  {
+    path: "/brand-index",
+    title: "Look up an existing brand — Sajda",
+    description:
+      "Enter a name, choose the right organization and explore the websites and social profiles listed in public data.",
+    h1: "Look up an existing brand",
+  },
+]);
 
-  if (staticOrigin !== browserOrigin) {
-    throw new Error(
-      "SAJDA_CANONICAL_ORIGIN and VITE_SAJDA_CANONICAL_ORIGIN must resolve to the same HTTPS origin.",
-    );
-  }
-
-  return staticOrigin;
-}
+export const PUBLIC_INDEX_PAGE_BY_PATH = new Map(PUBLIC_INDEX_PAGES.map((page) => [page.path, page]));
+export const INDEXABLE_PAGES = Object.freeze([...SEO_PAGES, ...PUBLIC_INDEX_PAGES]);
+export const INDEXABLE_PAGE_BY_PATH = new Map(INDEXABLE_PAGES.map((page) => [page.path, page]));
 
 export function canonicalUrl(path, origin = resolveSeoOrigin()) {
-  if (!SEO_PAGE_BY_PATH.has(path)) {
+  if (!INDEXABLE_PAGE_BY_PATH.has(path)) {
     throw new Error(`Unknown SEO route: ${path}`);
   }
 
   return `${origin}${path}`;
-}
-
-export function isNoindexBuild(environment = process.env) {
-  // Preview and development deployments are never a second search surface.
-  // This check deliberately comes before an operator override: allowing an
-  // accidental `SAJDA_SEO_INDEXING=index` in Preview would expose canonical
-  // production pages from a non-production host.
-  const vercelEnvironment = environment.VERCEL_ENV?.trim();
-  if (vercelEnvironment && vercelEnvironment !== "production") return true;
-
-  if (environment.SAJDA_SEO_INDEXING?.trim() === "noindex") return true;
-  if (environment.SAJDA_SEO_INDEXING?.trim() === "index") return false;
-
-  // Missing, empty or misspelled production settings must not publish a new
-  // search surface. An explicit index decision is required for production.
-  if (vercelEnvironment === "production") return true;
-
-  return false;
 }

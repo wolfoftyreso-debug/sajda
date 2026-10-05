@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { openApiDocument } from "../../api/_shared/openapi-document.mjs";
 import { getFactSignalFeed } from "../../api/_shared/fact-signals.mjs";
 import { asciiNameToken, joinNameWords, nameQualitySignals, interpretRdapResponse, readRegistryResponse, registryRetryAt } from "../../api/_shared/search-quality.mjs";
+import { isNoindexBuild } from "../../scripts/seo-policy.mjs";
 
 const HOST = process.env.NAME_QUEST_WEB_BIND_ADDRESS ?? "127.0.0.1";
 const PORT = Number(process.env.NAME_QUEST_WEB_PORT ?? 8080);
@@ -37,6 +38,13 @@ const SPA_ROUTE_PATHS = new Set([
   "/install",
   "/top-10-today",
   "/admin",
+  "/plus",
+  "/pricing",
+  "/projects",
+  "/name-packages",
+  "/brand-index",
+  "/brand-index/assessment",
+  "/connect/native",
 ]);
 
 const LOCAL_NOINDEX_SPA_PATHS = new Set([
@@ -58,6 +66,11 @@ const LOCAL_NOINDEX_SPA_PATHS = new Set([
   "/install",
   "/top-10-today",
   "/admin",
+  "/plus",
+  "/projects",
+  "/name-packages",
+  "/brand-index/assessment",
+  "/connect/native",
 ]);
 
 const MAX_VERIFY_BODY_BYTES = 8_192;
@@ -790,11 +803,16 @@ function isKnownSpaPath(pathname) {
   return SPA_ROUTE_PATHS.has(normalized) || /^\/marketplace\/[^/]+$/u.test(normalized);
 }
 
-function localRobotsHeader(pathname) {
+function localRobotsHeader(pathname, search = "") {
   const normalized = localPathWithoutTrailingSlash(pathname);
-  return LOCAL_NOINDEX_SPA_PATHS.has(normalized) || /^\/marketplace\/[^/]+$/u.test(normalized)
-    ? "noindex, nofollow"
-    : undefined;
+  if (LOCAL_NOINDEX_SPA_PATHS.has(normalized) || /^\/marketplace\/[^/]+$/u.test(normalized)) {
+    return "noindex, nofollow";
+  }
+  if ((normalized === "/se" || normalized.startsWith("/se/") || normalized === "/pricing" || normalized === "/brand-index")
+    && (search || isNoindexBuild())) {
+    return "noindex, nofollow";
+  }
+  return undefined;
 }
 
 async function sendFile(response, method, file, additionalHeaders = {}) {
@@ -3563,7 +3581,8 @@ const server = createServer(async (request, response) => {
     const candidate = resolve(DIST_DIR, `.${pathname}`);
     const requestedFile = withinDist(candidate) ? await existingFile(candidate) : null;
     if (requestedFile) {
-      await sendFile(response, request.method, requestedFile);
+      const robotsHeader = localRobotsHeader(pathname, url.search);
+      await sendFile(response, request.method, requestedFile, robotsHeader ? { "X-Robots-Tag": robotsHeader } : undefined);
       return;
     }
 
@@ -3578,7 +3597,8 @@ const server = createServer(async (request, response) => {
       ? await existingFile(cleanHtmlCandidate)
       : null;
     if (cleanHtmlFile) {
-      await sendFile(response, request.method, cleanHtmlFile);
+      const robotsHeader = localRobotsHeader(pathname, url.search);
+      await sendFile(response, request.method, cleanHtmlFile, robotsHeader ? { "X-Robots-Tag": robotsHeader } : undefined);
       return;
     }
 
@@ -3605,7 +3625,7 @@ const server = createServer(async (request, response) => {
       response.end("Build missing. Run npm run build before starting Sajda.");
       return;
     }
-    const robotsHeader = localRobotsHeader(pathname);
+    const robotsHeader = localRobotsHeader(pathname, url.search);
     await sendFile(response, request.method, index, robotsHeader ? { "X-Robots-Tag": robotsHeader } : undefined);
   } catch (error) {
     console.error("[full-app-server]", error instanceof Error ? error.message : error);

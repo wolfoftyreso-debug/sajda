@@ -1,4 +1,4 @@
-import type { Language } from "./LanguageProvider";
+import type { Language } from "./languagePreference";
 
 const en = {
   eyebrow: "Sajda Brand Index · brand lookup", title: "Look up an existing brand", intro: "Enter a name, choose the right organization and explore the websites and social profiles listed in public data.",

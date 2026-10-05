@@ -3,43 +3,82 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { load } from "cheerio";
-import { SEO_PAGES, canonicalUrl, isNoindexBuild, resolveSeoBuildOrigin } from "./seo-routes.mjs";
+import {
+  AI_CRAWLERS,
+  INDEXABLE_PAGES,
+  PRIVATE_CRAWL_PATHS,
+  PUBLIC_INDEX_PAGES,
+  PUBLIC_INDEX_PATHS,
+  SEARCH_CRAWLERS,
+  SEO_PAGES,
+  SITEMAP_PAGES_PATH,
+  canonicalUrl,
+  hreflangAlternates,
+  htmlRobotsContent,
+  indexNowKeyPath,
+  isNoindexBuild,
+  resolveIndexNowKey,
+  resolveSeoBuildOrigin,
+  shouldPublishIndexNow,
+  siteVerificationTags,
+} from "./seo-routes.mjs";
 
 const projectRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const outputDirectory = resolve(projectRoot, process.argv[2] || "dist");
 const canonicalOrigin = resolveSeoBuildOrigin();
 const noindex = isNoindexBuild();
-const expectedRobots = noindex
-  ? "noindex, nofollow"
-  : "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1";
+const expectedRobots = htmlRobotsContent(noindex);
 const read = name => readFile(resolve(outputDirectory, name), "utf8");
 const sitemap = load(await read("sitemap.xml"), { xmlMode: true });
+const sitemapPages = load(await read("sitemap-pages.xml"), { xmlMode: true });
 const robots = await read("robots.txt");
 const appShell = load(await read("index.html"));
 let serviceWorker = "";
 try { serviceWorker = await read("sw.js"); } catch (error) { if (error.code !== "ENOENT") throw error; }
 
+assert.equal(appShell('meta[name="robots"]').attr("content"), "noindex, nofollow", "interactive shell must remain noindex");
 assert.equal(appShell('meta[property="og:image"]').attr("content"), `${canonicalOrigin}/og.png`, "the app shell needs a share image");
 assert.equal(appShell('meta[name="twitter:card"]').attr("content"), "summary_large_image");
 assert.equal(appShell('meta[name="twitter:image"]').attr("content"), `${canonicalOrigin}/og.png`);
 assert.equal(appShell('meta[name="sajda-seo-indexing"]').length, 1, "one immutable build policy");
 assert.equal(appShell('meta[name="sajda-seo-indexing"]').attr("content"), noindex ? "noindex" : "index");
-assert.doesNotMatch(serviceWorker, /robots\.txt|sitemap\.xml/iu, "crawler controls must never be precached");
-assert.equal(sitemap("urlset").attr("xmlns"), "http://www.sitemaps.org/schemas/sitemap/0.9");
-assert.equal(sitemap("lastmod").length, 0, "build time is not an editorial modification date");
-const urls = sitemap("url > loc").map((_, node) => sitemap(node).text()).get();
-const expectedUrls = noindex ? [] : SEO_PAGES.map(page => canonicalUrl(page.path, canonicalOrigin));
-assert.deepEqual([...urls].sort(), [...expectedUrls].sort(), "sitemap must contain exactly the approved canonical URLs");
+for (const tag of siteVerificationTags()) {
+  assert.equal(appShell(`meta[name="${tag.name}"]`).attr("content"), tag.content, tag.name);
+}
+assert.doesNotMatch(serviceWorker, /robots\.txt|sitemap\.xml|sitemap-pages\.xml/iu, "crawler controls must never be precached");
+assert.equal(sitemapPages("urlset").attr("xmlns"), "http://www.sitemaps.org/schemas/sitemap/0.9");
+const pageUrls = sitemapPages("url > loc").map((_, node) => sitemapPages(node).text()).get();
+const expectedUrls = noindex ? [] : INDEXABLE_PAGES.map(page => canonicalUrl(page.path, canonicalOrigin));
+assert.deepEqual([...pageUrls].sort(), [...expectedUrls].sort(), "page sitemap must contain exactly the approved canonical URLs");
 if (noindex) {
-  assert.match(robots, /^User-agent:\s*\*\s*\r?\nDisallow:\s*\/\s*$/u);
+  assert.equal(sitemap("urlset").attr("xmlns"), "http://www.sitemaps.org/schemas/sitemap/0.9");
+  assert.equal(sitemap("url").length, 0, "noindex sitemap index stays an empty well-formed urlset");
+  assert.equal(sitemap("lastmod").length, 0);
+  assert.equal(sitemapPages("lastmod").length, 0);
+  assert.match(robots, /User-agent:\s*\*\s*\r?\nDisallow:\s*\//u);
   assert.doesNotMatch(robots, /Sitemap:/iu);
+  for (const agent of [...SEARCH_CRAWLERS, ...AI_CRAWLERS]) {
+    assert.match(robots, new RegExp(`User-agent:\\s*${agent}\\s*\\r?\\nDisallow:\\s*/`, "u"), agent);
+  }
 } else {
+  assert.equal(sitemap("sitemapindex").attr("xmlns"), "http://www.sitemaps.org/schemas/sitemap/0.9");
+  assert.deepEqual(sitemap("sitemap > loc").map((_, node) => sitemap(node).text()).get(), [`${canonicalOrigin}${SITEMAP_PAGES_PATH}`]);
   assert.match(robots, /Allow:\s*\//u);
   assert.ok(robots.includes(`Sitemap: ${canonicalOrigin}/sitemap.xml`));
+  for (const path of PRIVATE_CRAWL_PATHS) assert.match(robots, new RegExp(`Disallow:\\s*${path.replaceAll("/", "\\/")}`, "u"), path);
+  for (const agent of [...SEARCH_CRAWLERS, ...AI_CRAWLERS]) {
+    assert.match(robots, new RegExp(`User-agent:\\s*${agent}\\s*\\r?\\nAllow:\\s*/`, "u"), agent);
+  }
+}
+if (shouldPublishIndexNow()) {
+  const key = resolveIndexNowKey();
+  assert.equal(await read(indexNowKeyPath(key).slice(1)), `${key}\n`);
+} else {
+  assert.equal(shouldPublishIndexNow(), false, "IndexNow key file is not published while noindex");
 }
 
 const knownPaths = new Set(SEO_PAGES.map(page => page.path));
-const allowedProductPaths = new Set(["/", "/legal"]);
+const allowedProductPaths = new Set(["/", "/legal", ...PUBLIC_INDEX_PAGES.map(page => page.path)]);
 const allowedSources = new Set(["https://www.registry.google/domains/app/", "https://www.registry.google/domains/dev/"]);
 const graph = new Map();
 for (const key of ["path", "title", "description", "h1"]) {
@@ -57,8 +96,15 @@ for (const page of SEO_PAGES) {
   assert.equal($('meta[name="sajda-seo-indexing"]').attr("content"), noindex ? "noindex" : "index", page.path);
   assert.equal($('link[rel="canonical"]').length, 1, page.path);
   assert.equal($('link[rel="canonical"]').attr("href"), canonical, page.path);
-  assert.equal($('link[rel="alternate"][hreflang]').length, 1, "do not invent unbuilt translated SEO URLs");
+  const alternates = hreflangAlternates(page.path, canonicalOrigin);
+  assert.deepEqual(
+    $('link[rel="alternate"][hreflang]').toArray().map(node => [$(node).attr("hreflang"), $(node).attr("href")]),
+    alternates.map(link => [link.hreflang, link.href]),
+    "hreflang must list only published locales plus x-default",
+  );
   assert.equal($('link[hreflang="sv-SE"]').attr("href"), canonical, page.path);
+  assert.equal($('link[hreflang="x-default"]').attr("href"), canonical, page.path);
+  assert.equal($('link[hreflang="en"]').length, 0, "do not invent unbuilt translated SEO URLs");
   for (const [key, value] of Object.entries({
     "og:title": page.title, "og:description": page.description, "og:url": canonical, "og:locale": "sv_SE",
   })) assert.equal($(`meta[property="${key}"]`).attr("content"), value, page.path);
@@ -73,13 +119,18 @@ for (const page of SEO_PAGES) {
   assert.equal($("h1").length, 1, "one actual product H1");
   assert.equal($("h1").text().trim(), page.h1, page.path);
   const records = $('script[type="application/ld+json"]').map((_, node) => JSON.parse($(node).text())).get();
-  assert.equal(records.length, page.path === "/se" ? 1 : 2, page.path);
+  assert.equal(records.length, page.path === "/se" ? 3 : 4, page.path);
   assert.equal($('script[type="application/ld+json"][data-sajda-seo-document]').length, records.length);
   const webPage = records.find(item => item["@type"] === "WebPage");
   assert.equal(webPage?.url, canonical, page.path);
   assert.equal(webPage?.name, page.h1, page.path);
   assert.equal(webPage?.inLanguage, "sv-SE", page.path);
   assert.equal(webPage?.isPartOf?.url, `${canonicalOrigin}/se`, "website reference must be an indexable public entry");
+  const organization = records.find(item => item["@type"] === "Organization");
+  assert.equal(organization?.url, `${canonicalOrigin}/se`, page.path);
+  const website = records.find(item => item["@type"] === "WebSite");
+  assert.equal(website?.url, `${canonicalOrigin}/se`, page.path);
+  assert.equal(website?.potentialAction?.["@type"], "SearchAction", page.path);
   const breadcrumb = records.find(item => item["@type"] === "BreadcrumbList");
   if (page.path !== "/se") {
     assert.ok(breadcrumb?.itemListElement.length >= 2, page.path);
@@ -118,4 +169,26 @@ while (pending.length) {
   pending.push(...graph.get(path));
 }
 assert.equal(reachable.size, SEO_PAGES.length, "every sitemap page must be reachable from the Swedish hub");
-console.log(`SEO static: OK (${SEO_PAGES.length} Swedish ${noindex ? "noindex preview" : "index-eligible"} routes; HTML content, metadata, structured data, assets and crawl graph).`);
+
+assert.deepEqual(PUBLIC_INDEX_PAGES.map(page => page.path), [...PUBLIC_INDEX_PATHS]);
+for (const page of PUBLIC_INDEX_PAGES) {
+  const $ = load(await read(`${page.path.slice(1)}.html`));
+  const canonical = canonicalUrl(page.path, canonicalOrigin);
+  assert.equal($("title").text(), page.title, page.path);
+  assert.equal($('meta[name="description"]').attr("content"), page.description, page.path);
+  assert.equal($('meta[name="robots"]').attr("content"), expectedRobots, page.path);
+  assert.equal($('link[rel="canonical"]').attr("href"), canonical, page.path);
+  assert.equal($('meta[property="og:url"]').attr("content"), canonical, page.path);
+  assert.equal($('meta[property="og:title"]').attr("content"), page.title, page.path);
+  assert.equal($('link[hreflang="x-default"]').attr("href"), canonical, page.path);
+  assert.equal($('link[hreflang="en"]').length, 0, "do not invent unbuilt translated public URLs");
+  assert.doesNotMatch($("html").html() ?? "", /\/brand-index\/assessment/u);
+}
+
+assert.doesNotMatch(robots, /Disallow:\s*\/pricing(?:\s|$)/u);
+assert.doesNotMatch(robots, /Disallow:\s*\/brand-index(?:\s|$)/u);
+if (!noindex) {
+  assert.match(robots, /Disallow:\s*\/brand-index\/assessment/u);
+}
+
+console.log(`SEO static: OK (${SEO_PAGES.length} Swedish and ${PUBLIC_INDEX_PAGES.length} public ${noindex ? "noindex preview" : "index-eligible"} routes; HTML content, metadata, structured data, assets and crawl graph).`);

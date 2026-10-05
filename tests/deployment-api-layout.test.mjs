@@ -7,6 +7,16 @@ import { assertPublicBrowserBundle } from "../scripts/check-neon-build.mjs";
 
 const appRoutes = ["/auth", "/connect/native", "/contact", "/plus", "/pricing", "/story", "/how-it-works", "/developers", "/legal", "/security", "/status", "/marketplace", "/marketplace/:listingId", "/swipe", "/watchlist", "/projects", "/name-packages", "/brand-index", "/brand-index/assessment", "/my-domains", "/history", "/account", "/install", "/top-10-today", "/admin"];
 
+test("private and app-shell routes stay noindex while /se headers stay config-driven", async () => {
+  const config = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
+  const headerFor = source => config.headers.find(entry => entry.source === source)?.headers ?? [];
+  for (const path of ["/", "/account", "/auth", "/api/(.*)", "/plus", "/projects"]) {
+    assert.ok(headerFor(path).some(header => header.key === "X-Robots-Tag" && header.value === "noindex, nofollow"), path);
+  }
+  assert.equal(headerFor("/se").some(header => header.key === "X-Robots-Tag"), false, "/se X-Robots-Tag is owned by the SEO policy middleware");
+  assert.equal(headerFor("/se/(.*)").some(header => header.key === "X-Robots-Tag"), false);
+});
+
 test("Plus is private/noindex and bounded worker functions do not activate a crawl schedule", async () => {
   const config = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
   const headers = config.headers.find(entry => entry.source === "/plus").headers;
@@ -33,11 +43,14 @@ test("clean-URL application rewrites target the served root, not an excluded .ht
   const productRoutes = await readFile(new URL("../src/app/ProductRoutes.tsx", import.meta.url), "utf8");
   for (const path of ["/brand-index", "/brand-index/assessment"]) {
     assert.ok(productRoutes.includes(`path="${path}"`), `${path} must have an actual application route`);
-    const headers = config.headers.find(entry => entry.source === path)?.headers ?? [];
-    assert.ok(headers.some(header => header.key === "X-Robots-Tag" && header.value === "noindex, nofollow"), `${path} is not an indexable SEO entry`);
-    assert.ok(headers.some(header => header.key === "Cache-Control" && header.value === "private, no-store"), `${path} keeps assessment state private`);
-    assert.ok(headers.some(header => header.key === "Referrer-Policy" && header.value === "no-referrer"), `${path} does not disclose assessment URLs through referrers`);
   }
+  const landing = config.headers.find(entry => entry.source === "/brand-index")?.headers ?? [];
+  assert.equal(landing.some(header => header.key === "X-Robots-Tag"), false, "/brand-index X-Robots-Tag is owned by the SEO policy middleware");
+  assert.ok(landing.some(header => header.key === "Cache-Control" && header.value === "no-store"));
+  const assessment = config.headers.find(entry => entry.source === "/brand-index/assessment")?.headers ?? [];
+  assert.ok(assessment.some(header => header.key === "X-Robots-Tag" && header.value === "noindex, nofollow"), "/brand-index/assessment stays noindex");
+  assert.ok(assessment.some(header => header.key === "Cache-Control" && header.value === "private, no-store"), "/brand-index/assessment keeps assessment state private");
+  assert.ok(assessment.some(header => header.key === "Referrer-Policy" && header.value === "no-referrer"), "/brand-index/assessment does not disclose assessment URLs through referrers");
 });
 
 test("nested auth routes reach one same-origin Vercel function, never the SPA shell", async () => {

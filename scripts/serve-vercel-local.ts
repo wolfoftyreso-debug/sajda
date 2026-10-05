@@ -44,6 +44,7 @@ import nativeCommerceCron from "../api/cron/native-commerce";
 import appStoreWebhook from "../api/app-store-webhook";
 import appSessions from "../api/account/app-sessions";
 import deletion from "../api/account/deletion";
+import indexnow from "../api/indexnow";
 
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
 const root = resolve(projectRoot, "dist-vercel");
@@ -78,6 +79,7 @@ const handlers = new Map<string, Handler>([
   ["/api/account/membership", membership],
   ["/api/account/app-sessions", appSessions],
   ["/api/account/deletion", deletion],
+  ["/api/indexnow", indexnow],
   ["/api/account/lost-domains", lostDomains],
   ["/api/account/trading-scenarios", tradingScenarios],
   ["/api/account/name-projects", nameProjects],

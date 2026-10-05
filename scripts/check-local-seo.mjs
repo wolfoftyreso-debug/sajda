@@ -108,7 +108,11 @@ try {
   assertEqual(seo.status, 200, "the clean SEO URL must resolve");
   assertStartsWith(seo.headers.get("content-type") ?? "", "text/html", "the SEO document must be HTML");
   assertEqual(seo.headers.get("cache-control"), "no-cache", "the SEO document must revalidate");
-  assertEqual(seo.headers.get("x-robots-tag"), null, "the index-eligible SEO document must not carry a noindex header");
+  assertEqual(
+    seo.headers.get("x-robots-tag"),
+    isNoindexBuild() ? "noindex, nofollow" : null,
+    "the SEO document X-Robots-Tag must follow the shared indexing policy",
+  );
   const seoHtml = await seo.text();
   assertIncludes(seoHtml, `<link rel="canonical" href="${canonical}" />`, "the SEO document canonical must be preserved by the local server");
   assertIncludes(seoHtml, `<meta name="robots" content="${expectedRobots}" />`, "the SEO document robots directive must be preserved by the local server");
@@ -123,9 +127,14 @@ try {
   assertEqual(sitemap.headers.get("cache-control"), "no-cache", "sitemap.xml must revalidate");
   const sitemapXml = await sitemap.text();
   if (isNoindexBuild()) {
-    if (/<url\b/iu.test(sitemapXml)) throw new Error("Local SEO check failed: a noindex build must not expose sitemap URLs.");
+    if (/<url\b/iu.test(sitemapXml) || /<sitemapindex[\s>]/iu.test(sitemapXml)) {
+      throw new Error("Local SEO check failed: a noindex build must not expose sitemap URLs.");
+    }
   } else {
-    assertIncludes(sitemapXml, `<loc>${canonical}</loc>`, "sitemap.xml must contain the SEO canonical");
+    assertIncludes(sitemapXml, `${canonicalOrigin}/sitemap-pages.xml`, "sitemap.xml must be a sitemap index");
+    const pages = await get(baseUrl, "/sitemap-pages.xml");
+    assertEqual(pages.status, 200, "sitemap-pages.xml must resolve");
+    assertIncludes(await pages.text(), `<loc>${canonical}</loc>`, "sitemap-pages.xml must contain the SEO canonical");
   }
 
   const robots = await get(baseUrl, "/robots.txt");
