@@ -21,18 +21,24 @@ export const SEARCH_CRAWLERS = Object.freeze([
   "Yandex",
 ]);
 
-/** Training/answer crawlers. Disallow while noindex; keep them off the
- * public corpus even after search indexing is enabled unless an operator
- * later publishes a dedicated allow list. */
-export const AI_TRAINING_CRAWLERS = Object.freeze([
+/** Answer/training crawlers. Same public Allow + private Disallow as search
+ * bots once indexing is enabled; fully Disallow while noindex. */
+export const AI_CRAWLERS = Object.freeze([
   "GPTBot",
+  "OAI-SearchBot",
+  "ChatGPT-User",
   "ClaudeBot",
+  "Claude-User",
+  "Claude-SearchBot",
+  "anthropic-ai",
   "PerplexityBot",
+  "Perplexity-User",
   "Google-Extended",
   "CCBot",
-  "anthropic-ai",
+  "Applebot-Extended",
   "Bytespider",
 ]);
+export const AI_TRAINING_CRAWLERS = AI_CRAWLERS;
 
 /** Application, account, and API surfaces stay out of every crawl mode. */
 export const PRIVATE_CRAWL_PATHS = Object.freeze([
@@ -164,8 +170,16 @@ function crawlRules(userAgent, disallowPaths) {
   return [`User-agent: ${userAgent}`, ...disallowPaths.map((path) => `Disallow: ${path}`)].join("\n");
 }
 
+function publicCrawlRules(userAgent) {
+  return ["User-agent: " + userAgent, "Allow: /", ...PRIVATE_CRAWL_PATHS.map((path) => `Disallow: ${path}`)].join("\n");
+}
+
+export function namedCrawlers() {
+  return [...SEARCH_CRAWLERS, ...AI_CRAWLERS];
+}
+
 export function robotsTxt(noindex, origin) {
-  const namedBots = [...SEARCH_CRAWLERS, ...AI_TRAINING_CRAWLERS];
+  const namedBots = namedCrawlers();
   if (noindex) {
     return [
       crawlRules("*", ["/"]),
@@ -174,11 +188,8 @@ export function robotsTxt(noindex, origin) {
   }
 
   return [
-    ["User-agent: *", "Allow: /", ...PRIVATE_CRAWL_PATHS.map((path) => `Disallow: ${path}`)].join("\n"),
-    ...SEARCH_CRAWLERS.map((agent) =>
-      ["User-agent: " + agent, "Allow: /", ...PRIVATE_CRAWL_PATHS.map((path) => `Disallow: ${path}`)].join("\n"),
-    ),
-    ...AI_TRAINING_CRAWLERS.map((agent) => crawlRules(agent, ["/"])),
+    publicCrawlRules("*"),
+    ...namedBots.map((agent) => publicCrawlRules(agent)),
     `Sitemap: ${origin}/sitemap.xml`,
   ].join("\n\n") + "\n";
 }

@@ -8,6 +8,7 @@
  */
 
 export {
+  AI_CRAWLERS,
   AI_TRAINING_CRAWLERS,
   DEFAULT_SEO_ORIGIN,
   PRIVATE_CRAWL_PATHS,
@@ -23,6 +24,7 @@ export {
   indexNowSubmission,
   isIndexableCanonicalOrigin,
   isNoindexBuild,
+  namedCrawlers,
   localizedSeoPath,
   normalizeSeoOrigin,
   organizationStructuredData,
