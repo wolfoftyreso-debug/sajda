@@ -13,6 +13,11 @@ test("dotenv indexing holds reach the plain Node static generator", () => {
   assert.equal(environment.VITE_SAJDA_CANONICAL_ORIGIN, "https://example.test");
   assert.equal(isNoindexBuild(createStaticBuildEnvironment({ VERCEL_ENV: "production" }, {})), true);
   assert.equal(isNoindexBuild(createStaticBuildEnvironment({ VERCEL_ENV: "preview", SAJDA_SEO_INDEXING: "index" }, {})), true);
+  assert.equal(isNoindexBuild(createStaticBuildEnvironment({
+    VERCEL_ENV: "production",
+    SAJDA_SEO_INDEXING: "index",
+    SAJDA_CANONICAL_ORIGIN: "https://sajda-eight.vercel.app",
+  }, {})), true, "a Vercel.app canonical origin cannot publish an indexable search surface");
 });
 
 test("process settings retain precedence without letting local mode disable indexing protection", () => {

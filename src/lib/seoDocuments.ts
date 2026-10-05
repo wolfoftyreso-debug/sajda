@@ -38,6 +38,25 @@ export function seoBreadcrumbs(page: SeoDocument): Array<{ path: string; name: s
   return [...trail, { path: page.path, name: page.label }];
 }
 
+export const SEO_HREFLANG_LOCALES = [
+  { language: "sv", hreflang: "sv-SE", published: true, xDefault: true },
+  { language: "en", hreflang: "en", published: false, xDefault: false },
+  { language: "es", hreflang: "es", published: false, xDefault: false },
+  { language: "fr", hreflang: "fr", published: false, xDefault: false },
+  { language: "zh", hreflang: "zh-Hans", published: false, xDefault: false },
+] as const;
+
+export function seoHreflangAlternates(path: string, origin: string): Array<{ hreflang: string; href: string }> {
+  const href = `${origin}${path}`;
+  const links: Array<{ hreflang: string; href: string }> = [];
+  for (const locale of SEO_HREFLANG_LOCALES) {
+    if (!locale.published) continue;
+    links.push({ hreflang: locale.hreflang, href });
+    if (locale.xDefault) links.push({ hreflang: "x-default", href });
+  }
+  return links;
+}
+
 export function seoStructuredData(page: SeoDocument, origin: string): Record<string, unknown>[] {
   const records: Record<string, unknown>[] = [{
     "@context": "https://schema.org", "@type": "WebPage", name: page.h1,
@@ -51,6 +70,20 @@ export function seoStructuredData(page: SeoDocument, origin: string): Record<str
     itemListElement: trail.map((item, index) => ({
       "@type": "ListItem", position: index + 1, name: item.name, item: `${origin}${item.path}`,
     })),
+  });
+  records.push({
+    "@context": "https://schema.org", "@type": "Organization",
+    name: "Sajda", url: `${origin}/se`, logo: `${origin}/og.png`,
+  });
+  records.push({
+    "@context": "https://schema.org", "@type": "WebSite",
+    name: "Sajda", url: `${origin}/se`, inLanguage: "sv-SE",
+    publisher: { "@type": "Organization", name: "Sajda", url: `${origin}/se` },
+    potentialAction: {
+      "@type": "SearchAction",
+      target: `${origin}/se/sok-doman?q={search_term_string}`,
+      "query-input": "required name=search_term_string",
+    },
   });
   return records;
 }

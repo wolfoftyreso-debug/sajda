@@ -35,6 +35,8 @@ export function createVercelBuildEnvironment(environment = process.env, deployme
     && environment.DATABASE_URL.trim().length > 0;
   const buildEnvironment = {
     ...environment,
+    ...(environment.SAJDA_SEO_INDEXING !== undefined
+      ? { SAJDA_SEO_INDEXING: environment.SAJDA_SEO_INDEXING } : {}),
     VITE_SAJDA_CANONICAL_ORIGIN: canonicalOrigin,
     VITE_PUBLIC_SEARCH_MODE: "true",
     VITE_LOCAL_TEST_MODE: "false",

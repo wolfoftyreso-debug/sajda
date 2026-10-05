@@ -3,7 +3,7 @@ import test from "node:test";
 import path from "node:path";
 import { load } from "cheerio";
 import { createServer } from "vite";
-import { seoDocuments, seoDocumentForPath, seoStructuredData, seoRobotsForLocation, SEO_INDEX_ROBOTS, SEO_NOINDEX_ROBOTS } from "../src/lib/seoDocuments";
+import { seoDocuments, seoDocumentForPath, seoHreflangAlternates, seoStructuredData, seoRobotsForLocation, SEO_HREFLANG_LOCALES, SEO_INDEX_ROBOTS, SEO_NOINDEX_ROBOTS } from "../src/lib/seoDocuments";
 
 test("SEO indexing requires a clean approved URL, canonical host and explicit build policy", () => {
   const base = { pathname: "/se/sok-doman", search: "", origin: "https://sajda.dev", canonicalOrigin: "https://sajda.dev", buildPolicy: "index" };
@@ -21,7 +21,9 @@ test("structured data names only built pages and includes real breadcrumb parent
   assert.equal(paths.size, 22);
   for (const page of seoDocuments) {
     const records = seoStructuredData(page, "https://sajda.dev");
-    assert.equal(records.length, page.path === "/se" ? 1 : 2);
+    assert.equal(records.length, page.path === "/se" ? 3 : 4);
+    assert.ok(records.some(item => item["@type"] === "Organization"));
+    assert.ok(records.some(item => item["@type"] === "WebSite" && (item.potentialAction as { "@type"?: string } | undefined)?.["@type"] === "SearchAction"));
     assert.equal(records[0].name, page.h1);
     assert.equal(records[0].url, `https://sajda.dev${page.path}`);
     const breadcrumb = records.find(item => item["@type"] === "BreadcrumbList");
@@ -91,11 +93,21 @@ test("actual SEO product HTML and route metadata remain aligned before JavaScrip
     try {
       applyWebSeoMetadata("/se/sok-doman", "", "https://sajda.dev");
       assert.equal($('meta[name="robots"]').attr("content"), SEO_INDEX_ROBOTS);
-      assert.equal($('[data-sajda-seo-document]').length, 3);
+      assert.equal($('[data-sajda-seo-document]').length, 6);
+      assert.deepEqual(seoHreflangAlternates("/se/sok-doman", "https://sajda.dev"), [
+        { hreflang: "sv-SE", href: "https://sajda.dev/se/sok-doman" },
+        { hreflang: "x-default", href: "https://sajda.dev/se/sok-doman" },
+      ]);
+      assert.equal(SEO_HREFLANG_LOCALES.length, 5);
       applyWebSeoMetadata("/se/toppdomaner/app", "", "https://sajda.dev");
-      assert.equal($('link[hreflang]').attr("href"), "https://sajda.dev/se/toppdomaner/app");
-      assert.equal($('script[type="application/ld+json"]').length, 2);
-      assert.doesNotMatch($('script[type="application/ld+json"]').text(), /\/se\/sok-doman/u);
+      assert.equal($('link[hreflang="sv-SE"]').attr("href"), "https://sajda.dev/se/toppdomaner/app");
+      assert.equal($('link[hreflang="x-default"]').attr("href"), "https://sajda.dev/se/toppdomaner/app");
+      assert.equal($('link[hreflang="en"]').length, 0);
+      assert.equal($('script[type="application/ld+json"]').length, 4);
+      const records = $('script[type="application/ld+json"]').toArray().map(node => JSON.parse($(node).text()));
+      assert.equal(records.find(item => item["@type"] === "WebPage")?.url, "https://sajda.dev/se/toppdomaner/app");
+      assert.equal(records.filter(item => item["@type"] === "WebPage").length, 1, "previous page structured data must be replaced");
+      assert.equal(records.find(item => item["@type"] === "WebSite")?.potentialAction?.target, "https://sajda.dev/se/sok-doman?q={search_term_string}");
       applyWebSeoMetadata("/se/toppdomaner/app", "?q=private", "https://sajda.dev");
       assert.equal($('meta[name="robots"]').attr("content"), SEO_NOINDEX_ROBOTS);
       assert.doesNotMatch($("head").html() ?? "", /private/u);

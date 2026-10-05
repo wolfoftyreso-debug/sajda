@@ -1,4 +1,5 @@
 import { next } from "@vercel/functions";
+import { isNoindexBuild } from "./scripts/seo-policy.mjs";
 
 // This runs before Vercel serves the static HTML, including cache hits. It is
 // limited to the public SEO namespace and performs no external calls.
@@ -17,16 +18,22 @@ function isSeoNamespace(pathname: string): boolean {
   return decodedPath === "/se" || decodedPath.startsWith("/se/");
 }
 
-export default function middleware(request: Request): Response {
-  const url = new URL(request.url);
-  const response = next();
-  if (isSeoNamespace(url.pathname) && url.search) {
-    // Do not enumerate parameter names: unrecognized and encoded keys are
-    // still transient variants, not approved landing pages. Never echo them.
+export function applySeoRobotsHeaders(
+  url: URL,
+  response: Response,
+  environment: NodeJS.ProcessEnv = process.env,
+): Response {
+  if (!isSeoNamespace(url.pathname)) return response;
+  // Query variants are never landing pages. The site-wide hold also marks
+  // clean /se documents noindex until a branded origin is indexed.
+  if (url.search || isNoindexBuild(environment)) {
     response.headers.set("X-Robots-Tag", "noindex, nofollow");
-    // A constant marker makes this routing gate distinguishable from Vercel's
-    // preview-wide noindex header without exposing any visitor input.
-    response.headers.set("X-Sajda-Query-Policy", "noindex");
+    if (url.search) response.headers.set("X-Sajda-Query-Policy", "noindex");
   }
   return response;
+}
+
+export default function middleware(request: Request): Response {
+  const url = new URL(request.url);
+  return applySeoRobotsHeaders(url, next());
 }

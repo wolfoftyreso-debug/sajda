@@ -7,6 +7,16 @@ import { assertPublicBrowserBundle } from "../scripts/check-neon-build.mjs";
 
 const appRoutes = ["/auth", "/connect/native", "/contact", "/plus", "/pricing", "/story", "/how-it-works", "/developers", "/legal", "/security", "/status", "/marketplace", "/marketplace/:listingId", "/swipe", "/watchlist", "/projects", "/name-packages", "/brand-index", "/brand-index/assessment", "/my-domains", "/history", "/account", "/install", "/top-10-today", "/admin"];
 
+test("private and app-shell routes stay noindex while /se headers stay config-driven", async () => {
+  const config = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
+  const headerFor = source => config.headers.find(entry => entry.source === source)?.headers ?? [];
+  for (const path of ["/", "/account", "/auth", "/api/(.*)", "/plus", "/projects"]) {
+    assert.ok(headerFor(path).some(header => header.key === "X-Robots-Tag" && header.value === "noindex, nofollow"), path);
+  }
+  assert.equal(headerFor("/se").some(header => header.key === "X-Robots-Tag"), false, "/se X-Robots-Tag is owned by the SEO policy middleware");
+  assert.equal(headerFor("/se/(.*)").some(header => header.key === "X-Robots-Tag"), false);
+});
+
 test("Plus is private/noindex and the bounded worker has one explicit five-minute schedule", async () => {
   const config = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
   const headers = config.headers.find(entry => entry.source === "/plus").headers;

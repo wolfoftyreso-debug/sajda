@@ -5,8 +5,18 @@ import { createServer } from "vite";
 import {
   SEO_PAGES,
   canonicalUrl,
+  hreflangAlternates,
+  htmlRobotsContent,
   isNoindexBuild,
+  resolveIndexNowKey,
   resolveSeoBuildOrigin,
+  robotsTxt,
+  shouldPublishIndexNow,
+  siteVerificationTags,
+  sitemapIndexXml,
+  sitemapLastmod,
+  sitemapPagesXml,
+  emptySitemapXml,
 } from "./seo-routes.mjs";
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -14,9 +24,8 @@ const outputArgument = process.argv[2] || "dist";
 const outputDirectory = resolve(projectRoot, outputArgument);
 const canonicalOrigin = resolveSeoBuildOrigin();
 const noindex = isNoindexBuild();
-const robotsContent = noindex
-  ? "noindex, nofollow"
-  : "index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1";
+const robotsContent = htmlRobotsContent(noindex);
+const lastmod = sitemapLastmod();
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>\"']/g, (character) => {
@@ -54,12 +63,14 @@ function replaceRequired(html, expression, replacement, label) {
 
 function renderPageHtml(shell, page, markup, records) {
   const canonical = canonicalUrl(page.path, canonicalOrigin);
-  const alternate = `<link rel="alternate" hreflang="sv-SE" href="${escapeHtml(canonical)}" data-sajda-seo-document />`;
+  const alternates = hreflangAlternates(page.path, canonicalOrigin)
+    .map((link) => `<link rel="alternate" hreflang="${escapeHtml(link.hreflang)}" href="${escapeHtml(link.href)}" data-sajda-seo-document />`)
+    .join("\n");
   const jsonLd = records
     .map((item) => `<script type="application/ld+json" data-sajda-seo-document>${safeJson(item)}</script>`)
     .join("\n");
   const staticHead = [
-    alternate,
+    alternates,
     jsonLd,
   ].join("\n");
 
@@ -137,6 +148,7 @@ function validateRenderedPage(page, html) {
     `<title>${escapeHtml(page.title)}</title>`,
     `<link rel="canonical" href="${escapeHtml(canonical)}" />`,
     `<link rel="alternate" hreflang="sv-SE" href="${escapeHtml(canonical)}" data-sajda-seo-document />`,
+    `<link rel="alternate" hreflang="x-default" href="${escapeHtml(canonical)}" data-sajda-seo-document />`,
     escapeHtml(page.h1),
     '<script type="module" crossorigin src="/assets/',
     '<link rel="stylesheet" crossorigin href="/assets/',
@@ -146,29 +158,24 @@ function validateRenderedPage(page, html) {
     throw new Error(`Static SEO validation failed for ${page.path}.`);
   }
 
-  if ((html.match(/application\/ld\+json/g) || []).length !== (page.path === "/se" ? 1 : 2)) {
+  const jsonLdCount = (html.match(/application\/ld\+json/g) || []).length;
+  if (jsonLdCount !== (page.path === "/se" ? 3 : 4)) {
     throw new Error(`Static SEO structured-data validation failed for ${page.path}.`);
   }
 }
 
-function sitemapXml() {
-  // A preview must never act as a second discovery surface for production.
-  // Its individual documents are noindex and its sitemap deliberately has no
-  // production URLs. The production build remains the sole publishable map.
-  const entries = noindex ? [] : SEO_PAGES.map((page) => {
-    const url = canonicalUrl(page.path, canonicalOrigin);
-    return `  <url>\n    <loc>${escapeXml(url)}</loc>\n  </url>`;
-  });
-
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${entries.length ? `\n${entries.join("\n")}\n` : ""}</urlset>\n`;
-}
-
-function robotsTxt() {
+function sitemapDocuments() {
+  // A preview / noindex hold must never act as a second discovery surface.
+  // The urlset stays well-formed and empty; index mode publishes a sitemap
+  // index that points at the approved page list.
   if (noindex) {
-    return "User-agent: *\nDisallow: /\n";
+    return { index: emptySitemapXml(), pages: emptySitemapXml() };
   }
-
-  return `User-agent: *\nAllow: /\n\nSitemap: ${canonicalOrigin}/sitemap.xml\n`;
+  const urls = SEO_PAGES.map((page) => escapeXml(canonicalUrl(page.path, canonicalOrigin)));
+  return {
+    index: sitemapIndexXml(canonicalOrigin, lastmod),
+    pages: sitemapPagesXml(urls, lastmod),
+  };
 }
 
 async function main() {
@@ -186,8 +193,11 @@ async function main() {
   // navigation may never infer indexability from a preview hostname or erase an
   // explicit production noindex choice.
   shell = shell.replace(/<meta\s+name="sajda-seo-indexing"[^>]*>\s*/giu, "");
+  const verification = siteVerificationTags()
+    .map((tag) => `<meta name="${escapeHtml(tag.name)}" content="${escapeHtml(tag.content)}" />`)
+    .join("\n");
   shell = replaceRequired(shell, /<\/head>/i,
-    `<meta name="sajda-seo-indexing" content="${noindex ? "noindex" : "index"}" />\n</head>`, "the head closing tag");
+    `${verification ? `${verification}\n` : ""}<meta name="sajda-seo-indexing" content="${noindex ? "noindex" : "index"}" />\n</head>`, "the head closing tag");
   shell = shell.replace(/https:\/\/sajda\.dev\//g, `${canonicalOrigin}/`);
   await writeFile(shellPath, shell, "utf8");
 
@@ -214,10 +224,17 @@ async function main() {
     await renderer.close();
   }
 
-  await Promise.all([
-    writeFile(resolve(outputDirectory, "sitemap.xml"), sitemapXml(), "utf8"),
-    writeFile(resolve(outputDirectory, "robots.txt"), robotsTxt(), "utf8"),
-  ]);
+  const sitemaps = sitemapDocuments();
+  const outputs = [
+    writeFile(resolve(outputDirectory, "sitemap.xml"), sitemaps.index, "utf8"),
+    writeFile(resolve(outputDirectory, "sitemap-pages.xml"), sitemaps.pages, "utf8"),
+    writeFile(resolve(outputDirectory, "robots.txt"), robotsTxt(noindex, canonicalOrigin), "utf8"),
+  ];
+  if (shouldPublishIndexNow()) {
+    const key = resolveIndexNowKey();
+    outputs.push(writeFile(resolve(outputDirectory, `${key}.txt`), `${key}\n`, "utf8"));
+  }
+  await Promise.all(outputs);
 
   const mode = noindex ? "noindex preview" : "index-eligible";
   console.log(`SEO static: wrote ${SEO_PAGES.length} ${mode} Swedish pages to ${relative(projectRoot, outputDirectory) || outputDirectory}.`);

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:http";
 import { once } from "node:events";
-import middleware, { config } from "../middleware";
+import middleware, { applySeoRobotsHeaders, config } from "../middleware";
 import { isNoindexBuild } from "../scripts/seo-routes.mjs";
 
 const queryVariants = [
@@ -17,9 +17,35 @@ test("production indexing fails closed without an exact explicit activation", ()
     assert.equal(isNoindexBuild({ VERCEL_ENV: "production", SAJDA_SEO_INDEXING: flag }), true);
   }
   assert.equal(isNoindexBuild({ VERCEL_ENV: "production", SAJDA_SEO_INDEXING: "index" }), false);
+  assert.equal(isNoindexBuild({
+    VERCEL_ENV: "production",
+    SAJDA_SEO_INDEXING: "index",
+    SAJDA_CANONICAL_ORIGIN: "https://sajda-eight.vercel.app",
+  }), true);
   assert.equal(isNoindexBuild({ VERCEL_ENV: "preview", SAJDA_SEO_INDEXING: "index" }), true);
   assert.equal(isNoindexBuild({ VERCEL_ENV: "development", SAJDA_SEO_INDEXING: "index" }), true);
   assert.equal(isNoindexBuild({}), false, "local static inspection build is unchanged");
+});
+
+test("noindex policy stamps X-Robots-Tag on clean SEO documents", () => {
+  const hold = {
+    VERCEL_ENV: "production",
+    SAJDA_SEO_INDEXING: "index",
+    SAJDA_CANONICAL_ORIGIN: "https://sajda-eight.vercel.app",
+  };
+  const response = applySeoRobotsHeaders(
+    new URL("https://sajda-eight.vercel.app/se/sok-doman"),
+    new Response(null, { headers: { "x-middleware-next": "1" } }),
+    hold,
+  );
+  assert.equal(response.headers.get("x-robots-tag"), "noindex, nofollow");
+  assert.equal(response.headers.get("x-sajda-query-policy"), null);
+  const branded = applySeoRobotsHeaders(
+    new URL("https://sajda.dev/se/sok-doman"),
+    new Response(null, { headers: { "x-middleware-next": "1" } }),
+    { VERCEL_ENV: "production", SAJDA_SEO_INDEXING: "index", SAJDA_CANONICAL_ORIGIN: "https://sajda.dev" },
+  );
+  assert.equal(branded.headers.get("x-robots-tag"), null);
 });
 
 test("official Vercel middleware continues static routing and marks all query keys", async () => {

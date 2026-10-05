@@ -128,9 +128,27 @@ export async function auditSeoHttp({ origin, canonicalOrigin = DEFAULT_SEO_ORIGI
         if (![301, 308].includes(result.status) || !destination || new URL(destination, origin).pathname !== path.slice(0, -1)) issues.push("redirect_mismatch");
       } else if (result.status !== 200) issues.push("http_not_200");
       if (path === "/sitemap.xml") {
-        const locs = [...result.body.matchAll(/<loc>(.*?)<\/loc>/gu)].map(match => match[1]);
-        const expected = preview ? [] : SEO_PAGES.map(page => canonicalOrigin + page.path);
-        if (JSON.stringify(locs.sort()) !== JSON.stringify(expected.sort())) issues.push("sitemap_mismatch");
+        const isIndex = /<sitemapindex[\s>]/iu.test(result.body);
+        const childLocs = [...result.body.matchAll(/<loc>(.*?)<\/loc>/gu)].map(match => match[1]);
+        if (preview) {
+          if (/<url\b/iu.test(result.body) || isIndex) issues.push("sitemap_mismatch");
+        } else if (isIndex) {
+          if (childLocs.length !== 1 || childLocs[0] !== `${canonicalOrigin}/sitemap-pages.xml`) {
+            issues.push("sitemap_mismatch");
+          } else {
+            try {
+              const pages = await httpGet(origin, "/sitemap-pages.xml", cli);
+              const locs = [...pages.body.matchAll(/<loc>(.*?)<\/loc>/gu)].map(match => match[1]);
+              const expected = SEO_PAGES.map(page => canonicalOrigin + page.path);
+              if (JSON.stringify(locs.sort()) !== JSON.stringify(expected.sort())) issues.push("sitemap_mismatch");
+            } catch {
+              issues.push("sitemap_mismatch");
+            }
+          }
+        } else {
+          const expected = SEO_PAGES.map(page => canonicalOrigin + page.path);
+          if (JSON.stringify(childLocs.sort()) !== JSON.stringify(expected.sort())) issues.push("sitemap_mismatch");
+        }
       }
       if (path === "/robots.txt") issues.push(...inspectSeoRobots(result.body, origin, canonicalOrigin, preview));
       if (path === "/auth" || path.includes("?")) {
