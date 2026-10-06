@@ -1,0 +1,128 @@
+{
+  "schema_version": 1,
+  "repository": "https://github.com/wolfoftyreso-debug/sajda.git",
+  "release_branch": "codex/launch-hardening",
+  "release_commit": "fc1e0e88b3f1564eabbb4ef3058b4a148600e2ac",
+  "recorded_at": "2026-10-06T12:11:43.519Z",
+  "recorded_by": "Codex production-finisher",
+  "verdict": "no_go",
+  "rules": {
+    "contains_secrets": false,
+    "contains_personal_data": false,
+    "live_charge_performed": false,
+    "legal_approval_inferred": false
+  },
+  "gates": [
+    {
+      "id": "baseline",
+      "status": "verified",
+      "environment": "local_ci",
+      "evidence": [
+        {
+          "type": "command",
+          "reference": "npm run check:ci: 1843 tests, 1835 passed, 0 failed, 8 opt-in PostgreSQL tests skipped; build and 71 HTTP checks passed",
+          "observed_at": "2026-10-06T12:11:43.519Z"
+        }
+      ],
+      "remaining_blocker": null
+    },
+    {
+      "id": "final_origin",
+      "status": "blocked",
+      "environment": "production_configuration",
+      "evidence": [
+        {
+          "type": "provider",
+          "reference": "Vercel registry lookup reports sajda.dev available and the Sajda project has no branded production domain",
+          "observed_at": "2026-10-06T11:45:00.000Z"
+        }
+      ],
+      "remaining_blocker": "Register and attach the final branded domain, then align the canonical and Better Auth origins"
+    },
+    {
+      "id": "transactional_email",
+      "status": "blocked",
+      "environment": "preview_then_production",
+      "evidence": [
+        {
+          "type": "provider",
+          "reference": "Production sender is configured as Sajda <noreply@mail.sajda.com>; mail.sajda.com has no verified DNS evidence",
+          "observed_at": "2026-10-06T11:50:14.252Z"
+        }
+      ],
+      "remaining_blocker": "Add the exact Resend DNS records for mail.sajda.com and verify real password-reset and contact delivery"
+    },
+    {
+      "id": "social_auth",
+      "status": "blocked",
+      "environment": "preview_then_production",
+      "evidence": [
+        {
+          "type": "http",
+          "reference": "Latest verified preview reported Google, X, GitHub and Apple providers disabled; the UI hides unavailable controls",
+          "observed_at": "2026-10-06T09:20:00.000Z"
+        }
+      ],
+      "remaining_blocker": "Create and configure the four OAuth applications on the final domain; Apple also requires Developer enrollment"
+    },
+    {
+      "id": "stripe_sandbox",
+      "status": "blocked",
+      "environment": "preview_test_mode",
+      "evidence": [
+        {
+          "type": "command",
+          "reference": "Commerce contract, webhook, entitlement, idempotency and failure-path tests passed in the local suite",
+          "observed_at": "2026-10-06T12:11:43.519Z"
+        }
+      ],
+      "remaining_blocker": "Complete the real Stripe test-mode checkout, webhook, entitlement, failure, retry, portal and cancellation matrix"
+    },
+    {
+      "id": "legal_and_operations",
+      "status": "blocked",
+      "environment": "operator_review",
+      "evidence": [
+        {
+          "type": "command",
+          "reference": "Five-language legal, privacy, account-deletion and support surface tests passed",
+          "observed_at": "2026-10-06T12:11:43.519Z"
+        }
+      ],
+      "remaining_blocker": "Landvex AB must approve the final legal entity details, terms, privacy disclosures and support obligations"
+    },
+    {
+      "id": "deployed_golden_paths",
+      "status": "blocked",
+      "environment": "release_preview",
+      "evidence": [
+        {
+          "type": "deployment",
+          "reference": "https://sajda-9isde5icd-hypbit.vercel.app is READY at commit fc1e0e8 and prior protected-preview smoke checks passed",
+          "observed_at": "2026-10-06T09:20:00.000Z"
+        }
+      ],
+      "remaining_blocker": "Repeat the full deployed account, email, payment, Trading, API and MCP golden paths after provider configuration"
+    },
+    {
+      "id": "production_and_indexing",
+      "status": "blocked",
+      "environment": "production",
+      "evidence": [
+        {
+          "type": "provider",
+          "reference": "Vercel production indexing is deliberately held at noindex and no READY branded production deployment exists",
+          "observed_at": "2026-10-06T11:48:00.000Z"
+        }
+      ],
+      "remaining_blocker": "Promote only after the web gates pass, then repeat production smoke and explicitly enable indexing"
+    },
+    {
+      "id": "app_store",
+      "status": "blocked",
+      "environment": "apple_sandbox_and_testflight",
+      "evidence": [],
+      "remaining_blocker": "Apple Developer enrollment, signing, App Store Connect products, TestFlight and physical-device verification are not complete"
+    }
+  ]
+}
