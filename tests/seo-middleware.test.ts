@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:http";
 import { once } from "node:events";
-import middleware, { applySeoRobotsHeaders, config } from "../middleware";
+import middleware, { applySeoRobotsHeaders, config, middlewareForEnvironment } from "../middleware";
 import { isNoindexBuild } from "../scripts/seo-routes.mjs";
 
 const queryVariants = [
@@ -92,7 +92,7 @@ test("official Vercel middleware continues static routing and marks all query ke
     assert.ok([...response.headers.values()].every(value => !value.includes("private-idea")));
   }
   for (const route of ["/se", "/se/sok-doman", "/api/auth?q=x", "/assets/app.js?v=1", "/search?q=x", "/secret?q=x"]) {
-    const response = middleware(new Request(`https://sajda-eight.vercel.app${route}`));
+    const response = middlewareForEnvironment(new Request(`https://sajda-eight.vercel.app${route}`), {});
     assert.equal(response.headers.get("x-robots-tag"), null, route);
     assert.equal(response.headers.get("x-sajda-query-policy"), null, route);
     assert.equal(response.headers.get("x-middleware-next"), "1");
@@ -141,7 +141,7 @@ test("production-mode HTTP fixture exposes noindex before serving an indexable H
   const html = '<!doctype html><html><head><meta name="robots" content="index, follow"></head><body><h1>Public entry</h1></body></html>';
   const server = createServer((incoming, outgoing) => {
     const request = new Request(`https://sajda-eight.vercel.app${incoming.url}`, { method: incoming.method });
-    const result = middleware(request);
+    const result = middlewareForEnvironment(request, production);
     outgoing.setHeader("Content-Type", "text/html; charset=utf-8");
     for (const [key, value] of result.headers) {
       if (!key.startsWith("x-middleware-")) outgoing.setHeader(key, value);

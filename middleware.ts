@@ -54,7 +54,11 @@ export function applySeoRobotsHeaders(
   return response;
 }
 
-export default function middleware(request: Request): Response {
+export function middlewareForEnvironment(request: Request, environment: NodeJS.ProcessEnv): Response {
   const url = new URL(request.url);
-  return applySeoRobotsHeaders(url, next());
+  return applySeoRobotsHeaders(url, next(), environment);
+}
+
+export default function middleware(request: Request): Response {
+  return middlewareForEnvironment(request, process.env);
 }
