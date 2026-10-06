@@ -248,7 +248,7 @@ export const openApiDocument = {
         },
         responses: {
           "200": {
-            description: "Search completed. Results may be available, taken, or unknown.",
+            description: "Search completed. Results may be available, taken, or unknown. Prices are exposed only as evidence-bearing registrarOffer/registrarOffers objects; zero-valued legacy price or valuation placeholders are not part of this public contract.",
             headers: {
               "X-Sajda-Public-Api-Version": { $ref: "#/components/headers/PublicApiVersion" },
               "X-Request-Id": { $ref: "#/components/headers/RequestId" },
@@ -821,8 +821,11 @@ export const openApiDocument = {
           authoritative: { type: "boolean" },
           checkedAt: { type: "string", format: "date-time", description: "Time of this registry observation, retained across cache hits. Absent for a check that was not performed; the response envelope date is not a replacement." },
           error: { type: "string" },
-          registrarOffer: { type: "object", additionalProperties: true },
-          registrarOffers: { type: "array", items: { type: "object", additionalProperties: true } },
+          namingScore: { type: "number", minimum: 0, maximum: 100, description: "Transparent name-quality signal, not a valuation, availability confidence or purchase recommendation." },
+          rankingPosition: { type: "integer", minimum: 1 },
+          rationale: { type: "string", description: "Human-readable explanation of the naming signal and its limitations." },
+          registrarOffer: { type: "object", additionalProperties: true, description: "Selected registrar evidence. Inspect priceVerified, priceScope, currency, checkedAt and source fields before presenting a price." },
+          registrarOffers: { type: "array", items: { type: "object", additionalProperties: true }, description: "Available registrar evidence; an absent exact-domain offer must never be presented as a confirmed checkout price." },
         },
         additionalProperties: true,
       },

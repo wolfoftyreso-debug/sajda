@@ -39,6 +39,41 @@ function sendJson(response: VercelResponseLike, status: number, payload: unknown
   response.status(status).json(withMachineErrorCode(status, payload));
 }
 
+/**
+ * Keep legacy consumer-only numeric placeholders out of the public developer
+ * contract. A zero registrarPrice is not a verified free offer, and a zero
+ * estimatedValue is not a valuation. Public integrations receive the
+ * evidence-bearing registrarOffer(s) plus the explicitly named namingScore.
+ */
+export function sanitizePublicDomainsPayload(payload: unknown): unknown {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return payload;
+  const envelope = payload as Record<string, unknown>;
+  if (!Array.isArray(envelope.results)) return payload;
+  return {
+    ...envelope,
+    results: envelope.results.map((value) => {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+      const {
+        registrarPrice: _legacyRegistrarPrice,
+        estimatedValue: _legacyEstimatedValue,
+        confidenceScore: _legacyConfidenceScore,
+        ...result
+      } = value as Record<string, unknown>;
+      return result;
+    }),
+  };
+}
+
+function publicResponse(response: VercelResponseLike): VercelResponseLike {
+  const wrapped: VercelResponseLike = {
+    setHeader(name, value) { response.setHeader(name, value); },
+    status(code) { response.status(code); return wrapped; },
+    json(payload) { response.json(sanitizePublicDomainsPayload(payload)); },
+    end(payload) { response.end(payload); },
+  };
+  return wrapped;
+}
+
 function headerValue(request: VercelRequestLike, name: string): string {
   const value = request.headers[name] ?? request.headers[name.toLowerCase()];
   return Array.isArray(value) ? value[0] ?? "" : value ?? "";
@@ -121,7 +156,7 @@ export default async function handler(request: VercelRequestLike, response: Verc
     // documented contract; no consumer-only advanced inputs reach the engine.
     await domainSearchHandler(
       createPublicApiEngineRequest({ method: "POST", headers: request.headers }, body, requestId),
-      response,
+      publicResponse(response),
     );
   } catch (error) {
     const status = error instanceof Error && /body is too large/iu.test(error.message) ? 413 : 400;

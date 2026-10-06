@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import health from "../api/health";
 import openapi from "../api/openapi";
 import domains from "../api/v1/domains";
-import publicDomains from "../api/v1/public/domains";
+import publicDomains, { sanitizePublicDomainsPayload } from "../api/v1/public/domains";
 import { parseNamesApiRequest } from "../api/_shared/names-contract";
 
 function response() {
@@ -61,6 +61,25 @@ test("public API rejects credentials and malformed bodies, allows safe preflight
   const credentialed = response();
   await publicDomains({ method: "POST", headers: { "content-type": "application/json", authorization: "Bearer private" }, body: {} }, credentialed);
   assert.equal(credentialed.code, 400);
+});
+test("public API does not expose zero-valued legacy price, valuation or confidence placeholders", () => {
+  const payload = sanitizePublicDomainsPayload({
+    requested: 1,
+    results: [{
+      domain: "sajda.dev",
+      status: "available",
+      registrarPrice: 0,
+      estimatedValue: 0,
+      confidenceScore: 44,
+      namingScore: 91,
+      registrarOffer: { priceVerified: true, registrationPrice: 11.08, currency: "USD" },
+    }],
+  }) as { results: Array<Record<string, unknown>> };
+  assert.equal("registrarPrice" in payload.results[0], false);
+  assert.equal("estimatedValue" in payload.results[0], false);
+  assert.equal("confidenceScore" in payload.results[0], false);
+  assert.equal(payload.results[0].namingScore, 91);
+  assert.deepEqual(payload.results[0].registrarOffer, { priceVerified: true, registrationPrice: 11.08, currency: "USD" });
 });
 test("request contract normalizes domains and prevents duplicate/provider/size injection", () => {
   const parsed = parseNamesApiRequest({ domains: ["EXAMPLE.COM"], tlds: [".COM"], locale: "sv" });
