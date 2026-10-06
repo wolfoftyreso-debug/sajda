@@ -38,7 +38,6 @@
 .sajda-social-auth-button:disabled { cursor: not-allowed; color: hsl(var(--muted-foreground)); background: hsl(var(--muted) / .35); box-shadow: none; }
 .sajda-social-auth-logo { display: grid; place-items: center; width: 19px; height: 19px; flex: 0 0 19px; }
 .sajda-social-auth-logo svg { width: 19px; height: 19px; }
-.sajda-social-auth-pending { position: absolute; right: 6px; top: 4px; max-width: 74px; overflow: hidden; text-overflow: ellipsis; color: hsl(var(--muted-foreground)); font-size: 8px; font-weight: 600; letter-spacing: .02em; white-space: nowrap; }
 .sajda-social-auth-divider { display: flex; align-items: center; gap: 12px; margin-top: 18px; color: hsl(var(--muted-foreground)); font-size: 11px; }
 .sajda-social-auth-divider::before, .sajda-social-auth-divider::after { content: ""; height: 1px; flex: 1; background: hsl(var(--border)); }
 .sajda-social-auth-loading { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; margin: -4px 0 22px; color: hsl(var(--muted-foreground)); font-size: 12px; }
