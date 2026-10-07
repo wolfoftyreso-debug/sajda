@@ -19,6 +19,7 @@
     "api/v1/public/name-packages.ts": { "maxDuration": 30 },
     "api/account/name-package-social.ts": { "maxDuration": 15 },
     "api/account/name-projects.ts": { "maxDuration": 20 },
+    "api/account/brand-checks.ts": { "maxDuration": 60 },
     "api/mcp.ts": { "maxDuration": 60 },
     "api/mcp/public.ts": { "maxDuration": 60 },
     "api/v1/account.ts": { "maxDuration": 60 },

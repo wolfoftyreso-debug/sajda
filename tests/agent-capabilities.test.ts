@@ -5,8 +5,8 @@ import { openApiDocument } from "../api/_shared/openapi-document.mjs";
 import { readFileSync } from "node:fs";
 
 test("all advertised account tools map to documented REST routes and exact input schemas", () => {
-  assert.equal(capabilities.capabilities.length, 25);
-  assert.equal(new Set(capabilities.capabilities.map(tool => tool.name)).size, 25);
+  assert.equal(capabilities.capabilities.length, 27);
+  assert.equal(new Set(capabilities.capabilities.map(tool => tool.name)).size, 27);
   for (const tool of capabilities.capabilities) {
     assert.ok(tool.rest, tool.name);
     const path = tool.rest.path.split("?")[0];
@@ -29,6 +29,17 @@ test("all advertised account tools map to documented REST routes and exact input
     assert.equal(tool.public_rest, null);
     assert.equal(tool.public_mcp, false);
     assert.equal(tool.scope, method === "POST" ? "projects:write" : "projects:read");
+  }
+});
+
+test("private source-history discovery declares archive boundaries and all required permissions", () => {
+  for (const [name, method, path] of [["brand_checks_history", "GET", "/api/v1/account?resource=brand-checks&reportId={reportId}"],
+    ["brand_checks_start", "POST", "/api/v1/account?resource=brand-checks"]]) {
+    const tool = capabilities.capabilities.find(item => item.name === name)!;
+    assert.deepEqual(tool.rest, { method, path }); assert.equal(tool.public_mcp, false); assert.equal(tool.public_rest, null);
+    assert.deepEqual(tool.conditions, ["verified_account", "brand_reports_feature_enabled", "brand_checks_feature_enabled"]);
+    if (name === "brand_checks_start") { assert.equal(tool.scope, "projects:write"); assert.deepEqual(tool.additionalScopes, ["domains:search"]); }
+    else assert.equal(tool.scope, "projects:read");
   }
 });
 

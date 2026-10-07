@@ -4,6 +4,7 @@ import savedDomains from "../account/saved-domains.js";
 import trading from "../account/lost-domains.js";
 import nameProjects from "../account/name-projects.js";
 import brandReports from "../account/brand-reports.js";
+import brandChecks from "../account/brand-checks.js";
 import socialProfiles from "../account/name-package-social.js";
 import tradingScenarios from "../account/trading-scenarios.js";
 import { AccountAccessError } from "./account-error.js";
@@ -12,7 +13,7 @@ import { apiKeyEngineClientId, assertApiKeyScopes, consumeApiKeyQuota } from "./
 import { parseNamesApiRequest } from "./names-contract.js";
 import { createRequestId } from "./public-api.js";
 import { recordNamePackageMetrics } from "./name-package-metrics.js";
-import { parseProductOperationInput, productOperationScope, type McpOperation, type McpProductExecutor, type McpProductResult } from "./mcp-tools.js";
+import { parseProductOperationInput, productOperationScope, productOperationScopes, type McpOperation, type McpProductExecutor, type McpProductResult } from "./mcp-tools.js";
 import { parseNamePackageSearchRequest } from "./name-package-contract.js";
 import { projectNamePackageIntelligence } from "../../shared/name-package-intelligence.js";
 import { completeNamePackageCandidateEvidence, generateNamePackageCandidates } from "./name-package-candidates.js";
@@ -83,6 +84,7 @@ export function createMcpProductExecutor(dependencies: {
   trading?: typeof trading;
   nameProjects?: typeof nameProjects;
   brandReports?: typeof brandReports;
+  brandChecks?: typeof brandChecks;
   socialProfiles?: typeof socialProfiles;
   tradingScenarios?: typeof tradingScenarios;
   quota?: typeof consumeApiKeyQuota;
@@ -91,7 +93,7 @@ export function createMcpProductExecutor(dependencies: {
   const execute: McpProductExecutor = async (operation, suppliedArgs, principal) => {
     // Check again at the product boundary even if called outside MCP registration.
     const scope = productOperationScope(operation);
-    assertApiKeyScopes(principal, [scope]);
+    assertApiKeyScopes(principal, productOperationScopes(operation));
     const args = parseProductOperationInput(operation, suppliedArgs);
     if (operation === "business_names_recommend") {
       let requestId: string | undefined;
@@ -158,6 +160,8 @@ export function createMcpProductExecutor(dependencies: {
     if (operation === "saved_domains_list") query = args;
     else if (operation === "name_projects_save") { method = "POST"; body = { action: "save", ...args }; }
     else if (operation === "brand_reports_save") { method = "POST"; body = args; }
+    else if (operation === "brand_checks_start") { method = "POST"; body = args; }
+    else if (operation === "brand_checks_history") { query = Object.fromEntries(Object.entries(args).map(([key, value]) => [key, String(value)])); }
     else if (operation === "brand_reports_get") { query = { id: args.id, ...(args.version === undefined ? {} : { version: String(args.version) }) }; }
     else if (operation === "brand_reports_history") { query = { ...args, history: "true" }; }
     else if (operation === "trading_scenarios_save") { method = "POST"; body = { action: "save", ...args }; }
@@ -176,6 +180,7 @@ export function createMcpProductExecutor(dependencies: {
     if (operation === "account_membership") await (dependencies.membership ?? membership)(request, output.response);
     else if (operation === "name_projects_list" || operation === "name_projects_save") await (dependencies.nameProjects ?? nameProjects)(request, output.response);
     else if (operation.startsWith("brand_reports_")) await (dependencies.brandReports ?? brandReports)(request, output.response);
+    else if (operation.startsWith("brand_checks_")) await (dependencies.brandChecks ?? brandChecks)(request, output.response);
     else if (operation === "social_profiles_check") await (dependencies.socialProfiles ?? socialProfiles)(request, output.response);
     else if (operation === "trading_scenarios_list" || operation === "trading_scenarios_save") await (dependencies.tradingScenarios ?? tradingScenarios)(request, output.response);
     else if (operation.startsWith("saved_domains_")) await (dependencies.savedDomains ?? savedDomains)(request, output.response);

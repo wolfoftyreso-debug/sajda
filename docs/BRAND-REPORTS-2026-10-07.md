@@ -2,6 +2,12 @@
 
 ## Scope and trust boundary
 
+This record describes the earlier 1.8.0 report-storage increment and its dated
+tests. A subsequent 1.9.0 increment adds **separate server registry history**;
+see [its source-check release record](BRAND-CHECKS-2026-10-07.md). The earlier
+session-only limitation below applies to browser-supplied checks, which are
+still never imported into a saved self-assessment as verified evidence.
+
 This increment stores selected brand scope and recorded **user declarations**
 in the authenticated account. It does not implement global brand ownership,
 legal clearance, independent evidence archival or continuous monitoring.

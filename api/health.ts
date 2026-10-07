@@ -92,12 +92,22 @@ export const storageReadinessSql = `SELECT
         WHERE actual.table_schema='sajda' AND actual.table_name=required.table_name
           AND actual.column_name=required.column_name)
     )
+  ))
+  AND (NOT $4::boolean OR (
+    to_regclass('sajda.brand_check_runs') IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM unnest(ARRAY['namespace','owner_id','id','report_id','report_version','input_hash','targets',
+        'status','requested_at','lease_expires_at','completed_at','methodology_version','entries','failure_code']) AS required(column_name)
+      WHERE NOT EXISTS (SELECT 1 FROM information_schema.columns actual WHERE actual.table_schema='sajda'
+        AND actual.table_name='brand_check_runs' AND actual.column_name=required.column_name)
+    )
   )) AS ready`;
 
-export function storageReadinessParameters(env: NodeJS.ProcessEnv = process.env): [boolean, string[], boolean] {
+export function storageReadinessParameters(env: NodeJS.ProcessEnv = process.env): [boolean, string[], boolean, boolean] {
   // Match the feature route's exact opt-in. Disabling an optional feature must
   // not accidentally require its schema or turn it on through the health probe.
-  return [env.SAJDA_NAME_PROJECTS_ENABLED === "true", [...DEVELOPER_API_SCOPES], env.SAJDA_BRAND_REPORTS_ENABLED === "true"];
+  return [env.SAJDA_NAME_PROJECTS_ENABLED === "true", [...DEVELOPER_API_SCOPES], env.SAJDA_BRAND_REPORTS_ENABLED === "true",
+    env.SAJDA_BRAND_REPORTS_ENABLED === "true" && env.SAJDA_BRAND_CHECKS_ENABLED === "true"];
 }
 
 function setHealthHeaders(response: VercelResponseLike, requestId: string): void {

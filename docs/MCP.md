@@ -1,9 +1,9 @@
 # Sajda remote MCP
 
-Endpoint: `https://<your-sajda-host>/api/mcp`. Transport: MCP Streamable HTTP with JSON responses. The authenticated source server version is `1.8.0`; the official TypeScript SDK is pinned to `@modelcontextprotocol/sdk` **1.32.1**.
+Endpoint: `https://<your-sajda-host>/api/mcp`. Transport: MCP Streamable HTTP with JSON responses. The authenticated source server version is `1.9.0`; the official TypeScript SDK is pinned to `@modelcontextprotocol/sdk` **1.32.1**.
 
 Public source version `1.7.0` advertises six tools; the authenticated catalogue
-has 25, including four private saved-brand-report operations. Both additionally expose two opt-in prompts and two static policy resources.
+has 27, including four private saved-brand-report operations and two separate archived-registry-check operations. Both additionally expose two opt-in prompts and two static policy resources.
 See [connector distribution](CONNECTOR-DISTRIBUTION.md) for the current release
 and [earlier API release status](AGENT-API-RELEASE.md) for tested account boundaries.
 
@@ -140,6 +140,8 @@ Use HTTPS outside localhost. The deployment must configure its own trusted origi
 | `brand_reports_get` | `projects:read` | Read the latest or specified immutable version; preserve original claim dates. |
 | `brand_reports_history` | `projects:read` | List up to 100 saved version receipts; no new checks. |
 | `brand_reports_save` | `projects:write` | Save one declared assessment version with a stable UUID requestKey; never accept verified ownership claims. |
+| `brand_checks_history` | `projects:read` | Read archived source observations, preserving original dates; optional version filter, paginated, no provider call. |
+| `brand_checks_start` | `projects:write` **and** `domains:search` | Explicitly check the latest saved report's exact domain scope; stable UUID receipt, no automatic monitoring or ownership claim. |
 | `social_profiles_check` | `social:check` | Observe up to five GitHub profiles; absence is not registrability. |
 | `trading_scenarios_list` | `trading:read` | Read the scenario journal with active Trading access. |
 | `trading_scenarios_save` | `trading:write` | Save one user-authored scenario; return only its mutation receipt. |
@@ -152,6 +154,14 @@ Use HTTPS outside localhost. The deployment must configure its own trusted origi
 | `trading_advance` | `trading:run` | Explicitly advance one bounded batch for an existing `runId`. |
 | `trading_stop` | `trading:run` | Cancel an owned run, including while the engine is paused. |
 | `trading_refresh_quote` | `trading:quote` | Explicitly refresh a server-approved candidate's registrar observation. |
+
+Archived brand checks require both feature flags and migration `0023`, use only
+reviewed fixed registry sources and leave unsupported targets `unknown`. The
+source history is separate from self-reported scores. Reading never starts or
+refreshes a check; omitted history version means all versions, not just the
+latest. Retry an uncertain start with its identical UUID receipt; `pending` is
+not success and terminal receipts never change. See [limits, source coverage and
+recovery](ACCOUNT-API.md#archived-registry-observations).
 
 There are no payment, purchase, registration, reservation, or automatic buying tools. Trading scopes do not grant Trading membership; the same server-side membership, quota, kill-switch, candidate and ownership checks used by the website remain in force. Saved fields are research notes, not an authoritative quote. Domain results preserve unknown availability, evidence dates, price scope, and currency.
 

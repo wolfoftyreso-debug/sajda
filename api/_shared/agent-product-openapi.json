@@ -1,6 +1,6 @@
 {
   "schemaVersion": "sajda.agent-product-catalogue.v1",
-  "privateMcpVersion": "1.8.0",
+  "privateMcpVersion": "1.9.0",
   "publicMcpVersion": "1.7.0",
   "sdkVersion": "1.32.1",
   "scopes": [
@@ -146,6 +146,29 @@
       "idempotent": true,
       "openWorld": false,
       "destructive": false
+    },
+    {
+      "name": "brand_checks_history",
+      "title": "Read saved registry-check history",
+      "description": "Read paginated source observations for this account's saved brand report, optionally filtering its immutable version. Does not fetch sources or renew observation times. Pending, failed and unsupported checks remain explicit. Registration is not ownership, trademark clearance or continuous monitoring. Preserve original observed_at and independently calculate freshness when presenting a historical observation.",
+      "scope": "projects:read",
+      "readOnly": true,
+      "idempotent": true,
+      "openWorld": false,
+      "destructive": false
+    },
+    {
+      "name": "brand_checks_start",
+      "title": "Check and archive a saved brand report's domains",
+      "description": "Explicitly check the latest saved report's domain scope through audited HTTPS RDAP sources and archive the server observations. Requires projects:write and domains:search. Submit only reportId, expectedVersion and a new requestKey UUID; never caller-supplied observations, source URLs or scores. Repeat the identical requestKey after an uncertain result: no second provider check runs. Limits: 20 domains/run, 10 new runs/account/day, 100 runs/report. Pending or failed runs are not successful checks. Unsupported suffixes stay unknown. Never proves ownership, grants legal clearance, starts continuous monitoring or buys anything.",
+      "scope": "projects:write",
+      "readOnly": false,
+      "idempotent": true,
+      "openWorld": true,
+      "destructive": false,
+      "additionalScopes": [
+        "domains:search"
+      ]
     },
     {
       "name": "social_profiles_check",
@@ -1609,6 +1632,65 @@
       },
       "required": [
         "report"
+      ],
+      "additionalProperties": false
+    },
+    "brand_checks_history": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "offset": {
+          "default": 0,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 99
+        },
+        "limit": {
+          "default": 10,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        }
+      },
+      "required": [
+        "reportId"
+      ],
+      "additionalProperties": false
+    },
+    "brand_checks_start": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        }
+      },
+      "required": [
+        "reportId",
+        "expectedVersion",
+        "requestKey"
       ],
       "additionalProperties": false
     },
@@ -3267,6 +3349,65 @@
       },
       "required": [
         "report"
+      ],
+      "additionalProperties": false
+    },
+    "AgentInput_brand_checks_history": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "offset": {
+          "default": 0,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 99
+        },
+        "limit": {
+          "default": 10,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        }
+      },
+      "required": [
+        "reportId"
+      ],
+      "additionalProperties": false
+    },
+    "AgentInput_brand_checks_start": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        }
+      },
+      "required": [
+        "reportId",
+        "expectedVersion",
+        "requestKey"
       ],
       "additionalProperties": false
     },
@@ -8213,6 +8354,515 @@
       },
       "required": [
         "report"
+      ],
+      "additionalProperties": false
+    },
+    "BrandChecksStartRequest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        }
+      },
+      "required": [
+        "reportId",
+        "expectedVersion",
+        "requestKey"
+      ],
+      "additionalProperties": false
+    },
+    "BrandCheckResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "run": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "allOf": [
+                {
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                },
+                {
+                  "pattern": "^[a-f0-9-]+$"
+                }
+              ]
+            },
+            "reportId": {
+              "type": "string",
+              "allOf": [
+                {
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                },
+                {
+                  "pattern": "^[a-f0-9-]+$"
+                }
+              ]
+            },
+            "reportVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "completed",
+                "failed"
+              ]
+            },
+            "requestedAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+            },
+            "completedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "methodologyVersion": {
+              "type": "string",
+              "const": "sajda.registry-observation.v1"
+            },
+            "entries": {
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 400
+                  },
+                  "target": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1400
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "domain",
+                      "social",
+                      "company",
+                      "trademark",
+                      "market",
+                      "ownership",
+                      "monitoring"
+                    ]
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "checked",
+                      "reported",
+                      "listed",
+                      "unknown"
+                    ]
+                  },
+                  "freshness": {
+                    "type": "string",
+                    "enum": [
+                      "current",
+                      "stale",
+                      "future",
+                      "unknown"
+                    ]
+                  },
+                  "source_url": {
+                    "description": "Public source reference only; its existence is not verification or ownership proof.",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 2000,
+                        "format": "uri"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "observed_at": {
+                    "description": "Original provider observation, user-report or source-retrieval time. Report generation never renews it.",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "statement": {
+                    "type": "string",
+                    "enum": [
+                      "domain_available",
+                      "domain_registered",
+                      "domain_check_unavailable",
+                      "social_profile_found",
+                      "social_profile_not_found",
+                      "social_check_unknown",
+                      "company_not_checked",
+                      "trademark_not_checked",
+                      "reported_owned",
+                      "reported_authorized",
+                      "reported_conflict",
+                      "reported_matching_name_only",
+                      "report_unknown",
+                      "source_lists_website",
+                      "source_lists_social",
+                      "ownership_not_verified",
+                      "continuous_monitoring_not_active"
+                    ]
+                  },
+                  "origin": {
+                    "type": "string",
+                    "enum": [
+                      "provider_observation",
+                      "user_report",
+                      "source_assertion",
+                      "none"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "target",
+                  "kind",
+                  "state",
+                  "freshness",
+                  "source_url",
+                  "observed_at",
+                  "statement",
+                  "origin"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "failureCode": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "provider_unavailable",
+                    "invalid_evidence",
+                    "check_interrupted"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "reportId",
+            "reportVersion",
+            "status",
+            "requestedAt",
+            "completedAt",
+            "methodologyVersion",
+            "entries",
+            "failureCode"
+          ],
+          "additionalProperties": false
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "accountId",
+        "run",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "BrandChecksHistoryResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "runs": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "allOf": [
+                  {
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                  },
+                  {
+                    "pattern": "^[a-f0-9-]+$"
+                  }
+                ]
+              },
+              "reportId": {
+                "type": "string",
+                "allOf": [
+                  {
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                  },
+                  {
+                    "pattern": "^[a-f0-9-]+$"
+                  }
+                ]
+              },
+              "reportVersion": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "completed",
+                  "failed"
+                ]
+              },
+              "requestedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+              },
+              "completedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "methodologyVersion": {
+                "type": "string",
+                "const": "sajda.registry-observation.v1"
+              },
+              "entries": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 400
+                    },
+                    "target": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1400
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "domain",
+                        "social",
+                        "company",
+                        "trademark",
+                        "market",
+                        "ownership",
+                        "monitoring"
+                      ]
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "checked",
+                        "reported",
+                        "listed",
+                        "unknown"
+                      ]
+                    },
+                    "freshness": {
+                      "type": "string",
+                      "enum": [
+                        "current",
+                        "stale",
+                        "future",
+                        "unknown"
+                      ]
+                    },
+                    "source_url": {
+                      "description": "Public source reference only; its existence is not verification or ownership proof.",
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 2000,
+                          "format": "uri"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "observed_at": {
+                      "description": "Original provider observation, user-report or source-retrieval time. Report generation never renews it.",
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "statement": {
+                      "type": "string",
+                      "enum": [
+                        "domain_available",
+                        "domain_registered",
+                        "domain_check_unavailable",
+                        "social_profile_found",
+                        "social_profile_not_found",
+                        "social_check_unknown",
+                        "company_not_checked",
+                        "trademark_not_checked",
+                        "reported_owned",
+                        "reported_authorized",
+                        "reported_conflict",
+                        "reported_matching_name_only",
+                        "report_unknown",
+                        "source_lists_website",
+                        "source_lists_social",
+                        "ownership_not_verified",
+                        "continuous_monitoring_not_active"
+                      ]
+                    },
+                    "origin": {
+                      "type": "string",
+                      "enum": [
+                        "provider_observation",
+                        "user_report",
+                        "source_assertion",
+                        "none"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "target",
+                    "kind",
+                    "state",
+                    "freshness",
+                    "source_url",
+                    "observed_at",
+                    "statement",
+                    "origin"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "failureCode": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "provider_unavailable",
+                      "invalid_evidence",
+                      "check_interrupted"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "reportId",
+              "reportVersion",
+              "status",
+              "requestedAt",
+              "completedAt",
+              "methodologyVersion",
+              "entries",
+              "failureCode"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 99
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "hasMore": {
+          "type": "boolean"
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "accountId",
+        "runs",
+        "total",
+        "offset",
+        "limit",
+        "hasMore",
+        "requestId"
       ],
       "additionalProperties": false
     },

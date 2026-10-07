@@ -14,6 +14,9 @@ import { createMcpProductExecutor } from "../api/_shared/mcp-product.js";
 import type { McpProductExecutor } from "../api/_shared/mcp-tools.js";
 import { createAccountMembershipHandler } from "../api/account/membership.js";
 import { createBrandReportsHandler } from "../api/account/brand-reports.js";
+import { createBrandChecksHandler } from "../api/account/brand-checks.js";
+import { brandCheckResponseSchema, brandChecksHistoryResponseSchema, BRAND_CHECK_METHODOLOGY_VERSION, type BrandCheckRun } from "../shared/brand-checks.js";
+import type { brandChecksStore } from "../api/_shared/brand-checks-store.js";
 import { createLostDomainsHandler } from "../api/account/lost-domains.js";
 import type { brandReportsStore } from "../api/_shared/brand-reports-store.js";
 import type { lostDomainsService } from "../api/_shared/lost-domains-service.js";
@@ -28,6 +31,52 @@ const accountB: ApiKeyPrincipal = { ...accountA, userId: "mcp-owner-b", keyId: r
 const requestQuota = async () => ({ allowed: true, remaining: 100, resetAt: Date.now() + 60_000 });
 const initialize = (protocolVersion = "2025-11-25") => ({ jsonrpc: "2.0", id: 1, method: "initialize",
   params: { protocolVersion, capabilities: {}, clientInfo: { name: "sajda-conformance-test", version: "1.0.0" } } });
+
+test("real SDK source-history tools expose closed outputs and enforce both start permissions", async t => {
+  const id = randomUUID(), key = randomUUID(), now = new Date().toISOString();
+  const run: BrandCheckRun = { id: key, reportId: id, reportVersion: 1, status: "completed", requestedAt: now, completedAt: now,
+    methodologyVersion: BRAND_CHECK_METHODOLOGY_VERSION, failureCode: null,
+    entries: [{ id: "check:domain:example.co.uk", target: "example.co.uk", kind: "domain", statement: "domain_check_unavailable",
+      state: "unknown", freshness: "unknown", observed_at: null, source_url: null, origin: "none" }] };
+  let starts = 0, historyCalls = 0;
+  const store = { limit: async () => undefined, start: async (owner: string) => {
+    assert.equal(owner, accountA.userId); starts++; return run;
+  }, history: async (owner: string, selector: { reportId: string; offset: number; limit: number }) => {
+    historyCalls++; if (owner !== accountA.userId) throw new AccountAccessError("report_not_found", 404, "Not found.");
+    assert.equal(selector.reportId, id); return { runs: [run], total: 1, offset: 0, limit: selector.limit, hasMore: false };
+  } } as typeof brandChecksStore;
+  const authorize: typeof requireAccount = async (headers, options) => {
+    const principal = readDelegatedAccount(headers!, options?.method);
+    assert.ok(principal); return { id: principal.userId, emailVerified: true };
+  };
+  const keys = new Map([["test-a", accountA], ["test-b", accountB],
+    ["only-write", { ...accountA, scopes: ["projects:write"] as ApiKeyPrincipal["scopes"] }],
+    ["only-search", { ...accountA, scopes: ["domains:search"] as ApiKeyPrincipal["scopes"] }],
+    ["only-read", { ...accountA, scopes: ["projects:read"] as ApiKeyPrincipal["scopes"] }]]);
+  const fixture = await serve(t, { keys, execute: createMcpProductExecutor({ brandChecks: createBrandChecksHandler({ authorize, store, enabled: () => true }) }) });
+  const { client } = await fixture.client();
+  const catalogue = await client.listTools();
+  const startTool = catalogue.tools.find(tool => tool.name === "brand_checks_start")!;
+  assert.deepEqual(startTool._meta?.["sajda/requiredScopes"], ["projects:write", "domains:search"]);
+  assert.equal(startTool.annotations?.readOnlyHint, false); assert.equal(startTool.annotations?.idempotentHint, true);
+  assert.equal(startTool.annotations?.openWorldHint, true); assert.equal(startTool.inputSchema.additionalProperties, false);
+  const input = { reportId: id, expectedVersion: 1, requestKey: key };
+  const started = await client.callTool({ name: "brand_checks_start", arguments: input });
+  assert.equal(started.isError, undefined); const startedValue = started.structuredContent as { data: unknown };
+  assert.equal(brandCheckResponseSchema.parse(startedValue.data).run.entries[0].state, "unknown");
+  const read = await client.callTool({ name: "brand_checks_history", arguments: { reportId: id, version: 1 } });
+  assert.equal(brandChecksHistoryResponseSchema.parse((read.structuredContent as { data: unknown }).data).total, 1);
+  for (const token of ["only-write", "only-search", "only-read"]) {
+    const denied = await (await fixture.client(token)).client.callTool({ name: "brand_checks_start", arguments: input });
+    assert.equal(denied.isError, true); assert.equal((denied.structuredContent as { error: { code: string } }).error.code, "insufficient_scope");
+  }
+  assert.equal(starts, 1, "permission failures never invoke a check");
+  await assert.rejects(client.callTool({ name: "brand_checks_start", arguments: { ...input, entries: run.entries } }), error => error instanceof McpError && error.code === ErrorCode.InvalidParams);
+  assert.equal(starts, 1, "caller observations rejected before handler");
+  const foreign = await (await fixture.client("test-b")).client.callTool({ name: "brand_checks_history", arguments: { reportId: id } });
+  assert.equal(foreign.isError, true); assert.equal((foreign.structuredContent as { error: { code: string } }).error.code, "report_not_found");
+  assert.equal(historyCalls, 2);
+});
 
 async function serve(t: TestContext, options: { execute?: McpProductExecutor; authorize?: typeof requireApiKey;
   quota?: typeof requestQuota; keys?: Map<string, ApiKeyPrincipal>; vercelBody?: boolean } = {}) {
@@ -86,7 +135,7 @@ test("real SDK client initializes, discovers strict schemas and calls tools over
   assert.equal(transport.sessionId, undefined);
   assert.equal(transport.protocolVersion, "2025-11-25");
   const catalogue = await client.listTools();
-  assert.equal(catalogue.tools.length, 25);
+  assert.equal(catalogue.tools.length, 27);
   assert.deepEqual(fixture.calls, [], "Initialize and discovery cannot execute product work.");
   for (const tool of catalogue.tools) {
     assert.equal(tool.inputSchema.type, "object");
@@ -134,7 +183,7 @@ test("initialization negotiates compatible dated versions and unsupported protoc
 test("Vercel's parsed-body getter supports the SDK transport and malformed JSON remains a protocol error", async t => {
   const fixture = await serve(t, { vercelBody: true });
   const { client } = await fixture.client();
-  assert.equal((await client.listTools()).tools.length, 25);
+  assert.equal((await client.listTools()).tools.length, 27);
   const malformed = await fixture.post("{");
   assert.equal(malformed.status, 400);
   assert.equal((await malformed.json()).error.code, ErrorCode.ParseError);

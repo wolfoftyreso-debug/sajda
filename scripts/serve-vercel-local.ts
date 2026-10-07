@@ -28,6 +28,7 @@ import lostDomains from "../api/account/lost-domains";
 import tradingScenarios from "../api/account/trading-scenarios";
 import nameProjects from "../api/account/name-projects";
 import brandReports from "../api/account/brand-reports";
+import brandChecks from "../api/account/brand-checks";
 import namePackageSocial from "../api/account/name-package-social";
 import lostDomainsCron from "../api/cron/lost-domains";
 import auth from "../api/auth";
@@ -85,6 +86,7 @@ const handlers = new Map<string, Handler>([
   ["/api/account/trading-scenarios", tradingScenarios],
   ["/api/account/name-projects", nameProjects],
   ["/api/account/brand-reports", brandReports],
+  ["/api/account/brand-checks", brandChecks],
   ["/api/account/name-package-social", namePackageSocial],
   ["/api/cron/lost-domains", lostDomainsCron],
   ["/api/cron/native-commerce", nativeCommerceCron],

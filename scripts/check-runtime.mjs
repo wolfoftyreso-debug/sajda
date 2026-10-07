@@ -37,6 +37,9 @@ const schemaBody = await schema.json();
 assert.equal(schemaBody.openapi, "3.1.0");
 assert.ok(schemaBody.components.schemas.BrandReportResponse);
 assert.ok(schemaBody.components.schemas.BrandReportsSaveRequest); checks++;
+assert.ok(schemaBody.components.schemas.BrandCheckResponse);
+assert.ok(schemaBody.components.schemas.BrandChecksHistoryResponse);
+assert.ok(schemaBody.components.schemas.BrandChecksStartRequest); checks++;
 const publicMcp = await fetch(new URL("/api/mcp/public", origin), { method: "POST", signal: AbortSignal.timeout(transportTimeout),
   headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
   body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "sajda-runtime-check", version: "1.0.0" } } }),
@@ -60,18 +63,18 @@ for (const path of ["/api/v1/domains", "/api/account/saved-domains", "/api/accou
 }
 // This feature is preview-only until its separate production gate is closed.
 // Anonymous requests may see its disabled boundary (404), never account data.
-for (const method of ["GET", "POST"]) {
-  const response = await fetch(new URL("/api/account/brand-reports", origin), { method,
+for (const [path, flag] of [["/api/account/brand-reports", "SAJDA_REQUIRE_BRAND_REPORTS"], ["/api/account/brand-checks", "SAJDA_REQUIRE_BRAND_CHECKS"]]) for (const method of ["GET", "POST"]) {
+  const response = await fetch(new URL(path, origin), { method,
     headers: { "content-type": "application/json", "x-sajda-account": "runtime-qa-forged-owner" },
     ...(method === "POST" ? { body: "{}" } : {}) });
-  if (process.env.SAJDA_REQUIRE_BRAND_REPORTS === "true") assert.equal(response.status, 401);
+  if (process.env[flag] === "true") assert.equal(response.status, 401);
   else assert.ok([401, 404].includes(response.status));
   assert.match(response.headers.get("cache-control") || "", /no-store/u);
   assert.match(response.headers.get("x-robots-tag") || "", /noindex/u);
   const failure = await response.json(); assert.ok(failure.code); assert.ok(failure.requestId);
   assert.equal("reports" in failure, false); assert.equal("report" in failure, false); checks++;
 }
-for (const path of ["/api/v1/account?resource=brand-reports", "/api/mcp"]) {
+for (const path of ["/api/v1/account?resource=brand-reports", "/api/v1/account?resource=brand-checks", "/api/mcp"]) {
   const response = await fetch(new URL(path, origin), { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
   assert.equal(response.status, 401, path);
   assert.match(response.headers.get("cache-control") || "", /no-store/u);

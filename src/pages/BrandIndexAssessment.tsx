@@ -19,6 +19,9 @@ import { brandWorksheetCopy } from "@/i18n/brandWorksheetCopy";
 import { brandReportsCopy } from "@/i18n/brandReportsCopy";
 import { BrandReportsError, brandReportSaveFailureIsUncertain, getBrandReports, getBrandReport, getBrandReportHistory, saveBrandReport } from "@/lib/brandReportsClient";
 import type { BrandReportSaveInput, BrandReportSnapshot, BrandReportSummary, BrandReportVersionSummary } from "../../shared/brand-reports";
+import { brandChecksCopy } from "@/i18n/brandChecksCopy";
+import { BrandChecksError, brandCheckFailureIsUncertain, getBrandChecks, startBrandCheck } from "@/lib/brandChecksClient";
+import type { BrandCheckRun, BrandChecksStartInput } from "../../shared/brand-checks";
 import { exportBrandAssessment } from "@/lib/brandAssessmentExport";
 import { isNativeApp } from "@/lib/appSurface";
 import { nativeShareFile } from "@/lib/nativeTransport";
@@ -34,8 +37,8 @@ const action = "h-auto min-h-12 whitespace-normal px-4 py-3 text-left leading-6"
 type ReportStatus = BrandIndexInput["observations"][number]["status"];
 type Target = BrandIndexResult["targets"][number];
 
-/** Account versions retain only self-reports. Optional registry checks remain
- * session-only, separately sourced and cannot alter the ownership score. */
+/** Account versions retain self-reports. Session-only checks and separately
+ * archived source checks never alter the self-reported index or prove ownership. */
 export default function BrandIndexAssessment() {
   const { user } = useAuth();
   // A new session never receives the prior session's public but private-to-user worksheet.
@@ -70,6 +73,7 @@ function LocalBrandWorksheet({ ownerId, verified }: { ownerId: string | null; ve
   const [operation, setOperation] = useState<"open" | "history" | "save" | null>(null), [saveUncertain, setSaveUncertain] = useState(false);
   const [reportNotice, setReportNotice] = useState<"saved" | "copyReady" | null>(null), [baseline, setBaseline] = useState<string | null>(null);
   const [viewRevision, setViewRevision] = useState(0), [targetDrafts, setTargetDrafts] = useState<string[]>([]);
+  const [sourceCheckUnsettled, setSourceCheckUnsettled] = useState(false);
   const [pendingOpen, setPendingOpen] = useState<{ id: string; version?: number } | null>(null);
   const accountRequestRef = useRef<AbortController | null>(null), listRequestRef = useRef<AbortController | null>(null);
   const pendingSaveRef = useRef<BrandReportSaveInput | null>(null);
@@ -77,8 +81,8 @@ function LocalBrandWorksheet({ ownerId, verified }: { ownerId: string | null; ve
   const hasDraft = input !== null || [brandName, identity, primary, extraDomains, ...Object.values(handles)].some(value => value.trim().length > 0)
     || platforms.length !== SOCIAL_PLATFORMS.length || markets.length !== DEFAULT_NAME_PACKAGE_MARKETS.length || markets.some(market => !DEFAULT_NAME_PACKAGE_MARKETS.includes(market));
   const accountDirty = baseline === null ? hasDraft : fingerprint !== baseline;
-  const dirty = accountDirty || targetDrafts.length > 0 || domainRows.length > 0 || saveUncertain;
-  const locked = historical || operation !== null || saveUncertain;
+  const dirty = accountDirty || targetDrafts.length > 0 || domainRows.length > 0 || saveUncertain || sourceCheckUnsettled;
+  const locked = historical || operation !== null || saveUncertain || sourceCheckUnsettled;
   useDraftNavigationGuard(ownerId ?? "", !!ownerId && dirty);
   useLocalDraftNavigationGuard(ownerId, !ownerId && dirty);
 
@@ -208,7 +212,7 @@ function LocalBrandWorksheet({ ownerId, verified }: { ownerId: string | null; ve
     setViewRevision(previous => previous + 1);
   }
   async function openReport(selector: { id: string; version?: number }) {
-    if (!ownerId || !verified || accountRequestRef.current || saveUncertain || checking) return;
+    if (!ownerId || !verified || accountRequestRef.current || saveUncertain || checking || sourceCheckUnsettled) return;
     const controller = new AbortController(); accountRequestRef.current = controller; setOperation("open"); setReportError(null); setPendingOpen(null);
     try {
       const value = await getBrandReport({ accountId: ownerId, signal: controller.signal }, selector);
@@ -217,7 +221,7 @@ function LocalBrandWorksheet({ ownerId, verified }: { ownerId: string | null; ve
     finally { if (accountRequestRef.current === controller) { accountRequestRef.current = null; if (alive.current) setOperation(null); } }
   }
   function requestOpen(selector: { id: string; version?: number }) {
-    if (operation || saveUncertain || checking) return;
+    if (operation || saveUncertain || checking || sourceCheckUnsettled) return;
     if (dirty) setPendingOpen(selector); else void openReport(selector);
   }
   async function showHistory(id: string) {
@@ -230,11 +234,11 @@ function LocalBrandWorksheet({ ownerId, verified }: { ownerId: string | null; ve
     finally { if (accountRequestRef.current === controller) { accountRequestRef.current = null; if (alive.current) setOperation(null); } }
   }
   function editAsNewReport() {
-    if (!input || operation || saveUncertain || targetDrafts.length > 0) return;
+    if (!input || operation || saveUncertain || targetDrafts.length > 0 || sourceCheckUnsettled) return;
     setCurrentReport(null); setHistorical(false); setBaseline(null); setReportError(null); setReportNotice("copyReady"); setVersions([]); setHistoryId(null); setTargetDrafts([]); setViewRevision(previous => previous + 1);
   }
   async function saveReport() {
-    if (!ownerId || !verified || !input || historical || checking || targetDrafts.length > 0 || accountRequestRef.current) return;
+    if (!ownerId || !verified || !input || historical || checking || targetDrafts.length > 0 || accountRequestRef.current || sourceCheckUnsettled) return;
     // A timeout keeps this immutable request (including idempotency key). No
     // edited input can be sent until its exact save has been reconciled.
     const payload = pendingSaveRef.current ?? {
@@ -288,8 +292,8 @@ function LocalBrandWorksheet({ ownerId, verified }: { ownerId: string | null; ve
             <p data-brand-report-dirty={accountDirty || targetDrafts.length > 0} className="text-sm leading-6">{accountDirty || targetDrafts.length > 0 ? rc.unsaved : rc.unchanged}</p>
             {targetDrafts.length > 0 && <p role="status" className="text-sm leading-6">{rc.unrecorded}</p>}
             {saveUncertain && <p role="alert" className="text-sm leading-6">{rc.pending}</p>}
-            <Button type="button" className={action} data-brand-report-save disabled={!!operation || checking || targetDrafts.length > 0 || !saveUncertain && !accountDirty} onClick={() => void saveReport()}>{operation === "save" ? rc.saving : saveUncertain ? rc.retry : currentReport ? rc.update : rc.save}</Button>
-            {(reportError === "conflict" || reportError === "version_limit") && <Button type="button" variant="outline" className={action + " ml-0 sm:ml-3"} data-brand-report-conflict-copy disabled={!!operation || targetDrafts.length > 0} onClick={editAsNewReport}>{rc.conflictCopy}</Button>}
+            <Button type="button" className={action} data-brand-report-save disabled={!!operation || checking || sourceCheckUnsettled || targetDrafts.length > 0 || !saveUncertain && !accountDirty} onClick={() => void saveReport()}>{operation === "save" ? rc.saving : saveUncertain ? rc.retry : currentReport ? rc.update : rc.save}</Button>
+            {(reportError === "conflict" || reportError === "version_limit") && <Button type="button" variant="outline" className={action + " ml-0 sm:ml-3"} data-brand-report-conflict-copy disabled={!!operation || targetDrafts.length > 0 || sourceCheckUnsettled} onClick={editAsNewReport}>{rc.conflictCopy}</Button>}
           </>}
           {currentReport && <p className="text-xs leading-5 text-muted-foreground">{rc.version} {currentReport.version} · {rc.savedAt} <time data-brand-report-saved-at dateTime={currentReport.savedAt}>{formatLocalizedDateTime(currentReport.savedAt, language)}</time></p>}
         </div>}
@@ -300,8 +304,8 @@ function LocalBrandWorksheet({ ownerId, verified }: { ownerId: string | null; ve
           <summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold">{rc.title} ({reports.length})</summary>
           <Button type="button" variant="outline" className={action} data-brand-report-refresh disabled={reportsLoading || !!operation || saveUncertain} onClick={() => void refreshReports()}>{reportsLoading ? rc.loading : rc.refresh}</Button>
           {listError ? <p role="alert" className="mt-3 text-sm leading-6">{rc[listError]}</p> : !reportsLoading && reports.length === 0 ? <p className="mt-3 text-sm leading-6 text-muted-foreground">{rc.empty}</p> : null}
-          <ul className="mt-3 space-y-3">{reports.map(report => <li key={report.id} className="min-w-0 rounded-xl border border-border p-3"><p className="break-words text-sm font-semibold">{report.title}</p><p className="mt-1 text-xs text-muted-foreground">{rc.version} {report.version} · {formatLocalizedDateTime(report.updatedAt, language)}</p><div className="mt-2 flex flex-wrap gap-2"><Button type="button" variant="outline" className={action} data-brand-report-open={report.id} disabled={!!operation || saveUncertain || checking} onClick={() => requestOpen({ id: report.id })}>{rc.open}</Button><Button type="button" variant="ghost" className={action} data-brand-report-history={report.id} disabled={!!operation || saveUncertain} onClick={() => void showHistory(report.id)}>{rc.history}</Button></div></li>)}</ul>
-          {historyId && <section className="mt-4" aria-labelledby="brand-report-history-title"><h3 id="brand-report-history-title" className="text-sm font-semibold">{rc.history}</h3><ul className="mt-2 space-y-2">{versions.map(version => <li key={version.version}><Button type="button" variant="outline" className={action + " w-full"} data-brand-report-version={version.version} disabled={!!operation || saveUncertain || checking} onClick={() => requestOpen({ id: version.id, version: version.version })}>{rc.version} {version.version} · {formatLocalizedDateTime(version.savedAt, language)}</Button></li>)}</ul></section>}
+          <ul className="mt-3 space-y-3">{reports.map(report => <li key={report.id} className="min-w-0 rounded-xl border border-border p-3"><p className="break-words text-sm font-semibold">{report.title}</p><p className="mt-1 text-xs text-muted-foreground">{rc.version} {report.version} · {formatLocalizedDateTime(report.updatedAt, language)}</p><div className="mt-2 flex flex-wrap gap-2"><Button type="button" variant="outline" className={action} data-brand-report-open={report.id} disabled={!!operation || saveUncertain || checking || sourceCheckUnsettled} onClick={() => requestOpen({ id: report.id })}>{rc.open}</Button><Button type="button" variant="ghost" className={action} data-brand-report-history={report.id} disabled={!!operation || saveUncertain} onClick={() => void showHistory(report.id)}>{rc.history}</Button></div></li>)}</ul>
+          {historyId && <section className="mt-4" aria-labelledby="brand-report-history-title"><h3 id="brand-report-history-title" className="text-sm font-semibold">{rc.history}</h3><ul className="mt-2 space-y-2">{versions.map(version => <li key={version.version}><Button type="button" variant="outline" className={action + " w-full"} data-brand-report-version={version.version} disabled={!!operation || saveUncertain || checking || sourceCheckUnsettled} onClick={() => requestOpen({ id: version.id, version: version.version })}>{rc.version} {version.version} · {formatLocalizedDateTime(version.savedAt, language)}</Button></li>)}</ul></section>}
         </details>
         {pendingOpen && <section className="mt-4 rounded-xl border border-border p-4" aria-labelledby="brand-report-replace-title"><h3 id="brand-report-replace-title" className="font-semibold">{rc.leaveTitle}</h3><p role="alert" className="mt-2 text-sm leading-6">{rc.leaveBody}</p><div className="mt-3 flex flex-wrap gap-3"><Button type="button" variant="outline" className={action} data-brand-report-discard-open onClick={() => void openReport(pendingOpen)}>{rc.replace}</Button><Button type="button" variant="ghost" className={action} onClick={() => setPendingOpen(null)}>{rc.keep}</Button></div></section>}
       </>}
@@ -324,14 +328,18 @@ function LocalBrandWorksheet({ ownerId, verified }: { ownerId: string | null; ve
       <header className="flex flex-wrap items-start justify-between gap-4"><div className="min-w-0"><h2 ref={resultHeadingRef} tabIndex={-1} id="brand-index-result-title" className="scroll-mt-6 text-xl font-semibold">{c.results}</h2><p className="mt-2 break-words text-2xl font-semibold">{result.brand.name}</p><p className="mt-2 break-all text-sm text-muted-foreground">{result.brand.primary_domain}</p></div><Button type="button" variant="outline" className={action} disabled={locked} onClick={() => setConfirmReset(true)}>{c.edit}</Button></header>
       {confirmReset && <section className="rounded-xl border border-border bg-card p-5" aria-label={c.edit}><p role="alert" className="text-sm leading-6">{c.resetWarning}</p><div className="mt-3 flex flex-wrap gap-3"><Button type="button" variant="outline" className={action} onClick={reset}>{c.reset}</Button><Button type="button" variant="ghost" className={action} onClick={() => setConfirmReset(false)}>{c.cancel}</Button></div></section>}
       <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{c.fixed}</p>
+      {ownerId && verified ? currentReport ? <SavedBrandChecks key={`${ownerId}:${currentReport.id}:${currentReport.version}`} ownerId={ownerId} reportId={currentReport.id} reportVersion={currentReport.version} historical={historical}
+        latest={reports.find(report => report.id === currentReport.id)?.version === currentReport.version} clean={!accountDirty && targetDrafts.length === 0} blocked={operation !== null || checking || saveUncertain} language={language} now={now} onUnsettledChange={setSourceCheckUnsettled} />
+        : <p className="rounded-xl border border-border p-4 text-sm leading-6">{brandChecksCopy[language].saveFirst}</p> : null}
       <section className="rounded-2xl border border-border bg-card p-5" aria-labelledby="brand-worksheet-export-title">
         <h3 id="brand-worksheet-export-title" className="text-lg font-semibold">{wc.exportTitle}</h3>
         <p id="brand-worksheet-export-help" className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{ownerId && verified ? rc.exportHelp : wc.exportHelp}</p>
+        {ownerId && verified && <p className="mt-2 max-w-3xl text-xs leading-5 text-muted-foreground">{brandChecksCopy[language].exportScope}</p>}
         <Button type="button" variant="outline" data-brand-export className={action + " mt-4"} disabled={checking || exporting} aria-describedby="brand-worksheet-export-help" onClick={() => void exportAssessment()}><Download aria-hidden="true" className="h-4 w-4 shrink-0" />{exporting ? wc.exporting : isNativeApp ? wc.share : wc.download}</Button>
         {exportNotice && <p role={exportNotice === "failed" ? "alert" : "status"} className="mt-3 text-sm leading-6">{ownerId && verified && (exportNotice === "completed" || exportNotice === "downloaded") ? rc.exportDone : wc[exportNotice]}</p>}
       </section>
       <section className="rounded-2xl border border-border bg-card p-5" aria-labelledby="brand-domain-check-title">
-        <h3 id="brand-domain-check-title" className="text-lg font-semibold">{dc.title}</h3><p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{ownerId && verified ? rc.registryHelp : dc.help}</p>
+        <h3 id="brand-domain-check-title" className="text-lg font-semibold">{ownerId && verified ? brandChecksCopy[language].localTitle : dc.title}</h3><p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{ownerId && verified ? brandChecksCopy[language].localHelp : dc.help}</p>
         <div className="mt-4 flex flex-wrap gap-3"><Button type="button" data-brand-check-domains className={action} disabled={checking || scan.isScanning || !plan?.batches.length || locked} onClick={() => void checkDomains()}>{checking ? dc.checking : dc.action}</Button>{checking && <Button type="button" variant="outline" className={action} onClick={stopChecks}>{dc.stop}</Button>}</div>
         <p role="status" className="mt-3 text-sm leading-6">{dc.progress}: {domainEvidence?.summary.checked ?? 0} {dc.separator} {result.scope.domains.length}. {dc.remaining}: {domainEvidence?.summary.unknown ?? result.scope.domains.length}.</p>
         {plan && plan.unsupported.length > 0 && <div className="mt-3 text-sm leading-6"><p className="font-medium">{dc.unsupported}</p><ul className="mt-1 list-inside list-disc">{plan.unsupported.map(domain => <li key={domain} className="break-all">{domain}</li>)}</ul></div>}
@@ -348,6 +356,112 @@ function LocalBrandWorksheet({ ownerId, verified }: { ownerId: string | null; ve
     <Link to="/name-packages" className="mt-8 inline-flex min-h-11 max-w-full items-start gap-2 py-2 text-sm font-semibold text-primary underline underline-offset-4"><span className="min-w-0">{c.packages}</span><ArrowRight aria-hidden="true" className="mt-1 h-4 w-4 shrink-0" /></Link>
     <FreeSearchGate />
   </main>;
+}
+
+function SavedBrandChecks({ ownerId, reportId, reportVersion, historical, latest, clean, blocked, language, now, onUnsettledChange }: {
+  ownerId: string; reportId: string; reportVersion: number; historical: boolean; latest: boolean; clean: boolean; blocked: boolean;
+  language: Language; now: number; onUnsettledChange: (value: boolean) => void;
+}) {
+  const c = brandChecksCopy[language];
+  const [runs, setRuns] = useState<BrandCheckRun[]>([]), [total, setTotal] = useState(0), [offset, setOffset] = useState(0), [hasMore, setHasMore] = useState(false);
+  const [loaded, setLoaded] = useState(false), [reading, setReading] = useState(false), [starting, setStarting] = useState(false), [uncertain, setUncertain] = useState(false);
+  const [readError, setReadError] = useState<BrandChecksError["code"] | null>(null), [startError, setStartError] = useState<BrandChecksError["code"] | null>(null);
+  const [latestRun, setLatestRun] = useState<BrandCheckRun | null>(null), [pollStopped, setPollStopped] = useState(false);
+  const alive = useRef(true), readRequest = useRef<AbortController | null>(null), startRequest = useRef<AbortController | null>(null);
+  const requestInput = useRef<BrandChecksStartInput | null>(null), canonicalRuns = useRef(new Map<string, BrandCheckRun>()), pollCount = useRef(0);
+  const refreshRef = useRef<(page?: number) => Promise<void>>(async () => {});
+  const pending = latestRun?.status === "pending";
+  const canStart = !historical && latest && clean && !blocked && loaded && !readError && !pending;
+  const displayedEvidence = useMemo(() => latestRun?.status === "completed" ? createBrandEvidenceReport(latestRun.entries, now) : null, [latestRun, now]);
+  function canonical(run: BrandCheckRun): BrandCheckRun {
+    const previous = canonicalRuns.current.get(run.id);
+    // Pending may become terminal, never the reverse. A late response cannot
+    // resurrect a server-expired attempt or replace a known terminal record.
+    if (previous && previous.status !== "pending") return previous;
+    canonicalRuns.current.set(run.id, run); return run;
+  }
+  async function refresh(page = 0) {
+    readRequest.current?.abort();
+    const controller = new AbortController(); readRequest.current = controller; setReading(true); setReadError(null);
+    try {
+      const value = await getBrandChecks({ accountId: ownerId, signal: controller.signal }, { reportId, version: reportVersion, offset: page, limit: 20 });
+      if (controller.signal.aborted || !alive.current || readRequest.current !== controller) return;
+      const rows = value.runs.map(canonical);
+      setRuns(rows); setTotal(value.total); setOffset(value.offset); setHasMore(value.hasMore); setLoaded(true);
+      if (page === 0) setLatestRun(rows[0] ?? null);
+      const original = requestInput.current;
+      const receipt = original ? rows.find(run => run.id === original.requestKey) : null;
+      if (receipt) { setUncertain(false); setStartError(null); if (receipt.status !== "pending") requestInput.current = null; }
+    } catch (error) { if (!controller.signal.aborted && alive.current) setReadError(error instanceof BrandChecksError ? error.code : "unavailable"); }
+    finally { if (readRequest.current === controller) { readRequest.current = null; if (alive.current) setReading(false); } }
+  }
+  refreshRef.current = refresh;
+  useEffect(() => {
+    alive.current = true; void refreshRef.current(0);
+    return () => { alive.current = false; readRequest.current?.abort(); startRequest.current?.abort(); requestInput.current = null; onUnsettledChange(false); };
+  }, [ownerId, reportId, reportVersion, onUnsettledChange]);
+  useEffect(() => { onUnsettledChange(starting || uncertain); }, [starting, uncertain, onUnsettledChange]);
+  useEffect(() => {
+    if (!pending || uncertain || historical || pollStopped || reading) return;
+    // Bounded status polling uses GET only. It never repeats provider work.
+    const timer = window.setTimeout(() => {
+      pollCount.current += 1;
+      if (pollCount.current >= 6) { setPollStopped(true); return; }
+      void refreshRef.current(0);
+    }, 10_000);
+    return () => window.clearTimeout(timer);
+  }, [pending, latestRun, uncertain, historical, pollStopped, reading]);
+  async function start() {
+    if (startRequest.current || reading || blocked || historical || !clean || !latest || !uncertain && !canStart) return;
+    const payload = requestInput.current ?? { reportId, expectedVersion: reportVersion, requestKey: crypto.randomUUID() };
+    requestInput.current = payload;
+    const controller = new AbortController(); startRequest.current = controller; setStarting(true); setStartError(null); onUnsettledChange(true);
+    try {
+      const value = await startBrandCheck({ accountId: ownerId, signal: controller.signal }, payload);
+      if (controller.signal.aborted || !alive.current || startRequest.current !== controller) return;
+      const run = canonical(value.run); setLatestRun(run); setRuns(previous => [run, ...previous.filter(row => row.id !== run.id)]);
+      setUncertain(false); if (run.status !== "pending") requestInput.current = null;
+      setPollStopped(false); pollCount.current = 0;
+      void refreshRef.current(0);
+    } catch (error) {
+      if (controller.signal.aborted || !alive.current) return;
+      const unknown = brandCheckFailureIsUncertain(error); setUncertain(unknown); if (!unknown) requestInput.current = null;
+      const code = error instanceof BrandChecksError ? error.code : "unavailable";
+      setStartError(code);
+      if (code === "pending") { setLoaded(false); void refreshRef.current(0); }
+    } finally { if (startRequest.current === controller) { startRequest.current = null; if (alive.current) setStarting(false); } }
+  }
+  const earlier = offset === 0 ? runs.filter(run => run.id !== latestRun?.id) : runs;
+  return <section className="min-w-0 rounded-2xl border border-primary/25 bg-card p-5" aria-labelledby="brand-saved-checks-title" data-brand-saved-checks>
+    <h3 id="brand-saved-checks-title" className="text-lg font-semibold">{c.title}</h3>
+    <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{c.help}</p>
+    {historical ? <p className="mt-3 text-sm leading-6">{c.historical}</p> : !latest ? <p className="mt-3 text-sm leading-6">{c.notLatest}</p> : !clean ? <p className="mt-3 text-sm leading-6">{c.dirty}</p> : null}
+    {uncertain && <p role="alert" className="mt-3 text-sm leading-6">{c.uncertain}</p>}
+    <div className="mt-4 flex flex-wrap gap-3">
+      {!historical && <Button type="button" className={action} data-brand-archived-check-start disabled={starting || reading || blocked || !clean || !latest || !uncertain && !canStart} onClick={() => void start()}>{starting ? c.starting : uncertain ? c.retry : c.action}</Button>}
+      <Button type="button" variant="outline" className={action} data-brand-archived-check-refresh disabled={reading || starting} onClick={() => { pollCount.current = 0; setPollStopped(false); void refresh(0); }}>{reading ? c.loading : c.refresh}</Button>
+    </div>
+    {readError && <p role="alert" className="mt-3 text-sm leading-6">{c[readError]}</p>}
+    {startError && <p role="alert" className="mt-3 text-sm leading-6">{c[startError]}</p>}
+    {pollStopped && pending && <p role="status" className="mt-3 text-sm leading-6">{c.wait}</p>}
+    {loaded && !latestRun ? <p className="mt-3 text-sm leading-6 text-muted-foreground">{c.empty}</p> : null}
+    {latestRun && <section className="mt-4 min-w-0 border-t border-border pt-4" aria-labelledby="brand-latest-check-title" data-brand-latest-check-status={latestRun.status}>
+      <h4 id="brand-latest-check-title" className="text-sm font-semibold">{c.current}</h4><p role={latestRun.status === "failed" ? "alert" : "status"} className="mt-2 text-sm leading-6">{c[latestRun.status]}</p>
+      <CheckRunDetails run={latestRun} language={language} />
+      {displayedEvidence && <BrandEvidencePanel report={displayedEvidence} language={language} headingLevel="h5" compact />}
+    </section>}
+    {total > 1 || offset > 0 ? <details className="mt-4 min-w-0" data-brand-check-history><summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold">{c.earlier} · {c.total}: {total}</summary>
+      <p className="mt-2 text-xs text-muted-foreground">{c.page} {Math.floor(offset / 20) + 1}</p>
+      <ul className="mt-3 space-y-3">{earlier.map(run => <li key={run.id} className="min-w-0 rounded-xl border border-border p-3" data-brand-historical-check={run.id}><p className="text-sm font-semibold">{run.status === "completed" ? c.historyCompleted : run.status === "pending" ? c.historyPending : c.historyFailed}</p><CheckRunDetails run={run} language={language} />{run.status === "completed" && <BrandEvidencePanel report={createBrandEvidenceReport(run.entries, now)} language={language} headingLevel="h5" compact />}</li>)}</ul>
+      <div className="mt-3 flex flex-wrap gap-3"><Button type="button" variant="outline" className={action} data-brand-check-previous disabled={reading || starting || offset === 0} onClick={() => void refresh(Math.max(0, offset - 20))}>{c.previous}</Button><Button type="button" variant="outline" className={action} data-brand-check-next disabled={reading || starting || !hasMore} onClick={() => void refresh(offset + 20)}>{c.next}</Button></div>
+    </details> : null}
+  </section>;
+}
+
+function CheckRunDetails({ run, language }: { run: BrandCheckRun; language: Language }) {
+  const c = brandChecksCopy[language];
+  return <><p className="mt-2 text-xs leading-5 text-muted-foreground">{c.version} {run.reportVersion} · {c.requested} <time dateTime={run.requestedAt}>{formatLocalizedDateTime(run.requestedAt, language)}</time>{run.completedAt && <> · {c.completedAt} <time dateTime={run.completedAt}>{formatLocalizedDateTime(run.completedAt, language)}</time></>}</p>
+    <details className="mt-2"><summary className="min-h-11 cursor-pointer py-2 text-xs font-medium">{c.methodology}</summary><p className="break-all text-xs leading-5">{run.methodologyVersion}</p><p className="mt-1 break-all text-xs leading-5">{c.runId}: {run.id}</p></details></>;
 }
 
 function TargetReport({ target, language, disabled, onDraftChange, onRecord }: { target: Target; language: Language; disabled: boolean; onDraftChange: (changed: boolean) => void; onRecord: (status: ReportStatus, source: string) => boolean }) {

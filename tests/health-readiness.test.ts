@@ -105,3 +105,12 @@ test("optional report readiness checks its schema only after exact feature opt-i
     assert.ok(storageReadinessSql.includes(`('${table}','${column}')`));
   }
 });
+
+test("registry archive readiness requires both exact feature flags", () => {
+  for (const reports of [undefined, "true", "TRUE"]) for (const checks of [undefined, "true", "TRUE"]) {
+    assert.equal(storageReadinessParameters({ SAJDA_BRAND_REPORTS_ENABLED: reports, SAJDA_BRAND_CHECKS_ENABLED: checks })[3], reports === "true" && checks === "true");
+  }
+  assert.match(storageReadinessSql, /AND \(NOT \$4::boolean OR \(/u);
+  assert.match(storageReadinessSql, /sajda\.brand_check_runs/u);
+  for (const column of ["report_version", "targets", "lease_expires_at", "entries", "failure_code"]) assert.ok(storageReadinessSql.includes(`'${column}'`));
+});

@@ -82,3 +82,37 @@ test("native account allowlist exposes only canonical private report actions wit
   await assert.rejects(() => nativeAccountJson({ headers: { "content-type": "application/json" }, body: { ...body, path: "/api/account/membership" } }),
     { code: "request_too_large" });
 });
+
+test("REST source checks enforce both permissions, closed inputs and exact versioned pagination", async () => {
+  const calls: unknown[] = [];
+  const owner = { ...principal, scopes: ["projects:read", "projects:write", "domains:search"] as ApiKeyPrincipal["scopes"] };
+  const input = { reportId: id, expectedVersion: 1, requestKey: randomUUID() };
+  const handler = createAccountApiHandler({ authorize: async () => owner, requestOrigin: () => "https://sajda.test",
+    quota: async () => ({ allowed: true, remaining: 100, resetAt: Date.now() + 60000 }),
+    execute: async (operation, args) => { calls.push({ operation, args }); return { status: 200, data: { accountId: owner.userId } }; } });
+  const start = recorder(); await handler({ method: "POST", headers: { "content-type": "application/json" }, query: { resource: "brand-checks" }, body: input }, start);
+  assert.equal(start.code, 200); assert.deepEqual(calls[0], { operation: "brand_checks_start", args: input });
+  const history = recorder(); await handler({ method: "GET", headers: {}, query: { resource: "brand-checks", reportId: id, version: "1", offset: "0", limit: "20" } }, history);
+  assert.equal(history.code, 200); assert.deepEqual(calls[1], { operation: "brand_checks_history", args: { reportId: id, version: 1, offset: 0, limit: 20 } });
+  for (const scopes of [["projects:write"], ["domains:search"]]) {
+    owner.scopes = scopes as ApiKeyPrincipal["scopes"];
+    const denied = recorder(); await handler({ method: "POST", headers: { "content-type": "application/json" }, query: { resource: "brand-checks" }, body: input }, denied);
+    assert.equal(denied.code, 403);
+  }
+  owner.scopes = ["projects:read", "projects:write", "domains:search"];
+  for (const query of [{ reportId: id, version: "0" }, { reportId: id, offset: "100" }, { reportId: id, limit: "21" }, { reportId: id, ownerId: "foreign" }, { reportId: [id, id] }]) {
+    const invalid = recorder(); await handler({ method: "GET", headers: {}, query: { resource: "brand-checks", ...query } }, invalid); assert.equal(invalid.code, 400);
+  }
+  const forged = recorder(); await handler({ method: "POST", headers: { "content-type": "application/json" }, query: { resource: "brand-checks" }, body: { ...input, entries: [] } }, forged);
+  assert.equal(forged.code, 400); assert.equal(calls.length, 2);
+});
+
+test("native source-history routing accepts only documented methods and query keys", () => {
+  assert.equal(nativeAccountRoute("/api/account/brand-checks", "POST").scope, "saved:write");
+  assert.equal(nativeAccountRoute(`/api/account/brand-checks?reportId=${id}&version=1&offset=0&limit=20`, "GET").scope, "saved:read");
+  for (const path of [`/api/account/brand-checks?reportId=${id}&reportId=${id}`, "/api/account/brand-checks?ownerId=foreign", "/api/account/brand-checks#fragment"]) {
+    assert.throws(() => nativeAccountRoute(path, "GET"), { code: "invalid_request" });
+  }
+  assert.throws(() => nativeAccountRoute(`/api/account/brand-checks?reportId=${id}`, "POST"), { code: "invalid_request" });
+  assert.throws(() => nativeAccountRoute("/api/account/brand-checks", "DELETE"), { code: "unsupported_native_action" });
+});

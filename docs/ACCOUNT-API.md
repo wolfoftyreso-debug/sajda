@@ -2,7 +2,7 @@
 
 Users can connect an AI assistant to their own Sajda account through the authenticated [MCP endpoint](MCP.md), or use the equivalent REST operations below. Both operate on the same account data as the website. An assistant can read saved domains, naming projects, membership and existing Trading reports, and can save changes only when the user has granted the matching permission.
 
-The anonymous connector at `/api/mcp/public` exposes six public research tools and cannot read or change an account. The authenticated `/api/mcp` 1.8.0 catalogue has 25 tools, including account-owned brand reports. Tool discovery describes implemented capabilities; it does not grant scopes, paid membership or access to another user's data. These are source contracts, not a claim that every client or deployed host is already connected.
+The anonymous connector at `/api/mcp/public` exposes six public research tools and cannot read or change an account. The authenticated `/api/mcp` 1.9.0 catalogue has 27 tools, including account-owned brand reports and separate archived registry checks. Tool discovery describes implemented capabilities; it does not grant scopes, paid membership or access to another user's data. These are source contracts, not a claim that every client or deployed host is already connected.
 
 ## Saved brand assessments
 
@@ -28,14 +28,57 @@ Only declared scope and user reports are stored. Original `reported_at` and
 `source_url` survive saves, refreshes and later reads. `savedAt` means storage
 time, not verification. Freshness is recomputed on retrieval; this is not the
 score as originally evaluated at save time. `verified_score` stays null.
-Browser-only registry-check rows are deliberately not persisted as trusted
-evidence. No save or read performs checks, establishes ownership, grants legal
-clearance, or starts monitoring.
+Browser-only registry-check rows are deliberately not imported as trusted
+evidence. The separate server-check operation below can archive its own source
+observations. No report save or read performs checks, establishes ownership,
+grants legal clearance, or starts monitoring.
 
 REST/browser save envelopes are limited to 64 KiB; private MCP still limits the
 whole protocol request to 16 KiB. Capacity errors are explicit rather than
 truncating history. The native account adapter supports the same feature
 through its private bridge, not browser cookies or embedded API keys.
+
+## Archived registry observations
+
+Both `SAJDA_BRAND_REPORTS_ENABLED=true` and `SAJDA_BRAND_CHECKS_ENABLED=true`,
+migrations `0022` and `0023`, and a verified account are required. Otherwise the
+product handler returns 404. This is an explicit check, not continuous monitoring.
+
+| Intended action | REST query/method | Private MCP | Permissions |
+| --- | --- | --- | --- |
+| Read archived source checks | GET ?resource=brand-checks&reportId=UUID[&version=N&offset=0&limit=10] | brand_checks_history | projects:read |
+| Check the latest saved report's domain scope | POST ?resource=brand-checks with {reportId,expectedVersion,requestKey} | brand_checks_start | projects:write **and** domains:search |
+
+POST fields are strict; each intentional check has a new UUID `requestKey`.
+After an uncertain outcome, retry the identical request with the same key.
+Receipt replay performs no second provider call, even if the report was edited
+later. A new key requires the latest saved `expectedVersion`. One pending run
+per report blocks another; read history to resolve it. An abandoned pending
+receipt becomes `failed/check_interrupted` after five minutes, not a fabricated
+completed check. A failed or completed receipt is immutable.
+
+History returns `{accountId,runs,total,offset,limit,hasMore,requestId}`. A start
+returns `{accountId,run,requestId}`. Runs distinguish `pending`, `completed` and
+`failed`; `completed` means processing finished, not that every source succeeded.
+Omitted `version` returns history across **all** saved versions; supply a version
+to restrict it. Pagination defaults to 10, accepts 1–20, and exposes the remaining
+count rather than silently truncating. Limits are 100 runs per report and 10 new
+runs per account/environment per UTC day, including pending and failed attempts.
+
+Only the exact domains in that immutable saved version are checked (maximum
+20). Reviewed fixed RDAP sources cover `.com`, `.net`, `.org`, `.app`, `.dev`,
+`.ai`, `.xyz`, `.info` and `.biz`; unsupported domains remain undated `unknown`.
+Failures retain only legitimate original source dates and approved source URLs.
+Reads recompute freshness without changing `observed_at`, `requestedAt` or
+`completedAt`, and never fetch a registry. Observations expire after 30 minutes.
+An RDAP availability observation is not a registrar reservation or purchase
+guarantee. Checks do not modify user declarations or the self-assessment score;
+`verified_score` remains null. Ownership, social handles, company names and
+trademarks are not verified. Caller-supplied evidence or source URLs are rejected.
+
+The REST envelope is capped at 4 KiB and the underlying handler at 1 KiB; the
+usual complete MCP cap is 16 KiB. Web, native adapter, scoped REST and private MCP
+share the same owner/environment-scoped handler and database history.
 
 Endpoint: `/api/v1/account`. Every request requires `Authorization: Bearer <scoped-Sajda-key>`. Account identity and environment come from the verified key. Keep keys in server or integration secrets; website cookies and legacy operator search keys are not accepted here. Responses are private and never cached.
 

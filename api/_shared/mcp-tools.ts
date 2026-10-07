@@ -24,8 +24,9 @@ import { BUSINESS_NAMES_RESULT_INSTRUCTIONS, mcpResultContent } from "./mcp-resu
 import { MCP_COMPANION_CAPABILITIES, MCP_NAMING_DISCOVERY_INSTRUCTIONS, registerMcpCompanion } from "./mcp-companion.js";
 import { CONNECTOR_HOST_INSTRUCTIONS } from "../../shared/connector-policy.js";
 import { BRAND_EVIDENCE_AGENT_INSTRUCTIONS } from "../../shared/brand-evidence.js";
+import { brandChecksStartSchema, brandChecksHistorySelectorSchema, brandCheckResponseSchema, brandChecksHistoryResponseSchema } from "../../shared/brand-checks.js";
 
-export const SAJDA_MCP_VERSION = "1.8.0";
+export const SAJDA_MCP_VERSION = "1.9.0";
 
 export interface McpProductResult {
   status: number;
@@ -37,6 +38,7 @@ export interface McpProductResult {
 
 export type McpOperation = "domains_check" | "domains_search" | "name_packages_search" | "business_names_recommend" | "brand_index_assess" | "brand_lookup" | "account_membership"
   | "name_projects_list" | "name_projects_save" | "brand_reports_list" | "brand_reports_get" | "brand_reports_history" | "brand_reports_save"
+  | "brand_checks_history" | "brand_checks_start"
   | "social_profiles_check" | "trading_scenarios_list" | "trading_scenarios_save"
   | "saved_domains_list" | "saved_domains_save" | "saved_domains_remove"
   | "trading_status" | "trading_report" | "trading_start" | "trading_advance" | "trading_stop" | "trading_refresh_quote";
@@ -66,12 +68,15 @@ const brandLookupResultEnvelopeSchema = resultSchema.extend({ data: brandLookupR
 const brandReportsListEnvelopeSchema = resultSchema.extend({ data: brandReportsListResponseSchema.optional() });
 const brandReportEnvelopeSchema = resultSchema.extend({ data: brandReportResponseSchema.optional() });
 const brandReportHistoryEnvelopeSchema = resultSchema.extend({ data: brandReportHistoryResponseSchema.optional() });
+const brandChecksHistoryEnvelopeSchema = resultSchema.extend({ data: brandChecksHistoryResponseSchema.optional() });
+const brandCheckEnvelopeSchema = resultSchema.extend({ data: brandCheckResponseSchema.optional() });
 
 type ToolDefinition = {
   name: McpOperation;
   title: string;
   description: string;
   scope: ApiKeyScope;
+  additionalScopes?: ApiKeyScope[];
   schema: z.ZodObject | typeof brandLookupInputSchema | z3.AnyZodObject;
   readOnly: boolean;
   idempotent: boolean;
@@ -126,6 +131,12 @@ const definitions: ToolDefinition[] = [
   { name: "brand_reports_save", title: "Save a brand assessment version", scope: "projects:write",
     description: "Explicitly save only USER_SUPPLIED scope and reports to this account. Returns only the affected version. Use a stable report UUID, expectedVersion 0 for creation and a new requestKey UUID per intentional save. Reuse the identical request after an uncertain failure: it returns the original saved version, even after later updates. A reused key with different content or a stale version conflicts. Caller-supplied verified evidence, scores and ownership proof are rejected. Original reported_at dates are preserved. Registry checks displayed in the browser are not persisted. No checks, purchases or monitoring run. Private MCP requests retain their 16 KiB transport limit.",
     schema: z.object({ report: brandReportSaveSchema }).strict(), readOnly: false, idempotent: true, openWorld: false },
+  { name: "brand_checks_history", title: "Read saved registry-check history", scope: "projects:read",
+    description: "Read paginated source observations for this account's saved brand report, optionally filtering its immutable version. Does not fetch sources or renew observation times. Pending, failed and unsupported checks remain explicit. Registration is not ownership, trademark clearance or continuous monitoring. Preserve original observed_at and independently calculate freshness when presenting a historical observation.",
+    schema: brandChecksHistorySelectorSchema, readOnly: true, idempotent: true, openWorld: false },
+  { name: "brand_checks_start", title: "Check and archive a saved brand report's domains", scope: "projects:write", additionalScopes: ["domains:search"],
+    description: "Explicitly check the latest saved report's domain scope through audited HTTPS RDAP sources and archive the server observations. Requires projects:write and domains:search. Submit only reportId, expectedVersion and a new requestKey UUID; never caller-supplied observations, source URLs or scores. Repeat the identical requestKey after an uncertain result: no second provider check runs. Limits: 20 domains/run, 10 new runs/account/day, 100 runs/report. Pending or failed runs are not successful checks. Unsupported suffixes stay unknown. Never proves ownership, grants legal clearance, starts continuous monitoring or buys anything.",
+    schema: brandChecksStartSchema, readOnly: false, idempotent: true, openWorld: true },
   { name: "social_profiles_check", title: "Check public GitHub profiles", scope: "social:check",
     description: "Check up to five distinct GitHub handles through the existing bounded GitHub API observer. This currently supports GitHub only, not all social networks. A found profile does not prove ownership; an absent profile is not proof the username can be registered. Preserve observation status, evidence source and timestamp. Uses the same account and provider quota as the website, with no arbitrary URLs, credentials or third-party AI.",
     schema: packageSocialInputSchema, readOnly: true, idempotent: false, openWorld: true },
@@ -186,6 +197,12 @@ export function productOperationScope(operation: McpOperation): ApiKeyScope {
   return definition.scope;
 }
 
+export function productOperationScopes(operation: McpOperation): ApiKeyScope[] {
+  const definition = definitions.find(tool => tool.name === operation);
+  if (!definition) throw new AccountAccessError("invalid_request", 400, "Choose a supported Sajda operation.");
+  return [definition.scope, ...(definition.additionalScopes ?? [])];
+}
+
 /** One discovery contract for MCP and OpenAPI, including legacy Zod 3 product schemas.
  * Runtime parsing always uses the original strict schema and its refinements. */
 export function productOperationInputJsonSchema(operation: McpOperation): Tool["inputSchema"] {
@@ -200,8 +217,9 @@ export function productOperationInputJsonSchema(operation: McpOperation): Tool["
 
 /** Safe discovery metadata; enumerating capabilities does not invoke product work. */
 export function productOperationCatalogue() {
-  return definitions.map(({ name, title, description, scope, readOnly, idempotent, openWorld, destructive }) => ({
+  return definitions.map(({ name, title, description, scope, additionalScopes, readOnly, idempotent, openWorld, destructive }) => ({
     name, title, description, scope, readOnly, idempotent, openWorld, destructive: destructive ?? false,
+    ...(additionalScopes?.length ? { additionalScopes } : {}),
   }));
 }
 
@@ -231,6 +249,8 @@ export function createSajdaMcpServer(principal: ApiKeyPrincipal, execute: McpPro
       title: definition.title, description: `${definition.name === "business_names_recommend" ? MCP_NAMING_DISCOVERY_INSTRUCTIONS : ""}${definition.description} Required scope: ${definition.scope}.`,
       inputSchema: productOperationInputJsonSchema(definition.name),
       outputSchema: z.toJSONSchema(definition.name === "brand_lookup" ? brandLookupResultEnvelopeSchema
+        : definition.name === "brand_checks_history" ? brandChecksHistoryEnvelopeSchema
+        : definition.name === "brand_checks_start" ? brandCheckEnvelopeSchema
         : definition.name === "brand_reports_list" ? brandReportsListEnvelopeSchema
         : definition.name === "brand_reports_history" ? brandReportHistoryEnvelopeSchema
         : definition.name === "brand_reports_get" || definition.name === "brand_reports_save" ? brandReportEnvelopeSchema
@@ -239,7 +259,7 @@ export function createSajdaMcpServer(principal: ApiKeyPrincipal, execute: McpPro
         : definition.name === "business_names_recommend" ? businessNamesResultEnvelopeSchema : resultSchema) as Tool["outputSchema"],
       annotations: { readOnlyHint: definition.readOnly, idempotentHint: definition.idempotent,
         openWorldHint: definition.openWorld, destructiveHint: definition.destructive ?? false },
-      _meta: { "sajda/requiredScopes": [definition.scope] },
+      _meta: { "sajda/requiredScopes": productOperationScopes(definition.name) },
     })) };
   });
   server.setRequestHandler(CallToolRequestSchema, async request => {
@@ -251,7 +271,7 @@ export function createSajdaMcpServer(principal: ApiKeyPrincipal, execute: McpPro
     const input = definition.schema.safeParse(request.params.arguments ?? {});
     if (!input.success) throw new McpError(ErrorCode.InvalidParams, `Invalid arguments for ${definition.name}. Check the published input schema.`);
     try {
-      assertApiKeyScopes(principal, [definition.scope]);
+      assertApiKeyScopes(principal, productOperationScopes(definition.name));
       return productToolResult(await execute(definition.name, input.data, principal), requestId, definition.name === "business_names_recommend");
     } catch (error) {
       const safe = error instanceof AccountAccessError ? error

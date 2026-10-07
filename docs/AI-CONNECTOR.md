@@ -1,7 +1,7 @@
 # Sajda AI connector
 
 Current source, 2026-10-07: public MCP `1.7.0` has six tools and private MCP
-`1.8.0` has 25. Both also provide optional naming prompts and static policy
+`1.9.0` has 27. Both also provide optional naming prompts and static policy
 resources. See [six-client distribution and consent](CONNECTOR-DISTRIBUTION.md)
 for installation packages and verification boundaries.
 The new [brand evidence ledger](BRAND-EVIDENCE.md) separates current provider
@@ -22,7 +22,10 @@ For name recommendations and package searches, `nameLanguage` selects `en`,
 The private catalogue additionally exposes naming-project read/save, GitHub
 profile observations and Trading-scenario read/save. These require explicit
 scopes and retain account ownership, feature gates and product limits; they
-are not available anonymously. See [MCP tools and scopes](MCP.md#tools-and-scopes).
+are not available anonymously. Saved brand reports and separate source-check
+history use the same account data as the web/native product. Explicit check
+starts require both `projects:write` and `domains:search`; a read never refreshes
+evidence or starts monitoring. See [MCP tools and scopes](MCP.md#tools-and-scopes).
 
 `brand_lookup` searches public Wikidata records by name
 and returns the selected entity's profile. Its database-sourced assertions are

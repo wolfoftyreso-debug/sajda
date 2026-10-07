@@ -166,6 +166,7 @@ export function createAccountDeletionService(deps: {
             hash(`native:${namespace}:${owner}`), hash(`account-membership:${namespace}:${owner}`), hash(`trading-scenarios:${namespace}:${owner}`),
             hash(`name-projects:${namespace}:${owner}`),
             hash(`brand-reports:${namespace}:${owner}`),
+            hash(`brand-checks:${namespace}:${owner}`),
             hash(`name-package-social:${namespace}:${owner}`),
           ])]]);
         // Auth sessions, passwords, API keys, native sessions, entitlements,
