@@ -4,6 +4,7 @@ import { load } from "cheerio";
 import { exportBrandAssessment } from "../src/lib/brandAssessmentExport";
 import { brandWorksheetCopy } from "../src/i18n/brandWorksheetCopy";
 import { brandEvidenceCopy } from "../src/i18n/brandEvidenceCopy";
+import { brandChecksCopy } from "../src/i18n/brandChecksCopy";
 import { assessBrandPresence, brandIndexInputSchema, type BrandIndexInput } from "../shared/brand-presence-index";
 import { brandReportSnapshotSchema } from "../shared/brand-reports";
 import { brandEvidenceReportSchema } from "../shared/brand-evidence";
@@ -20,6 +21,7 @@ test("local worksheet export is inert, lossless for recorded scope and explicit 
     const html = exportBrandAssessment(input, rows, language, at), $ = load(html), wc = brandWorksheetCopy[language], ec = brandEvidenceCopy[language];
     assert.equal($("html").attr("lang"), language);
     assert.ok($("body").text().includes(wc.localBoundary)); assert.ok($("body").text().includes(ec.boundary));
+    assert.equal($("[data-export-account-history-excluded]").text(), brandChecksCopy[language].exportScope);
     assert.equal($("script,iframe,img,link,form").length, 0); assert.equal($("meta[http-equiv='Content-Security-Policy']").attr("content"), "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'");
     for (const state of ["checked", "reported", "listed", "unknown"]) assert.equal($(`[data-evidence-group='${state}']`).length, 1);
     const portable = JSON.parse($("[data-portable-brand-assessment]").text());

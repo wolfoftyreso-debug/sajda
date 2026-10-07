@@ -1,6 +1,6 @@
 {
   "schemaVersion": "sajda.agent-product-catalogue.v1",
-  "privateMcpVersion": "1.9.0",
+  "privateMcpVersion": "1.10.0",
   "publicMcpVersion": "1.7.0",
   "sdkVersion": "1.32.1",
   "scopes": [
@@ -171,6 +171,49 @@
       ]
     },
     {
+      "name": "brand_monitors_get",
+      "title": "Read a brand report's registry monitor and alerts",
+      "description": "Read the account-owned daily domain registry monitor, its pinned saved report version, actual plan capacity and paginated in-app change alerts. No read executes a registry check or renews evidence. cronScheduled describes scheduling in this environment, not an uptime or delivery guarantee. Unknown and failed checks never mean available. This is not social, company, trademark, price or ownership monitoring; scores remain separate. Requires the report, check and monitoring features. Preserve original source dates, statuses and explicit pauses.",
+      "scope": "projects:read",
+      "readOnly": true,
+      "idempotent": true,
+      "openWorld": false,
+      "destructive": false
+    },
+    {
+      "name": "brand_monitors_configure",
+      "title": "Enable or resume daily registry monitoring",
+      "description": "Only on an explicit user request: enable, resume or rebind a daily registry monitor for an account-owned saved brand report. Requires projects:write AND domains:search and live paid plan capacity: Basic1, Premium5, Trading10 active monitors; Free0. Enabling records consent to future bounded registry checks but does not run a provider in this request. The scope is pinned to a saved version; rebind explicitly accepts the latest scope and resets the comparison baseline. Use a new requestKey UUID per intentional action, retry identical content after an uncertain result, and preserve monitor/report version conflicts. First observations are baseline only; alerts need two newer definitive observations from the same audited source. No purchases, emails, legal clearance or ownership verification.",
+      "scope": "projects:write",
+      "readOnly": false,
+      "idempotent": true,
+      "openWorld": true,
+      "destructive": false,
+      "additionalScopes": [
+        "domains:search"
+      ]
+    },
+    {
+      "name": "brand_monitors_pause",
+      "title": "Pause a registry monitor",
+      "description": "Explicitly pause this account's saved report registry monitor without deleting source history or alerts. Requires projects:write, not a paid plan or domains:search. Submit action=pause, current expectedMonitorVersion and one requestKey UUID; retry the identical payload after an uncertain outcome. Pausing does not undo an observation already being fetched, but prevents its superseded monitor generation from creating new alerts. Does not cancel registrar services or delete domains.",
+      "scope": "projects:write",
+      "readOnly": false,
+      "idempotent": true,
+      "openWorld": false,
+      "destructive": false
+    },
+    {
+      "name": "brand_monitor_alerts_acknowledge",
+      "title": "Mark one registry change alert as read",
+      "description": "Explicitly acknowledge one account-owned alert without deleting or changing its dated source evidence. Submit action=ack, reportId, alertId and requestKey. Retry identical content after an uncertain result. Requires projects:write only; remains available after plan downgrade. Not a confirmation of domain ownership, availability today, a purchase or legal clearance.",
+      "scope": "projects:write",
+      "readOnly": false,
+      "idempotent": true,
+      "openWorld": false,
+      "destructive": false
+    },
+    {
       "name": "social_profiles_check",
       "title": "Check public GitHub profiles",
       "description": "Check up to five distinct GitHub handles through the existing bounded GitHub API observer. This currently supports GitHub only, not all social networks. A found profile does not prove ownership; an absent profile is not proof the username can be registered. Preserve observation status, evidence source and timestamp. Uses the same account and provider quota as the website, with no arbitrary URLs, credentials or third-party AI.",
@@ -293,8 +336,8 @@
   ],
   "inputs": {
     "business_names_recommend": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "businessDescription": {
           "description": "Describe what the business does, its audience and desired tone. The complete description is considered by a bounded, deterministic naming heuristic, not an AI or legal assessment.",
@@ -505,8 +548,8 @@
       "additionalProperties": false
     },
     "domains_check": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "domains": {
           "minItems": 1,
@@ -565,8 +608,8 @@
       "additionalProperties": false
     },
     "domains_search": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "query": {
           "type": "string",
@@ -656,8 +699,8 @@
       "additionalProperties": false
     },
     "name_packages_search": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "query": {
           "type": "string",
@@ -1129,14 +1172,14 @@
       ]
     },
     "account_membership": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "additionalProperties": false
     },
     "name_projects_list": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "additionalProperties": false
     },
@@ -1380,14 +1423,14 @@
       "$schema": "http://json-schema.org/draft-07/schema#"
     },
     "brand_reports_list": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "additionalProperties": false
     },
     "brand_reports_get": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "id": {
           "type": "string",
@@ -1406,8 +1449,8 @@
       "additionalProperties": false
     },
     "brand_reports_history": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "id": {
           "type": "string",
@@ -1420,8 +1463,8 @@
       "additionalProperties": false
     },
     "brand_reports_save": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "report": {
           "type": "object",
@@ -1636,8 +1679,8 @@
       "additionalProperties": false
     },
     "brand_checks_history": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "reportId": {
           "type": "string",
@@ -1668,8 +1711,8 @@
       "additionalProperties": false
     },
     "brand_checks_start": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "reportId": {
           "type": "string",
@@ -1694,6 +1737,256 @@
       ],
       "additionalProperties": false
     },
+    "brand_monitors_get": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "alertOffset": {
+          "default": 0,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1999
+        },
+        "alertLimit": {
+          "default": 10,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        }
+      },
+      "required": [
+        "reportId"
+      ],
+      "additionalProperties": false
+    },
+    "brand_monitors_configure": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "action": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "enable"
+            },
+            {
+              "type": "string",
+              "const": "resume"
+            },
+            {
+              "type": "string",
+              "const": "rebind"
+            }
+          ]
+        },
+        "expectedReportVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "expectedMonitorVersion": {
+          "anyOf": [
+            {
+              "type": "number",
+              "const": 0
+            },
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            }
+          ]
+        }
+      },
+      "oneOf": [
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "reportId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "requestKey": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "action": {
+              "type": "string",
+              "const": "enable"
+            },
+            "expectedReportVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "expectedMonitorVersion": {
+              "type": "number",
+              "const": 0
+            }
+          },
+          "required": [
+            "reportId",
+            "requestKey",
+            "action",
+            "expectedReportVersion",
+            "expectedMonitorVersion"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "reportId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "requestKey": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "action": {
+              "type": "string",
+              "const": "resume"
+            },
+            "expectedMonitorVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            }
+          },
+          "required": [
+            "reportId",
+            "requestKey",
+            "action",
+            "expectedMonitorVersion"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "reportId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "requestKey": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "action": {
+              "type": "string",
+              "const": "rebind"
+            },
+            "expectedReportVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "expectedMonitorVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            }
+          },
+          "required": [
+            "reportId",
+            "requestKey",
+            "action",
+            "expectedReportVersion",
+            "expectedMonitorVersion"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "brand_monitors_pause": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "action": {
+          "type": "string",
+          "const": "pause"
+        },
+        "expectedMonitorVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        }
+      },
+      "required": [
+        "reportId",
+        "requestKey",
+        "action",
+        "expectedMonitorVersion"
+      ],
+      "additionalProperties": false
+    },
+    "brand_monitor_alerts_acknowledge": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "action": {
+          "type": "string",
+          "const": "ack"
+        },
+        "alertId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        }
+      },
+      "required": [
+        "reportId",
+        "requestKey",
+        "action",
+        "alertId"
+      ],
+      "additionalProperties": false
+    },
     "social_profiles_check": {
       "type": "object",
       "properties": {
@@ -1714,8 +2007,8 @@
       "$schema": "http://json-schema.org/draft-07/schema#"
     },
     "trading_scenarios_list": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "additionalProperties": false
     },
@@ -1856,8 +2149,8 @@
       "$schema": "http://json-schema.org/draft-07/schema#"
     },
     "saved_domains_list": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "cursor": {
           "type": "string",
@@ -1867,8 +2160,8 @@
       "additionalProperties": false
     },
     "saved_domains_save": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "domain": {
           "type": "string",
@@ -1901,8 +2194,8 @@
       "additionalProperties": false
     },
     "saved_domains_remove": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "domain": {
           "type": "string",
@@ -1916,14 +2209,14 @@
       "additionalProperties": false
     },
     "trading_status": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "additionalProperties": false
     },
     "trading_report": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "offset": {
           "type": "integer",
@@ -1939,8 +2232,8 @@
       "additionalProperties": false
     },
     "trading_start": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "requestKey": {
           "description": "Client-generated UUID. Reuse for retries of this exact start request.",
@@ -1954,8 +2247,8 @@
       "additionalProperties": false
     },
     "trading_advance": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "runId": {
           "type": "string",
@@ -1968,8 +2261,8 @@
       "additionalProperties": false
     },
     "trading_stop": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "runId": {
           "type": "string",
@@ -1982,8 +2275,8 @@
       "additionalProperties": false
     },
     "trading_refresh_quote": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "runId": {
           "type": "string",
@@ -2010,8 +2303,8 @@
   },
   "schemas": {
     "AgentInput_business_names_recommend": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "businessDescription": {
           "description": "Describe what the business does, its audience and desired tone. The complete description is considered by a bounded, deterministic naming heuristic, not an AI or legal assessment.",
@@ -2222,8 +2515,8 @@
       "additionalProperties": false
     },
     "AgentInput_domains_check": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "domains": {
           "minItems": 1,
@@ -2282,8 +2575,8 @@
       "additionalProperties": false
     },
     "AgentInput_domains_search": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "query": {
           "type": "string",
@@ -2373,8 +2666,8 @@
       "additionalProperties": false
     },
     "AgentInput_name_packages_search": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "query": {
           "type": "string",
@@ -2846,14 +3139,14 @@
       ]
     },
     "AgentInput_account_membership": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "additionalProperties": false
     },
     "AgentInput_name_projects_list": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "additionalProperties": false
     },
@@ -3097,14 +3390,14 @@
       "$schema": "http://json-schema.org/draft-07/schema#"
     },
     "AgentInput_brand_reports_list": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "additionalProperties": false
     },
     "AgentInput_brand_reports_get": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "id": {
           "type": "string",
@@ -3123,8 +3416,8 @@
       "additionalProperties": false
     },
     "AgentInput_brand_reports_history": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "id": {
           "type": "string",
@@ -3137,8 +3430,8 @@
       "additionalProperties": false
     },
     "AgentInput_brand_reports_save": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "report": {
           "type": "object",
@@ -3353,8 +3646,8 @@
       "additionalProperties": false
     },
     "AgentInput_brand_checks_history": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "reportId": {
           "type": "string",
@@ -3385,8 +3678,8 @@
       "additionalProperties": false
     },
     "AgentInput_brand_checks_start": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "reportId": {
           "type": "string",
@@ -3411,6 +3704,256 @@
       ],
       "additionalProperties": false
     },
+    "AgentInput_brand_monitors_get": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "alertOffset": {
+          "default": 0,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1999
+        },
+        "alertLimit": {
+          "default": 10,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        }
+      },
+      "required": [
+        "reportId"
+      ],
+      "additionalProperties": false
+    },
+    "AgentInput_brand_monitors_configure": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "action": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "enable"
+            },
+            {
+              "type": "string",
+              "const": "resume"
+            },
+            {
+              "type": "string",
+              "const": "rebind"
+            }
+          ]
+        },
+        "expectedReportVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "expectedMonitorVersion": {
+          "anyOf": [
+            {
+              "type": "number",
+              "const": 0
+            },
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            }
+          ]
+        }
+      },
+      "oneOf": [
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "reportId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "requestKey": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "action": {
+              "type": "string",
+              "const": "enable"
+            },
+            "expectedReportVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "expectedMonitorVersion": {
+              "type": "number",
+              "const": 0
+            }
+          },
+          "required": [
+            "reportId",
+            "requestKey",
+            "action",
+            "expectedReportVersion",
+            "expectedMonitorVersion"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "reportId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "requestKey": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "action": {
+              "type": "string",
+              "const": "resume"
+            },
+            "expectedMonitorVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            }
+          },
+          "required": [
+            "reportId",
+            "requestKey",
+            "action",
+            "expectedMonitorVersion"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "reportId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "requestKey": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "action": {
+              "type": "string",
+              "const": "rebind"
+            },
+            "expectedReportVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "expectedMonitorVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            }
+          },
+          "required": [
+            "reportId",
+            "requestKey",
+            "action",
+            "expectedReportVersion",
+            "expectedMonitorVersion"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "AgentInput_brand_monitors_pause": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "action": {
+          "type": "string",
+          "const": "pause"
+        },
+        "expectedMonitorVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        }
+      },
+      "required": [
+        "reportId",
+        "requestKey",
+        "action",
+        "expectedMonitorVersion"
+      ],
+      "additionalProperties": false
+    },
+    "AgentInput_brand_monitor_alerts_acknowledge": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "action": {
+          "type": "string",
+          "const": "ack"
+        },
+        "alertId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        }
+      },
+      "required": [
+        "reportId",
+        "requestKey",
+        "action",
+        "alertId"
+      ],
+      "additionalProperties": false
+    },
     "AgentInput_social_profiles_check": {
       "type": "object",
       "properties": {
@@ -3431,8 +3974,8 @@
       "$schema": "http://json-schema.org/draft-07/schema#"
     },
     "AgentInput_trading_scenarios_list": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "additionalProperties": false
     },
@@ -3573,8 +4116,8 @@
       "$schema": "http://json-schema.org/draft-07/schema#"
     },
     "AgentInput_saved_domains_list": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "cursor": {
           "type": "string",
@@ -3584,8 +4127,8 @@
       "additionalProperties": false
     },
     "AgentInput_saved_domains_save": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "domain": {
           "type": "string",
@@ -3618,8 +4161,8 @@
       "additionalProperties": false
     },
     "AgentInput_saved_domains_remove": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "domain": {
           "type": "string",
@@ -3633,14 +4176,14 @@
       "additionalProperties": false
     },
     "AgentInput_trading_status": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "additionalProperties": false
     },
     "AgentInput_trading_report": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "offset": {
           "type": "integer",
@@ -3656,8 +4199,8 @@
       "additionalProperties": false
     },
     "AgentInput_trading_start": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "requestKey": {
           "description": "Client-generated UUID. Reuse for retries of this exact start request.",
@@ -3671,8 +4214,8 @@
       "additionalProperties": false
     },
     "AgentInput_trading_advance": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "runId": {
           "type": "string",
@@ -3685,8 +4228,8 @@
       "additionalProperties": false
     },
     "AgentInput_trading_stop": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "runId": {
           "type": "string",
@@ -3699,8 +4242,8 @@
       "additionalProperties": false
     },
     "AgentInput_trading_refresh_quote": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "runId": {
           "type": "string",
@@ -3725,8 +4268,8 @@
       "additionalProperties": false
     },
     "BusinessNamesRequest": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "businessDescription": {
           "description": "Describe what the business does, its audience and desired tone. The complete description is considered by a bounded, deterministic naming heuristic, not an AI or legal assessment.",
@@ -8142,8 +8685,8 @@
       "$schema": "http://json-schema.org/draft-07/schema#"
     },
     "BrandReportsSaveRequest": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "report": {
           "type": "object",
@@ -8358,8 +8901,8 @@
       "additionalProperties": false
     },
     "BrandChecksStartRequest": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "reportId": {
           "type": "string",
@@ -8381,6 +8924,1032 @@
         "reportId",
         "expectedVersion",
         "requestKey"
+      ],
+      "additionalProperties": false
+    },
+    "BrandMonitorsMutationRequest": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "reportId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "requestKey": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "action": {
+              "type": "string",
+              "const": "enable"
+            },
+            "expectedReportVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "expectedMonitorVersion": {
+              "type": "number",
+              "const": 0
+            }
+          },
+          "required": [
+            "reportId",
+            "requestKey",
+            "action",
+            "expectedReportVersion",
+            "expectedMonitorVersion"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "reportId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "requestKey": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "action": {
+              "type": "string",
+              "const": "pause"
+            },
+            "expectedMonitorVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            }
+          },
+          "required": [
+            "reportId",
+            "requestKey",
+            "action",
+            "expectedMonitorVersion"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "reportId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "requestKey": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "action": {
+              "type": "string",
+              "const": "resume"
+            },
+            "expectedMonitorVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            }
+          },
+          "required": [
+            "reportId",
+            "requestKey",
+            "action",
+            "expectedMonitorVersion"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "reportId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "requestKey": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "action": {
+              "type": "string",
+              "const": "rebind"
+            },
+            "expectedReportVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "expectedMonitorVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            }
+          },
+          "required": [
+            "reportId",
+            "requestKey",
+            "action",
+            "expectedReportVersion",
+            "expectedMonitorVersion"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "reportId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "requestKey": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "action": {
+              "type": "string",
+              "const": "ack"
+            },
+            "alertId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            }
+          },
+          "required": [
+            "reportId",
+            "requestKey",
+            "action",
+            "alertId"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "BrandMonitorsResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "monitor": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "reportId": {
+                  "type": "string",
+                  "allOf": [
+                    {
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                    },
+                    {
+                      "pattern": "^[a-f0-9-]+$"
+                    }
+                  ]
+                },
+                "reportVersion": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100
+                },
+                "version": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 10000
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "active",
+                    "paused"
+                  ]
+                },
+                "pauseReason": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "report_changed",
+                        "plan_limit",
+                        "history_full"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "targets": {
+                  "minItems": 1,
+                  "maxItems": 20,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 253
+                  }
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                },
+                "nextDueAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "lastAttemptAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "lastRunId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "allOf": [
+                        {
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                        },
+                        {
+                          "pattern": "^[a-f0-9-]+$"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "lastRunStatus": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "completed",
+                        "failed"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "lastFailureCode": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "provider_unavailable",
+                        "invalid_evidence",
+                        "check_interrupted"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "lastRunCoverage": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 20
+                        },
+                        "checked": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 20
+                        },
+                        "unknown": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 20
+                        }
+                      },
+                      "required": [
+                        "total",
+                        "checked",
+                        "unknown"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "lastSuccessfulAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "baselineCount": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 20
+                },
+                "methodologyVersion": {
+                  "type": "string",
+                  "const": "sajda.registry-monitor.v1"
+                }
+              },
+              "required": [
+                "reportId",
+                "reportVersion",
+                "version",
+                "status",
+                "pauseReason",
+                "targets",
+                "createdAt",
+                "updatedAt",
+                "nextDueAt",
+                "lastAttemptAt",
+                "lastRunId",
+                "lastRunStatus",
+                "lastFailureCode",
+                "lastRunCoverage",
+                "lastSuccessfulAt",
+                "baselineCount",
+                "methodologyVersion"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "currentPlan": {
+          "type": "string",
+          "enum": [
+            "free",
+            "basic",
+            "premium",
+            "trading"
+          ]
+        },
+        "capacity": {
+          "type": "object",
+          "properties": {
+            "active": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 50
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10
+            }
+          },
+          "required": [
+            "active",
+            "limit"
+          ],
+          "additionalProperties": false
+        },
+        "intervalHours": {
+          "type": "number",
+          "const": 24
+        },
+        "cronScheduled": {
+          "type": "boolean"
+        },
+        "alerts": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "allOf": [
+                  {
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                  },
+                  {
+                    "pattern": "^[a-f0-9-]+$"
+                  }
+                ]
+              },
+              "reportId": {
+                "type": "string",
+                "allOf": [
+                  {
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                  },
+                  {
+                    "pattern": "^[a-f0-9-]+$"
+                  }
+                ]
+              },
+              "reportVersion": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "monitorVersion": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              },
+              "runId": {
+                "type": "string",
+                "allOf": [
+                  {
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                  },
+                  {
+                    "pattern": "^[a-f0-9-]+$"
+                  }
+                ]
+              },
+              "target": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 253
+              },
+              "kind": {
+                "type": "string",
+                "const": "registration_changed"
+              },
+              "previous": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "available",
+                      "registered"
+                    ]
+                  },
+                  "observedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                  },
+                  "sourceUrl": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "format": "uri"
+                  }
+                },
+                "required": [
+                  "status",
+                  "observedAt",
+                  "sourceUrl"
+                ],
+                "additionalProperties": false
+              },
+              "current": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "available",
+                      "registered"
+                    ]
+                  },
+                  "observedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                  },
+                  "sourceUrl": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "format": "uri"
+                  }
+                },
+                "required": [
+                  "status",
+                  "observedAt",
+                  "sourceUrl"
+                ],
+                "additionalProperties": false
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+              },
+              "acknowledgedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "methodologyVersion": {
+                "type": "string",
+                "const": "sajda.registry-monitor.v1"
+              }
+            },
+            "required": [
+              "id",
+              "reportId",
+              "reportVersion",
+              "monitorVersion",
+              "runId",
+              "target",
+              "kind",
+              "previous",
+              "current",
+              "createdAt",
+              "acknowledgedAt",
+              "methodologyVersion"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2000
+        },
+        "alertOffset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1999
+        },
+        "alertLimit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "hasMore": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "accountId",
+        "requestId",
+        "monitor",
+        "currentPlan",
+        "capacity",
+        "intervalHours",
+        "cronScheduled",
+        "alerts",
+        "total",
+        "alertOffset",
+        "alertLimit",
+        "hasMore"
+      ],
+      "additionalProperties": false
+    },
+    "BrandMonitorMutationResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "monitor": {
+          "type": "object",
+          "properties": {
+            "reportId": {
+              "type": "string",
+              "allOf": [
+                {
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                },
+                {
+                  "pattern": "^[a-f0-9-]+$"
+                }
+              ]
+            },
+            "reportVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "version": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "active",
+                "paused"
+              ]
+            },
+            "pauseReason": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "user",
+                    "report_changed",
+                    "plan_limit",
+                    "history_full"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "targets": {
+              "minItems": 1,
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 253
+              }
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+            },
+            "nextDueAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "lastAttemptAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "lastRunId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "allOf": [
+                    {
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                    },
+                    {
+                      "pattern": "^[a-f0-9-]+$"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "lastRunStatus": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "completed",
+                    "failed"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "lastFailureCode": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "provider_unavailable",
+                    "invalid_evidence",
+                    "check_interrupted"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "lastRunCoverage": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "total": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 20
+                    },
+                    "checked": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 20
+                    },
+                    "unknown": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 20
+                    }
+                  },
+                  "required": [
+                    "total",
+                    "checked",
+                    "unknown"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "lastSuccessfulAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "baselineCount": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 20
+            },
+            "methodologyVersion": {
+              "type": "string",
+              "const": "sajda.registry-monitor.v1"
+            }
+          },
+          "required": [
+            "reportId",
+            "reportVersion",
+            "version",
+            "status",
+            "pauseReason",
+            "targets",
+            "createdAt",
+            "updatedAt",
+            "nextDueAt",
+            "lastAttemptAt",
+            "lastRunId",
+            "lastRunStatus",
+            "lastFailureCode",
+            "lastRunCoverage",
+            "lastSuccessfulAt",
+            "baselineCount",
+            "methodologyVersion"
+          ],
+          "additionalProperties": false
+        },
+        "acknowledgedAlert": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "allOf": [
+                    {
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                    },
+                    {
+                      "pattern": "^[a-f0-9-]+$"
+                    }
+                  ]
+                },
+                "reportId": {
+                  "type": "string",
+                  "allOf": [
+                    {
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                    },
+                    {
+                      "pattern": "^[a-f0-9-]+$"
+                    }
+                  ]
+                },
+                "reportVersion": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100
+                },
+                "monitorVersion": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 10000
+                },
+                "runId": {
+                  "type": "string",
+                  "allOf": [
+                    {
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                    },
+                    {
+                      "pattern": "^[a-f0-9-]+$"
+                    }
+                  ]
+                },
+                "target": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 253
+                },
+                "kind": {
+                  "type": "string",
+                  "const": "registration_changed"
+                },
+                "previous": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "available",
+                        "registered"
+                      ]
+                    },
+                    "observedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                    },
+                    "sourceUrl": {
+                      "type": "string",
+                      "maxLength": 2000,
+                      "format": "uri"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "observedAt",
+                    "sourceUrl"
+                  ],
+                  "additionalProperties": false
+                },
+                "current": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "available",
+                        "registered"
+                      ]
+                    },
+                    "observedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                    },
+                    "sourceUrl": {
+                      "type": "string",
+                      "maxLength": 2000,
+                      "format": "uri"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "observedAt",
+                    "sourceUrl"
+                  ],
+                  "additionalProperties": false
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                },
+                "acknowledgedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "methodologyVersion": {
+                  "type": "string",
+                  "const": "sajda.registry-monitor.v1"
+                }
+              },
+              "required": [
+                "id",
+                "reportId",
+                "reportVersion",
+                "monitorVersion",
+                "runId",
+                "target",
+                "kind",
+                "previous",
+                "current",
+                "createdAt",
+                "acknowledgedAt",
+                "methodologyVersion"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "accountId",
+        "requestId",
+        "monitor",
+        "acknowledgedAlert"
       ],
       "additionalProperties": false
     },

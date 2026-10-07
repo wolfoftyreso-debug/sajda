@@ -75,10 +75,10 @@ test("account deletion removes report, scenario and name-package rate identifier
   const subjects = [
     ...["lost-domains", "saved-domains", "commerce"].map(scope => `${scope}:${account.id}`),
     ...["development", "preview", "production"].flatMap(namespace =>
-      ["native", "account-membership", "trading-scenarios", "name-projects", "brand-reports", "brand-checks", "name-package-social"].map(scope => `${scope}:${namespace}:${account.id}`)),
+      ["native", "account-membership", "trading-scenarios", "name-projects", "brand-reports", "brand-checks", "brand-monitors", "name-package-social"].map(scope => `${scope}:${namespace}:${account.id}`)),
   ].map(subject => createHash("sha256").update(subject).digest("hex"));
   assert.deepEqual([...f.rateSubjects].sort(), subjects.sort());
-  assert.equal(new Set(f.rateSubjects).size, 24);
+  assert.equal(new Set(f.rateSubjects).size, 27);
   const removal = f.calls.findIndex(sql => sql.includes("deletion:rates"));
   assert.ok(removal >= 0 && removal < f.calls.findIndex(sql => sql.includes("deletion:delete-user")));
   assert.match(f.calls[removal], /WHERE subject_hash=ANY\(\$1::text\[\]\)/u);

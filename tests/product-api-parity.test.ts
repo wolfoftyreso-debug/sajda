@@ -178,7 +178,7 @@ test("real SDK discovery exposes bounded legacy schemas and protects private too
   await server.connect(serverTransport);
   const client = new Client({ name: "parity-test", version: "1.0.0" }); await client.connect(clientTransport);
   t.after(async () => { await client.close(); await server.close(); });
-  const catalogue = await client.listTools(); assert.equal(catalogue.tools.length, 27); assert.equal(calls, 0);
+  const catalogue = await client.listTools(); assert.equal(catalogue.tools.length, 31); assert.equal(calls, 0);
   const schemas = ["name_projects_save", "trading_scenarios_save", "social_profiles_check"] as const;
   for (const operation of schemas) {
     const schema = productOperationInputJsonSchema(operation);

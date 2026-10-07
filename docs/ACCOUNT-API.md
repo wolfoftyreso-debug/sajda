@@ -2,7 +2,7 @@
 
 Users can connect an AI assistant to their own Sajda account through the authenticated [MCP endpoint](MCP.md), or use the equivalent REST operations below. Both operate on the same account data as the website. An assistant can read saved domains, naming projects, membership and existing Trading reports, and can save changes only when the user has granted the matching permission.
 
-The anonymous connector at `/api/mcp/public` exposes six public research tools and cannot read or change an account. The authenticated `/api/mcp` 1.9.0 catalogue has 27 tools, including account-owned brand reports and separate archived registry checks. Tool discovery describes implemented capabilities; it does not grant scopes, paid membership or access to another user's data. These are source contracts, not a claim that every client or deployed host is already connected.
+The anonymous connector at `/api/mcp/public` exposes six public research tools and cannot read or change an account. The authenticated `/api/mcp` 1.10.0 catalogue has 31 tools, including saved brand reports, archived registry checks and daily registry-monitor controls. Discovery does not grant scopes, membership or another account's data. These are source contracts, not a claim that every client or deployed host is connected.
 
 ## Saved brand assessments
 
@@ -83,6 +83,51 @@ share the same owner/environment-scoped handler and database history.
 Endpoint: `/api/v1/account`. Every request requires `Authorization: Bearer <scoped-Sajda-key>`. Account identity and environment come from the verified key. Keep keys in server or integration secrets; website cookies and legacy operator search keys are not accepted here. Responses are private and never cached.
 
 ## Connect an assistant to an account
+
+### Daily registry monitoring
+
+Requires migration `0024`, the report/check flags above and
+`SAJDA_BRAND_MONITORS_ENABLED=true`. Worker activation is separately gated by
+`SAJDA_BRAND_MONITORS_CRON_ENABLED=true` and a server-only `CRON_SECRET`.
+
+| Action | REST resource=brand-monitors | Private MCP | Scopes |
+| --- | --- | --- | --- |
+| Read status and alerts | GET with reportId, optional alertOffset/alertLimit | brand_monitors_get | projects:read |
+| Enable/resume/rebind | POST with action, reportId, requestKey and expected versions | brand_monitors_configure | projects:write **and** domains:search |
+| Pause | POST action=pause, reportId, requestKey, expectedMonitorVersion | brand_monitors_pause | projects:write |
+| Mark one alert read | POST action=ack, reportId, alertId, requestKey | brand_monitor_alerts_acknowledge | projects:write |
+
+Enabling is explicit consent to future registry requests for **one saved report
+version**. Creation requires `expectedMonitorVersion=0` and the latest
+`expectedReportVersion`. Resume/pause require the current monitor version;
+rebind also requires the latest report version and resets its baseline. Each
+intent uses a fresh UUID request key; an uncertain response must be retried with
+the identical payload/key. The original receipt is immutable.
+
+Server-verified Basic/Premium/Trading accounts allow 1/5/10 active monitors;
+Free allows none. Reading, pausing and acknowledging remain available after
+downgrade. The oldest eligible monitors survive a lower limit; paused monitors
+do not silently reactivate after upgrade. Changed report scope pauses until
+explicit rebind. Reads perform no source work.
+
+The first definitive observation is a baseline, not an alert. Only newer
+contradictory available/registered observations of the same domain from the
+same approved registry produce a dated in-account alert. Unknown, cached,
+failed or unsupported samples do not mean unchanged or available. The response
+separates last attempt, checked/unknown coverage, last successful sample and
+baseline count. Saved user declarations and index scores remain unchanged.
+
+After an attempt, checks are normally due 24 hours later. Explicitly accepting
+a new saved scope starts a fresh baseline. A five-minute production cron processes at most
+two due reports per tick with durable leases and version fences; this is not
+realtime or a delivery SLA. Vercel does not automatically schedule previews:
+`cronScheduled=false` there, even when an authorized manual test tick succeeds.
+Manual and scheduled checks share 10 new attempts/account/UTC day and the finite
+100-check/report archive. Full history explicitly pauses; records are not
+deleted. This is not unlimited perpetual monitoring. Notifications are
+**in-account only**, not email, and cover neither prices, ownership, social
+names, company names nor trademarks. REST/browser bodies are capped at 4 KiB;
+MCP keeps its 16 KiB whole-message boundary.
 
 1. Sign in to the owning Sajda account, verify its email and create a scoped key in `/developers`.
 2. Begin with only the reads the assistant needs: `account:read`, `saved:read`, `projects:read` and/or `trading:read`. Add `domains:search` for naming/domain research. New keys default to **only** `domains:search`; account reads are an explicit selection and no account writes are selected by default.

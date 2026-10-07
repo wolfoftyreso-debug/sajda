@@ -8,7 +8,8 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "crons": [
-    { "path": "/api/cron/lost-domains", "schedule": "*/5 * * * *" }
+    { "path": "/api/cron/lost-domains", "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/brand-monitors", "schedule": "*/5 * * * *" }
   ],
   "functions": {
     "api/v1/business-names.ts": { "maxDuration": 30 },
@@ -20,6 +21,8 @@
     "api/account/name-package-social.ts": { "maxDuration": 15 },
     "api/account/name-projects.ts": { "maxDuration": 20 },
     "api/account/brand-checks.ts": { "maxDuration": 60 },
+    "api/account/brand-monitors.ts": { "maxDuration": 20 },
+    "api/cron/brand-monitors.ts": { "maxDuration": 180 },
     "api/mcp.ts": { "maxDuration": 60 },
     "api/mcp/public.ts": { "maxDuration": 60 },
     "api/v1/account.ts": { "maxDuration": 60 },

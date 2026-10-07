@@ -40,6 +40,9 @@ assert.ok(schemaBody.components.schemas.BrandReportsSaveRequest); checks++;
 assert.ok(schemaBody.components.schemas.BrandCheckResponse);
 assert.ok(schemaBody.components.schemas.BrandChecksHistoryResponse);
 assert.ok(schemaBody.components.schemas.BrandChecksStartRequest); checks++;
+assert.ok(schemaBody.components.schemas.BrandMonitorsMutationRequest);
+assert.ok(schemaBody.components.schemas.BrandMonitorsResponse);
+assert.ok(schemaBody.components.schemas.BrandMonitorMutationResponse); checks++;
 const publicMcp = await fetch(new URL("/api/mcp/public", origin), { method: "POST", signal: AbortSignal.timeout(transportTimeout),
   headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
   body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "sajda-runtime-check", version: "1.0.0" } } }),
@@ -63,7 +66,7 @@ for (const path of ["/api/v1/domains", "/api/account/saved-domains", "/api/accou
 }
 // This feature is preview-only until its separate production gate is closed.
 // Anonymous requests may see its disabled boundary (404), never account data.
-for (const [path, flag] of [["/api/account/brand-reports", "SAJDA_REQUIRE_BRAND_REPORTS"], ["/api/account/brand-checks", "SAJDA_REQUIRE_BRAND_CHECKS"]]) for (const method of ["GET", "POST"]) {
+for (const [path, flag] of [["/api/account/brand-reports", "SAJDA_REQUIRE_BRAND_REPORTS"], ["/api/account/brand-checks", "SAJDA_REQUIRE_BRAND_CHECKS"], ["/api/account/brand-monitors", "SAJDA_REQUIRE_BRAND_MONITORS"]]) for (const method of ["GET", "POST"]) {
   const response = await fetch(new URL(path, origin), { method,
     headers: { "content-type": "application/json", "x-sajda-account": "runtime-qa-forged-owner" },
     ...(method === "POST" ? { body: "{}" } : {}) });
@@ -74,7 +77,7 @@ for (const [path, flag] of [["/api/account/brand-reports", "SAJDA_REQUIRE_BRAND_
   const failure = await response.json(); assert.ok(failure.code); assert.ok(failure.requestId);
   assert.equal("reports" in failure, false); assert.equal("report" in failure, false); checks++;
 }
-for (const path of ["/api/v1/account?resource=brand-reports", "/api/v1/account?resource=brand-checks", "/api/mcp"]) {
+for (const path of ["/api/v1/account?resource=brand-reports", "/api/v1/account?resource=brand-checks", "/api/v1/account?resource=brand-monitors", "/api/mcp"]) {
   const response = await fetch(new URL(path, origin), { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
   assert.equal(response.status, 401, path);
   assert.match(response.headers.get("cache-control") || "", /no-store/u);
@@ -108,6 +111,9 @@ assert.ok((await quote.json()).code); checks++;
 const scheduler = await fetch(new URL("/api/cron/lost-domains", origin));
 assert.equal(scheduler.status, 401, "scheduler cannot run without its private secret");
 assert.equal((await scheduler.json()).code, "authentication_required"); checks++;
+const brandScheduler = await fetch(new URL("/api/cron/brand-monitors", origin));
+assert.equal(brandScheduler.status, 401, "brand scheduler rejects an unauthenticated tick");
+assert.equal((await brandScheduler.json()).code, "authentication_required"); checks++;
 for (const [path, method, expected, body] of [
   ["/api/account/deletion", "POST", 401, {}],
   ["/api/native/account", "GET", 405],

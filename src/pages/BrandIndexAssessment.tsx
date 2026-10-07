@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import NamePackageMarkets from "@/components/NamePackageMarkets";
 import BrandEvidencePanel from "@/components/BrandEvidencePanel";
+import BrandReportMonitoring from "@/components/BrandReportMonitoring";
 import FreeSearchGate from "@/components/FreeSearchGate";
 import { useScan } from "@/contexts/ScanContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -74,6 +75,7 @@ function LocalBrandWorksheet({ ownerId, verified }: { ownerId: string | null; ve
   const [reportNotice, setReportNotice] = useState<"saved" | "copyReady" | null>(null), [baseline, setBaseline] = useState<string | null>(null);
   const [viewRevision, setViewRevision] = useState(0), [targetDrafts, setTargetDrafts] = useState<string[]>([]);
   const [sourceCheckUnsettled, setSourceCheckUnsettled] = useState(false);
+  const [monitorUnsettled, setMonitorUnsettled] = useState(false);
   const [pendingOpen, setPendingOpen] = useState<{ id: string; version?: number } | null>(null);
   const accountRequestRef = useRef<AbortController | null>(null), listRequestRef = useRef<AbortController | null>(null);
   const pendingSaveRef = useRef<BrandReportSaveInput | null>(null);
@@ -81,8 +83,8 @@ function LocalBrandWorksheet({ ownerId, verified }: { ownerId: string | null; ve
   const hasDraft = input !== null || [brandName, identity, primary, extraDomains, ...Object.values(handles)].some(value => value.trim().length > 0)
     || platforms.length !== SOCIAL_PLATFORMS.length || markets.length !== DEFAULT_NAME_PACKAGE_MARKETS.length || markets.some(market => !DEFAULT_NAME_PACKAGE_MARKETS.includes(market));
   const accountDirty = baseline === null ? hasDraft : fingerprint !== baseline;
-  const dirty = accountDirty || targetDrafts.length > 0 || domainRows.length > 0 || saveUncertain || sourceCheckUnsettled;
-  const locked = historical || operation !== null || saveUncertain || sourceCheckUnsettled;
+  const dirty = accountDirty || targetDrafts.length > 0 || domainRows.length > 0 || saveUncertain || sourceCheckUnsettled || monitorUnsettled;
+  const locked = historical || operation !== null || saveUncertain || sourceCheckUnsettled || monitorUnsettled;
   useDraftNavigationGuard(ownerId ?? "", !!ownerId && dirty);
   useLocalDraftNavigationGuard(ownerId, !ownerId && dirty);
 
@@ -212,7 +214,7 @@ function LocalBrandWorksheet({ ownerId, verified }: { ownerId: string | null; ve
     setViewRevision(previous => previous + 1);
   }
   async function openReport(selector: { id: string; version?: number }) {
-    if (!ownerId || !verified || accountRequestRef.current || saveUncertain || checking || sourceCheckUnsettled) return;
+    if (!ownerId || !verified || accountRequestRef.current || saveUncertain || checking || sourceCheckUnsettled || monitorUnsettled) return;
     const controller = new AbortController(); accountRequestRef.current = controller; setOperation("open"); setReportError(null); setPendingOpen(null);
     try {
       const value = await getBrandReport({ accountId: ownerId, signal: controller.signal }, selector);
@@ -221,11 +223,11 @@ function LocalBrandWorksheet({ ownerId, verified }: { ownerId: string | null; ve
     finally { if (accountRequestRef.current === controller) { accountRequestRef.current = null; if (alive.current) setOperation(null); } }
   }
   function requestOpen(selector: { id: string; version?: number }) {
-    if (operation || saveUncertain || checking || sourceCheckUnsettled) return;
+    if (operation || saveUncertain || checking || sourceCheckUnsettled || monitorUnsettled) return;
     if (dirty) setPendingOpen(selector); else void openReport(selector);
   }
   async function showHistory(id: string) {
-    if (!ownerId || !verified || accountRequestRef.current || saveUncertain) return;
+    if (!ownerId || !verified || accountRequestRef.current || saveUncertain || monitorUnsettled) return;
     const controller = new AbortController(); accountRequestRef.current = controller; setOperation("history"); setReportError(null);
     try {
       const value = await getBrandReportHistory({ accountId: ownerId, signal: controller.signal }, id);
@@ -234,11 +236,11 @@ function LocalBrandWorksheet({ ownerId, verified }: { ownerId: string | null; ve
     finally { if (accountRequestRef.current === controller) { accountRequestRef.current = null; if (alive.current) setOperation(null); } }
   }
   function editAsNewReport() {
-    if (!input || operation || saveUncertain || targetDrafts.length > 0 || sourceCheckUnsettled) return;
+    if (!input || operation || saveUncertain || targetDrafts.length > 0 || sourceCheckUnsettled || monitorUnsettled) return;
     setCurrentReport(null); setHistorical(false); setBaseline(null); setReportError(null); setReportNotice("copyReady"); setVersions([]); setHistoryId(null); setTargetDrafts([]); setViewRevision(previous => previous + 1);
   }
   async function saveReport() {
-    if (!ownerId || !verified || !input || historical || checking || targetDrafts.length > 0 || accountRequestRef.current || sourceCheckUnsettled) return;
+    if (!ownerId || !verified || !input || historical || checking || targetDrafts.length > 0 || accountRequestRef.current || sourceCheckUnsettled || monitorUnsettled) return;
     // A timeout keeps this immutable request (including idempotency key). No
     // edited input can be sent until its exact save has been reconciled.
     const payload = pendingSaveRef.current ?? {
@@ -292,8 +294,8 @@ function LocalBrandWorksheet({ ownerId, verified }: { ownerId: string | null; ve
             <p data-brand-report-dirty={accountDirty || targetDrafts.length > 0} className="text-sm leading-6">{accountDirty || targetDrafts.length > 0 ? rc.unsaved : rc.unchanged}</p>
             {targetDrafts.length > 0 && <p role="status" className="text-sm leading-6">{rc.unrecorded}</p>}
             {saveUncertain && <p role="alert" className="text-sm leading-6">{rc.pending}</p>}
-            <Button type="button" className={action} data-brand-report-save disabled={!!operation || checking || sourceCheckUnsettled || targetDrafts.length > 0 || !saveUncertain && !accountDirty} onClick={() => void saveReport()}>{operation === "save" ? rc.saving : saveUncertain ? rc.retry : currentReport ? rc.update : rc.save}</Button>
-            {(reportError === "conflict" || reportError === "version_limit") && <Button type="button" variant="outline" className={action + " ml-0 sm:ml-3"} data-brand-report-conflict-copy disabled={!!operation || targetDrafts.length > 0 || sourceCheckUnsettled} onClick={editAsNewReport}>{rc.conflictCopy}</Button>}
+            <Button type="button" className={action} data-brand-report-save disabled={!!operation || checking || sourceCheckUnsettled || monitorUnsettled || targetDrafts.length > 0 || !saveUncertain && !accountDirty} onClick={() => void saveReport()}>{operation === "save" ? rc.saving : saveUncertain ? rc.retry : currentReport ? rc.update : rc.save}</Button>
+            {(reportError === "conflict" || reportError === "version_limit") && <Button type="button" variant="outline" className={action + " ml-0 sm:ml-3"} data-brand-report-conflict-copy disabled={!!operation || targetDrafts.length > 0 || sourceCheckUnsettled || monitorUnsettled} onClick={editAsNewReport}>{rc.conflictCopy}</Button>}
           </>}
           {currentReport && <p className="text-xs leading-5 text-muted-foreground">{rc.version} {currentReport.version} · {rc.savedAt} <time data-brand-report-saved-at dateTime={currentReport.savedAt}>{formatLocalizedDateTime(currentReport.savedAt, language)}</time></p>}
         </div>}
@@ -304,8 +306,8 @@ function LocalBrandWorksheet({ ownerId, verified }: { ownerId: string | null; ve
           <summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold">{rc.title} ({reports.length})</summary>
           <Button type="button" variant="outline" className={action} data-brand-report-refresh disabled={reportsLoading || !!operation || saveUncertain} onClick={() => void refreshReports()}>{reportsLoading ? rc.loading : rc.refresh}</Button>
           {listError ? <p role="alert" className="mt-3 text-sm leading-6">{rc[listError]}</p> : !reportsLoading && reports.length === 0 ? <p className="mt-3 text-sm leading-6 text-muted-foreground">{rc.empty}</p> : null}
-          <ul className="mt-3 space-y-3">{reports.map(report => <li key={report.id} className="min-w-0 rounded-xl border border-border p-3"><p className="break-words text-sm font-semibold">{report.title}</p><p className="mt-1 text-xs text-muted-foreground">{rc.version} {report.version} · {formatLocalizedDateTime(report.updatedAt, language)}</p><div className="mt-2 flex flex-wrap gap-2"><Button type="button" variant="outline" className={action} data-brand-report-open={report.id} disabled={!!operation || saveUncertain || checking || sourceCheckUnsettled} onClick={() => requestOpen({ id: report.id })}>{rc.open}</Button><Button type="button" variant="ghost" className={action} data-brand-report-history={report.id} disabled={!!operation || saveUncertain} onClick={() => void showHistory(report.id)}>{rc.history}</Button></div></li>)}</ul>
-          {historyId && <section className="mt-4" aria-labelledby="brand-report-history-title"><h3 id="brand-report-history-title" className="text-sm font-semibold">{rc.history}</h3><ul className="mt-2 space-y-2">{versions.map(version => <li key={version.version}><Button type="button" variant="outline" className={action + " w-full"} data-brand-report-version={version.version} disabled={!!operation || saveUncertain || checking || sourceCheckUnsettled} onClick={() => requestOpen({ id: version.id, version: version.version })}>{rc.version} {version.version} · {formatLocalizedDateTime(version.savedAt, language)}</Button></li>)}</ul></section>}
+          <ul className="mt-3 space-y-3">{reports.map(report => <li key={report.id} className="min-w-0 rounded-xl border border-border p-3"><p className="break-words text-sm font-semibold">{report.title}</p><p className="mt-1 text-xs text-muted-foreground">{rc.version} {report.version} · {formatLocalizedDateTime(report.updatedAt, language)}</p><div className="mt-2 flex flex-wrap gap-2"><Button type="button" variant="outline" className={action} data-brand-report-open={report.id} disabled={!!operation || saveUncertain || checking || sourceCheckUnsettled || monitorUnsettled} onClick={() => requestOpen({ id: report.id })}>{rc.open}</Button><Button type="button" variant="ghost" className={action} data-brand-report-history={report.id} disabled={!!operation || saveUncertain || monitorUnsettled} onClick={() => void showHistory(report.id)}>{rc.history}</Button></div></li>)}</ul>
+          {historyId && <section className="mt-4" aria-labelledby="brand-report-history-title"><h3 id="brand-report-history-title" className="text-sm font-semibold">{rc.history}</h3><ul className="mt-2 space-y-2">{versions.map(version => <li key={version.version}><Button type="button" variant="outline" className={action + " w-full"} data-brand-report-version={version.version} disabled={!!operation || saveUncertain || checking || sourceCheckUnsettled || monitorUnsettled} onClick={() => requestOpen({ id: version.id, version: version.version })}>{rc.version} {version.version} · {formatLocalizedDateTime(version.savedAt, language)}</Button></li>)}</ul></section>}
         </details>
         {pendingOpen && <section className="mt-4 rounded-xl border border-border p-4" aria-labelledby="brand-report-replace-title"><h3 id="brand-report-replace-title" className="font-semibold">{rc.leaveTitle}</h3><p role="alert" className="mt-2 text-sm leading-6">{rc.leaveBody}</p><div className="mt-3 flex flex-wrap gap-3"><Button type="button" variant="outline" className={action} data-brand-report-discard-open onClick={() => void openReport(pendingOpen)}>{rc.replace}</Button><Button type="button" variant="ghost" className={action} onClick={() => setPendingOpen(null)}>{rc.keep}</Button></div></section>}
       </>}
@@ -329,8 +331,10 @@ function LocalBrandWorksheet({ ownerId, verified }: { ownerId: string | null; ve
       {confirmReset && <section className="rounded-xl border border-border bg-card p-5" aria-label={c.edit}><p role="alert" className="text-sm leading-6">{c.resetWarning}</p><div className="mt-3 flex flex-wrap gap-3"><Button type="button" variant="outline" className={action} onClick={reset}>{c.reset}</Button><Button type="button" variant="ghost" className={action} onClick={() => setConfirmReset(false)}>{c.cancel}</Button></div></section>}
       <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{c.fixed}</p>
       {ownerId && verified ? currentReport ? <SavedBrandChecks key={`${ownerId}:${currentReport.id}:${currentReport.version}`} ownerId={ownerId} reportId={currentReport.id} reportVersion={currentReport.version} historical={historical}
-        latest={reports.find(report => report.id === currentReport.id)?.version === currentReport.version} clean={!accountDirty && targetDrafts.length === 0} blocked={operation !== null || checking || saveUncertain} language={language} now={now} onUnsettledChange={setSourceCheckUnsettled} />
+        latest={reports.find(report => report.id === currentReport.id)?.version === currentReport.version} clean={!accountDirty && targetDrafts.length === 0} blocked={operation !== null || checking || saveUncertain || monitorUnsettled} language={language} now={now} onUnsettledChange={setSourceCheckUnsettled} />
         : <p className="rounded-xl border border-border p-4 text-sm leading-6">{brandChecksCopy[language].saveFirst}</p> : null}
+      {ownerId && verified && currentReport && <BrandReportMonitoring key={`monitor:${ownerId}:${currentReport.id}:${currentReport.version}`} ownerId={ownerId} reportId={currentReport.id} reportVersion={currentReport.version} historical={historical}
+        latest={reports.find(report => report.id === currentReport.id)?.version === currentReport.version} clean={!accountDirty && targetDrafts.length === 0} blocked={operation !== null || checking || saveUncertain || sourceCheckUnsettled} language={language} now={now} onUnsettledChange={setMonitorUnsettled} />}
       <section className="rounded-2xl border border-border bg-card p-5" aria-labelledby="brand-worksheet-export-title">
         <h3 id="brand-worksheet-export-title" className="text-lg font-semibold">{wc.exportTitle}</h3>
         <p id="brand-worksheet-export-help" className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{ownerId && verified ? rc.exportHelp : wc.exportHelp}</p>

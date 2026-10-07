@@ -5,6 +5,7 @@ import trading from "../account/lost-domains.js";
 import nameProjects from "../account/name-projects.js";
 import brandReports from "../account/brand-reports.js";
 import brandChecks from "../account/brand-checks.js";
+import brandMonitors from "../account/brand-monitors.js";
 import socialProfiles from "../account/name-package-social.js";
 import tradingScenarios from "../account/trading-scenarios.js";
 import { AccountAccessError } from "./account-error.js";
@@ -85,6 +86,7 @@ export function createMcpProductExecutor(dependencies: {
   nameProjects?: typeof nameProjects;
   brandReports?: typeof brandReports;
   brandChecks?: typeof brandChecks;
+  brandMonitors?: typeof brandMonitors;
   socialProfiles?: typeof socialProfiles;
   tradingScenarios?: typeof tradingScenarios;
   quota?: typeof consumeApiKeyQuota;
@@ -162,6 +164,8 @@ export function createMcpProductExecutor(dependencies: {
     else if (operation === "brand_reports_save") { method = "POST"; body = args; }
     else if (operation === "brand_checks_start") { method = "POST"; body = args; }
     else if (operation === "brand_checks_history") { query = Object.fromEntries(Object.entries(args).map(([key, value]) => [key, String(value)])); }
+    else if (operation === "brand_monitors_get") { query = Object.fromEntries(Object.entries(args).map(([key, value]) => [key, String(value)])); }
+    else if (operation === "brand_monitors_configure" || operation === "brand_monitors_pause" || operation === "brand_monitor_alerts_acknowledge") { method = "POST"; body = args; }
     else if (operation === "brand_reports_get") { query = { id: args.id, ...(args.version === undefined ? {} : { version: String(args.version) }) }; }
     else if (operation === "brand_reports_history") { query = { ...args, history: "true" }; }
     else if (operation === "trading_scenarios_save") { method = "POST"; body = { action: "save", ...args }; }
@@ -181,6 +185,7 @@ export function createMcpProductExecutor(dependencies: {
     else if (operation === "name_projects_list" || operation === "name_projects_save") await (dependencies.nameProjects ?? nameProjects)(request, output.response);
     else if (operation.startsWith("brand_reports_")) await (dependencies.brandReports ?? brandReports)(request, output.response);
     else if (operation.startsWith("brand_checks_")) await (dependencies.brandChecks ?? brandChecks)(request, output.response);
+    else if (operation.startsWith("brand_monitors_") || operation === "brand_monitor_alerts_acknowledge") await (dependencies.brandMonitors ?? brandMonitors)(request, output.response);
     else if (operation === "social_profiles_check") await (dependencies.socialProfiles ?? socialProfiles)(request, output.response);
     else if (operation === "trading_scenarios_list" || operation === "trading_scenarios_save") await (dependencies.tradingScenarios ?? tradingScenarios)(request, output.response);
     else if (operation.startsWith("saved_domains_")) await (dependencies.savedDomains ?? savedDomains)(request, output.response);

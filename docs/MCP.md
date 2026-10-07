@@ -1,6 +1,6 @@
 # Sajda remote MCP
 
-Endpoint: `https://<your-sajda-host>/api/mcp`. Transport: MCP Streamable HTTP with JSON responses. The authenticated source server version is `1.9.0`; the official TypeScript SDK is pinned to `@modelcontextprotocol/sdk` **1.32.1**.
+Endpoint: `https://<your-sajda-host>/api/mcp`. Transport: MCP Streamable HTTP with JSON responses. The authenticated source server version is `1.10.0` (31 tools); the official TypeScript SDK is pinned to `@modelcontextprotocol/sdk` **1.32.1**. Daily registry controls use the same account and scoped handler as the website; see [account permissions and boundaries](ACCOUNT-API.md#daily-registry-monitoring).
 
 Public source version `1.7.0` advertises six tools; the authenticated catalogue
 has 27, including four private saved-brand-report operations and two separate archived-registry-check operations. Both additionally expose two opt-in prompts and two static policy resources.

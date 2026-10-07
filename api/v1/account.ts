@@ -89,11 +89,11 @@ export function createAccountApiHandler(dependencies: {
       const principal = await (dependencies.authorize ?? requireApiKey)(request.headers);
       const query = readRequestQuery(request);
       const resource = query.resource;
-      if (typeof resource !== "string" || !["membership", "saved-domains", "trading", "trading-status", "name-projects", "brand-reports", "brand-checks", "social-profiles", "trading-scenarios"].includes(resource)) {
-        throw new AccountAccessError("invalid_resource", 400, "Choose a documented account resource: membership, saved-domains, name-projects, brand-reports, brand-checks, social-profiles, trading, trading-status or trading-scenarios.");
+      if (typeof resource !== "string" || !["membership", "saved-domains", "trading", "trading-status", "name-projects", "brand-reports", "brand-checks", "brand-monitors", "social-profiles", "trading-scenarios"].includes(resource)) {
+        throw new AccountAccessError("invalid_resource", 400, "Choose a documented account resource: membership, saved-domains, name-projects, brand-reports, brand-checks, brand-monitors, social-profiles, trading, trading-status or trading-scenarios.");
       }
       const allowedMethods = resource === "saved-domains" ? ["GET", "POST", "DELETE"]
-        : ["trading", "name-projects", "brand-reports", "brand-checks", "trading-scenarios"].includes(resource) ? ["GET", "POST"]
+        : ["trading", "name-projects", "brand-reports", "brand-checks", "brand-monitors", "trading-scenarios"].includes(resource) ? ["GET", "POST"]
         : resource === "social-profiles" ? ["POST"] : ["GET"];
       if (!request.method || !allowedMethods.includes(request.method)) {
         response.setHeader("Allow", allowedMethods.join(", "));
@@ -102,6 +102,7 @@ export function createAccountApiHandler(dependencies: {
       const allowedQuery = request.method === "GET" && resource === "saved-domains" ? ["resource", "cursor"]
         : request.method === "GET" && resource === "brand-reports" ? ["resource", "id", "version", "history"]
         : request.method === "GET" && resource === "brand-checks" ? ["resource", "reportId", "version", "offset", "limit"]
+        : request.method === "GET" && resource === "brand-monitors" ? ["resource", "reportId", "alertOffset", "alertLimit"]
         : request.method === "GET" && resource === "trading" ? ["resource", "offset", "limit"] : ["resource"];
       if (Object.keys(query).some(key => !allowedQuery.includes(key))) {
         throw new AccountAccessError("invalid_request", 400, "Use only documented query parameters for this resource.");
@@ -134,6 +135,17 @@ export function createAccountApiHandler(dependencies: {
           ...(query.version === undefined ? {} : { version: queryNumber(query.version) }),
           ...(query.offset === undefined ? {} : { offset: queryNumber(query.offset) }),
           ...(query.limit === undefined ? {} : { limit: queryNumber(query.limit) }) } : await readBody(request, 4096);
+      } else if (resource === "brand-monitors") {
+        if (request.method === "GET") {
+          operation = "brand_monitors_get";
+          args = { reportId: query.reportId,
+            ...(query.alertOffset === undefined ? {} : { alertOffset: queryNumber(query.alertOffset) }),
+            ...(query.alertLimit === undefined ? {} : { alertLimit: queryNumber(query.alertLimit) }) };
+        } else {
+          args = await readBody(request, 4096);
+          operation = args.action === "pause" ? "brand_monitors_pause"
+            : args.action === "ack" ? "brand_monitor_alerts_acknowledge" : "brand_monitors_configure";
+        }
       } else if (resource === "trading-scenarios") {
         operation = request.method === "GET" ? "trading_scenarios_list" : "trading_scenarios_save";
         args = request.method === "GET" ? {} : await readBody(request, 16384);

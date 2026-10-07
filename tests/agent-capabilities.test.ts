@@ -5,8 +5,8 @@ import { openApiDocument } from "../api/_shared/openapi-document.mjs";
 import { readFileSync } from "node:fs";
 
 test("all advertised account tools map to documented REST routes and exact input schemas", () => {
-  assert.equal(capabilities.capabilities.length, 27);
-  assert.equal(new Set(capabilities.capabilities.map(tool => tool.name)).size, 27);
+  assert.equal(capabilities.capabilities.length, 31);
+  assert.equal(new Set(capabilities.capabilities.map(tool => tool.name)).size, 31);
   for (const tool of capabilities.capabilities) {
     assert.ok(tool.rest, tool.name);
     const path = tool.rest.path.split("?")[0];

@@ -16,6 +16,10 @@ const routes: Record<string, Route> = {
   brand_reports_history: { method: "GET", path: "/api/v1/account?resource=brand-reports&id={id}&history=true" },
   brand_checks_history: { method: "GET", path: "/api/v1/account?resource=brand-checks&reportId={reportId}" },
   brand_checks_start: account("brand-checks", "POST"),
+  brand_monitors_get: { method: "GET", path: "/api/v1/account?resource=brand-monitors&reportId={reportId}" },
+  brand_monitors_configure: account("brand-monitors", "POST"),
+  brand_monitors_pause: account("brand-monitors", "POST"),
+  brand_monitor_alerts_acknowledge: account("brand-monitors", "POST"),
   social_profiles_check: account("social-profiles", "POST"),
   trading_scenarios_list: account("trading-scenarios"), trading_scenarios_save: account("trading-scenarios", "POST"),
   saved_domains_list: account("saved-domains"), saved_domains_save: account("saved-domains", "POST"),
@@ -48,6 +52,9 @@ export const capabilities = {
     conditions: tool.name.startsWith("name_projects_") ? ["verified_account", "name_projects_feature_enabled"]
       : tool.name.startsWith("brand_reports_") ? ["verified_account", "brand_reports_feature_enabled"]
       : tool.name.startsWith("brand_checks_") ? ["verified_account", "brand_reports_feature_enabled", "brand_checks_feature_enabled"]
+      : tool.name.startsWith("brand_monitors_") || tool.name === "brand_monitor_alerts_acknowledge"
+        ? ["verified_account", "brand_reports_feature_enabled", "brand_checks_feature_enabled", "brand_monitors_feature_enabled",
+          ...(tool.name === "brand_monitors_configure" ? ["live_plan_monitor_capacity"] : [])]
       : tool.name.startsWith("trading_scenarios_") ? ["verified_account", "active_trading_entitlement"]
         : tool.name.startsWith("trading_") ? ["account_ownership", "operation_specific_trading_entitlement_and_budgets"]
           : publicRoutes[tool.name] ? ["shared_request_and_provider_limits"] : ["account_ownership", "operation_specific_limits"],

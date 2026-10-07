@@ -75,7 +75,7 @@ test("account discovery describes exact project/social/scenario request shapes a
   assert.equal(account.post["x-sajda-action-scopes"].trading_scenarios_save, "trading:write");
   assert.equal(account.post["x-sajda-action-scopes"].social_profiles_check, "social:check");
   assert.deepEqual(account.post["x-sajda-resource-body-limit-bytes"], {
-    "saved-domains": 8192, trading: 8192, "name-projects": 32768, "brand-reports": 65536, "brand-checks": 4096, "trading-scenarios": 16384, "social-profiles": 4096,
+    "saved-domains": 8192, trading: 8192, "name-projects": 32768, "brand-reports": 65536, "brand-checks": 4096, "brand-monitors": 4096, "trading-scenarios": 16384, "social-profiles": 4096,
   });
   const schemas = document.components.schemas;
   const project = schemas.NameProjectsSaveRequest;

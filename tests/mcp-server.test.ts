@@ -135,7 +135,7 @@ test("real SDK client initializes, discovers strict schemas and calls tools over
   assert.equal(transport.sessionId, undefined);
   assert.equal(transport.protocolVersion, "2025-11-25");
   const catalogue = await client.listTools();
-  assert.equal(catalogue.tools.length, 27);
+  assert.equal(catalogue.tools.length, 31);
   assert.deepEqual(fixture.calls, [], "Initialize and discovery cannot execute product work.");
   for (const tool of catalogue.tools) {
     assert.equal(tool.inputSchema.type, "object");
@@ -183,7 +183,7 @@ test("initialization negotiates compatible dated versions and unsupported protoc
 test("Vercel's parsed-body getter supports the SDK transport and malformed JSON remains a protocol error", async t => {
   const fixture = await serve(t, { vercelBody: true });
   const { client } = await fixture.client();
-  assert.equal((await client.listTools()).tools.length, 27);
+  assert.equal((await client.listTools()).tools.length, 31);
   const malformed = await fixture.post("{");
   assert.equal(malformed.status, 400);
   assert.equal((await malformed.json()).error.code, ErrorCode.ParseError);

@@ -36,6 +36,7 @@ test("saved-check interface distinguishes latest attempts, dated history and unc
     if (file.endsWith("/src/lib/appSurface.ts")) return "export const isNativeApp=false;";
     if (file.endsWith("/src/lib/nativeTransport.ts")) return "export const nativeShareFile=async()=>({completed:false});";
     if (file.endsWith("/src/components/LanguageSwitcher.tsx") || file.endsWith("/src/components/FreeSearchGate.tsx")) return "export default function Hidden(){return null;}";
+    if (file.endsWith("/src/components/BrandReportMonitoring.tsx")) return "export default function SeparateMonitoring(){return null;}";
     if (file.endsWith("/src/contexts/ScanContext.tsx")) return "export const useScan=()=>({isScanning:false});";
     if (file.endsWith("/src/lib/localTestSearch.ts")) return "export const runAnonymousSearch=async()=>({results:[]});";
     if (file.endsWith("/src/lib/brandReportsClient.ts")) return "export class BrandReportsError extends Error{};export const getBrandReports=async()=>({reports:[]});export const getBrandReport=async()=>({});export const getBrandReportHistory=async()=>({versions:[]});export const saveBrandReport=async()=>({});export const brandReportSaveFailureIsUncertain=()=>false;";

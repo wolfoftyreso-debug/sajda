@@ -25,8 +25,12 @@ import { MCP_COMPANION_CAPABILITIES, MCP_NAMING_DISCOVERY_INSTRUCTIONS, register
 import { CONNECTOR_HOST_INSTRUCTIONS } from "../../shared/connector-policy.js";
 import { BRAND_EVIDENCE_AGENT_INSTRUCTIONS } from "../../shared/brand-evidence.js";
 import { brandChecksStartSchema, brandChecksHistorySelectorSchema, brandCheckResponseSchema, brandChecksHistoryResponseSchema } from "../../shared/brand-checks.js";
+import { brandMonitorsMutationSchema, brandMonitorsSelectorSchema, brandMonitorsResponseSchema,
+  brandMonitorMutationResponseSchema } from "../../shared/brand-monitors.js";
 
-export const SAJDA_MCP_VERSION = "1.9.0";
+export const SAJDA_MCP_VERSION = "1.10.0";
+const brandMonitorsConfigureSchema = z.discriminatedUnion("action", [brandMonitorsMutationSchema.options[0],
+  brandMonitorsMutationSchema.options[2], brandMonitorsMutationSchema.options[3]]);
 
 export interface McpProductResult {
   status: number;
@@ -39,6 +43,7 @@ export interface McpProductResult {
 export type McpOperation = "domains_check" | "domains_search" | "name_packages_search" | "business_names_recommend" | "brand_index_assess" | "brand_lookup" | "account_membership"
   | "name_projects_list" | "name_projects_save" | "brand_reports_list" | "brand_reports_get" | "brand_reports_history" | "brand_reports_save"
   | "brand_checks_history" | "brand_checks_start"
+  | "brand_monitors_get" | "brand_monitors_configure" | "brand_monitors_pause" | "brand_monitor_alerts_acknowledge"
   | "social_profiles_check" | "trading_scenarios_list" | "trading_scenarios_save"
   | "saved_domains_list" | "saved_domains_save" | "saved_domains_remove"
   | "trading_status" | "trading_report" | "trading_start" | "trading_advance" | "trading_stop" | "trading_refresh_quote";
@@ -70,6 +75,8 @@ const brandReportEnvelopeSchema = resultSchema.extend({ data: brandReportRespons
 const brandReportHistoryEnvelopeSchema = resultSchema.extend({ data: brandReportHistoryResponseSchema.optional() });
 const brandChecksHistoryEnvelopeSchema = resultSchema.extend({ data: brandChecksHistoryResponseSchema.optional() });
 const brandCheckEnvelopeSchema = resultSchema.extend({ data: brandCheckResponseSchema.optional() });
+const brandMonitorsEnvelopeSchema = resultSchema.extend({ data: brandMonitorsResponseSchema.optional() });
+const brandMonitorMutationEnvelopeSchema = resultSchema.extend({ data: brandMonitorMutationResponseSchema.optional() });
 
 type ToolDefinition = {
   name: McpOperation;
@@ -77,7 +84,7 @@ type ToolDefinition = {
   description: string;
   scope: ApiKeyScope;
   additionalScopes?: ApiKeyScope[];
-  schema: z.ZodObject | typeof brandLookupInputSchema | z3.AnyZodObject;
+  schema: z.ZodObject | typeof brandLookupInputSchema | typeof brandMonitorsConfigureSchema | z3.AnyZodObject;
   readOnly: boolean;
   idempotent: boolean;
   openWorld: boolean;
@@ -137,6 +144,18 @@ const definitions: ToolDefinition[] = [
   { name: "brand_checks_start", title: "Check and archive a saved brand report's domains", scope: "projects:write", additionalScopes: ["domains:search"],
     description: "Explicitly check the latest saved report's domain scope through audited HTTPS RDAP sources and archive the server observations. Requires projects:write and domains:search. Submit only reportId, expectedVersion and a new requestKey UUID; never caller-supplied observations, source URLs or scores. Repeat the identical requestKey after an uncertain result: no second provider check runs. Limits: 20 domains/run, 10 new runs/account/day, 100 runs/report. Pending or failed runs are not successful checks. Unsupported suffixes stay unknown. Never proves ownership, grants legal clearance, starts continuous monitoring or buys anything.",
     schema: brandChecksStartSchema, readOnly: false, idempotent: true, openWorld: true },
+  { name: "brand_monitors_get", title: "Read a brand report's registry monitor and alerts", scope: "projects:read",
+    description: "Read the account-owned daily domain registry monitor, its pinned saved report version, actual plan capacity and paginated in-app change alerts. No read executes a registry check or renews evidence. cronScheduled describes scheduling in this environment, not an uptime or delivery guarantee. Unknown and failed checks never mean available. This is not social, company, trademark, price or ownership monitoring; scores remain separate. Requires the report, check and monitoring features. Preserve original source dates, statuses and explicit pauses.",
+    schema: brandMonitorsSelectorSchema, readOnly: true, idempotent: true, openWorld: false },
+  { name: "brand_monitors_configure", title: "Enable or resume daily registry monitoring", scope: "projects:write", additionalScopes: ["domains:search"],
+    description: "Only on an explicit user request: enable, resume or rebind a daily registry monitor for an account-owned saved brand report. Requires projects:write AND domains:search and live paid plan capacity: Basic1, Premium5, Trading10 active monitors; Free0. Enabling records consent to future bounded registry checks but does not run a provider in this request. The scope is pinned to a saved version; rebind explicitly accepts the latest scope and resets the comparison baseline. Use a new requestKey UUID per intentional action, retry identical content after an uncertain result, and preserve monitor/report version conflicts. First observations are baseline only; alerts need two newer definitive observations from the same audited source. No purchases, emails, legal clearance or ownership verification.",
+    schema: brandMonitorsConfigureSchema, readOnly: false, idempotent: true, openWorld: true },
+  { name: "brand_monitors_pause", title: "Pause a registry monitor", scope: "projects:write",
+    description: "Explicitly pause this account's saved report registry monitor without deleting source history or alerts. Requires projects:write, not a paid plan or domains:search. Submit action=pause, current expectedMonitorVersion and one requestKey UUID; retry the identical payload after an uncertain outcome. Pausing does not undo an observation already being fetched, but prevents its superseded monitor generation from creating new alerts. Does not cancel registrar services or delete domains.",
+    schema: brandMonitorsMutationSchema.options[1], readOnly: false, idempotent: true, openWorld: false },
+  { name: "brand_monitor_alerts_acknowledge", title: "Mark one registry change alert as read", scope: "projects:write",
+    description: "Explicitly acknowledge one account-owned alert without deleting or changing its dated source evidence. Submit action=ack, reportId, alertId and requestKey. Retry identical content after an uncertain result. Requires projects:write only; remains available after plan downgrade. Not a confirmation of domain ownership, availability today, a purchase or legal clearance.",
+    schema: brandMonitorsMutationSchema.options[4], readOnly: false, idempotent: true, openWorld: false },
   { name: "social_profiles_check", title: "Check public GitHub profiles", scope: "social:check",
     description: "Check up to five distinct GitHub handles through the existing bounded GitHub API observer. This currently supports GitHub only, not all social networks. A found profile does not prove ownership; an absent profile is not proof the username can be registered. Preserve observation status, evidence source and timestamp. Uses the same account and provider quota as the website, with no arbitrary URLs, credentials or third-party AI.",
     schema: packageSocialInputSchema, readOnly: true, idempotent: false, openWorld: true },
@@ -208,11 +227,28 @@ export function productOperationScopes(operation: McpOperation): ApiKeyScope[] {
 export function productOperationInputJsonSchema(operation: McpOperation): Tool["inputSchema"] {
   const definition = definitions.find(tool => tool.name === operation);
   if (!definition) throw new AccountAccessError("invalid_request", 400, "Choose a supported Sajda operation.");
+  if (definition.name === "brand_monitors_configure") {
+    // MCP requires an object root. Its declared properties contain only the
+    // union's allowed fields; closed branches retain the exact action contract.
+    const branches = brandMonitorsConfigureSchema.options.map(schema => z.toJSONSchema(schema, { io: "input" }));
+    const fields = new Map<string, Map<string, unknown>>();
+    for (const branch of branches) for (const [name, field] of Object.entries(branch.properties ?? {})) {
+      const variants = fields.get(name) ?? new Map<string, unknown>();
+      variants.set(JSON.stringify(field), field); fields.set(name, variants);
+    }
+    // Do not let the last branch narrow shared fields (enable needs version0,
+    // whereas resume/rebind need a positive version and have other action IDs).
+    const properties = Object.fromEntries([...fields].map(([name, variants]) => {
+      const alternatives = [...variants.values()];
+      return [name, alternatives.length === 1 ? alternatives[0] : { anyOf: alternatives }];
+    }));
+    return { type: "object", additionalProperties: false, properties, oneOf: branches } as Tool["inputSchema"];
+  }
   return (definition.name === "brand_lookup" ? brandLookupRequestJsonSchema()
     : definition.name === "brand_index_assess" ? brandIndexRequestJsonSchema()
     : definition.name === "name_projects_save" || definition.name === "trading_scenarios_save" || definition.name === "social_profiles_check"
       ? toJsonSchemaCompat(definition.schema as z3.AnyZodObject, { pipeStrategy: "input" })
-      : z.toJSONSchema(definition.schema as z.ZodObject, { io: "input" })) as Tool["inputSchema"];
+      : { type: "object", ...z.toJSONSchema(definition.schema as z.ZodObject, { io: "input" }) }) as Tool["inputSchema"];
 }
 
 /** Safe discovery metadata; enumerating capabilities does not invoke product work. */
@@ -251,6 +287,9 @@ export function createSajdaMcpServer(principal: ApiKeyPrincipal, execute: McpPro
       outputSchema: z.toJSONSchema(definition.name === "brand_lookup" ? brandLookupResultEnvelopeSchema
         : definition.name === "brand_checks_history" ? brandChecksHistoryEnvelopeSchema
         : definition.name === "brand_checks_start" ? brandCheckEnvelopeSchema
+        : definition.name === "brand_monitors_get" ? brandMonitorsEnvelopeSchema
+        : definition.name === "brand_monitors_configure" || definition.name === "brand_monitors_pause"
+          || definition.name === "brand_monitor_alerts_acknowledge" ? brandMonitorMutationEnvelopeSchema
         : definition.name === "brand_reports_list" ? brandReportsListEnvelopeSchema
         : definition.name === "brand_reports_history" ? brandReportHistoryEnvelopeSchema
         : definition.name === "brand_reports_get" || definition.name === "brand_reports_save" ? brandReportEnvelopeSchema

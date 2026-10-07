@@ -1,7 +1,7 @@
 # Sajda AI connector
 
 Current source, 2026-10-07: public MCP `1.7.0` has six tools and private MCP
-`1.9.0` has 27. Both also provide optional naming prompts and static policy
+`1.10.0` has 31. Both also provide optional naming prompts and static policy
 resources. See [six-client distribution and consent](CONNECTOR-DISTRIBUTION.md)
 for installation packages and verification boundaries.
 The new [brand evidence ledger](BRAND-EVIDENCE.md) separates current provider

@@ -66,7 +66,7 @@ for (const access of ["public", "private"] as const) {
     assert.match(guide.text, /before calling|before.*acceptance|wait for the user's acceptance/u);
     assert.ok(guide.text.includes(CONNECTOR_HOST_INSTRUCTIONS));
     const tools = (await client.listTools()).tools;
-    assert.equal(tools.length, access === "public" ? 6 : 27);
+    assert.equal(tools.length, access === "public" ? 6 : 31);
     const naming = tools.find(tool => tool.name === "business_names_recommend")!;
     assert.match(naming.description!, /concrete new business, product or project/u);
     assert.match(naming.description!, /ask before sending a brief/u);

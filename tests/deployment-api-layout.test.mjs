@@ -17,7 +17,7 @@ test("private and app-shell routes stay noindex while /se headers stay config-dr
   assert.equal(headerFor("/se/(.*)").some(header => header.key === "X-Robots-Tag"), false);
 });
 
-test("Plus is private/noindex and the bounded worker has one explicit five-minute schedule", async () => {
+test("Plus stays private/noindex and both bounded workers have explicit five-minute schedules", async () => {
   const config = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
   const headers = config.headers.find(entry => entry.source === "/plus").headers;
   assert.ok(headers.some(header => header.key === "X-Robots-Tag" && header.value === "noindex, nofollow"));
@@ -28,7 +28,12 @@ test("Plus is private/noindex and the bounded worker has one explicit five-minut
     assert.match(handler, /export const config = \{ maxDuration: 60 \}/u, `${path} matches its Vercel duration`);
   }
   assert.equal(config.functions["api/cron/lost-domains.ts"].maxDuration, 60);
-  assert.deepEqual(config.crons, [{ path: "/api/cron/lost-domains", schedule: "*/5 * * * *" }]);
+  assert.equal(config.functions["api/account/brand-monitors.ts"].maxDuration, 20);
+  assert.equal(config.functions["api/cron/brand-monitors.ts"].maxDuration, 180);
+  assert.deepEqual(config.crons, [
+    { path: "/api/cron/lost-domains", schedule: "*/5 * * * *" },
+    { path: "/api/cron/brand-monitors", schedule: "*/5 * * * *" },
+  ]);
 });
 
 test("clean-URL application rewrites target the served root, not an excluded .html URL", async () => {

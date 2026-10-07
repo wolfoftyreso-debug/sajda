@@ -12,6 +12,7 @@ import tradingScenarios from "../account/trading-scenarios.js";
 import nameProjects from "../account/name-projects.js";
 import brandReports from "../account/brand-reports.js";
 import brandChecks from "../account/brand-checks.js";
+import brandMonitors from "../account/brand-monitors.js";
 import namePackageSocial from "../account/name-package-social.js";
 import capabilities from "../account/capabilities.js";
 import developerKeys from "../developer/api-keys.js";
@@ -46,6 +47,14 @@ export function nativeAccountRoute(path: string, method: string, body?: unknown)
     throw new AccountAccessError("invalid_request",400,"Use a canonical app API path.");
   }
   const url = new URL(path, "https://sajda.invalid");
+  if (url.pathname === "/api/account/brand-monitors" && ["GET", "POST"].includes(method)) {
+    const keys = [...url.searchParams.keys()];
+    if (url.origin !== "https://sajda.invalid" || url.hash || keys.some(key => !["reportId", "alertOffset", "alertLimit"].includes(key))
+      || new Set(keys).size !== keys.length || method === "POST" && url.search) {
+      throw new AccountAccessError("invalid_request", 400, "Use a documented brand-monitor route.");
+    }
+    return { handler: brandMonitors, scope: method === "GET" ? "saved:read" : "saved:write", query: Object.fromEntries(url.searchParams) };
+  }
   if (url.pathname === "/api/account/brand-checks" && ["GET", "POST"].includes(method)) {
     const keys = [...url.searchParams.keys()];
     if (url.origin !== "https://sajda.invalid" || url.hash || keys.some(key => !["reportId", "version", "offset", "limit"].includes(key))

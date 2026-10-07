@@ -114,3 +114,18 @@ test("registry archive readiness requires both exact feature flags", () => {
   assert.match(storageReadinessSql, /sajda\.brand_check_runs/u);
   for (const column of ["report_version", "targets", "lease_expires_at", "entries", "failure_code"]) assert.ok(storageReadinessSql.includes(`'${column}'`));
 });
+
+test("registry monitor readiness requires all three exact opt-ins and checks durable state without writes", () => {
+  for (const reports of [undefined, "true", "TRUE"]) for (const checks of [undefined, "true", "TRUE"])
+    for (const monitors of [undefined, "true", "TRUE"]) {
+      assert.equal(storageReadinessParameters({ SAJDA_BRAND_REPORTS_ENABLED: reports,
+        SAJDA_BRAND_CHECKS_ENABLED: checks, SAJDA_BRAND_MONITORS_ENABLED: monitors })[4],
+      reports === "true" && checks === "true" && monitors === "true");
+    }
+  assert.match(storageReadinessSql, /AND \(NOT \$5::boolean OR \(/u);
+  for (const table of ["brand_monitors", "brand_monitor_alerts", "brand_monitor_requests", "brand_monitor_worker_leases"]) {
+    assert.ok(storageReadinessSql.includes(`'sajda.${table}'`));
+    assert.ok(storageReadinessSql.includes(`('${table}','namespace')`));
+  }
+  assert.doesNotMatch(storageReadinessSql, /\b(?:INSERT|UPDATE|DELETE|ALTER|CREATE|DROP)\b/u);
+});

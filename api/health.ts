@@ -101,13 +101,40 @@ export const storageReadinessSql = `SELECT
       WHERE NOT EXISTS (SELECT 1 FROM information_schema.columns actual WHERE actual.table_schema='sajda'
         AND actual.table_name='brand_check_runs' AND actual.column_name=required.column_name)
     )
+  ))
+  AND (NOT $5::boolean OR (
+    (SELECT bool_and(to_regclass(name) IS NOT NULL)
+      FROM unnest(ARRAY['sajda.brand_monitors','sajda.brand_monitor_alerts',
+        'sajda.brand_monitor_requests','sajda.brand_monitor_worker_leases']) AS required(name))
+    AND NOT EXISTS (
+      SELECT 1 FROM (VALUES
+        ('brand_monitors','namespace'), ('brand_monitors','owner_id'), ('brand_monitors','report_id'),
+        ('brand_monitors','report_version'), ('brand_monitors','version'), ('brand_monitors','status'),
+        ('brand_monitors','pause_reason'), ('brand_monitors','targets'), ('brand_monitors','baseline'),
+        ('brand_monitors','created_at'), ('brand_monitors','updated_at'), ('brand_monitors','next_due_at'),
+        ('brand_monitors','claim_version'), ('brand_monitors','lease_expires_at'), ('brand_monitors','last_attempt_at'),
+        ('brand_monitors','last_run_id'), ('brand_monitors','last_run_status'), ('brand_monitors','last_failure_code'),
+        ('brand_monitors','last_coverage'), ('brand_monitors','last_successful_at'), ('brand_monitors','methodology_version'),
+        ('brand_monitor_alerts','namespace'), ('brand_monitor_alerts','owner_id'), ('brand_monitor_alerts','id'),
+        ('brand_monitor_alerts','report_id'), ('brand_monitor_alerts','report_version'), ('brand_monitor_alerts','monitor_version'),
+        ('brand_monitor_alerts','run_id'), ('brand_monitor_alerts','target'), ('brand_monitor_alerts','previous_observation'),
+        ('brand_monitor_alerts','current_observation'), ('brand_monitor_alerts','created_at'), ('brand_monitor_alerts','acknowledged_at'),
+        ('brand_monitor_requests','namespace'), ('brand_monitor_requests','owner_id'), ('brand_monitor_requests','request_key'),
+        ('brand_monitor_requests','report_id'), ('brand_monitor_requests','input_hash'), ('brand_monitor_requests','result'),
+        ('brand_monitor_requests','created_at'), ('brand_monitor_worker_leases','namespace'),
+        ('brand_monitor_worker_leases','token'), ('brand_monitor_worker_leases','expires_at')
+      ) AS required(table_name,column_name)
+      WHERE NOT EXISTS (SELECT 1 FROM information_schema.columns actual WHERE actual.table_schema='sajda'
+        AND actual.table_name=required.table_name AND actual.column_name=required.column_name)
+    )
   )) AS ready`;
 
-export function storageReadinessParameters(env: NodeJS.ProcessEnv = process.env): [boolean, string[], boolean, boolean] {
+export function storageReadinessParameters(env: NodeJS.ProcessEnv = process.env): [boolean, string[], boolean, boolean, boolean] {
   // Match the feature route's exact opt-in. Disabling an optional feature must
   // not accidentally require its schema or turn it on through the health probe.
   return [env.SAJDA_NAME_PROJECTS_ENABLED === "true", [...DEVELOPER_API_SCOPES], env.SAJDA_BRAND_REPORTS_ENABLED === "true",
-    env.SAJDA_BRAND_REPORTS_ENABLED === "true" && env.SAJDA_BRAND_CHECKS_ENABLED === "true"];
+    env.SAJDA_BRAND_REPORTS_ENABLED === "true" && env.SAJDA_BRAND_CHECKS_ENABLED === "true",
+    env.SAJDA_BRAND_REPORTS_ENABLED === "true" && env.SAJDA_BRAND_CHECKS_ENABLED === "true" && env.SAJDA_BRAND_MONITORS_ENABLED === "true"];
 }
 
 function setHealthHeaders(response: VercelResponseLike, requestId: string): void {
