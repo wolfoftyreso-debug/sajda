@@ -75,7 +75,13 @@ for (const path of ["/api/v1/account?resource=brand-reports", "/api/mcp"]) {
   const response = await fetch(new URL(path, origin), { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
   assert.equal(response.status, 401, path);
   assert.match(response.headers.get("cache-control") || "", /no-store/u);
-  assert.ok((await response.json()).code); checks++;
+  const failure = await response.json();
+  if (path === "/api/mcp") {
+    assert.equal(failure.jsonrpc, "2.0");
+    assert.equal(failure.error?.data?.code, "invalid_api_key");
+    assert.ok(failure.error?.data?.requestId);
+  } else assert.equal(failure.code, "invalid_api_key");
+  checks++;
 }
 // Anonymous journal submissions must fail at the account boundary, even with
 // a forged owner header. No scenario, quota or commercial state may be written.
