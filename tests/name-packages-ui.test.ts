@@ -11,6 +11,7 @@ import { buildNamePackages, type PackageDomainInput, type SocialObservation } fr
 import { DEFAULT_NAME_PACKAGE_MARKETS, NAME_PACKAGE_MARKET_CODES } from "../shared/name-package-markets";
 import { namePackageMarketsCopy } from "../src/i18n/namePackageMarketsCopy";
 import { brandWorkspaceCopy } from "../src/i18n/brandWorkspaceCopy";
+import { brandEvidenceCopy } from "../src/i18n/brandEvidenceCopy";
 import { nameLanguageCopy } from "../src/i18n/nameLanguageCopy";
 import { namePackageResultCopy } from "../src/i18n/namePackageResultCopy";
 import { BRAND_NAME_LANGUAGES } from "../shared/name-languages";
@@ -110,7 +111,9 @@ test("mounted name packages preserve consent, owner boundaries and honest availa
     await t.test("opening and editing never sends a search or social request", async () => {
       await mount(); assert.equal(requests.length, 0); assert.equal(scans.length, 0);
       assert.ok(text().includes(c.available)); assert.ok(text().includes(c.notChecked)); assert.ok(text().includes(c.manual));
-      assert.ok(text().includes(w.ceiling)); assert.ok(text().includes(w.coverage));
+      assert.ok(text().includes(w.ceiling)); assert.ok(!text().includes(w.coverage), "Legacy coverage must not compete with the evidence ledger");
+      for (const evidenceLabel of [brandEvidenceCopy.en.title, brandEvidenceCopy.en.checked, brandEvidenceCopy.en.reported,
+        brandEvidenceCopy.en.listed, brandEvidenceCopy.en.unknown]) assert.ok(text().includes(evidenceLabel));
       assert.equal(root().findAllByType("h1").length, 1);
       await change("theme", "Private founder idea"); await change("brief", "Exact private customer description");
       assert.equal(requests.length, 0); assert.equal(scans.length, 0);
