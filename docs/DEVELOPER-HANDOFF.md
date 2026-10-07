@@ -119,8 +119,9 @@ shipped asset source during the 24 September 2026 hygiene pass. Legitimate
 connector names, Sajda-authored export disclosures and required logo licence
 notices are not unwanted generator branding and are retained.
 
-See [current release-hardening evidence](RELEASE-HARDENING-2026-09-24.md),
-[connector release evidence](CONNECTOR-RELEASE-2026-09-24.md),
+See [current release-hardening evidence](RELEASE-HARDENING-2026-10-07.md),
+[dated launch-gate receipt](LAUNCH-EXTERNAL-EVIDENCE-2026-10-07.json),
+[connector architecture and release evidence](AI-CONNECTOR.md),
 [account API](ACCOUNT-API.md), [architecture](NEON-VERCEL.md),
 [privacy inventory](APP-PRIVACY-INVENTORY.md) and
 [legal gates](LAUNCH-LEGAL-2026-09-17.md). External account, DNS, provider and

@@ -2,7 +2,7 @@
 
 This document describes the implementation and configuration, not a launch
 approval or proof that a particular deployment is accessible. Consult the dated
-[release evidence](LAUNCH-EXTERNAL-EVIDENCE-2026-10-06.json) for the verification
+[release evidence](LAUNCH-EXTERNAL-EVIDENCE-2026-10-07.json) for the verification
 environment and unresolved gates. A protected preview is not a public release;
 website indexing remains deliberately disabled during validation.
 
