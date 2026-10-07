@@ -174,3 +174,39 @@ boundary tests with zero failures/skips, plus targeted ESLint and whitespace
 checks. The new regression validates and reparses a real maximum-size report,
 checks unchanged declaration time/null verified score, and runs the actual
 server envelope parser; its Swift assertions inspect source only.
+
+### Full CI and actual iOS compilation after the follow-up
+
+Application revision `0db4e0bab9c8235fdbafae89f513ebaea96a6fea` was pushed
+on the same development branch, without merging `main` or changing production.
+[GitHub Verify #100](https://github.com/wolfoftyreso-debug/sajda/actions/runs/37630037536)
+passed: 1,983 tests, 1,975 passes, zero failures and eight explicit opt-in
+database tests skipped; 100 language dictionaries with zero mismatches;
+Vercel build and 76 isolated HTTP checks passed; production-dependency audit
+reported zero vulnerabilities.
+
+The existing [iPhone build #32](https://github.com/wolfoftyreso-debug/sajda/actions/runs/37630268579)
+was explicitly dispatched on that exact branch/revision. It completed
+successfully: actual Xcode Debug and Release simulator builds, packaging,
+fresh simulator boot, installation, launch, WebKit search-screen readiness
+and screenshot capture. The readiness event had `documentState: complete`,
+`errors: []`, heading/input present, five navigation items and `ready: true`.
+Every bounded simulator step returned status 0, including cleanup of only
+the freshly created job-owned device.
+
+This is an actual iPhone 17 Pro simulator on iOS 26.5, not a physical device.
+The workflow uses the protected test backend origin. It does not authenticate,
+execute searches, start Trading, bypass Vercel protection or verify native
+account/network/payment journeys. No distribution signing, TestFlight or
+StoreKit transaction was performed.
+
+The non-expired `sajda-ios-simulator` artifact was uploaded (ID 11487440121,
+3,339,869 bytes, SHA-256
+`eedf7b324d82865ac4691a54726fef9fda18fe9a42f6e96855af5225ca5808db`,
+retained until 14 October 2026). GitHub reported a non-blocking pinned-checkout
+Node 20 deprecation warning (runner forces Node 24) and a macOS capacity
+notice; neither was silently treated as an application failure or removed.
+
+The report feature remains preview-only and the full-product commercial/App
+Store NO-GO gates remain open. Passing this increment's CI and simulator
+smoke is not full launch approval.
