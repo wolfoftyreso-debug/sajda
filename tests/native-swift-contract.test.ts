@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
+import { nativeAccountJson } from "../api/native/account.js";
+import { assessBrandPresence } from "../shared/brand-presence-index.js";
+import { BRAND_REPORT_MAX_BYTES, brandReportSaveSchema } from "../shared/brand-reports.js";
 
 // These deliberately inspect source only. They protect security-critical wiring
 // and ordering, but are not Swift compilation, simulator, or native runtime tests.
@@ -180,6 +183,45 @@ test("source-only Swift contract: private requests capture a token and fence res
   assert.match(request, /bearer = token/u);
   assert.match(request, /body: call\.getString\("body"\), bearer: bearer/u);
   before(request, "try self.current(generation, token: token)", 'call.resolve(["status": status');
+});
+
+test("source-only Swift body contract: only the exact private report POST admits its bounded routing overhead", async () => {
+  const perform = section("private func perform(", "private func current(");
+  const boundary = perform.match(/if let body = body, body\.utf8\.count > 65_536 \{([\s\S]*?)\n\s*\}\n\s*var request = URLRequest/u);
+  assert.ok(boundary, "Requests above the existing 64 KiB limit need an explicit guarded exception before transport.");
+  assert.match(boundary[1], /guard body\.utf8\.count <= 67_584, method == "POST"/u);
+  assert.match(boundary[1], /url\.path == "\/api\/native\/account", url\.query == nil/u);
+  assert.match(boundary[1], /let envelope = try\? JSONSerialization\.jsonObject\(with: Data\(body\.utf8\)\) as\? \[String: Any\]/u);
+  assert.match(boundary[1], /envelope\["path"\] as\? String == "\/api\/account\/brand-reports"/u);
+  assert.match(boundary[1], /envelope\["method"\] as\? String == "POST" else \{ throw failure\("This request is too large\."\) \}/u);
+  before(perform, 'envelope["method"] as? String == "POST"', "request.httpBody = Data(body.utf8)");
+
+  // Actual shared validators and server envelope parsing run below, but Swift
+  // itself is inspected as source only: no Xcode, simulator or device claim.
+  // Fractional timestamp precision is currently unbounded in the strict shared
+  // contract. This gives reproducible VALID data, not unknown padding fields.
+  const make = (precision: number) => brandReportSaveSchema.parse({
+    id: "10000000-0000-4000-8000-000000000001", requestKey: "10000000-0000-4000-8000-000000000002",
+    expectedVersion: 0, title: "Example",
+    assessment: { brand_name: "Example", identity_label: "example", primary_domain: "example.com",
+      domains: ["example.com"], socials: [{ platform: "github", handle: "example" }], markets: ["US"],
+      observations: [{ target_id: "domain:example.com", status: "reported_owned", source_url: "https://example.com/about",
+        reported_at: `2026-10-07T12:00:00.${"0".repeat(precision)}Z` }] },
+  });
+  const baseBytes = Buffer.byteLength(JSON.stringify({ report: make(1) }));
+  const report = make(BRAND_REPORT_MAX_BYTES - baseBytes + 1);
+  assert.deepEqual(brandReportSaveSchema.parse(report), report, "Validation must remain valid after transport reparsing.");
+  const body = { report };
+  assert.equal(Buffer.byteLength(JSON.stringify(body)), 65_536);
+  const index = assessBrandPresence(report.assessment, Date.parse("2026-10-07T12:00:01.000Z"));
+  assert.equal(index.index.verified_score, null);
+  assert.equal(index.targets.find(target => target.id === "domain:example.com")?.reported_at, report.assessment.observations[0].reported_at);
+  const envelope = { path: "/api/account/brand-reports", method: "POST", body,
+    accountId: "10000000-0000-4000-8000-000000000003" };
+  const serialized = JSON.stringify(envelope);
+  assert.equal(Buffer.byteLength(serialized), 65_648, "The native wrapper necessarily exceeds the former Swift bound.");
+  assert.ok(Buffer.byteLength(serialized) <= 67_584);
+  assert.deepEqual(await nativeAccountJson({ headers: { "content-type": "application/json" }, body: serialized }), envelope);
 });
 
 test("source-only StoreKit contract: launch listener and restore never grant locally or finish before server acceptance",()=>{

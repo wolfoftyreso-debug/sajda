@@ -60,8 +60,11 @@ async function main() {
       ...[...headers].map(([name, value]) => `header = ${curlQuote(`${name}: ${value}`)}`),
       ...(options.body === undefined ? [] : [`data-binary = ${curlQuote(options.body)}`])].join("\n") + "\n";
     const stdout = await new Promise<string>((resolve, reject) => {
+      // CLI 62.5.0 advertises the global --non-interactive flag, but its curl
+      // parser rejects it. The linked project is already fenced above; pipe
+      // stdin/non-TTY and agent mode retain non-interactive protected access.
       const child = spawn(process.execPath, [cli, "curl", `${target.pathname}${target.search}`, "--deployment", origin.origin,
-        "--non-interactive", "--", "--config", "-"], { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
+        "--", "--config", "-"], { windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
       const chunks: Buffer[] = []; let bytes = 0, ended = false;
       const finish = (failure: boolean) => {
         if (ended) return; ended = true; clearTimeout(timer);

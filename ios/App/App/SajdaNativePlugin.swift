@@ -179,7 +179,16 @@ public final class SajdaNativePlugin: CAPPlugin, CAPBridgedPlugin, ASWebAuthenti
                   let url = URL(string: path, relativeTo: origin)?.absoluteURL,
                   url.scheme == origin.scheme, url.host == origin.host, url.port == nil,
                   url.user == nil, url.password == nil, url.fragment == nil else { throw failure("Invalid app request.") }
-            if let body = body, body.utf8.count > 65536 { throw failure("This request is too large.") }
+            if let body = body, body.utf8.count > 65_536 {
+                // A 64 KiB report needs space for the private account envelope.
+                // Only its canonical POST receives the server's 2 KiB overhead;
+                // downstream validation still enforces the report payload limit.
+                guard body.utf8.count <= 67_584, method == "POST",
+                      url.path == "/api/native/account", url.query == nil,
+                      let envelope = try? JSONSerialization.jsonObject(with: Data(body.utf8)) as? [String: Any],
+                      envelope["path"] as? String == "/api/account/brand-reports",
+                      envelope["method"] as? String == "POST" else { throw failure("This request is too large.") }
+            }
             var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
             request.httpMethod = method; request.setValue("application/json", forHTTPHeaderField: "Accept")
             if let body = body {

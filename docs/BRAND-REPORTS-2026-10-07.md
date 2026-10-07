@@ -102,3 +102,75 @@ Browser viewport checks at 320, 390, 768 and 1440 CSS pixels found no horizontal
 overflow in this report view. This is browser emulation, not physical iPhone,
 VoiceOver or an authenticated browser persistence test. Guest guidance now
 keeps the sign-in action visible and moves detailed limits into disclosures.
+
+## Deployed verification and source-control evidence
+
+The verified application revision is `fefadcc2db37c5b88c422d181b3caaafb444d036`
+on `codex/launch-hardening`, pushed to `wolfoftyreso-debug/sajda`.
+The preview is `https://sajda-2d3ksl0fe-hypbit.vercel.app`, deployment
+`dpl_1RaF1tahvgZAtNsaaDBfWUfrbxm4`, observed READY. It remains a protected
+preview; deployment protection was not disabled to run the tests.
+
+[GitHub Verify #99](https://github.com/wolfoftyreso-debug/sajda/actions/runs/37626660495)
+passed for that revision: 1,982 tests, 1,974 passes, zero failures and eight
+explicit opt-in database tests skipped. The language contract covered 100
+English-source dictionaries with zero key/placeholder mismatches. The build,
+76 credential-free HTTP checks and production-dependency audit also passed;
+the audit reported zero vulnerabilities. The full local `check:ci` subsequently
+passed as well. The isolated local database health is intentionally 503
+(`not_configured`), not evidence of deployed database connectivity.
+
+The opt-in `probe-brand-reports-deployed-preview.ts` then completed against
+that actual preview using two newly generated synthetic verified accounts:
+11 REST calls and 14 MCP calls, including real SDK initialization/discovery
+of 25 private tools and all four report tools. It verified create/list/read,
+historical reads, history, newer saves, immutable late retry, foreign-owner
+isolation, denial of a write through a read-only key, and agreement with the
+stored version-3 declaration. A bearer key did not bypass browser-session
+authentication. Exact cleanup was verified: zero remaining fixture records.
+There were no provider calls, email calls or production writes.
+
+The first attempt stopped at the read-only preflight before creating fixtures:
+Vercel CLI 62.5 rejected `--non-interactive` for `curl`. Removing that unsupported
+flag allowed the protected health request and the full probe to complete.
+This was a test-harness failure, not a successful product transaction.
+
+The deployed guest view at 390 CSS pixels was also exercised, including
+scope creation and cancelling navigation without losing the input. Neither
+this browser check nor the key-authenticated probe verifies an actual browser
+login or authenticated browser save. A bounded read of preview error logs
+(`--since 15m --level error --limit 20`) returned no entries; this is not a
+guarantee that all runtime paths are error-free.
+
+The separate protected-preview HTTP smoke also completed: 76 checks passed,
+database health was 200 (`connected`), and the new private report routes
+required authentication. This verifies HTTP/HTML/API contracts and database
+readiness; it does not substitute for authenticated browser, email or payment
+journeys.
+
+### Native transport follow-up
+
+A final read-only boundary probe found a real cross-client discrepancy: a
+strictly valid 65,536-byte REST report becomes 65,648 bytes when wrapped in
+the native account envelope. The server accepted it, but the Swift bridge's
+generic 65,536-byte cap rejected it before transport. The fixture deliberately
+uses a long valid fractional-second timestamp; it is a boundary case, not a
+claim about typical report size or independently verified information.
+
+The Swift source now allows up to 67,584 bytes only for outer canonical
+`POST /api/native/account` without a query and an inner exact
+`POST /api/account/brand-reports`. All other Swift requests retain the old
+65,536-byte cap; server route limits, payload validation and authorization
+remain unchanged. This follow-up does not change the deployed web/backend
+application revision cited above.
+
+The native product bundle was rebuilt against the verified preview origin:
+the build and public-bundle/no-website-SEO checks passed. This only bundles
+the product's web assets; it neither compiles this Swift change nor proves
+physical iPhone behavior, signing, TestFlight or StoreKit transactions.
+
+The follow-up ran 26 focused native Swift-source, native HTTP and report
+boundary tests with zero failures/skips, plus targeted ESLint and whitespace
+checks. The new regression validates and reparses a real maximum-size report,
+checks unchanged declaration time/null verified score, and runs the actual
+server envelope parser; its Swift assertions inspect source only.
