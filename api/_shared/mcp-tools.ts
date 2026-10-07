@@ -21,8 +21,9 @@ import { businessNamesRequestSchema, businessNamesResultSchema } from "./busines
 import { BUSINESS_NAMES_RESULT_INSTRUCTIONS, mcpResultContent } from "./mcp-result-summary.js";
 import { MCP_COMPANION_CAPABILITIES, MCP_NAMING_DISCOVERY_INSTRUCTIONS, registerMcpCompanion } from "./mcp-companion.js";
 import { CONNECTOR_HOST_INSTRUCTIONS } from "../../shared/connector-policy.js";
+import { BRAND_EVIDENCE_AGENT_INSTRUCTIONS } from "../../shared/brand-evidence.js";
 
-export const SAJDA_MCP_VERSION = "1.5.0";
+export const SAJDA_MCP_VERSION = "1.7.0";
 
 export interface McpProductResult {
   status: number;
@@ -202,7 +203,7 @@ function productToolResult(result: McpProductResult, requestId: string, explainB
 export function createSajdaMcpServer(principal: ApiKeyPrincipal, execute: McpProductExecutor, requestId: string): Server {
   const server = new Server({ name: "sajda", title: "Sajda", version: SAJDA_MCP_VERSION }, {
     capabilities: { tools: { listChanged: false }, ...MCP_COMPANION_CAPABILITIES },
-    instructions: CONNECTOR_HOST_INSTRUCTIONS + "\n\nSajda shares the same account and durable state as its website and API. Each tool requires its stated API-key scope. Start and quote tools require an explicit intended action and a caller-generated idempotency UUID. Tool discovery, status and report reads never start work. Preserve evidence dates, unknown availability, currency and membership checks. brand_index_assess is only a pure calculator of user-supplied reports for an existing brand, not independent verification. Preserve SELF_ASSESSMENT, USER_SUPPLIED and null verified_score. Never interpret it as ownership proof, legal clearance, reputation or market strength. No tool purchases domains or changes billing. " + BUSINESS_NAMES_RESULT_INSTRUCTIONS,
+    instructions: CONNECTOR_HOST_INSTRUCTIONS + "\n\nSajda shares the same account and durable state as its website and API. Each tool requires its stated API-key scope. Start and quote tools require an explicit intended action and a caller-generated idempotency UUID. Tool discovery, status and report reads never start work. Preserve evidence dates, unknown availability, currency and membership checks. brand_index_assess is only a pure calculator of user-supplied reports for an existing brand, not independent verification. Preserve SELF_ASSESSMENT, USER_SUPPLIED and null verified_score. Never interpret it as ownership proof, legal clearance, reputation or market strength. No tool purchases domains or changes billing. " + BUSINESS_NAMES_RESULT_INSTRUCTIONS + "\n\n" + BRAND_EVIDENCE_AGENT_INSTRUCTIONS,
   });
   registerMcpCompanion(server);
   server.setRequestHandler(ListToolsRequestSchema, async request => {

@@ -43,6 +43,18 @@ const profile = await request("/api/v1/public/brand-lookup", { operation: "profi
 assert.equal(profile.status, 200); assert.equal(profile.data.entity.entity_id, "Q54078");
 assert.ok(profile.data.assertions.length > 0); assert.equal(profile.data.index.score, null); assert.equal(profile.data.index.verified_assertions, 0);
 assert.ok(profile.data.assertions.every(row => row.classification === "DATABASE_ASSERTION" && row.relationship === "not_verified"));
+function assertEvidence(value) {
+  const evidence = value.evidence_report;
+  assert.equal(evidence.schema_version, "sajda.brand-evidence.v1");
+  assert.equal(evidence.ownership_verified, false); assert.equal(evidence.legal_clearance, false);
+  assert.equal(evidence.continuous_monitoring, false);
+  assert.deepEqual(evidence.summary, { total: value.assertions.length + 4, checked: 0, reported: 0,
+    listed: value.assertions.length, unknown: 4, checked_coverage_percent: 0 });
+  assert.ok(evidence.entries.filter(entry => entry.state === "listed").every(entry =>
+    entry.origin === "source_assertion" && entry.source_url.startsWith("https://www.wikidata.org/")
+      && entry.observed_at === value.retrieved_at));
+}
+assertEvidence(profile.data);
 console.log(JSON.stringify({ entity: profile.data.entity.entity_id, revision: profile.data.entity.revision_id,
   source_modified_at: profile.data.entity.source_modified_at, retrieved_at: profile.data.retrieved_at,
   assertions: profile.data.assertions.length, verified_index: profile.data.index.score }));
@@ -57,5 +69,9 @@ assert.ok(tool); assert.equal(tool.annotations.readOnlyHint, true); assert.equal
 const call = await request("/api/mcp/public", { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "brand_lookup", arguments: query } });
 assert.equal(call.status, 200); assert.equal(call.data.result.structuredContent.ok, true);
 assert.equal(call.data.result.structuredContent.data.operation, "search"); assert.equal(call.data.result.structuredContent.data.verified_index, null);
+const mcpProfile = await request("/api/mcp/public", { jsonrpc: "2.0", id: 4, method: "tools/call",
+  params: { name: "brand_lookup", arguments: { operation: "profile", entity_id: "Q54078", locale: "en" } } });
+assert.equal(mcpProfile.status, 200); assert.equal(mcpProfile.data.result.structuredContent.ok, true);
+assertEvidence(mcpProfile.data.result.structuredContent.data);
 console.log(JSON.stringify({ verdict: "PASS", origin, real_public_source: "Wikidata", rest: true, mcp: true,
   independent_ownership_verification: false, global_brand_coverage: false, writes: false }));

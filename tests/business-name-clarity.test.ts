@@ -161,5 +161,11 @@ test("duplicated upstream candidates fail instead of inflating the explanation",
     const intelligence = observations(input, ["available", "taken", "taken", "taken", "taken", "taken", "taken", "taken", "taken", "taken"]);
     intelligence.packages[9] = intelligence.packages[8];
     return intelligence;
-  }), /did not match/u);
+  }), (error: unknown) => {
+    assert.ok(error instanceof Error);
+    assert.equal(error.message, "Business-name evidence did not match its bounded candidate search.");
+    assert.doesNotMatch(error.message, /Zod|canonical identity|Package ranks|packages|issues/u,
+      "Schema paths and internal issue details must not leak from the adapter.");
+    return true;
+  });
 });

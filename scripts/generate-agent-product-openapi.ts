@@ -10,6 +10,7 @@ import { DEVELOPER_API_SCOPES } from "../shared/developer-scopes.js";
 import { NAME_PROJECT_LIMIT, nameProjectSchema } from "../shared/name-projects.js";
 import { tradingScenarioSchema } from "../shared/trading-scenarios.js";
 import { socialObservationSchema } from "../shared/name-packages.js";
+import packageMetadata from "../package.json" with { type: "json" };
 
 type JsonObject = Record<string, unknown>;
 function jsonSchema(value: Parameters<typeof toJsonSchemaCompat>[0]): JsonObject {
@@ -55,6 +56,7 @@ export function generateAgentProductOpenApiSchemas() {
     schemaVersion: "sajda.agent-product-catalogue.v1",
     privateMcpVersion: SAJDA_MCP_VERSION,
     publicMcpVersion: PUBLIC_MCP_VERSION,
+    sdkVersion: packageMetadata.dependencies["@modelcontextprotocol/sdk"],
     scopes: [...DEVELOPER_API_SCOPES], catalogue, inputs,
     schemas: Object.fromEntries(Object.entries(schemas).map(([name, schema]) => [name, component(schema, name)])),
   };

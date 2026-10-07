@@ -3,6 +3,7 @@ import { brandLookupInputSchema, brandLookupResultSchema, BRAND_LOOKUP_SCHEMA_VE
   type BrandLookupInput, type BrandLookupResult, type BrandLookupProfile } from "../../shared/brand-lookup.js";
 import { AccountAccessError } from "./account-error.js";
 import { reserveBrandLookup } from "./brand-lookup-budget.js";
+import { buildLookupBrandEvidenceReport } from "../../shared/brand-evidence.js";
 
 const API = "https://www.wikidata.org/w/api.php";
 const USER_AGENT = "SajdaBrandLookup/1.0 (mailto:dev@hypbit.com)";
@@ -159,6 +160,7 @@ function profileResult(input: Extract<BrandLookupInput, { operation: "profile" }
       description: localized(entity.descriptions, input.locale, 1000), source_url: sourceUrl(canonicalId),
       revision_id: Number.isSafeInteger(entity.lastrevid) && Number(entity.lastrevid) > 0 ? Number(entity.lastrevid) : null, source_modified_at: modified },
     assertions, truncated: skipped,
+    evidence_report: buildLookupBrandEvidenceReport({ retrieved_at: new Date(now).toISOString(), entity: { entity_id: canonicalId }, assertions }, now),
     index: { score: null, status: "insufficient_verified_evidence", verified_assertions: 0 },
     limitations: ["single_source", "ownership_not_verified", "availability_not_checked", "not_legal_clearance", "no_global_coverage"] };
 }

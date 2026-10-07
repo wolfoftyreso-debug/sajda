@@ -4,12 +4,14 @@ import { ArrowLeft, ArrowUpRight, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import BrandWorkspaceEntry from "@/components/BrandWorkspaceEntry";
+import { BrandEvidencePanel } from "@/components/BrandEvidencePanel";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { brandLookupCopy, brandLookupDetailCopy } from "@/i18n/brandLookupCopy";
 import { isNativeApp } from "@/lib/appSurface";
 import { lookupBrand, safeBrandLookupLink } from "@/lib/brandLookupClient";
 import { formatLocalizedDateTime } from "@/lib/localeFormat";
 import { brandLookupInputSchema, type BrandLookupInput, type BrandLookupSearch, type BrandLookupProfile } from "../../shared/brand-lookup";
+import { createBrandEvidenceReport } from "../../shared/brand-evidence";
 
 const action = "h-auto min-h-12 whitespace-normal px-4 py-3 text-left leading-6";
 const platforms = { x: "X", instagram: "Instagram", linkedin: "LinkedIn" };
@@ -19,9 +21,20 @@ export default function BrandIndex() {
   const { language } = useLanguage(), c = brandLookupCopy[language], detail = brandLookupDetailCopy[language];
   const [query, setQuery] = useState(""), [matches, setMatches] = useState<BrandLookupSearch | null>(null), [profile, setProfile] = useState<BrandLookupProfile | null>(null);
   const [pending, setPending] = useState<BrandLookupInput["operation"] | null>(null), [error, setError] = useState<"invalid" | "unavailable" | null>(null), [cancelled, setCancelled] = useState(false);
+  const [evidenceNow, setEvidenceNow] = useState(() => Date.now());
   const requestRef = useRef<AbortController | null>(null), generation = useRef(0), retryRef = useRef<BrandLookupInput | null>(null);
   const inputRef = useRef<HTMLInputElement>(null), resultRef = useRef<HTMLHeadingElement>(null), [resultRevision, setResultRevision] = useState(0);
   useEffect(() => () => { generation.current++; requestRef.current?.abort(); }, []);
+  useEffect(() => {
+    if (!profile) return;
+    const refresh = () => setEvidenceNow(Date.now());
+    const visible = () => { if (document.visibilityState === "visible") refresh(); };
+    refresh();
+    const interval = window.setInterval(refresh, 30_000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", visible);
+    return () => { window.clearInterval(interval); window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", visible); };
+  }, [profile]);
   useEffect(() => {
     if (resultRevision > 0 && resultRef.current) {
       resultRef.current.focus({ preventScroll: true });
@@ -55,6 +68,7 @@ export default function BrandIndex() {
     void run(parsed.data);
   }
   const sourceTime = profile?.retrieved_at ?? matches?.retrieved_at;
+  const evidenceReport = profile ? createBrandEvidenceReport(profile.evidence_report.entries, evidenceNow) : null;
   return <main className="mx-auto w-full max-w-5xl px-4 py-6 pb-20 sm:px-6" aria-labelledby="brand-lookup-title">
     <div className="mb-6 flex flex-wrap items-center justify-between gap-3"><Link to="/" className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary"><ArrowLeft aria-hidden="true" className="h-4 w-4 shrink-0" />{c.home}</Link><LanguageSwitcher /></div>
     <header className="max-w-3xl"><p className="text-sm font-semibold text-primary">{c.eyebrow}</p><h1 id="brand-lookup-title" className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">{c.title}</h1><p className="mt-4 text-base leading-7 text-muted-foreground">{c.intro}</p></header>
@@ -73,10 +87,11 @@ export default function BrandIndex() {
       {matches.has_more && <p className="mt-2 text-sm leading-6 text-muted-foreground">{detail.more}</p>}
       <div className="mt-4 space-y-3">{matches.candidates.map(candidate => <article key={candidate.entity_id} className="min-w-0 rounded-2xl border border-border bg-card p-5" data-brand-match={candidate.entity_id}><h3 className="break-words text-lg font-semibold">{candidate.name}</h3><p className="mt-2 break-words text-sm leading-6 text-muted-foreground">{candidate.description || c.noDescription}</p><div className="mt-3 flex flex-wrap items-center gap-4"><Button type="button" variant="outline" className={action} onClick={() => void run({ operation: "profile", entity_id: candidate.entity_id, locale: language })}>{c.choose}</Button><a href={candidate.source_url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 max-w-full items-center gap-1 text-sm text-primary underline underline-offset-4">{c.source}<ArrowUpRight aria-hidden="true" className="h-4 w-4 shrink-0" /></a></div></article>)}</div>
     </section>}
-    {profile && <section aria-labelledby="brand-lookup-profile-title" data-brand-lookup-profile={profile.entity.entity_id}>
+    {profile && evidenceReport && <section aria-labelledby="brand-lookup-profile-title" data-brand-lookup-profile={profile.entity.entity_id}>
       <div className="flex flex-wrap items-start justify-between gap-4"><div className="min-w-0"><p className="text-sm text-muted-foreground">{c.profile}</p><h2 ref={resultRef} tabIndex={-1} id="brand-lookup-profile-title" className="mt-2 scroll-mt-6 break-words text-2xl font-semibold">{profile.entity.name}</h2><p className="mt-2 break-words text-sm leading-6 text-muted-foreground">{profile.entity.description || c.noDescription}</p></div><Button type="button" variant="outline" className={action} onClick={() => { stop(); setProfile(null); setError(null); setResultRevision(value => value + 1); }}>{c.change}</Button></div>
       <a href={profile.entity.source_url} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex min-h-11 max-w-full items-center gap-1 text-sm text-primary underline underline-offset-4">{c.source}<ArrowUpRight aria-hidden="true" className="h-4 w-4 shrink-0" /></a>
       <p data-brand-source-warning className="mt-4 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm font-semibold leading-6">{c.sourceClaims}</p>
+      <BrandEvidencePanel report={evidenceReport} language={language} />
       <div className="mt-5 grid min-w-0 gap-5 sm:grid-cols-2">{(["website", "social"] as const).map(kind => <section key={kind} className="min-w-0 rounded-2xl border border-border bg-card p-5"><h3 className="text-lg font-semibold">{kind === "website" ? c.websites : c.socials}</h3><ul className="mt-3 space-y-4">{profile.assertions.filter(item => item.kind === kind).map(item => { const url = safeBrandLookupLink(item.url); return <li key={item.statement_id} data-brand-assertion={item.statement_id} className="min-w-0 border-t border-border pt-3"><p className="mb-1 text-xs font-semibold text-muted-foreground">{item.platform ? platforms[item.platform] : c.websites}</p>{url ? <a href={url} target="_blank" rel="noopener noreferrer" className="block break-all text-sm font-medium text-primary underline underline-offset-4">{item.value}</a> : <p className="break-all text-sm">{item.value}</p>}<a href={item.source_url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex min-h-11 max-w-full items-center gap-1 text-xs text-primary underline underline-offset-4">{c.source}<ArrowUpRight aria-hidden="true" className="h-3 w-3 shrink-0" /></a></li>; })}</ul>{!profile.assertions.some(item => item.kind === kind) && <p className="mt-3 text-sm leading-6 text-muted-foreground">{kind === "website" ? c.noWebsites : c.noSocials}</p>}</section>)}</div>
       {profile.assertions.some(item => item.has_qualifiers) && <p className="mt-3 text-sm leading-6 text-muted-foreground">{detail.qualified}</p>}
       {profile.truncated && <p className="mt-3 text-sm leading-6 text-muted-foreground">{detail.truncated}</p>}

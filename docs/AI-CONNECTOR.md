@@ -1,9 +1,13 @@
 # Sajda AI connector
 
-Current source, 2026-10-07: public MCP `1.6.0` has six tools and private MCP
-`1.5.0` has 21. Both also provide optional naming prompts and static policy
+Current source, 2026-10-07: public MCP `1.7.0` has six tools and private MCP
+`1.7.0` has 21. Both also provide optional naming prompts and static policy
 resources. See [six-client distribution and consent](CONNECTOR-DISTRIBUTION.md)
 for installation packages and verification boundaries.
+The new [brand evidence ledger](BRAND-EVIDENCE.md) separates current provider
+observations, user claims, source-listed assertions and unknown areas. Source
+version and the separately deployed connector release are distinct; historical
+release evidence below is not proof that new source is already live.
 The `business_names_recommend` tool answers a business-first
 request for up to ten ranked names. It shares the public/protected REST routes
 `POST /api/v1/public/business-names` and `POST /api/v1/business-names`.

@@ -1,4 +1,5 @@
-import { brandLookupInputSchema, type BrandLookupResult } from "../shared/brand-lookup.js";
+import { brandLookupInputSchema, type BrandLookupResult, type BrandLookupProfile } from "../shared/brand-lookup.js";
+import { buildLookupBrandEvidenceReport } from "../shared/brand-evidence.js";
 
 /** Deterministic database-shaped fixture, never a live ownership assertion. */
 export async function lookupFixture(value: unknown): Promise<BrandLookupResult> {
@@ -12,7 +13,7 @@ export async function lookupFixture(value: unknown): Promise<BrandLookupResult> 
       { entity_id: "Q2", name: input.query, description: "Second ambiguous database record", source_url: "https://www.wikidata.org/wiki/Q2" },
     ], has_more: false, verified_index: null };
   const id = input.entity_id;
-  return { ...base, operation: "profile", requested_entity_id: id,
+  const profile: Omit<BrandLookupProfile, "evidence_report"> = { ...base, operation: "profile", requested_entity_id: id,
     entity: { entity_id: id, name: "Example Brand", description: "A database fixture, not live evidence",
       source_url: `https://www.wikidata.org/wiki/${id}`, revision_id: 123, source_modified_at: "2026-09-01T10:00:00Z" },
     assertions: [{ statement_id: `${id}$fixture`, property_id: "P856", kind: "website", platform: null,
@@ -21,4 +22,5 @@ export async function lookupFixture(value: unknown): Promise<BrandLookupResult> 
       source_url: `https://www.wikidata.org/wiki/${id}#P856` }], truncated: false,
     index: { score: null, status: "insufficient_verified_evidence", verified_assertions: 0 },
     limitations: ["single_source", "ownership_not_verified", "availability_not_checked", "not_legal_clearance", "no_global_coverage"] };
+  return { ...profile, evidence_report: buildLookupBrandEvidenceReport(profile, Date.parse(profile.retrieved_at)) };
 }

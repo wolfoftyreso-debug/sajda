@@ -5,13 +5,19 @@ import { Button } from "@/components/ui/button";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import NamePackageMarkets from "@/components/NamePackageMarkets";
 import BrandWorkspaceEntry from "@/components/BrandWorkspaceEntry";
+import BrandEvidencePanel from "@/components/BrandEvidencePanel";
+import FreeSearchGate from "@/components/FreeSearchGate";
+import { useScan } from "@/contexts/ScanContext";
+import { createBrandEvidenceReport } from "../../shared/brand-evidence";
+import { buildBrandDomainCheckPlan, checkBrandDomainBatch, projectBrandDomainEvidence } from "@/lib/brandDomainEvidence";
+import { brandDomainCheckCopy } from "@/i18n/brandDomainCheckCopy";
 import { useLanguage, type Language } from "@/i18n/LanguageProvider";
 import { brandIndexCopy } from "@/i18n/brandIndexCopy";
 import { brandLookupCopy } from "@/i18n/brandLookupCopy";
 import { namePackageCountryName } from "@/i18n/namePackageMarketsCopy";
 import { formatLocalizedDateTime } from "@/lib/localeFormat";
 import { socialPlatformNames } from "@/lib/namePackageExport";
-import { SOCIAL_PLATFORMS, type SocialPlatform } from "../../shared/name-packages";
+import { SOCIAL_PLATFORMS, type SocialPlatform, type PackageDomainInput } from "../../shared/name-packages";
 import { DEFAULT_NAME_PACKAGE_MARKETS, type NamePackageMarketCode } from "../../shared/name-package-markets";
 import { assessBrandPresence, brandIndexInputSchema, BRAND_INDEX_STATUSES, type BrandIndexInput, type BrandIndexResult } from "../../shared/brand-presence-index";
 
@@ -20,9 +26,11 @@ const action = "h-auto min-h-12 whitespace-normal px-4 py-3 text-left leading-6"
 type ReportStatus = BrandIndexInput["observations"][number]["status"];
 type Target = BrandIndexResult["targets"][number];
 
-/** A local worksheet only. No account, lookup, autosave or verified-evidence path. */
+/** Self-reports remain local. Optional registry checks are separately sourced,
+ * consume the normal allowance and cannot alter the ownership score. */
 export default function BrandIndexAssessment() {
   const { language } = useLanguage(), c = brandIndexCopy[language];
+  const dc = brandDomainCheckCopy[language], scan = useScan();
   const [brandName, setBrandName] = useState(""), [identity, setIdentity] = useState(""), [primary, setPrimary] = useState(""), [extraDomains, setExtraDomains] = useState("");
   const [platforms, setPlatforms] = useState<SocialPlatform[]>([...SOCIAL_PLATFORMS]);
   const [handles, setHandles] = useState<Partial<Record<SocialPlatform, string>>>({});
@@ -30,8 +38,16 @@ export default function BrandIndexAssessment() {
   const [input, setInput] = useState<BrandIndexInput | null>(null), inputRef = useRef<BrandIndexInput | null>(null);
   const [invalidFields, setInvalidFields] = useState<string[]>([]), [confirmReset, setConfirmReset] = useState(false), [now, setNow] = useState(Date.now);
   const result = useMemo(() => input ? assessBrandPresence(input, now) : null, [input, now]);
+  const [domainRows, setDomainRows] = useState<PackageDomainInput[]>([]), [checking, setChecking] = useState(false);
+  const [checkNotice, setCheckNotice] = useState<"done" | "failed" | "cancelled" | "limited" | null>(null);
+  const domainRequest = useRef<AbortController | null>(null);
+  const plan = useMemo(() => input ? buildBrandDomainCheckPlan(input.domains) : null, [input]);
+  const domainEvidence = useMemo(() => input ? projectBrandDomainEvidence(input.domains, domainRows, now) : null, [input, domainRows, now]);
+  const evidence = useMemo(() => result && domainEvidence ? createBrandEvidenceReport([...result.evidence_report.entries, ...domainEvidence.entries], now) : null, [result, domainEvidence, now]);
   const nameFieldRef = useRef<HTMLInputElement>(null), resultHeadingRef = useRef<HTMLHeadingElement>(null), hadResultRef = useRef(false);
   const hasResult = result !== null;
+
+  useEffect(() => () => { domainRequest.current?.abort(); domainRequest.current = null; }, []);
 
   useEffect(() => {
     // Move focus only between worksheet stages, never when a report or its age changes.
@@ -54,6 +70,7 @@ export default function BrandIndexAssessment() {
     const parsed = brandIndexInputSchema.safeParse({ brand_name: brandName, identity_label: identity, primary_domain: primaryDomain,
       domains: [...new Set(requested)], socials: platforms.map(platform => ({ platform, handle: handles[platform]?.trim() || identity.trim() })), markets, observations: [] });
     if (!parsed.success) { setInvalidFields([...new Set(parsed.error.issues.map(issue => String(issue.path[0] ?? "scope")))]); return; }
+    domainRequest.current?.abort(); domainRequest.current = null; setChecking(false); setDomainRows([]); setCheckNotice(null);
     inputRef.current = parsed.data; setInput(parsed.data); setNow(Date.now()); setInvalidFields([]); setConfirmReset(false);
   }
   function record(targetId: string, status: ReportStatus, source: string): boolean {
@@ -67,14 +84,35 @@ export default function BrandIndexAssessment() {
     if (!parsed.success) return false;
     inputRef.current = parsed.data; setInput(parsed.data); setNow(at); return true;
   }
-  function reset() { inputRef.current = null; setInput(null); setConfirmReset(false); setInvalidFields([]); }
+  function reset() { domainRequest.current?.abort(); domainRequest.current = null; setChecking(false); setDomainRows([]); setCheckNotice(null); inputRef.current = null; setInput(null); setConfirmReset(false); setInvalidFields([]); }
+  function stopChecks() { domainRequest.current?.abort(); domainRequest.current = null; setChecking(false); setCheckNotice("cancelled"); }
+  async function checkDomains() {
+    if (!plan?.batches.length || domainRequest.current || scan.isScanning) return;
+    const controller = new AbortController(); domainRequest.current = controller; setChecking(true); setCheckNotice(null);
+    try {
+      for (const batch of plan.batches) {
+        if (controller.signal.aborted) return;
+        const access = scan.requestAnonymousSearchAccess();
+        if (!access) { setCheckNotice("limited"); return; }
+        try {
+          const rows = await checkBrandDomainBatch(batch, language, controller.signal);
+          if (controller.signal.aborted || domainRequest.current !== controller) { access.release(); return; }
+          const checked = projectBrandDomainEvidence(batch, rows, Date.now());
+          if (checked.summary.checked) access.complete(); else access.release();
+          setDomainRows(previous => [...previous.filter(row => !batch.includes(row.domain)), ...rows]); setNow(Date.now());
+        } catch (error) { access.release(); throw error; }
+      }
+      if (!controller.signal.aborted && domainRequest.current === controller) setCheckNotice("done");
+    } catch { if (!controller.signal.aborted && domainRequest.current === controller) setCheckNotice("failed"); }
+    finally { if (domainRequest.current === controller) { domainRequest.current = null; setChecking(false); } }
+  }
   const isInvalid = (name: string) => invalidFields.includes(name);
 
   return <main className="mx-auto w-full max-w-6xl px-4 py-6 pb-20 sm:px-6" aria-labelledby="brand-index-title">
     <div className="mb-6 flex flex-wrap items-center justify-between gap-3"><Link to="/brand-index" className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary"><ArrowLeft aria-hidden="true" className="h-4 w-4 shrink-0" />{brandLookupCopy[language].returnLookup}</Link><LanguageSwitcher /></div>
     <header className="max-w-3xl"><p className="text-sm font-semibold text-primary">{c.eyebrow}</p><h1 id="brand-index-title" className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">{c.title}</h1><p className="mt-4 text-base leading-7 text-muted-foreground">{c.intro}</p></header>
     <BrandWorkspaceEntry />
-    <aside className="my-6 rounded-2xl border border-border p-4" aria-labelledby="brand-index-warning"><h2 id="brand-index-warning" className="text-sm font-semibold">{c.warning}</h2><details className="mt-2"><summary className="min-h-11 cursor-pointer py-2 text-sm text-muted-foreground">{c.privacy}</summary><p className="mt-2 max-w-3xl text-sm leading-6">{c.warningBody}</p></details></aside>
+    <aside className="my-6 rounded-2xl border border-border p-4" aria-labelledby="brand-index-warning"><h2 id="brand-index-warning" className="text-sm font-semibold">{c.warning}</h2><details className="mt-2"><summary className="min-h-11 cursor-pointer py-2 text-sm text-muted-foreground">{dc.privacy}</summary><p className="mt-2 max-w-3xl text-sm leading-6">{c.warningBody}</p></details></aside>
     {!result ? <form onSubmit={build} noValidate className="min-w-0 space-y-6" aria-labelledby="brand-index-scope-title">
       <section className="rounded-2xl border border-border bg-card p-5 sm:p-6"><h2 id="brand-index-scope-title" className="mb-5 text-xl font-semibold">{c.scopeTitle}</h2>
         <div className="grid min-w-0 gap-5 sm:grid-cols-2">
@@ -92,6 +130,14 @@ export default function BrandIndexAssessment() {
       <header className="flex flex-wrap items-start justify-between gap-4"><div className="min-w-0"><h2 ref={resultHeadingRef} tabIndex={-1} id="brand-index-result-title" className="scroll-mt-6 text-xl font-semibold">{c.results}</h2><p className="mt-2 break-words text-2xl font-semibold">{result.brand.name}</p><p className="mt-2 break-all text-sm text-muted-foreground">{result.brand.primary_domain}</p></div><Button type="button" variant="outline" className={action} onClick={() => setConfirmReset(true)}>{c.edit}</Button></header>
       {confirmReset && <section className="rounded-xl border border-border bg-card p-5" aria-label={c.edit}><p role="alert" className="text-sm leading-6">{c.resetWarning}</p><div className="mt-3 flex flex-wrap gap-3"><Button type="button" variant="outline" className={action} onClick={reset}>{c.reset}</Button><Button type="button" variant="ghost" className={action} onClick={() => setConfirmReset(false)}>{c.cancel}</Button></div></section>}
       <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{c.fixed}</p>
+      <section className="rounded-2xl border border-border bg-card p-5" aria-labelledby="brand-domain-check-title">
+        <h3 id="brand-domain-check-title" className="text-lg font-semibold">{dc.title}</h3><p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{dc.help}</p>
+        <div className="mt-4 flex flex-wrap gap-3"><Button type="button" data-brand-check-domains className={action} disabled={checking || scan.isScanning || !plan?.batches.length} onClick={() => void checkDomains()}>{checking ? dc.checking : dc.action}</Button>{checking && <Button type="button" variant="outline" className={action} onClick={stopChecks}>{dc.stop}</Button>}</div>
+        <p role="status" className="mt-3 text-sm leading-6">{dc.progress}: {domainEvidence?.summary.checked ?? 0} {dc.separator} {result.scope.domains.length}. {dc.remaining}: {domainEvidence?.summary.unknown ?? result.scope.domains.length}.</p>
+        {plan && plan.unsupported.length > 0 && <div className="mt-3 text-sm leading-6"><p className="font-medium">{dc.unsupported}</p><ul className="mt-1 list-inside list-disc">{plan.unsupported.map(domain => <li key={domain} className="break-all">{domain}</li>)}</ul></div>}
+        {checkNotice && <p role={checkNotice === "failed" ? "alert" : "status"} className="mt-3 text-sm leading-6">{dc[checkNotice]}</p>}
+      </section>
+      {evidence && <BrandEvidencePanel report={evidence} language={language} />}
       <div className="grid min-w-0 gap-4 sm:grid-cols-2"><section className="min-w-0 rounded-2xl border border-primary/30 bg-card p-5" aria-labelledby="brand-index-reported-title"><h3 id="brand-index-reported-title" className="text-sm font-semibold">{c.reportedScore}</h3><p data-brand-reported-score={result.index.reported_score ?? "unavailable"} className={`mt-3 font-semibold ${result.index.reported_score === null ? "text-lg" : "text-4xl"}`}>{result.index.reported_score === null ? c.notEnough : `${result.index.reported_score} / ${result.index.maximum}`}</p><p className="mt-3 text-xs leading-5 text-muted-foreground">{c.threshold}</p></section><section className="min-w-0 rounded-2xl border border-border bg-card p-5" aria-labelledby="brand-index-verified-title"><h3 id="brand-index-verified-title" className="text-sm font-semibold">{c.verifiedScore}</h3><p data-brand-verified-score="unavailable" className="mt-3 text-lg font-semibold">{c.notVerified}</p><p className="mt-3 text-xs leading-5 text-muted-foreground">{c.warningBody}</p></section></div>
       <dl className="grid grid-cols-2 gap-3 rounded-2xl border border-border bg-card p-5 sm:grid-cols-3"><div><dt className="text-xs text-muted-foreground">{c.targetCount}</dt><dd data-brand-target-count className="mt-1 text-xl font-semibold">{result.counts.requested}</dd></div><div><dt className="text-xs text-muted-foreground">{c.reportedCoverage}</dt><dd data-brand-reported-coverage className="mt-1 text-xl font-semibold">{result.index.reported_coverage_percent}%</dd></div><div><dt className="text-xs text-muted-foreground">{c.verifiedCoverage}</dt><dd className="mt-1 text-xl font-semibold">0%</dd></div><div><dt className="text-xs text-muted-foreground">{c.unassessed}</dt><dd className="mt-1 text-xl font-semibold">{result.counts.unassessed}</dd></div><div><dt className="text-xs text-muted-foreground">{c.conflicts}</dt><dd className="mt-1 text-xl font-semibold">{result.counts.conflicts}</dd></div><div><dt className="text-xs text-muted-foreground">{c.stale}</dt><dd className="mt-1 text-xl font-semibold">{result.counts.stale}</dd></div></dl>
       <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{c.coverageHelp}</p>
@@ -100,6 +146,7 @@ export default function BrandIndexAssessment() {
       <section className="rounded-2xl border border-border bg-secondary/30 p-5"><h3 className="font-semibold">{c.next}</h3><p className="mt-3 max-w-3xl text-sm leading-6 text-muted-foreground">{c.gaps}</p></section>
     </section>}
     <Link to="/name-packages" className="mt-8 inline-flex min-h-11 max-w-full items-start gap-2 py-2 text-sm font-semibold text-primary underline underline-offset-4"><span className="min-w-0">{c.packages}</span><ArrowRight aria-hidden="true" className="mt-1 h-4 w-4 shrink-0" /></Link>
+    <FreeSearchGate />
   </main>;
 }
 

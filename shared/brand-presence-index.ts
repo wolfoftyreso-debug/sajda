@@ -2,6 +2,7 @@ import { parse } from "tldts";
 import { z } from "zod/v4";
 import { NAME_PACKAGE_MARKET_CODES } from "./name-package-markets.js";
 import { SOCIAL_PLATFORMS } from "./name-packages.js";
+import { brandEvidenceReportSchema, buildPresenceBrandEvidenceReport } from "./brand-evidence.js";
 
 export const BRAND_INDEX_SCHEMA_VERSION = "sajda.brand-presence-index.v1" as const;
 export const BRAND_INDEX_METHODOLOGY_VERSION = "brand-presence-1.0.0" as const;
@@ -119,7 +120,13 @@ export const brandIndexResultSchema = z.strictObject({
     authorized: z.number().int().min(0).max(MAX_TARGETS), conflicts: z.number().int().min(0).max(MAX_TARGETS),
     matching_only: z.number().int().min(0).max(MAX_TARGETS), stale: z.number().int().min(0).max(MAX_TARGETS) }),
   targets: z.array(targetSchema).min(3).max(MAX_TARGETS),
+  evidence_report: brandEvidenceReportSchema,
   limitations: z.array(z.enum(LIMITATIONS)).length(LIMITATIONS.length),
+}).superRefine((result, context) => {
+  const expected = buildPresenceBrandEvidenceReport(result.brand.identity_label, result.targets, Date.parse(result.generated_at));
+  if (JSON.stringify(result.evidence_report) !== JSON.stringify(expected)) {
+    context.addIssue({ code: "custom", message: "The self-assessment evidence report must contain only the scoped user reports.", path: ["evidence_report"] });
+  }
 });
 export type BrandIndexResult = z.infer<typeof brandIndexResultSchema>;
 
@@ -172,6 +179,6 @@ export function assessBrandPresence(value: unknown, now = Date.now()): BrandInde
       conflicts: targets.filter(target => resolved(target) && target.reported_status === "reported_conflict").length,
       matching_only: targets.filter(target => target.reported_status === "matching_name_only").length,
       stale: targets.filter(target => target.status_freshness === "stale" || target.status_freshness === "future").length },
-    targets, limitations: [...LIMITATIONS],
+    targets, evidence_report: buildPresenceBrandEvidenceReport(input.identity_label, targets, now), limitations: [...LIMITATIONS],
   });
 }

@@ -38,6 +38,13 @@ function assertReport(report, expectedScore) {
   assert.equal(report.index.confidence, null); assert.equal(report.scope.is_global_score, false);
   assert.equal(report.targets.length, 3); assert.ok(report.targets.every(target => target.classification === "USER_SUPPLIED"));
   assert.ok(report.limitations.includes("no_external_lookups_performed"));
+  const evidence = report.evidence_report;
+  assert.equal(evidence.schema_version, "sajda.brand-evidence.v1");
+  assert.equal(evidence.ownership_verified, false); assert.equal(evidence.legal_clearance, false);
+  assert.equal(evidence.continuous_monitoring, false);
+  assert.deepEqual(evidence.summary, { total: 7, checked: 0, reported: expectedScore === null ? 0 : 3,
+    listed: 0, unknown: expectedScore === null ? 7 : 4, checked_coverage_percent: 0 });
+  assert.ok(evidence.entries.every(entry => entry.state === "unknown" || entry.origin === "user_report"));
 }
 const page = await request("/brand-index/assessment");
 assert.equal(page.status, 200); assert.match(page.headers.get("content-type") ?? "", /text\/html/u);
@@ -66,5 +73,6 @@ const called = await request("/api/mcp/public", { jsonrpc: "2.0", id: 3, method:
 assert.equal(called.status, 200); assert.equal(called.data.result.structuredContent.ok, true);
 assertReport(called.data.result.structuredContent.data, 100);
 assert.equal(called.data.result.structuredContent.data.scope.comparison_key, assessed.data.scope.comparison_key);
+assert.deepEqual(called.data.result.structuredContent.data.evidence_report.entries, assessed.data.evidence_report.entries);
 console.log(JSON.stringify({ verdict: "PASS", origin, synthetic_only: true, page: true, rest: true, mcp: true,
   invalid_claims_rejected: true, invalid_dates_rejected: true, independent_verification_performed: false, persisted: false }));

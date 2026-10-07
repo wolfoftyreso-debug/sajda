@@ -5,6 +5,7 @@ import {
   type NamePackage, type PackageNextAction, type SocialObservation,
 } from "./name-packages.js";
 import { NAMES_API_MAX_EXACT_DOMAINS, NAMES_API_TLDS } from "../api/_shared/names-contract.js";
+import { brandEvidenceReportSchema, buildCandidateBrandEvidenceReport } from "./brand-evidence.js";
 
 export const CANDIDATE_BRAND_INDEX_VERSION = "sajda.brand-index.candidate.v1" as const;
 export const CANDIDATE_BRAND_INDEX_METHODOLOGY = "sajda-brand-index-candidate-1.0.0" as const;
@@ -21,6 +22,7 @@ const nextAction = z.strictObject({
  * the distinction machine-readable as well as visible in product surfaces. */
 export const candidateBrandIndexSchema = z.strictObject({
   schemaVersion: z.literal(CANDIDATE_BRAND_INDEX_VERSION), methodologyVersion: z.literal(CANDIDATE_BRAND_INDEX_METHODOLOGY),
+  identityLabel: z.string().min(1).max(63).regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/u),
   mode: z.literal("candidate"), score: z.number().int().min(0).max(70), maximum: z.literal(100), attainableMaximum: z.literal(70),
   nameFitScore: z.number().int().min(0).max(100), evidenceCoverage: z.number().int().min(0).max(100),
   status: z.enum(["conflicts_found", "domains_ready", "checks_needed"]),
@@ -30,6 +32,32 @@ export const candidateBrandIndexSchema = z.strictObject({
     socialCount: z.number().int().nonnegative(), sameHandleFormats: z.number().int().nonnegative(), observedProfiles: z.number().int().nonnegative() }),
   missingChecks: z.array(missingCheck), nextActions: z.array(nextAction),
   ownershipVerified: z.literal(false), legalClearance: z.literal(false),
+  evidence_report: brandEvidenceReportSchema,
+}).superRefine((index, context) => {
+  const fail = (message: string) => context.addIssue({ code: "custom", message, path: ["evidence_report"] });
+  const entries = index.evidence_report.entries;
+  if (entries.some(entry => entry.origin === "user_report" || entry.origin === "source_assertion")) fail("Candidate evidence cannot claim user reports or third-party database assertions.");
+  for (const entry of entries) {
+    if (entry.kind === "domain") {
+      const domain = parse(entry.target, { allowPrivateDomains: false });
+      if (!domain.isIcann || domain.domain !== entry.target || domain.domainWithoutSuffix !== index.identityLabel
+        || entry.id !== `check:domain:${entry.target}`) fail("Domain evidence must match this candidate identity.");
+    } else if (entry.kind === "social") {
+      const [platform, handle, extra] = entry.target.split(":");
+      if (!SOCIAL_PLATFORMS.includes(platform as typeof SOCIAL_PLATFORMS[number]) || handle !== index.identityLabel
+        || extra !== undefined || entry.id !== `check:social:${entry.target}`) fail("Social evidence must match this candidate identity.");
+    } else if (["company", "trademark", "ownership", "monitoring"].includes(entry.kind)) {
+      if (entry.target !== index.identityLabel || entry.id !== `${entry.kind}:${index.identityLabel}` || entry.origin !== "none") fail("Unknown coverage must belong to this candidate identity.");
+    } else fail("Candidate evidence cannot import unrelated market claims.");
+  }
+  const domains = entries.filter(entry => entry.kind === "domain"), socials = entries.filter(entry => entry.kind === "social");
+  const available = domains.filter(entry => entry.state === "checked" && entry.statement === "domain_available").length;
+  const taken = domains.filter(entry => entry.state === "checked" && entry.statement === "domain_registered").length;
+  const found = socials.filter(entry => entry.state === "checked" && entry.statement === "social_profile_found").length;
+  if (domains.length !== index.signals.domainCount || socials.length !== index.signals.socialCount
+    || available !== index.signals.availableDomains || taken !== index.signals.takenDomains
+    || domains.length - available - taken !== index.signals.uncheckedDomains || found !== index.signals.observedProfiles) fail("Candidate signal counts must match its scoped evidence items.");
+  if (["company", "trademark", "ownership", "monitoring"].some(kind => entries.filter(entry => entry.kind === kind).length !== 1)) fail("Candidate reports must retain every unknown coverage category.");
 });
 export type CandidateBrandIndex = z.infer<typeof candidateBrandIndexSchema>;
 
@@ -56,6 +84,7 @@ export function getNamePackageBrandIndex(pkg: NamePackage, now = Date.now()): Ca
       : action.kind === "verify_company" ? 2 : action.kind === "verify_trademark" ? 3 : 4;
   return candidateBrandIndexSchema.parse({
     schemaVersion: CANDIDATE_BRAND_INDEX_VERSION, methodologyVersion: CANDIDATE_BRAND_INDEX_METHODOLOGY,
+    identityLabel: current.label,
     mode: "candidate", score: current.packageScore, maximum: 100, attainableMaximum: 70,
     nameFitScore: current.fitScore, evidenceCoverage: current.evidenceCoverage,
     status: taken || found ? "conflicts_found" : available > 0 && unchecked === 0 ? "domains_ready" : "checks_needed",
@@ -64,6 +93,7 @@ export function getNamePackageBrandIndex(pkg: NamePackage, now = Date.now()): Ca
       socialCount: current.socials.length, sameHandleFormats: current.socials.filter(social => social.formatValid).length, observedProfiles: found },
     missingChecks: current.missingChecks, nextActions: [...current.nextActions].sort((a, b) => priority(a) - priority(b)),
     ownershipVerified: false, legalClearance: false,
+    evidence_report: buildCandidateBrandEvidenceReport(pkg, now),
   });
 }
 

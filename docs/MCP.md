@@ -1,11 +1,17 @@
 # Sajda remote MCP
 
-Endpoint: `https://<your-sajda-host>/api/mcp`. Transport: MCP Streamable HTTP with JSON responses. The source server version is `1.5.0`; the official TypeScript SDK is pinned to `@modelcontextprotocol/sdk` **1.30.0**.
+Endpoint: `https://<your-sajda-host>/api/mcp`. Transport: MCP Streamable HTTP with JSON responses. The source server version is `1.7.0`; the official TypeScript SDK is pinned to `@modelcontextprotocol/sdk` **1.32.1**.
 
-Public source version `1.6.0` advertises six tools; the authenticated catalogue
+Public source version `1.7.0` advertises six tools; the authenticated catalogue
 has 21. Both additionally expose two opt-in prompts and two static policy resources.
 See [connector distribution](CONNECTOR-DISTRIBUTION.md) for the current release
 and [earlier API release status](AGENT-API-RELEASE.md) for tested account boundaries.
+
+Brand results now include a shared `sajda.brand-evidence.v1` ledger with separate
+checked observations, user reports, source-listed relationships and unknown
+areas. Preserve their exact targets, dates and origins. A current registry check
+does not verify ownership; source retrieval is not real-world verification.
+See [the evidence contract](BRAND-EVIDENCE.md) for freshness and score boundaries.
 
 `business_names_recommend` accepts a business description and returns up to ten
 ranked recommendations, each backed by at least one fresh authoritative

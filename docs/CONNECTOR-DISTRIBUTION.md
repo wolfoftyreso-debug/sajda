@@ -1,6 +1,9 @@
 # Sajda connector distribution
 
-Source release: 17 September 2026. Public MCP 1.6.0; authenticated MCP 1.5.0.
+Current source: 7 October 2026. Public and authenticated MCP 1.7.0.
+The shared [brand evidence contract](BRAND-EVIDENCE.md) is used by naming,
+existing-brand assessment and lookup tools. Source changes do not automatically
+update the separately deployed public connector or host-platform installations.
 
 ## Product contract
 

@@ -1,11 +1,14 @@
 /** Anonymous MCP conformance probe. --live makes two bounded read-only searches
  * against real registry/registrar providers. Never uses preview bypass or keys. */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { CONNECTOR_HOSTS } from "../shared/connector-catalogue.mjs";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
 const origin = new URL(process.env.SAJDA_TEST_ORIGIN || "http://127.0.0.1:8095");
+const publicMcpVersion = JSON.parse(readFileSync(new URL("../api/_shared/agent-product-openapi.json", import.meta.url), "utf8")).publicMcpVersion;
+assert.match(publicMcpVersion, /^\d+\.\d+\.\d+$/u);
 assert.ok((origin.protocol === "https:" || (origin.protocol === "http:" && origin.hostname === "127.0.0.1")) &&
   !origin.username && !origin.password && !origin.search && !origin.hash && origin.pathname === "/", "Use a clean HTTPS origin or loopback QA origin.");
 const client = new Client({ name: "sajda-public-connector-probe", version: "1.0.0" });
@@ -14,7 +17,7 @@ const transport = new StreamableHTTPClientTransport(new URL("/api/mcp/public", o
 });
 try {
   await client.connect(transport);
-  assert.equal(client.getServerVersion()?.version, "1.6.0");
+  assert.equal(client.getServerVersion()?.version, publicMcpVersion);
   assert.deepEqual((await client.listPrompts()).prompts.map(prompt => prompt.name), ["sajda-naming-companion", "find-business-names"]);
   assert.deepEqual((await client.listResources()).resources.map(resource => resource.uri), ["sajda://connector/guide", "sajda://connector/policy"]);
   const policyResource = await client.readResource({ uri: "sajda://connector/policy" });
