@@ -48,7 +48,7 @@ async function main() {
   const owner = randomUUID(), email = `brand-check-browser-${owner}@example.test`, password = `Sajda-${randomBytes(28).toString("base64url")}`;
   let browser, transaction, reportId, firstRun;
   const measurements = [], runtimeErrors = [], posts = [], blockedWrites = [];
-  let blockedExternal = 0, actualLogin = false, declaredAt;
+  let blockedExternal = 0, transportFailures = 0, actualLogin = false, declaredAt;
   try {
     phase = "protected_preview_health";
     // The trusted short-lived token is sent only to this exact preview origin.
@@ -80,8 +80,14 @@ async function main() {
       }
       // Fetch the unchanged real server response, never follow a redirect with
       // private headers. route.continue(headers) would forward them on redirects.
-      const response = await route.fetch({ headers: { ...request.headers(), "x-vercel-trusted-oidc-idp-token": token }, maxRedirects: 0, maxRetries: 0, timeout: 60_000 });
-      return route.fulfill({ response });
+      try {
+        const response = await route.fetch({ headers: { ...request.headers(), "x-vercel-trusted-oidc-idp-token": token }, maxRedirects: 0, maxRetries: 0, timeout: 60_000 });
+        return await route.fulfill({ response });
+      } catch {
+        // Playwright request errors can include header call logs. Do not allow
+        // a route handler rejection to expose credentials through stderr.
+        transportFailures++; return route.abort("failed").catch(() => undefined);
+      }
     });
     const page = await context.newPage();
     page.on("pageerror", () => runtimeErrors.push("browser_runtime_exception"));
@@ -145,14 +151,22 @@ async function main() {
     check(list.status === 200 && brandReportsListResponseSchema.parse(list.value).reports[0].version === 1);
     phase = "responsive_keyboard_actual_preview";
     for (const width of [320, 390, 768, 1440]) {
+      phase = `responsive_measure_${width}`;
       await page.setViewportSize({ width, height: 900 });
       const measurement = await page.evaluate(() => ({ width: innerWidth, scrollWidth: document.documentElement.scrollWidth,
         clippedControls: [...document.querySelectorAll("main :is(button,input,select,textarea,summary,h1,h2,h3,h4,h5)")].filter(element => {
           const box = element.getBoundingClientRect(), style = getComputedStyle(element); return box.width > 0 && style.visibility !== "hidden" && (box.right > innerWidth + 1 || box.left < -1);
         }).length }));
-      measurements.push(measurement); check(measurement.scrollWidth <= measurement.width && measurement.clippedControls === 0);
+      measurements.push(measurement); console.info(JSON.stringify({ event: "brand_checks_browser_layout_measurement", ...measurement }));
+      check(measurement.scrollWidth <= measurement.width && measurement.clippedControls === 0);
+      phase = `responsive_keyboard_focus_${width}`;
+      await page.waitForFunction(() => { const button = document.querySelector("[data-brand-archived-check-refresh]"); return button && !button.disabled; });
       const refresh = page.locator("[data-brand-archived-check-refresh]"); await refresh.focus();
+      // Programmatic focus after mouse input need not match :focus-visible.
+      // Move with the real keyboard before testing its visible focus styling.
+      await page.keyboard.press("Tab"); await page.keyboard.press("Shift+Tab");
       check(await refresh.evaluate(element => element === document.activeElement && getComputedStyle(element).outlineStyle !== "none" || element === document.activeElement && getComputedStyle(element).boxShadow !== "none"));
+      phase = `responsive_keyboard_activate_${width}`;
       const refreshed = page.waitForResponse(response => new URL(response.url()).pathname === "/api/account/brand-checks" && response.request().method() === "GET");
       await refresh.press("Enter"); check((await refreshed).status() === 200); await verifyDates();
     }
@@ -166,7 +180,7 @@ async function main() {
     const result = { event: "brand_checks_authenticated_browser_preview_verified", actualBrowserLogin: true, browser: browserChannel, routeMocks: false, realResponseProtectionProxy: true,
       actualSessionStored: true, realUiSave: true, realUiRegistryCheck: true, supportedObservationChecked: true, unsupportedObservationUnknown: true,
       reloadWithoutNewProviderRequest: true, originalDeclarationDatesPreserved: true, originalProviderDatesPreserved: true, databaseReceiptUiAgreement: true,
-      measurements, keyboardActivation: true, focusVisible: true, runtimeExceptions: runtimeErrors.length, blockedExternalRequests: blockedExternal,
+      measurements, keyboardActivation: true, focusVisible: true, runtimeExceptions: runtimeErrors.length, blockedExternalRequests: blockedExternal, transportFailures,
       sourceCheckPosts: 1, reportSavePosts: 1, ownershipVerified: false, legalClearance: false, continuousMonitoring: false,
       actualIPhone: false, voiceOver: false, emailCalls: 0, paymentCalls: 0, productionWrites: 0 };
     await writeFile(path.join(root, "brand-checks-browser", "result.json"), JSON.stringify(result, null, 2)); console.info(JSON.stringify(result));

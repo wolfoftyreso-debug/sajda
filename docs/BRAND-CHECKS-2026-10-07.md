@@ -75,12 +75,85 @@ confirmed fixes covered self-reported-index wording, version-history semantics,
 pending status recovery and ambiguous-commit cleanup in test probes. Root
 performed the actual preview PostgreSQL probe described above.
 
-## Deployed verification still in progress
+## Actual deployed evidence
 
-Protected deployed HTTP/REST/MCP probes and authenticated browser tests are
-being completed. No final preview, SHA, provider success or browser
-result is claimed in this interim record. Replace this section with observed
-results before calling this increment deployed/verified.
+Application commit `e07246bcad370c6942662c459082fcd2ee18397b` was pushed to
+`codex/launch-hardening` in `wolfoftyreso-debug/sajda`; no main merge or
+production promotion was performed. Vercel's Git preview is **READY**:
+[sajda-ofqsvquag-hypbit.vercel.app](https://sajda-ofqsvquag-hypbit.vercel.app),
+deployment `dpl_3c5Vnj2MfVVWa3EtutG2rzdEEcAx`, target preview, correct
+Hypbit/Sajda linkage and exact commit confirmed in deployment metadata.
+
+[GitHub Verify #102](https://github.com/wolfoftyreso-debug/sajda/actions/runs/37638803047)
+and job `112851971435` completed **success** on that exact commit. Downloaded
+job logs confirm 2,016 tests / 2,008 passed / eight opt-in skips / zero failures,
+101 dictionaries and 80 credential-free HTTP checks. The advisory step confirms
+zero known production-dependency findings, not zero findings in all tooling.
+
+`check-runtime.mjs` then passed **80 actual protected-preview HTTP checks**
+through the authorized Vercel CLI, with required report/check flags asserted;
+health was 200/connected. Private route auth, unknown routes, headers, OpenAPI
+components and unchanged six-tool public MCP discovery were included. These
+HTTP checks are not themselves browser or paid-flow verification.
+
+`probe-brand-checks-deployed-preview.ts` passed **16 REST and 11 real MCP SDK
+requests**, discovering 27 private tools. Two explicit checks produced two
+registered `.com` observations and two undated unsupported `.co.uk` unknowns.
+Typed history agreed with PostgreSQL. Original dates, late identical retry after
+report v2, foreign-account 404, both required scopes, rejected caller evidence
+and session-only browser boundary passed. Two new synthetic accounts/four
+temporary keys were retired, with exact account/data/quota cleanup verified zero.
+No mail, payment, ownership claim, monitoring or production write occurred.
+
+The preview-only PostgreSQL probe was repeated on the committed implementation:
+nine synthetic-checker invocations, zero providers, two accounts retired and
+all fixture/scoped-rate rows zero. Both runs used newly allocated accounts.
+
+## Actual authenticated browser evidence
+
+`check-brand-checks-browser-preview.mjs` used installed headless Microsoft Edge
+154.0.4258.62 with Playwright 1.62.1. It sent the unchanged genuine server
+responses through an origin-only protection proxy with redirects disabled;
+there were no synthetic application responses or invented session cookies.
+
+The final pass verified real email/password UI sign-in, an actual stored auth
+session, report creation with an original user declaration, one saved registry
+check, real registered `.com` evidence and explicit unsupported `.co.uk` unknown,
+reload/reopen without new check or save POST, original declaration/provider
+dates, null verified score, typed history and SQL/UI receipt agreement.
+
+At **320, 390, 768 and 1,440 × 900 CSS px**, document width equalled viewport
+width and zero inspected controls/headings were clipped. Real Tab/Shift+Tab,
+visible keyboard focus and Enter status refresh passed. Final browser runtime
+exceptions, transport failures and blocked external requests were zero. The
+disposable account, credential/session rows, report/check rows and scoped rate
+counters were all removed and verified zero; shared IP auth quotas were untouched.
+Screenshots and result JSON stay in ignored `.vercel/brand-checks-browser/`,
+not public product assets or committed credential-bearing traces.
+
+Earlier attempts are not hidden: the first stopped at the initial health guard
+before any fixture write. A subsequent read returned 200. A bounded 15-minute
+Vercel log query found one `/api/health` 503 `database_unavailable`, request
+`req_1chn4P6PvY9_oYth`; correlation to the first browser attempt and exact root
+cause were **not established**. The next browser pass completed the actual
+account/core journey but exposed a test false positive: programmatic focus after
+mouse input need not receive `:focus-visible`. The probe was corrected to use
+real keyboard movement, then the full pass succeeded. Both fixture-bearing
+attempts confirmed cleanup. No application timeout or security rule was weakened.
+
+The native product bundle also built successfully with this HTTPS preview as
+its API origin and passed public-bundle/no-web-SEO policy. This is not a new
+Xcode, signed iPhone, Safari, VoiceOver, TestFlight or StoreKit test.
+
+## Dependency disclosure
+
+Fresh `npm audit --omit=dev` reports zero findings. Full audit reports five high
+development-tooling findings cascading from `braces` through Tailwind 3's glob
+stack. npm's current braces version is 3.0.3; the
+[reviewed primary advisory](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)
+lists no patched version. No forced major Tailwind migration or private vendored
+security patch was represented as a verified repair in this increment. Tooling
+remediation remains tracked separately from production-package reachability.
 
 ## Remaining release boundaries
 
