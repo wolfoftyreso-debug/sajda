@@ -136,6 +136,48 @@ Inte testat här: fysisk iPhone/iPad/Safari/VoiceOver, 200 % zoom, mörkt läge,
 alla signerade kontoresor, riktig inboxleverans, Stripe/Apple-transaktioner,
 hela Trading-köns kapacitet eller verklig installation i alla AI-klienter.
 
+## Verifierad leverans av rättningarna
+
+Kodcommit: `1e6ac108ac21663a314aada9e24e907815eac129`, pushad till
+`codex/launch-hardening` i `wolfoftyreso-debug/sajda`. Ingen merge till
+produktion. Den här rapportens efterföljande uppdatering är endast dokumentation;
+nedanstående prover avser uttryckligen denna kodcommit.
+
+- Git-integrationspreview: **READY**,
+  [sajda-7ue9k0iw1-hypbit.vercel.app](https://sajda-7ue9k0iw1-hypbit.vercel.app),
+  deployment `dpl_KD8ocL9ne3LZHSQRSdEgjy7FijNF`.
+- [GitHub Verify #96](https://github.com/wolfoftyreso-debug/sajda/actions/runs/37614975514)
+  på exakt samma kodcommit: **completed/success**.
+- `check-runtime.mjs` mot denna protected preview med officiell Vercel CLI:
+  **71 HTTP-kontroller passerade**, health **200 / connected**.
+- Extra HTTP-kontroll av `/brand-index/assessment`: **200**, CSP finns,
+  `X-Robots-Tag: noindex, nofollow`, `Cache-Control: private, no-store`.
+- `/api/auth-providers`: **200**, alla fyra providers fortfarande
+  `enabled: false`; request `req_qWPVGyAZdo_VItKm`.
+- Verkligt browserprov i samma deployade preview på svenska, 390 × 844:
+  scope byggdes med syntetiska uppgifter, tangentbordsaktiverad navigation
+  öppnade varning, Fortsätt redigera behöll scope och återförde fokus till
+  ursprungslänken, Lämna utan att spara återgick till varumärkessökningen.
+  Lokaliserad titel och borttaget redundant kort kontrollerades efter rendering.
+- Nytt avgränsat IKEA-uppslag i denna preview gav återigen det tydliga
+  otillgänglighetsläget, inte en falsk indexpoäng. Den specifika upstream-orsaken
+  till just detta andra browserprov hämtades inte separat; tidigare `maxlag`
+  är en observerad orsak vid det tidigare primärkälleprovet, inte en gissad
+  diagnos av varje senare fel.
+- Lokal pris- och utvecklarlayout kontrollerades också vid 320, 390, 768
+  och 1 440 × 844: ingen horisontell sidöverskjutning/kontroll utanför
+  bredden; utvecklarvyn hade noll färdigladdade bilder med saknat bildinnehåll.
+- Vercel-loggfråga för denna preview, senaste 15 minuterna, HTTP 5xx,
+  högst 20 poster: **noll returnerade poster**. Det upphäver inte det
+  direkt observerade misslyckade uppslaget och bevisar inte heltäckande loggning.
+- Det nya release-preflight-provet mot det historiska NO-GO-kvittot avslog
+  lansering med `release_go_required`, commit-mismatch och öppna externa
+  grindar, även från en ren arbetsyta. Schema-validitet är inte release-approval.
+
+**Leveransbeslut kvarstår: verifierad utvecklingspreview, NO-GO för betalande
+lansering och App Store.** Nästa implementeringsblock är kontoägd
+varumärkesarbetsyta med versionshistorik och API/MCP-paritet.
+
 ## Använda verktyg och avgränsningar
 
 - Repository och GitHub: kodhistorik, regressionsprov och befintlig CI.
