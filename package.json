@@ -39,6 +39,7 @@
     "start:local-search": "node infra/local-server/server.mjs",
     "check:local": "node infra/local-server/check-page.mjs",
     "check:launch-evidence": "node scripts/check-launch-evidence.mjs",
+    "check:release-ready": "node scripts/check-release-ready.mjs",
     "build": "node scripts/build-static.mjs",
     "build:local": "node scripts/build-static.mjs --local-test",
     "generate:seo": "node scripts/generate-seo-static.mjs",

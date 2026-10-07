@@ -9,7 +9,7 @@ import { nativeCopy } from "@/app/nativeCopy";
 
 const actionClass = "h-auto min-h-11 justify-start whitespace-normal px-4 py-3 text-left leading-snug";
 
-export default function AccountMembershipPanel() {
+export default function AccountMembershipPanel({ showCompareLink = true }: { showCompareLink?: boolean } = {}) {
   const { membership, loading, error, refresh } = useMembership();
   const { language } = useLanguage();
   const copy = getMembershipCopy(language);
@@ -53,7 +53,7 @@ export default function AccountMembershipPanel() {
       )}
       <div className="mt-5 border-t border-border pt-5">
         <p className="text-sm leading-relaxed text-muted-foreground">{copy.sameAccount}</p>
-        <Link to="/pricing" className="mt-2 inline-flex min-h-11 items-center gap-2 font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{isNativeApp ? nativeCopy[language].membership : copy.comparePlans}<ArrowRight aria-hidden="true" className="h-4 w-4 shrink-0" /></Link>
+        {showCompareLink && <Link to="/pricing" className="mt-2 inline-flex min-h-11 items-center gap-2 font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{isNativeApp ? nativeCopy[language].membership : copy.comparePlans}<ArrowRight aria-hidden="true" className="h-4 w-4 shrink-0" /></Link>}
       </div>
     </section>
   );

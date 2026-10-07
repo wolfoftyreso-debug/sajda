@@ -2,7 +2,7 @@ import { useCallback,useEffect,useRef,useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/i18n/LanguageProvider";
-import { nativeCommerceCopy } from "@/i18n/nativeCommerceCopy";
+import { nativeCommerceCopy, nativePlanFeatures } from "@/i18n/nativeCommerceCopy";
 import { nativeAvailable,nativeCommerceCatalog,nativeCommercePurchase,nativeCommerceRestore,nativeCommerceManage,type NativeStoreCatalog } from "@/lib/nativeTransport";
 
 export default function NativeCommercePanel({accountId,onChanged}:{accountId:string;onChanged:()=>Promise<void>}){
@@ -63,10 +63,17 @@ export default function NativeCommercePanel({accountId,onChanged}:{accountId:str
     {own&&!own.enabled&&<p>{copy.unavailable}</p>}
     {own?.enabled&&<>
       {!own.purchasesEnabled&&<p>{copy.paused}</p>}
-      {own.purchasesEnabled&&own.products.map(product=><div key={product.id} className="flex flex-wrap items-center gap-3 justify-between rounded-xl border p-3 min-w-0">
-        <div className="min-w-0 break-words"><h3 className="font-semibold">{product.name}</h3><p>{product.price} {copy.month}</p></div>
-        <Button className="min-h-11 h-auto whitespace-normal" disabled={busy} onClick={()=>void act("purchase",product.id)}>{copy.buy}</Button>
-      </div>)}
+      {own.products.map(product=><article key={product.id} data-native-plan={product.plan} className="rounded-xl border p-4 min-w-0 space-y-3" aria-labelledby={`native-plan-${product.plan}`}>
+        <div className="min-w-0 break-words"><h3 id={`native-plan-${product.plan}`} className="text-lg font-semibold">{product.name}</h3><p className="font-medium">{product.price} {copy.month}</p></div>
+        <h4 className="text-sm font-semibold">{copy.releasedFeatures}</h4>
+        <ul className="list-disc space-y-2 pl-5 text-sm leading-relaxed break-words">
+          {nativePlanFeatures(product.plan,language).map(feature=><li key={feature}>{feature}</li>)}
+        </ul>
+        {product.plan==="basic"&&<p className="text-sm text-muted-foreground">{copy.basicScope}</p>}
+        {product.plan==="trading"&&<p className="text-sm text-muted-foreground">{copy.researchLimit}</p>}
+        <Button className="min-h-11 h-auto whitespace-normal w-full sm:w-auto" disabled={busy||!own.purchasesEnabled} aria-label={`${copy.buy} · ${product.name}`} onClick={()=>void act("purchase",product.id)}>{copy.buy}</Button>
+      </article>)}
+      {!!own.products.length&&<p className="text-sm leading-relaxed text-muted-foreground">{copy.standardLimits}</p>}
       <p className="text-sm text-muted-foreground">{copy.terms}</p>
       <p className="text-sm text-muted-foreground">{copy.account}</p>
       <div className="flex flex-wrap gap-4 text-sm">

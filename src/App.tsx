@@ -10,6 +10,9 @@ import FreeSearchGate from "@/components/FreeSearchGate";
 import { LanguageRouteSync } from "@/i18n/LanguageProvider";
 import RouteLoading from "@/components/RouteLoading";
 import WebSeoMetadata from "@/components/WebSeoMetadata";
+import WebRouteRecovery from "@/components/WebRouteRecovery";
+import WebRecoveryFocus from "@/components/WebRecoveryFocus";
+import { reportWebRouteError } from "@/lib/webRouteError";
 const Install = lazy(() => import("./pages/Install"));
 const Auth = lazy(() => import("./pages/Auth"));
 const NativeConnect = lazy(() => import("./pages/NativeConnect"));
@@ -27,6 +30,7 @@ const AppRoutes = () => {
       <LanguageRouteSync />
       <WebSeoMetadata />
       <RouteScrollRestoration />
+      <WebRecoveryFocus />
       <Suspense fallback={<RouteLoading className="min-h-screen bg-background" />}>
         <ProductRoutes authElement={<Auth />}>
           <Route path="/connect/native" element={<NativeConnect />} />
@@ -68,12 +72,12 @@ const AppRoutes = () => {
 // Lazy construction keeps module inspection independent of the browser DOM.
 let router: ReturnType<typeof createBrowserRouter> | undefined;
 const getRouter = () => router ??= createBrowserRouter([
-  { path: "*", element: <DraftNavigationProvider><AppRoutes /></DraftNavigationProvider> },
+  { path: "*", element: <DraftNavigationProvider><AppRoutes /></DraftNavigationProvider>, errorElement: <WebRouteRecovery /> },
 ]);
 
 const App = () => (
   <AppProviders>
-    <RouterProvider router={getRouter()} />
+    <RouterProvider router={getRouter()} onError={reportWebRouteError} />
   </AppProviders>
 );
 

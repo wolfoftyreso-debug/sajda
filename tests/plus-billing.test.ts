@@ -165,6 +165,15 @@ test("Plus billing validates server truth and protects explicit checkout, portal
       assert.equal(navigations.length, 0); assert.doesNotMatch(text(), /attacker|private-token/);
     });
 
+    await t.test("a different pending plan gives precise recovery without a redirect or automatic second checkout", async () => {
+      await mount(); reply = () => Response.json({ code: "checkout_plan_conflict", requestId }, { status: 409 });
+      await click("Try test checkout"); await until(() => text().includes("An unfinished checkout belongs to a different plan"));
+      assert.equal(navigations.length, 0); assert.equal(posts().length, 1);
+      assert.match(text(), /No payment page was opened for this request/);
+      assert.match(text(), /wait for its checkout link to expire/);
+      await act(pause); assert.equal(posts().length, 1, "A conflict never starts another checkout automatically");
+    });
+
     await t.test("definitively expired checkout requires a refresh and a fresh request key", async () => {
       await mount(); reply = () => Response.json({ code: "checkout_expired", requestId }, { status: 409 });
       await click("Try test checkout"); await until(() => text().includes("checkout link has expired"));

@@ -22,7 +22,7 @@ export interface PlusBillingSnapshot {
   plans: Record<PaidPlanId, { ready: boolean; price: PlusBillingSnapshot["price"]; canCheckout: boolean }>;
 }
 export type PlusBillingErrorCode = "unavailable" | "invalid_response" | "unauthenticated" | "account_changed" | "rate_limited" | "not_ready"
-  | "email_verification_required" | "subscription_changed" | "checkout_expired" | "review_required" | "app_store_subscription_exists";
+  | "email_verification_required" | "subscription_changed" | "checkout_expired" | "checkout_plan_conflict" | "review_required" | "app_store_subscription_exists";
 export class PlusBillingError extends Error {
   constructor(readonly code: PlusBillingErrorCode, readonly requestId?: string) { super("Billing could not be confirmed."); this.name = "PlusBillingError"; }
 }
@@ -100,6 +100,7 @@ function safeFailure(error: unknown): Error {
   if (row?.code === "app_store_subscription_exists") return new PlusBillingError("app_store_subscription_exists", requestId);
   if (["subscription_exists", "checkout_completed"].includes(String(row?.code))) return new PlusBillingError("subscription_changed", requestId);
   if (row?.code === "checkout_expired") return new PlusBillingError("checkout_expired", requestId);
+  if (row?.code === "checkout_plan_conflict") return new PlusBillingError("checkout_plan_conflict", requestId);
   if (["billing_review_required", "billing_reconciliation_required"].includes(String(row?.code))) return new PlusBillingError("review_required", requestId);
   return new PlusBillingError("unavailable", requestId);
 }

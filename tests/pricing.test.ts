@@ -127,3 +127,50 @@ test("mounted pricing presents the shared prices and only truthful navigation, w
     await vite.close();
   }
 });
+
+test("pricing preserves a cross-plan checkout conflict and never redirects or automatically retries it", async () => {
+  const fixtureKey = "__SAJDA_PRICING_CONFLICT_CALLS__";
+  const originalFixture = Object.getOwnPropertyDescriptor(globalThis, fixtureKey);
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const calls: string[] = [], navigations: string[] = [];
+  Object.defineProperty(globalThis, fixtureKey, { configurable: true, value: calls });
+  Object.defineProperty(globalThis, "window", { configurable: true, value: { location: { pathname: "/pricing", assign: (url: string) => navigations.push(url) } } });
+  const vite = await createServer({ configFile: false, appType: "custom",
+    server: { middlewareMode: true, watch: null, hmr: false, ws: false },
+    resolve: { alias: { "@": path.resolve("src") } }, optimizeDeps: { noDiscovery: true, include: [] }, esbuild: { jsx: "automatic" },
+    plugins: [{ name: "pricing-conflict-boundary", enforce: "pre", load(id) {
+      const normalized = id.replaceAll("\\", "/");
+      if (normalized.endsWith("/src/i18n/LanguageProvider.tsx")) return 'export const useLanguage=()=>({language:"en"});export const applyDocumentMetadata=()=>{};';
+      if (normalized.endsWith("/src/contexts/AuthContext.tsx")) return 'const user={id:"qa-account"};export const useAuth=()=>({user,loading:false});';
+      if (normalized.endsWith("/src/contexts/MembershipContext.tsx")) return 'export const useMembership=()=>({membership:{plan:"free",accessSource:"free",expiresAt:null},loading:false,error:null});';
+      if (normalized.endsWith("/src/components/LanguageSwitcher.tsx")) return "export default function LanguageSwitcher(){return null;}";
+      if (normalized.endsWith("/src/lib/plusBilling.ts")) return `
+        export class PlusBillingError extends Error {constructor(code,requestId){super(code);this.code=code;this.requestId=requestId;}}
+        export async function getPlusBilling(){return {canManage:false,plans:{basic:{ready:true,canCheckout:true},premium:{ready:true,canCheckout:true},trading:{ready:true,canCheckout:true}}};}
+        export async function openPlusBilling(scope,action,key,plan){globalThis.${fixtureKey}.push(plan);throw new PlusBillingError("checkout_plan_conflict","req_0123456789abcdef");}
+      `;
+    } }],
+  });
+  let renderer: ReactTestRenderer | undefined;
+  const pause = () => new Promise(resolve => setTimeout(resolve, 5));
+  try {
+    const { default: Pricing } = await vite.ssrLoadModule("/src/pages/Pricing.tsx");
+    await act(async () => { renderer = create(h(MemoryRouter, { initialEntries: ["/pricing"] }, h(Pricing))); await pause(); });
+    const button = () => renderer!.root.findAllByType("button").find(node => label(node).startsWith("Choose Basic"));
+    for (let i = 0; i < 100 && !button(); i++) await act(pause);
+    assert.ok(button());
+    await act(async () => { button()!.props.onClick(); await pause(); });
+    const alert = renderer!.root.findByProps({ role: "alert" });
+    assert.match(label(alert), /An unfinished checkout belongs to a different plan/);
+    assert.match(label(alert), /No payment page was opened for this request/);
+    assert.match(label(alert), /wait for its checkout link to expire/);
+    assert.equal(alert.findByType("a").props.href, "/contact");
+    assert.deepEqual(calls, ["basic"]); assert.equal(navigations.length, 0);
+    await act(pause); assert.deepEqual(calls, ["basic"], "The conflict has no automatic checkout retry");
+  } finally {
+    if (renderer) await act(async () => renderer!.unmount());
+    await vite.close();
+    if (originalFixture) Object.defineProperty(globalThis, fixtureKey, originalFixture); else Reflect.deleteProperty(globalThis, fixtureKey);
+    if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow); else Reflect.deleteProperty(globalThis, "window");
+  }
+});

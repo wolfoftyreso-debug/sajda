@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { DraftNavigationContext, type DraftNavigationRegistration, type RegisterNavigationDraft } from "@/contexts/DraftNavigationContext";
 import { useLanguage } from "@/i18n/LanguageProvider";
 import { tradingPortalCopy } from "@/i18n/tradingPortalCopy";
+import { brandWorksheetCopy } from "@/i18n/brandWorksheetCopy";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -16,13 +17,17 @@ export default function DraftNavigationProvider({ children }: { children: ReactN
   const register = useCallback<RegisterNavigationDraft>((id, value) => {
     setDrafts(previous => {
       const old = previous.get(id);
-      if (!value && !old || value && old?.ownerId === value.ownerId && old.dirty === value.dirty) return previous;
+      if (!value && !old || value && old?.scope === value.scope && old.ownerId === value.ownerId && old.dirty === value.dirty) return previous;
       const next = new Map(previous);
       if (value) next.set(id, value); else next.delete(id);
       return next;
     });
   }, []);
-  const protect = Boolean(user && [...drafts.values()].some(draft => draft.ownerId === user.id && draft.dirty));
+  const currentDrafts = [...drafts.values()].filter(draft => draft.dirty &&
+    (draft.scope === "local" ? draft.ownerId === (user?.id ?? null) : Boolean(user && draft.ownerId === user.id)));
+  const protect = currentDrafts.length > 0;
+  const localOnly = currentDrafts.every(draft => draft.scope === "local");
+  const localCopy = brandWorksheetCopy[language];
   const currentProtection = useRef(protect);
   currentProtection.current = protect;
   // Read current ownership synchronously: a logout/auth redirect must not be
@@ -56,8 +61,8 @@ export default function DraftNavigationProvider({ children }: { children: ReactN
           if (!leaving.current && previousFocus.current?.isConnected) previousFocus.current.focus();
         }}>
         <DialogHeader>
-          <DialogTitle>{c.leaveDraftTitle}</DialogTitle>
-          <DialogDescription className="pt-2 leading-6">{c.leaveDraftBody}</DialogDescription>
+          <DialogTitle>{localOnly ? localCopy.leaveTitle : c.leaveDraftTitle}</DialogTitle>
+          <DialogDescription className="pt-2 leading-6">{localOnly ? localCopy.leaveBody : c.leaveDraftBody}</DialogDescription>
         </DialogHeader>
         <DialogFooter className="flex-col gap-2 sm:gap-0">
           <Button ref={keepEditing} className="min-h-11" onClick={stay}>{c.keepEditing}</Button>

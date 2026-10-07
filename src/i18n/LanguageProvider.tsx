@@ -4,6 +4,7 @@ import { useLocation } from "react-router-dom";
 import { contactCopy } from "./contactCopy";
 import { namePackageEntryCopy } from "./namePackageEntryCopy";
 import { brandLookupCopy } from "./brandLookupCopy";
+import { brandIndexCopy } from "./brandIndexCopy";
 import { getDeviceLanguage, isLanguage, isSwedishMarketPath, languageForPath, LANGUAGE_STORAGE_KEY, readLanguagePreference, type Language } from "./languagePreference";
 
 export type { Language } from "./languagePreference";
@@ -1439,12 +1440,14 @@ export function applyDocumentMetadata(language: Language, pathname: string): voi
   const plus = pathname === "/plus" || pathname === "/plus/";
   const pricing = pathname === "/pricing" || pathname === "/pricing/";
   const brandIndex = pathname === "/brand-index" || pathname === "/brand-index/";
+  const brandAssessment = pathname === "/brand-index/assessment" || pathname === "/brand-index/assessment/";
   const namePackage = pathname === "/name-packages" || pathname === "/name-packages/";
   const routeCopy = routeMetadataCopy[language];
   const metadata = contact ? { ...base, title: `${contact.title} — Sajda`, description: contact.lead }
     : plus ? { ...base, title: routeCopy.tradingTitle, description: routeCopy.tradingDescription }
     : pricing ? { ...base, title: routeCopy.pricingTitle, description: routeCopy.pricingDescription }
     : brandIndex ? { ...base, title: `${brandLookupCopy[language].title} — Sajda`, description: brandLookupCopy[language].intro }
+    : brandAssessment ? { ...base, title: `${brandIndexCopy[language].title} — Sajda`, description: brandIndexCopy[language].intro }
     : namePackage ? { ...base, title: `${namePackageEntryCopy[language].title} — Sajda` }
     : base;
   document.documentElement.lang = metadata.htmlLang;

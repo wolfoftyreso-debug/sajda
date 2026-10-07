@@ -16,6 +16,7 @@ const en = {
     subscription_changed: "Your subscription or checkout has changed. Check billing status before continuing; no second subscription was started.",
     app_store_subscription_exists: "Your subscription is managed by Apple. Open Apple subscription settings. No Stripe checkout was started.",
     checkout_expired: "This checkout link has expired. Check billing status, then start a new checkout if needed.",
+    checkout_plan_conflict: "An unfinished checkout belongs to a different plan. No payment page was opened for this request. Resume that plan, or wait for its checkout link to expire before choosing another. Contact us if you need help.",
     review_required: "Your billing account needs review before another payment can start. Contact us with the reference below; you can still manage an existing subscription." } satisfies Record<PlusBillingErrorCode, string>,
 };
 const sv: typeof en = {
@@ -34,6 +35,7 @@ const sv: typeof en = {
     subscription_changed: "Abonnemanget eller betalningstillfället har ändrats. Kontrollera betalstatus innan du fortsätter. Inget ytterligare abonnemang startades.",
     app_store_subscription_exists: "Ditt abonnemang hanteras av Apple. Öppna Apples abonnemangsinställningar. Ingen Stripe-betalning startades.",
     checkout_expired: "Betalningslänken har gått ut. Kontrollera betalstatus och starta sedan en ny betalning om det behövs.",
+    checkout_plan_conflict: "En tidigare, oavslutad betalning gäller ett annat paket. Ingen betalningssida öppnades för denna begäran. Fortsätt med det paketet eller vänta tills länken har gått ut innan du väljer ett annat. Kontakta oss om du behöver hjälp.",
     review_required: "Ditt betalningskonto behöver granskas innan en ny betalning kan starta. Kontakta oss och ange referensen nedan. Du kan fortfarande hantera ett befintligt abonnemang." },
 };
 const es: typeof en = {
@@ -56,6 +58,7 @@ const es: typeof en = {
     subscription_changed: "Tu suscripción o sesión de pago ha cambiado. Consulta el estado de facturación antes de continuar. No se ha iniciado una segunda suscripción.",
     app_store_subscription_exists: "Apple gestiona tu suscripción. Abre los ajustes de suscripciones de Apple. No se ha iniciado ningún pago con Stripe.",
     checkout_expired: "Este enlace de pago ha caducado. Consulta el estado de facturación e inicia un nuevo pago si es necesario.",
+    checkout_plan_conflict: "Hay un pago sin finalizar para otro plan. No se abrió ninguna página de pago para esta solicitud. Retoma ese plan o espera a que caduque su enlace antes de elegir otro. Contacta con nosotros si necesitas ayuda.",
     review_required: "Tenemos que revisar tu cuenta de facturación antes de iniciar otro pago. Contacta con nosotros e indica la referencia que aparece abajo. Puedes seguir gestionando una suscripción existente.",
   },
 };
@@ -79,6 +82,7 @@ const fr: typeof en = {
     subscription_changed: "Votre abonnement ou votre session de paiement a changé. Vérifiez la facturation avant de continuer. Aucun second abonnement n’a été créé.",
     app_store_subscription_exists: "Votre abonnement est géré par Apple. Ouvrez les réglages des abonnements Apple. Aucun paiement Stripe n’a été lancé.",
     checkout_expired: "Ce lien de paiement a expiré. Vérifiez la facturation, puis lancez un nouveau paiement si nécessaire.",
+    checkout_plan_conflict: "Une session de paiement inachevée concerne une autre offre. Aucune page de paiement n’a été ouverte pour cette demande. Reprenez cette offre ou attendez l’expiration du lien avant d’en choisir une autre. Contactez-nous si vous avez besoin d’aide.",
     review_required: "Votre compte de facturation doit être vérifié avant de lancer un autre paiement. Contactez-nous en indiquant la référence ci-dessous. Vous pouvez toujours gérer un abonnement existant.",
   },
 };
@@ -102,6 +106,7 @@ const zh: typeof en = {
     subscription_changed: "订阅或支付会话已改变。请先检查账单状态再继续，系统未创建第二份订阅。",
     app_store_subscription_exists: "您的订阅由 Apple 管理。请打开 Apple 订阅设置。尚未发起 Stripe 付款。",
     checkout_expired: "支付链接已过期。请检查账单状态，如有需要再发起新的付款。",
+    checkout_plan_conflict: "已有一笔未完成的支付对应其他方案。本次请求未打开支付页面。请继续购买原方案，或等其支付链接过期后再选择其他方案。如需帮助，请联系我们。",
     review_required: "再次付款前需要审核你的账单账户。请联系我们并提供下方的参考编号。你仍可管理已有订阅。",
   },
 };

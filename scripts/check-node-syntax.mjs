@@ -13,6 +13,7 @@ const files = [
   "scripts/probe-public-mcp.mjs",
   "scripts/release-configuration.mjs",
   "scripts/check-launch-evidence.mjs",
+  "scripts/check-release-ready.mjs",
   "scripts/check-vercel-types.mjs",
   "scripts/seo-routes.mjs",
   "scripts/seo-policy.mjs",

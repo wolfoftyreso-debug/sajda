@@ -1,19 +1,24 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { ArrowLeft, ArrowRight, ClipboardList } from "lucide-react";
+import { ArrowLeft, ArrowRight, ClipboardList, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import NamePackageMarkets from "@/components/NamePackageMarkets";
-import BrandWorkspaceEntry from "@/components/BrandWorkspaceEntry";
 import BrandEvidencePanel from "@/components/BrandEvidencePanel";
 import FreeSearchGate from "@/components/FreeSearchGate";
 import { useScan } from "@/contexts/ScanContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { useLocalDraftNavigationGuard } from "@/contexts/DraftNavigationContext";
 import { createBrandEvidenceReport } from "../../shared/brand-evidence";
 import { buildBrandDomainCheckPlan, checkBrandDomainBatch, projectBrandDomainEvidence } from "@/lib/brandDomainEvidence";
 import { brandDomainCheckCopy } from "@/i18n/brandDomainCheckCopy";
-import { useLanguage, type Language } from "@/i18n/LanguageProvider";
+import { applyDocumentMetadata, useLanguage, type Language } from "@/i18n/LanguageProvider";
 import { brandIndexCopy } from "@/i18n/brandIndexCopy";
 import { brandLookupCopy } from "@/i18n/brandLookupCopy";
+import { brandWorksheetCopy } from "@/i18n/brandWorksheetCopy";
+import { exportBrandAssessment } from "@/lib/brandAssessmentExport";
+import { isNativeApp } from "@/lib/appSurface";
+import { nativeShareFile } from "@/lib/nativeTransport";
 import { namePackageCountryName } from "@/i18n/namePackageMarketsCopy";
 import { formatLocalizedDateTime } from "@/lib/localeFormat";
 import { socialPlatformNames } from "@/lib/namePackageExport";
@@ -29,7 +34,14 @@ type Target = BrandIndexResult["targets"][number];
 /** Self-reports remain local. Optional registry checks are separately sourced,
  * consume the normal allowance and cannot alter the ownership score. */
 export default function BrandIndexAssessment() {
+  const { user } = useAuth();
+  // A new session never receives the prior session's public but private-to-user worksheet.
+  return <LocalBrandWorksheet key={user ? `account:${user.id}` : "local:anonymous"} ownerId={user?.id ?? null} />;
+}
+
+function LocalBrandWorksheet({ ownerId }: { ownerId: string | null }) {
   const { language } = useLanguage(), c = brandIndexCopy[language];
+  const wc = brandWorksheetCopy[language];
   const dc = brandDomainCheckCopy[language], scan = useScan();
   const [brandName, setBrandName] = useState(""), [identity, setIdentity] = useState(""), [primary, setPrimary] = useState(""), [extraDomains, setExtraDomains] = useState("");
   const [platforms, setPlatforms] = useState<SocialPlatform[]>([...SOCIAL_PLATFORMS]);
@@ -46,8 +58,26 @@ export default function BrandIndexAssessment() {
   const evidence = useMemo(() => result && domainEvidence ? createBrandEvidenceReport([...result.evidence_report.entries, ...domainEvidence.entries], now) : null, [result, domainEvidence, now]);
   const nameFieldRef = useRef<HTMLInputElement>(null), resultHeadingRef = useRef<HTMLHeadingElement>(null), hadResultRef = useRef(false);
   const hasResult = result !== null;
+  const [exporting, setExporting] = useState(false), [exportNotice, setExportNotice] = useState<"downloaded" | "completed" | "cancelled" | "failed" | null>(null);
+  const exportingRef = useRef(false), alive = useRef(true);
+  const dirty = input !== null || [brandName, identity, primary, extraDomains, ...Object.values(handles)].some(value => value.trim().length > 0)
+    || platforms.length !== SOCIAL_PLATFORMS.length || markets.length !== DEFAULT_NAME_PACKAGE_MARKETS.length
+    || markets.some(market => !DEFAULT_NAME_PACKAGE_MARKETS.includes(market));
+  useLocalDraftNavigationGuard(ownerId, dirty);
 
-  useEffect(() => () => { domainRequest.current?.abort(); domainRequest.current = null; }, []);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; domainRequest.current?.abort(); domainRequest.current = null; }; }, []);
+
+  useEffect(() => {
+    applyDocumentMetadata(language, "/brand-index/assessment");
+    return () => applyDocumentMetadata(language, window.location.pathname);
+  }, [language]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const protect = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", protect);
+    return () => window.removeEventListener("beforeunload", protect);
+  }, [dirty]);
 
   useEffect(() => {
     // Move focus only between worksheet stages, never when a report or its age changes.
@@ -71,7 +101,7 @@ export default function BrandIndexAssessment() {
       domains: [...new Set(requested)], socials: platforms.map(platform => ({ platform, handle: handles[platform]?.trim() || identity.trim() })), markets, observations: [] });
     if (!parsed.success) { setInvalidFields([...new Set(parsed.error.issues.map(issue => String(issue.path[0] ?? "scope")))]); return; }
     domainRequest.current?.abort(); domainRequest.current = null; setChecking(false); setDomainRows([]); setCheckNotice(null);
-    inputRef.current = parsed.data; setInput(parsed.data); setNow(Date.now()); setInvalidFields([]); setConfirmReset(false);
+    inputRef.current = parsed.data; setInput(parsed.data); setNow(Date.now()); setInvalidFields([]); setConfirmReset(false); setExportNotice(null);
   }
   function record(targetId: string, status: ReportStatus, source: string): boolean {
     const current = inputRef.current;
@@ -82,9 +112,9 @@ export default function BrandIndexAssessment() {
       { target_id: targetId, status, source_url: source.trim() || null, reported_at: new Date(at).toISOString() },
     ] });
     if (!parsed.success) return false;
-    inputRef.current = parsed.data; setInput(parsed.data); setNow(at); return true;
+    inputRef.current = parsed.data; setInput(parsed.data); setNow(at); setExportNotice(null); return true;
   }
-  function reset() { domainRequest.current?.abort(); domainRequest.current = null; setChecking(false); setDomainRows([]); setCheckNotice(null); inputRef.current = null; setInput(null); setConfirmReset(false); setInvalidFields([]); }
+  function reset() { domainRequest.current?.abort(); domainRequest.current = null; setChecking(false); setDomainRows([]); setCheckNotice(null); inputRef.current = null; setInput(null); setConfirmReset(false); setInvalidFields([]); setExportNotice(null); }
   function stopChecks() { domainRequest.current?.abort(); domainRequest.current = null; setChecking(false); setCheckNotice("cancelled"); }
   async function checkDomains() {
     if (!plan?.batches.length || domainRequest.current || scan.isScanning) return;
@@ -106,12 +136,32 @@ export default function BrandIndexAssessment() {
     } catch { if (!controller.signal.aborted && domainRequest.current === controller) setCheckNotice("failed"); }
     finally { if (domainRequest.current === controller) { domainRequest.current = null; setChecking(false); } }
   }
+  async function exportAssessment() {
+    if (!input || checking || exportingRef.current) return;
+    exportingRef.current = true; setExporting(true); setExportNotice(null);
+    try {
+      const at = Date.now(), report = exportBrandAssessment(input, domainRows, language, at);
+      setNow(at); // A suspended tab and its export use the same age, not renewed observations.
+      const filename = `sajda-brand-assessment-${new Date(at).toISOString().slice(0, 10)}.html`;
+      if (isNativeApp) {
+        const receipt = await nativeShareFile(filename, report);
+        if (alive.current) setExportNotice(receipt.completed ? "completed" : "cancelled");
+      } else {
+        const url = URL.createObjectURL(new Blob([report], { type: "text/html;charset=utf-8" }));
+        try {
+          const link = document.createElement("a"); link.href = url; link.download = filename;
+          document.body.append(link); try { link.click(); } finally { link.remove(); }
+          setExportNotice("downloaded");
+        } finally { window.setTimeout(() => URL.revokeObjectURL(url), 1000); }
+      }
+    } catch { if (alive.current) setExportNotice("failed"); }
+    finally { exportingRef.current = false; if (alive.current) setExporting(false); }
+  }
   const isInvalid = (name: string) => invalidFields.includes(name);
 
   return <main className="mx-auto w-full max-w-6xl px-4 py-6 pb-20 sm:px-6" aria-labelledby="brand-index-title">
     <div className="mb-6 flex flex-wrap items-center justify-between gap-3"><Link to="/brand-index" className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary"><ArrowLeft aria-hidden="true" className="h-4 w-4 shrink-0" />{brandLookupCopy[language].returnLookup}</Link><LanguageSwitcher /></div>
     <header className="max-w-3xl"><p className="text-sm font-semibold text-primary">{c.eyebrow}</p><h1 id="brand-index-title" className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">{c.title}</h1><p className="mt-4 text-base leading-7 text-muted-foreground">{c.intro}</p></header>
-    <BrandWorkspaceEntry />
     <aside className="my-6 rounded-2xl border border-border p-4" aria-labelledby="brand-index-warning"><h2 id="brand-index-warning" className="text-sm font-semibold">{c.warning}</h2><details className="mt-2"><summary className="min-h-11 cursor-pointer py-2 text-sm text-muted-foreground">{dc.privacy}</summary><p className="mt-2 max-w-3xl text-sm leading-6">{c.warningBody}</p></details></aside>
     {!result ? <form onSubmit={build} noValidate className="min-w-0 space-y-6" aria-labelledby="brand-index-scope-title">
       <section className="rounded-2xl border border-border bg-card p-5 sm:p-6"><h2 id="brand-index-scope-title" className="mb-5 text-xl font-semibold">{c.scopeTitle}</h2>
@@ -130,6 +180,12 @@ export default function BrandIndexAssessment() {
       <header className="flex flex-wrap items-start justify-between gap-4"><div className="min-w-0"><h2 ref={resultHeadingRef} tabIndex={-1} id="brand-index-result-title" className="scroll-mt-6 text-xl font-semibold">{c.results}</h2><p className="mt-2 break-words text-2xl font-semibold">{result.brand.name}</p><p className="mt-2 break-all text-sm text-muted-foreground">{result.brand.primary_domain}</p></div><Button type="button" variant="outline" className={action} onClick={() => setConfirmReset(true)}>{c.edit}</Button></header>
       {confirmReset && <section className="rounded-xl border border-border bg-card p-5" aria-label={c.edit}><p role="alert" className="text-sm leading-6">{c.resetWarning}</p><div className="mt-3 flex flex-wrap gap-3"><Button type="button" variant="outline" className={action} onClick={reset}>{c.reset}</Button><Button type="button" variant="ghost" className={action} onClick={() => setConfirmReset(false)}>{c.cancel}</Button></div></section>}
       <p className="max-w-3xl text-sm leading-6 text-muted-foreground">{c.fixed}</p>
+      <section className="rounded-2xl border border-border bg-card p-5" aria-labelledby="brand-worksheet-export-title">
+        <h3 id="brand-worksheet-export-title" className="text-lg font-semibold">{wc.exportTitle}</h3>
+        <p id="brand-worksheet-export-help" className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{wc.exportHelp}</p>
+        <Button type="button" variant="outline" data-brand-export className={action + " mt-4"} disabled={checking || exporting} aria-describedby="brand-worksheet-export-help" onClick={() => void exportAssessment()}><Download aria-hidden="true" className="h-4 w-4 shrink-0" />{exporting ? wc.exporting : isNativeApp ? wc.share : wc.download}</Button>
+        {exportNotice && <p role={exportNotice === "failed" ? "alert" : "status"} className="mt-3 text-sm leading-6">{wc[exportNotice]}</p>}
+      </section>
       <section className="rounded-2xl border border-border bg-card p-5" aria-labelledby="brand-domain-check-title">
         <h3 id="brand-domain-check-title" className="text-lg font-semibold">{dc.title}</h3><p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">{dc.help}</p>
         <div className="mt-4 flex flex-wrap gap-3"><Button type="button" data-brand-check-domains className={action} disabled={checking || scan.isScanning || !plan?.batches.length} onClick={() => void checkDomains()}>{checking ? dc.checking : dc.action}</Button>{checking && <Button type="button" variant="outline" className={action} onClick={stopChecks}>{dc.stop}</Button>}</div>

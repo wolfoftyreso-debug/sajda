@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button";
 import { applyDocumentMetadata, useLanguage } from "@/i18n/LanguageProvider";
 import { getPlanPurchaseCopy, getPricingCopy } from "@/i18n/pricingCopy";
 import { legalRightsCopy } from "@/i18n/legalRightsCopy";
+import { getPlusBillingCopy } from "@/i18n/plusBillingCopy";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMembership } from "@/contexts/MembershipContext";
-import { getPlusBilling, openPlusBilling, type PlusBillingSnapshot } from "@/lib/plusBilling";
+import { getPlusBilling, openPlusBilling, PlusBillingError, type PlusBillingSnapshot } from "@/lib/plusBilling";
 import { isNativeApp } from "@/lib/appSurface";
 
 const actionClass = "h-auto min-h-11 w-full whitespace-normal px-4 py-3 text-center leading-snug";
@@ -18,12 +19,13 @@ export default function Pricing() {
   const { language } = useLanguage();
   const copy = getPricingCopy(language);
   const purchaseCopy = getPlanPurchaseCopy(language);
+  const billingCopy = getPlusBillingCopy(language);
   const { user, loading: authLoading } = useAuth();
   const { membership, loading: membershipLoading, error: membershipError } = useMembership();
   const currentMembership = user && !authLoading && !membershipLoading && !membershipError ? membership : null;
   const [billing, setBilling] = useState<PlusBillingSnapshot | null>(null);
   const [billingBusy, setBillingBusy] = useState<PlanId | "load" | "portal" | null>(null);
-  const [billingError, setBillingError] = useState(false);
+  const [billingError, setBillingError] = useState<PlusBillingError | null>(null);
   const billingRequest = useRef<AbortController | null>(null);
   const checkoutAvailable = Boolean(billing && Object.values(billing.plans).some(plan => plan.ready));
 
@@ -34,13 +36,13 @@ export default function Pricing() {
 
   useEffect(() => {
     billingRequest.current?.abort();
-    setBilling(null); setBillingError(false);
+    setBilling(null); setBillingError(null);
     if (!user || isNativeApp) { setBillingBusy(null); return; }
     const controller = new AbortController();
     billingRequest.current = controller; setBillingBusy("load");
     void getPlusBilling({ accountId: user.id, signal: controller.signal })
       .then(value => { if (!controller.signal.aborted) setBilling(value); })
-      .catch(error => { if (!controller.signal.aborted && !(error instanceof Error && error.name === "AbortError")) setBillingError(true); })
+      .catch(error => { if (!controller.signal.aborted && !(error instanceof Error && error.name === "AbortError")) setBillingError(error instanceof PlusBillingError ? error : new PlusBillingError("unavailable")); })
       .finally(() => { if (!controller.signal.aborted) { billingRequest.current = null; setBillingBusy(null); } });
     return () => controller.abort();
   }, [user]);
@@ -48,12 +50,12 @@ export default function Pricing() {
   const openBilling = useCallback(async (action: "checkout" | "portal", plan: Exclude<PlanId, "free"> = "trading") => {
     if (!user || billingRequest.current && billingBusy || isNativeApp) return;
     const controller = new AbortController(); billingRequest.current = controller;
-    setBillingBusy(action === "portal" ? "portal" : plan); setBillingError(false);
+    setBillingBusy(action === "portal" ? "portal" : plan); setBillingError(null);
     try {
       const url = await openPlusBilling({ accountId: user.id, signal: controller.signal }, action, crypto.randomUUID(), plan);
       if (!controller.signal.aborted) window.location.assign(url);
     } catch (error) {
-      if (!controller.signal.aborted && !(error instanceof Error && error.name === "AbortError")) setBillingError(true);
+      if (!controller.signal.aborted && !(error instanceof Error && error.name === "AbortError")) setBillingError(error instanceof PlusBillingError ? error : new PlusBillingError("unavailable"));
     } finally {
       if (!controller.signal.aborted) { billingRequest.current = null; setBillingBusy(null); }
     }
@@ -142,7 +144,11 @@ export default function Pricing() {
             <p className="mt-2 max-w-4xl text-sm leading-relaxed text-muted-foreground">{checkoutAvailable ? purchaseCopy.ready : copy.notice}</p>
           </div>
         </aside>
-        {billingError && <p role="alert" className="-mt-5 mb-8 text-sm font-medium text-destructive">{purchaseCopy.failed}</p>}
+        {billingError && <div role="alert" className="-mt-5 mb-8 space-y-2 text-sm font-medium text-destructive">
+          <p>{billingCopy.errors[billingError.code]}</p>
+          {billingError.requestId && <p className="break-all text-xs font-normal">{billingError.requestId}</p>}
+          <Link to="/contact" className="inline-flex min-h-11 items-center underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{legalRightsCopy[language].contactLink}</Link>
+        </div>}
 
         <section aria-labelledby="pricing-founder-title" data-plan-group="founder">
           <h2 id="pricing-founder-title" className="text-2xl font-semibold leading-tight tracking-tight">{copy.founderTitle}</h2>

@@ -15,6 +15,7 @@ import {
   createCommerceStore,
   type CommerceStore,
   type CommerceLease,
+  type CheckoutReservation,
 } from "./commerce-store.js";
 import { PAID_PLAN_ORDER, type PaidPlanId } from "../../shared/plans.js";
 
@@ -153,6 +154,15 @@ export function createCommerceService(
         throw new CommerceError("app_store_subscription_exists", 409);
       const priceId = config.priceIds?.[plan] ?? (plan === "trading" ? config.priceId : "");
       if (!priceId) throw new CommerceError("billing_price_unavailable");
+      const assertReservationPlan = (reservation: CheckoutReservation) => {
+        // The owner lease prevents parallel checkouts, but its existing session
+        // can belong to another plan. Never substitute that plan's payment URL
+        // for the customer's selection, even when they supply a fresh key.
+        if ((reservation.plan ?? "trading") !== plan)
+          throw new CommerceError("checkout_plan_conflict", 409);
+        if (["creating", "open"].includes(reservation.state) && reservation.priceId !== priceId)
+          throw new CommerceError("billing_price_unavailable");
+      };
       await provider.price(plan);
       return withLease(store, ownerId, async (lease) => {
         if (await store.appStoreSubscription(ownerId, lease))
@@ -182,6 +192,9 @@ export function createCommerceService(
           origin,
           plan,
         );
+        // An older session for another plan may now be expired. Validate its
+        // provider state below before retiring it; never return its open URL.
+        if ((reservation.plan ?? "trading") === plan) assertReservationPlan(reservation);
         if (
           reservation.state === "creating" &&
           !reservation.sessionId &&
@@ -215,6 +228,7 @@ export function createCommerceService(
               origin,
               plan,
             );
+            assertReservationPlan(reservation);
           }
         }
         if (reservation.sessionId) {
@@ -224,8 +238,10 @@ export function createCommerceService(
             reservation.plan ?? "trading",
           );
           await store.saveCheckout(lease, reservation.id, existing);
-          if (existing.status === "open")
+          if (existing.status === "open") {
+            assertReservationPlan(reservation);
             return safeStripeUrl(existing.url, "checkout");
+          }
           if (existing.status === "complete")
             throw new CommerceError("checkout_completed", 409);
           if (reservation.requestKey === requestKey)
@@ -237,7 +253,9 @@ export function createCommerceService(
             origin,
             plan,
           );
+          assertReservationPlan(reservation);
         }
+        assertReservationPlan(reservation);
         if (
           reservation.state !== "creating" ||
           reservation.priceId !== priceId || (reservation.plan ?? "trading") !== plan

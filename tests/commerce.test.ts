@@ -634,7 +634,7 @@ test("Stripe SDK verifies original signed bytes, rejects tampering/old signature
   );
 });
 
-function memory() {
+function memory(configuration: CommerceConfig = config) {
   let customerId: string | null = null,
     busy = false,
     reservation: CheckoutReservation | null = null,
@@ -767,7 +767,7 @@ function memory() {
     },
     get service() {
       return createCommerceService({
-        config: () => config,
+        config: () => configuration,
         provider: () => provider,
         store: () => store,
       });
@@ -794,6 +794,114 @@ test("checkout refresh/retry reuses the same pending session and never grants fr
   );
   assert.equal(fixture.stored.grant, null);
   assert.equal((await fixture.service.read("owner")).accessExpiresAt, null);
+});
+
+const multiPlanConfiguration: CommerceConfig = {
+  ...config, priceIds: { basic: "price_basic", premium: "price_premium", trading: config.priceId },
+  checkoutPlans: { basic: true, premium: true, trading: true },
+};
+test("a pending checkout cannot substitute another plan's payment URL, with either the original or a new request key", async () => {
+  for (const existingPlan of PAID_PLAN_ORDER) for (const selectedPlan of PAID_PLAN_ORDER.filter(plan => plan !== existingPlan)) {
+    for (const state of ["creating", "open"] as const) {
+      const fixture = memory(multiPlanConfiguration), key = randomUUID();
+      await fixture.service.checkout("owner", key, "https://sajda.example", existingPlan);
+      fixture.pending = { id: randomUUID(), requestKey: key, priceId: multiPlanConfiguration.priceIds![existingPlan], plan: existingPlan,
+        origin: "https://sajda.example", state, sessionId: state === "open" ? "cs_test_existing" : null, createdAt: new Date().toISOString() };
+      let retrieved = 0, created = 0;
+      fixture.provider.checkout = async (_id, owner, requestedPlan) => {
+        assert.equal(owner, "cus_fixture"); assert.equal(requestedPlan, existingPlan); retrieved++;
+        return { id: "cs_test_existing", status: "open", url: "https://checkout.stripe.com/c/pay/foreign-plan",
+          expiresAt: new Date(Date.now() + 3_600_000).toISOString() };
+      };
+      fixture.provider.createCheckout = async () => { created++; throw new Error("No parallel checkout may be created"); };
+      for (const requestKey of [key, randomUUID()]) {
+        await assert.rejects(() => fixture.service.checkout("owner", requestKey, "https://sajda.example", selectedPlan),
+          (error: CommerceError) => error.code === "checkout_plan_conflict" && error.status === 409);
+      }
+      assert.equal(retrieved, state === "open" ? 2 : 0, "A persisted session can be read to learn whether it expired, but its URL cannot be returned");
+      assert.equal(created, 0); assert.equal(fixture.stored.grant, null);
+    }
+  }
+});
+test("a definitively expired checkout for another plan can be retired before starting the selected plan", async () => {
+  for (const existingPlan of PAID_PLAN_ORDER) for (const selectedPlan of PAID_PLAN_ORDER.filter(plan => plan !== existingPlan)) {
+    const fixture = memory(multiPlanConfiguration), key = randomUUID();
+    await fixture.service.checkout("owner", key, "https://sajda.example", existingPlan);
+    let retrieved = 0, created = 0;
+    fixture.provider.checkout = async (_id, owner, requestedPlan) => {
+      assert.equal(owner, "cus_fixture"); assert.equal(requestedPlan, existingPlan); retrieved++;
+      return { id: "cs_test_existing", status: "expired", url: null, expiresAt: new Date().toISOString() };
+    };
+    fixture.provider.createCheckout = async input => {
+      assert.equal(input.plan, selectedPlan); created++;
+      return { id: "cs_test_selected", status: "open", url: "https://checkout.stripe.com/c/pay/selected-plan",
+        expiresAt: new Date(Date.now() + 3_600_000).toISOString() };
+    };
+    assert.equal(await fixture.service.checkout("owner", randomUUID(), "https://sajda.example", selectedPlan),
+      "https://checkout.stripe.com/c/pay/selected-plan");
+    assert.equal(retrieved, 1); assert.equal(created, 1); assert.equal(fixture.stored.grant, null);
+  }
+});
+test("a timed-out foreign-plan creation is reconciled before any new selected-plan checkout", async () => {
+  const fixture = memory(multiPlanConfiguration), key = randomUUID();
+  await fixture.service.checkout("owner", key, "https://sajda.example", "trading");
+  fixture.pending = { id: randomUUID(), requestKey: key, priceId: config.priceId, plan: "trading", origin: "https://sajda.example",
+    state: "creating", sessionId: null, createdAt: new Date(Date.now() - 26 * 60_000).toISOString() };
+  let recovered = 0, created = 0;
+  fixture.provider.recoverCheckout = async (_owner, _reservation, _time, plan) => { assert.equal(plan, "trading"); recovered++; return null; };
+  fixture.provider.createCheckout = async input => {
+    assert.equal(recovered, 1); assert.equal(input.plan, "basic"); created++;
+    return { id: "cs_test_selected", status: "open", url: "https://checkout.stripe.com/c/pay/selected-plan",
+      expiresAt: new Date(Date.now() + 3_600_000).toISOString() };
+  };
+  assert.equal(await fixture.service.checkout("owner", randomUUID(), "https://sajda.example", "basic"),
+    "https://checkout.stripe.com/c/pay/selected-plan");
+  assert.equal(created, 1); assert.equal(fixture.stored.grant, null);
+});
+test("same-plan pending checkouts still reuse one session across retries for all three plans", async () => {
+  for (const plan of PAID_PLAN_ORDER) {
+    const fixture = memory(multiPlanConfiguration), key = randomUUID();
+    const created = await fixture.service.checkout("owner", key, "https://sajda.example", plan);
+    let retrieved = 0;
+    fixture.provider.checkout = async (_id, _owner, requestedPlan) => {
+      assert.equal(requestedPlan, plan); retrieved++;
+      return { id: "cs_test_fixture", status: "open", url: created, expiresAt: new Date(Date.now() + 3_600_000).toISOString() };
+    };
+    assert.equal(await fixture.service.checkout("owner", key, "https://sajda.example", plan), created);
+    assert.equal(await fixture.service.checkout("owner", randomUUID(), "https://sajda.example", plan), created);
+    assert.equal(retrieved, 2); assert.equal(fixture.calls.filter(value => value === "createCheckout").length, 1);
+  }
+});
+test("a same-plan reservation with a different stored price ID fails before reading or creating a payment URL", async () => {
+  const fixture = memory(multiPlanConfiguration), key = randomUUID();
+  await fixture.service.checkout("owner", key, "https://sajda.example", "basic");
+  fixture.pending = { id: randomUUID(), requestKey: key, priceId: "price_old", plan: "basic", origin: "https://sajda.example",
+    state: "open", sessionId: "cs_test_existing", createdAt: new Date().toISOString() };
+  let retrieved = 0;
+  fixture.provider.checkout = async () => { retrieved++; throw new Error("Wrong-price session must not be read"); };
+  await assert.rejects(() => fixture.service.checkout("owner", randomUUID(), "https://sajda.example", "basic"), code("billing_price_unavailable"));
+  assert.equal(retrieved, 0); assert.equal(fixture.calls.filter(value => value === "createCheckout").length, 1);
+});
+test("checkout replacements are checked again after expired-session retirement or uncertain-creation recovery", async () => {
+  for (const state of ["open", "creating"] as const) {
+    const fixture = memory(multiPlanConfiguration), firstKey = randomUUID();
+    await fixture.service.checkout("owner", firstKey, "https://sajda.example", "basic");
+    fixture.pending = { id: randomUUID(), requestKey: firstKey, priceId: "price_basic", plan: "basic", origin: "https://sajda.example",
+      state, sessionId: state === "open" ? "cs_test_existing" : null,
+      createdAt: new Date(Date.now() - (state === "creating" ? 26 * 60_000 : 0)).toISOString() };
+    fixture.provider.checkout = async (_id, _owner, plan) => {
+      assert.equal(plan, "basic"); return { id: "cs_test_existing", status: "expired", url: null, expiresAt: new Date().toISOString() };
+    };
+    const reserve = fixture.store.reservation; let reservations = 0;
+    fixture.store.reservation = async (...args) => {
+      const existing = await reserve(...args); reservations++;
+      return reservations === 1 ? existing : { ...existing, plan: "trading", priceId: config.priceId };
+    };
+    await assert.rejects(() => fixture.service.checkout("owner", randomUUID(), "https://sajda.example", "basic"),
+      (error: CommerceError) => error.code === "checkout_plan_conflict" && error.status === 409);
+    assert.equal(reservations, 2); assert.equal(fixture.calls.filter(value => value === "createCheckout").length, 1);
+    assert.equal(fixture.stored.grant, null);
+  }
 });
 
 test("existing App Store billing prevents Stripe checkout without preventing existing Stripe portal access", async () => {
