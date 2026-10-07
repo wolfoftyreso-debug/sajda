@@ -1,5 +1,7 @@
 /** Anonymous MCP conformance probe. --live makes two bounded read-only searches
- * against real registry/registrar providers. Never uses preview bypass or keys. */
+ * against real registry/registrar providers. --evidence makes two bounded
+ * source reads and requires `node --import tsx` for shared contract validation.
+ * Never uses preview bypass or keys. */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { CONNECTOR_HOSTS } from "../shared/connector-catalogue.mjs";
@@ -31,6 +33,46 @@ try {
   assert.deepEqual(tools.map(tool => tool.name), ["business_names_recommend", "domains_suggest", "domains_check", "name_packages_search", "brand_index_assess", "brand_lookup"]);
   assert.ok(tools.every(tool => tool.annotations?.readOnlyHint && !tool.annotations?.destructiveHint));
   console.log(JSON.stringify({ event: "anonymous_mcp_discovery_pass", origin: origin.origin, tools: tools.map(tool => tool.name) }));
+  if (process.argv.includes("--evidence")) {
+    const { namePackageIntelligenceSchema } = await import("../shared/name-package-intelligence.ts");
+    const { brandLookupResultSchema } = await import("../shared/brand-lookup.ts");
+    const { createBrandEvidenceReport } = await import("../shared/brand-evidence.ts");
+    const result = await client.callTool({ name: "name_packages_search", arguments: {
+      query: "calm scheduling for independent founders", tlds: ["com"], platforms: ["github"], markets: ["US"], count: 1, locale: "en",
+    } }, undefined, { timeout: 65_000 });
+    assert.equal(result.structuredContent?.ok, true); const data = namePackageIntelligenceSchema.parse(result.structuredContent.data);
+    assert.equal(data.requested_count, 1); assert.equal(data.returned_count, data.packages.length); assert.equal(data.returned_count, 1);
+    const pkg = data.packages[0], evidence = pkg.brand_index.evidence_report;
+    assert.equal(pkg.brand_index.identityLabel, pkg.canonical_name);
+    assert.equal(evidence.schema_version, "sajda.brand-evidence.v1");
+    assert.equal(evidence.ownership_verified, false); assert.equal(evidence.legal_clearance, false); assert.equal(evidence.continuous_monitoring, false);
+    assert.deepEqual(evidence.summary, { total: 6, checked: 1, reported: 0, listed: 0, unknown: 5, checked_coverage_percent: 16 });
+    assert.deepEqual(createBrandEvidenceReport(evidence.entries, Date.now()).summary, evidence.summary,
+      "The provider observation must still be current at the time of the probe, not merely at report generation.");
+    const domain = evidence.entries.find(entry => entry.kind === "domain");
+    assert.equal(domain.state, "checked"); assert.ok(["domain_available", "domain_registered"].includes(domain.statement));
+    assert.equal(domain.target, `${pkg.canonical_name}.com`); assert.equal(domain.origin, "provider_observation"); assert.equal(domain.freshness, "current");
+    assert.equal(domain.source_url, `https://rdap.verisign.com/com/v1/domain/${domain.target}`);
+    assert.equal(domain.observed_at, pkg.evidence.domains[0].observed_at);
+    assert.equal(evidence.entries.find(entry => entry.kind === "social").state, "unknown");
+    const profileResult = await client.callTool({ name: "brand_lookup", arguments: { operation: "profile", entity_id: "Q54078", locale: "en" } }, undefined, { timeout: 65_000 });
+    assert.equal(profileResult.structuredContent?.ok, true); const profile = brandLookupResultSchema.parse(profileResult.structuredContent.data);
+    assert.equal(profile.operation, "profile");
+    assert.equal(profile.entity.entity_id, "Q54078"); assert.ok(profile.assertions.length > 0); assert.equal(profile.index.score, null);
+    assert.equal(profile.evidence_report.summary.checked, 0); assert.equal(profile.evidence_report.summary.reported, 0);
+    assert.equal(profile.evidence_report.summary.listed, profile.assertions.length);
+    assert.equal(profile.evidence_report.summary.unknown, 4); assert.equal(profile.evidence_report.ownership_verified, false);
+    assert.equal(profile.evidence_report.legal_clearance, false); assert.equal(profile.evidence_report.continuous_monitoring, false);
+    assert.deepEqual(createBrandEvidenceReport(profile.evidence_report.entries, Date.now()).summary, profile.evidence_report.summary,
+      "The source-retrieval snapshot must still be current at the time of the probe.");
+    const listed = profile.evidence_report.entries.filter(entry => entry.state === "listed");
+    assert.equal(listed.length, profile.assertions.length);
+    assert.ok(listed.every(entry =>
+      entry.origin === "source_assertion" && entry.observed_at === profile.retrieved_at));
+    console.log(JSON.stringify({ event: "anonymous_brand_evidence_pass", origin: origin.origin, domain: domain.target,
+      domain_observed_at: domain.observed_at, package_summary: evidence.summary, wikidata_entity: profile.entity.entity_id,
+      wikidata_summary: profile.evidence_report.summary, ownership_verified: false, legal_clearance: false, continuous_monitoring: false }));
+  }
   if (process.argv.includes("--business")) {
     const result = await client.callTool({ name: "business_names_recommend", arguments: {
       businessDescription: "Software for small businesses to plan delivery routes and reduce logistics administration",
