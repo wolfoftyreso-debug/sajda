@@ -12,6 +12,8 @@ import { namePackageSearchSchema } from "./name-package-contract.js";
 import { namePackageIntelligenceSchema } from "../../shared/name-package-intelligence.js";
 import { brandIndexInputSchema, brandIndexResultSchema } from "../../shared/brand-presence-index.js";
 import { brandIndexRequestJsonSchema } from "./brand-index.js";
+import { brandReportSaveSchema, brandReportSelectorSchema, brandReportsListResponseSchema,
+  brandReportResponseSchema, brandReportHistoryResponseSchema } from "../../shared/brand-reports.js";
 import { brandLookupInputSchema, brandLookupResultSchema } from "../../shared/brand-lookup.js";
 import { brandLookupRequestJsonSchema } from "./brand-lookup-contract.js";
 import { nameProjectInputSchema } from "../../shared/name-projects.js";
@@ -23,7 +25,7 @@ import { MCP_COMPANION_CAPABILITIES, MCP_NAMING_DISCOVERY_INSTRUCTIONS, register
 import { CONNECTOR_HOST_INSTRUCTIONS } from "../../shared/connector-policy.js";
 import { BRAND_EVIDENCE_AGENT_INSTRUCTIONS } from "../../shared/brand-evidence.js";
 
-export const SAJDA_MCP_VERSION = "1.7.0";
+export const SAJDA_MCP_VERSION = "1.8.0";
 
 export interface McpProductResult {
   status: number;
@@ -34,7 +36,8 @@ export interface McpProductResult {
 }
 
 export type McpOperation = "domains_check" | "domains_search" | "name_packages_search" | "business_names_recommend" | "brand_index_assess" | "brand_lookup" | "account_membership"
-  | "name_projects_list" | "name_projects_save" | "social_profiles_check" | "trading_scenarios_list" | "trading_scenarios_save"
+  | "name_projects_list" | "name_projects_save" | "brand_reports_list" | "brand_reports_get" | "brand_reports_history" | "brand_reports_save"
+  | "social_profiles_check" | "trading_scenarios_list" | "trading_scenarios_save"
   | "saved_domains_list" | "saved_domains_save" | "saved_domains_remove"
   | "trading_status" | "trading_report" | "trading_start" | "trading_advance" | "trading_stop" | "trading_refresh_quote";
 
@@ -60,6 +63,9 @@ const namePackageResultSchema = resultSchema.extend({ data: namePackageIntellige
 const businessNamesResultEnvelopeSchema = resultSchema.extend({ data: businessNamesResultSchema.optional() });
 const brandIndexResultEnvelopeSchema = resultSchema.extend({ data: brandIndexResultSchema.optional() });
 const brandLookupResultEnvelopeSchema = resultSchema.extend({ data: brandLookupResultSchema.optional() });
+const brandReportsListEnvelopeSchema = resultSchema.extend({ data: brandReportsListResponseSchema.optional() });
+const brandReportEnvelopeSchema = resultSchema.extend({ data: brandReportResponseSchema.optional() });
+const brandReportHistoryEnvelopeSchema = resultSchema.extend({ data: brandReportHistoryResponseSchema.optional() });
 
 type ToolDefinition = {
   name: McpOperation;
@@ -108,6 +114,18 @@ const definitions: ToolDefinition[] = [
   { name: "name_projects_save", title: "Save a naming project", scope: "projects:write",
     description: "Create or update the authenticated account's naming project, including a saved brand-package shortlist. Returns only the affected project, not the whole workspace. Use a stable UUID id and expectedVersion 0 for a new project; use the returned current version for an update. Retry the identical payload after an ambiguous failure. A stale version is a conflict, not permission to overwrite. shortlistDomains must refer to domains already saved by this account. User-supplied configuration is not an availability, ownership or score claim. Never makes a purchase or starts monitoring.",
     schema: z3.object({ project: nameProjectInputSchema }).strict(), readOnly: false, idempotent: true, openWorld: false },
+  { name: "brand_reports_list", title: "List saved brand assessments", scope: "projects:read",
+    description: "List the authenticated account's saved brand self-assessments. Never reads another account or starts checks. Requires the brand-report feature and a verified account. Reports are user declarations, not verified ownership or continuous monitoring.",
+    schema: noInput, readOnly: true, idempotent: true, openWorld: false },
+  { name: "brand_reports_get", title: "Read a saved brand assessment", scope: "projects:read",
+    description: "Read one account-owned assessment by UUID, optionally selecting an immutable version. Freshness is recalculated without changing original reported_at dates. verified_score remains null. Historical storage is not fresh registry evidence. No external checks run.",
+    schema: brandReportSelectorSchema, readOnly: true, idempotent: true, openWorld: false },
+  { name: "brand_reports_history", title: "Read brand assessment version history", scope: "projects:read",
+    description: "List the versions of one saved assessment owned by this account. Saving never refreshes user-reported evidence or proves ownership. Up to 100 immutable versions per report; no automatic monitoring.",
+    schema: z.object({ id: uuid }).strict(), readOnly: true, idempotent: true, openWorld: false },
+  { name: "brand_reports_save", title: "Save a brand assessment version", scope: "projects:write",
+    description: "Explicitly save only USER_SUPPLIED scope and reports to this account. Returns only the affected version. Use a stable report UUID, expectedVersion 0 for creation and a new requestKey UUID per intentional save. Reuse the identical request after an uncertain failure: it returns the original saved version, even after later updates. A reused key with different content or a stale version conflicts. Caller-supplied verified evidence, scores and ownership proof are rejected. Original reported_at dates are preserved. Registry checks displayed in the browser are not persisted. No checks, purchases or monitoring run. Private MCP requests retain their 16 KiB transport limit.",
+    schema: z.object({ report: brandReportSaveSchema }).strict(), readOnly: false, idempotent: true, openWorld: false },
   { name: "social_profiles_check", title: "Check public GitHub profiles", scope: "social:check",
     description: "Check up to five distinct GitHub handles through the existing bounded GitHub API observer. This currently supports GitHub only, not all social networks. A found profile does not prove ownership; an absent profile is not proof the username can be registered. Preserve observation status, evidence source and timestamp. Uses the same account and provider quota as the website, with no arbitrary URLs, credentials or third-party AI.",
     schema: packageSocialInputSchema, readOnly: true, idempotent: false, openWorld: true },
@@ -213,6 +231,9 @@ export function createSajdaMcpServer(principal: ApiKeyPrincipal, execute: McpPro
       title: definition.title, description: `${definition.name === "business_names_recommend" ? MCP_NAMING_DISCOVERY_INSTRUCTIONS : ""}${definition.description} Required scope: ${definition.scope}.`,
       inputSchema: productOperationInputJsonSchema(definition.name),
       outputSchema: z.toJSONSchema(definition.name === "brand_lookup" ? brandLookupResultEnvelopeSchema
+        : definition.name === "brand_reports_list" ? brandReportsListEnvelopeSchema
+        : definition.name === "brand_reports_history" ? brandReportHistoryEnvelopeSchema
+        : definition.name === "brand_reports_get" || definition.name === "brand_reports_save" ? brandReportEnvelopeSchema
         : definition.name === "brand_index_assess" ? brandIndexResultEnvelopeSchema
         : definition.name === "name_packages_search" ? namePackageResultSchema
         : definition.name === "business_names_recommend" ? businessNamesResultEnvelopeSchema : resultSchema) as Tool["outputSchema"],

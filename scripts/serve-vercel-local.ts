@@ -27,6 +27,7 @@ import membership from "../api/account/membership";
 import lostDomains from "../api/account/lost-domains";
 import tradingScenarios from "../api/account/trading-scenarios";
 import nameProjects from "../api/account/name-projects";
+import brandReports from "../api/account/brand-reports";
 import namePackageSocial from "../api/account/name-package-social";
 import lostDomainsCron from "../api/cron/lost-domains";
 import auth from "../api/auth";
@@ -83,6 +84,7 @@ const handlers = new Map<string, Handler>([
   ["/api/account/lost-domains", lostDomains],
   ["/api/account/trading-scenarios", tradingScenarios],
   ["/api/account/name-projects", nameProjects],
+  ["/api/account/brand-reports", brandReports],
   ["/api/account/name-package-social", namePackageSocial],
   ["/api/cron/lost-domains", lostDomainsCron],
   ["/api/cron/native-commerce", nativeCommerceCron],
@@ -124,7 +126,7 @@ const server = createServer(async (req, rawRes) => {
         let size = 0;
         for await (const chunk of req) {
           size += chunk.length;
-          if (size > (path === "/api/account/name-projects" ? 32_768 : 16_384)) { res.status(413).json({ code: "request_too_large" }); return; }
+          if (size > (path === "/api/native/account" ? 67_584 : ["/api/account/brand-reports", "/api/v1/account"].includes(path) ? 65_536 : path === "/api/account/name-projects" ? 32_768 : 16_384)) { res.status(413).json({ code: "request_too_large" }); return; }
           chunks.push(Buffer.from(chunk));
         }
         request.body = chunks.length ? Buffer.concat(chunks).toString("utf8") : undefined;

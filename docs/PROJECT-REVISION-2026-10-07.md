@@ -17,6 +17,13 @@ självskattning, offentliga kunskapskällor, sparade projekt och en avgränsad
 Trading-arbetsyta. Det är ännu inte ett verifierat globalt varumärkesregister,
 en komplett CI-förvaltare, juridisk clearance eller heltäckande bevakning.
 
+**Efterföljande byggsteg:** kontoägda självskattningsrapporter och
+oföränderlig versionshistorik har implementerats med REST/privat MCP/native-
+paritet. Migration 0022 och faktiska ägar-/samtidighetsprov har körts endast
+i separat Neon-preview. Se [aktuellt funktionskvitto](BRAND-REPORTS-2026-10-07.md).
+Historiska test- och deploymentuppgifter nedan gäller fortfarande sina angivna
+commits, inte automatiskt detta senare byggsteg. Produktionsgrindarna kvarstår.
+
 ## Bekräftade fel som rättats
 
 | ID | Grad | Observerat problem | Rättning och acceptans |
@@ -43,7 +50,7 @@ Apple är avsiktlig, inte ett belagt säkerhetsfel.
 | Namngenerering | Sju namnspråk; tydlig requested/returned/partial/none och förklaring. | Ingen garanti om tio tillgängliga namn eller språklig/juridisk lämplighet. |
 | Varumärkespaket | Domäner, föreslagna sociala handles, marknadsplan och kandidatindex. | GitHub är den självständigt kontrollerade sociala profilkällan. Företagsnamn/varumärken kräver manuell separat kontroll. |
 | Brand Index | Versionsatt metod, delsignaler och fyra tillitsklasser. | Kontrollerad registerstatus är inte ägande. Självrapporter och Wikidata-påståenden höjer inte en oberoende verifierad ägarpoäng. |
-| Befintligt varumärke | Namnuppslag, val av källentitet och lokalt arbetsblad. | Arbetsbladet kan nu exporteras men är inte ett lagrat kontoreportage eller löpande bevakning. |
+| Befintligt varumärke | Namnuppslag, källentiteter, arbetsblad och efterföljande kontoägd rapporthistorik i preview. | Lagrade egna uppgifter är inte oberoende verifiering; registerkontroller är fortfarande session-only. Ingen löpande bevakning. |
 | Saved / projekt | Kontoägda domänsnapshots, projekt och kortlistor med concurrency/retry-skydd. | Sparade snapshots behöver bättre datum/källa/unknown-kontrakt och uttrycklig omkontroll. |
 | Swipe | Ändelseval och ett stegs premium-undo. | Mounted/server-regler testas; fysisk touch/iPhone och betalt E2E är inte verifierade här. |
 | Trading | Research-v3, källor, riskfilter, kontroller, scenarier och journal. | 24 källsidor/600 kandidater/30 rapportposter är tak, inte utlovade fynd eller marknadsvärden. Produktionsmotorn är avstängd. |
@@ -197,7 +204,7 @@ varumärkesarbetsyta med versionshistorik och API/MCP-paritet.
 
 | ID | Typ/grad | Evidens | Nästa steg med verifierbart kriterium |
 | --- | --- | --- | --- |
-| OPEN-01 | P2, saknad produktfunktion | BrandIndexAssessment håller arbetsblad/observationer i React-state; projekt sparar shortlist-konfiguration, inte rapporthistorik. | Kontoägd versionsatt brand workspace + immutable evidence history. Refresh/login/API ger samma ursprungliga datum; stale förblir stale; annan ägare saknar åtkomst. |
+| OPEN-01 | P2, delvis åtgärdad i efterföljande preview | Kontoägda deklarationsrapporter och oföränderlig versionshistorik är byggda. Faktiska Neon-prov bekräftar originaldatum, stale, concurrency/retry och ägar-/miljöisolering. | Återstår: inloggad deployad kundresa, separat arkiv för serverkontrollerat underlag och godkänd produktionsaktivering. Rapportsparande får inte kallas verifierad evidence history eller bevakning. |
 | OPEN-02 | P2, datakontrakt | `saved-domain-input.ts` ersätter saknat pris/värde/confidence med 0; äldre DB-kolumner har NOT NULL/default 0. | Additivt snapshot-kontrakt med explicit unknown, valuta/period/källa/observed_at. Migrera inte gamla nollor till verifierade fakta. UI/API/MCP måste vara överens. |
 | OPEN-03 | Kommersiell lanseringsgrind | Basic/Free har samma faktiska `save_domains`-capability och inga egna högre sökgränser/bevakning. | Bygg verklig Basic-nytta före försäljning: exempelvis avgränsad projektkapacitet/återkommande kontroller med tydliga servergränser. Ändra inte Free till en artificiell betalvägg. |
 | OPEN-04 | P2, saknad verifieringskapacitet | Oberoende verified-score är null; company/trademark är manuell; matchande profil är inget kontrollbevis. | Expirerande konto- och domänbunden TXT/website-challenge. Fel domän/replay/annan ägare nekas. Resultatet säger endast kontroll av exakt den domänen. |

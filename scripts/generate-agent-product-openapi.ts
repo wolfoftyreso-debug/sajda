@@ -9,6 +9,7 @@ import { businessNamesResultSchema } from "../api/_shared/business-names-contrac
 import { DEVELOPER_API_SCOPES } from "../shared/developer-scopes.js";
 import { NAME_PROJECT_LIMIT, nameProjectSchema } from "../shared/name-projects.js";
 import { tradingScenarioSchema } from "../shared/trading-scenarios.js";
+import { brandReportsListResponseSchema, brandReportResponseSchema, brandReportHistoryResponseSchema } from "../shared/brand-reports.js";
 import { socialObservationSchema } from "../shared/name-packages.js";
 import packageMetadata from "../package.json" with { type: "json" };
 
@@ -43,6 +44,10 @@ export function generateAgentProductOpenApiSchemas() {
     BusinessNamesResponse: names,
     NameProjectsSaveRequest: inputs.name_projects_save,
     NameProjectsResponse: jsonSchema(z.object({ ...owner, projects: z.array(nameProjectSchema).max(NAME_PROJECT_LIMIT) }).strict()),
+    BrandReportsSaveRequest: inputs.brand_reports_save,
+    BrandReportsListResponse: z4.toJSONSchema(brandReportsListResponseSchema, { io: "input" }) as JsonObject,
+    BrandReportResponse: z4.toJSONSchema(brandReportResponseSchema, { io: "input" }) as JsonObject,
+    BrandReportHistoryResponse: z4.toJSONSchema(brandReportHistoryResponseSchema, { io: "input" }) as JsonObject,
     TradingScenariosSaveRequest: inputs.trading_scenarios_save,
     TradingScenariosResponse: jsonSchema(z.object({ ...owner, scenarios: z.array(tradingScenarioSchema).max(100) }).strict()),
     SocialProfilesCheckRequest: inputs.social_profiles_check,

@@ -2,7 +2,40 @@
 
 Users can connect an AI assistant to their own Sajda account through the authenticated [MCP endpoint](MCP.md), or use the equivalent REST operations below. Both operate on the same account data as the website. An assistant can read saved domains, naming projects, membership and existing Trading reports, and can save changes only when the user has granted the matching permission.
 
-The anonymous connector at `/api/mcp/public` exposes six public research tools and cannot read or change an account. The authenticated `/api/mcp` catalogue has 21 tools, including account operations. Tool discovery describes implemented capabilities; it does not grant scopes, paid membership or access to another user's data. These are source contracts, not a claim that every client or deployed host is already connected.
+The anonymous connector at `/api/mcp/public` exposes six public research tools and cannot read or change an account. The authenticated `/api/mcp` 1.8.0 catalogue has 25 tools, including account-owned brand reports. Tool discovery describes implemented capabilities; it does not grant scopes, paid membership or access to another user's data. These are source contracts, not a claim that every client or deployed host is already connected.
+
+## Saved brand assessments
+
+Feature flag: `SAJDA_BRAND_REPORTS_ENABLED=true`, plus migration
+`0022_brand_reports.sql` and a verified account. Disabled environments return 404.
+
+| Intended action | REST query/method | Private MCP | Permission |
+| --- | --- | --- | --- |
+| List up to 50 report summaries | GET ?resource=brand-reports | brand_reports_list | projects:read |
+| Read latest or an immutable version | GET ?resource=brand-reports&id=UUID[&version=N] | brand_reports_get | projects:read |
+| List up to 100 versions | GET ?resource=brand-reports&id=UUID&history=true | brand_reports_history | projects:read |
+| Save one version | POST ?resource=brand-reports with {report:…} | brand_reports_save | projects:write |
+
+Save fields are `id`, `requestKey`, `expectedVersion`, `title`, and strict
+`assessment` from the existing BrandIndexInput contract. Creation uses version
+0; every intentional save uses a new UUID request key. Retry the *identical*
+request after an unknown outcome. A late replay returns the original version,
+not the current latest, and never overwrites a newer edit. Different content
+under the same key conflicts. Stale updates conflict; foreign IDs disclose no
+other account's records. Write-only keys receive only the affected report.
+
+Only declared scope and user reports are stored. Original `reported_at` and
+`source_url` survive saves, refreshes and later reads. `savedAt` means storage
+time, not verification. Freshness is recomputed on retrieval; this is not the
+score as originally evaluated at save time. `verified_score` stays null.
+Browser-only registry-check rows are deliberately not persisted as trusted
+evidence. No save or read performs checks, establishes ownership, grants legal
+clearance, or starts monitoring.
+
+REST/browser save envelopes are limited to 64 KiB; private MCP still limits the
+whole protocol request to 16 KiB. Capacity errors are explicit rather than
+truncating history. The native account adapter supports the same feature
+through its private bridge, not browser cookies or embedded API keys.
 
 Endpoint: `/api/v1/account`. Every request requires `Authorization: Bearer <scoped-Sajda-key>`. Account identity and environment come from the verified key. Keep keys in server or integration secrets; website cookies and legacy operator search keys are not accepted here. Responses are private and never cached.
 

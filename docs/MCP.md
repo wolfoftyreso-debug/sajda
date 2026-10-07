@@ -1,9 +1,9 @@
 # Sajda remote MCP
 
-Endpoint: `https://<your-sajda-host>/api/mcp`. Transport: MCP Streamable HTTP with JSON responses. The source server version is `1.7.0`; the official TypeScript SDK is pinned to `@modelcontextprotocol/sdk` **1.32.1**.
+Endpoint: `https://<your-sajda-host>/api/mcp`. Transport: MCP Streamable HTTP with JSON responses. The authenticated source server version is `1.8.0`; the official TypeScript SDK is pinned to `@modelcontextprotocol/sdk` **1.32.1**.
 
 Public source version `1.7.0` advertises six tools; the authenticated catalogue
-has 21. Both additionally expose two opt-in prompts and two static policy resources.
+has 25, including four private saved-brand-report operations. Both additionally expose two opt-in prompts and two static policy resources.
 See [connector distribution](CONNECTOR-DISTRIBUTION.md) for the current release
 and [earlier API release status](AGENT-API-RELEASE.md) for tested account boundaries.
 
@@ -136,6 +136,10 @@ Use HTTPS outside localhost. The deployment must configure its own trusted origi
 | `account_membership` | `account:read` | Read current verified plan, capabilities and expiry. |
 | `name_projects_list` | `projects:read` | Read naming projects and saved brand-package configurations. |
 | `name_projects_save` | `projects:write` | Save one versioned project; return only its mutation receipt. |
+| `brand_reports_list` | `projects:read` | List up to 50 account-owned self-assessment summaries. |
+| `brand_reports_get` | `projects:read` | Read the latest or specified immutable version; preserve original claim dates. |
+| `brand_reports_history` | `projects:read` | List up to 100 saved version receipts; no new checks. |
+| `brand_reports_save` | `projects:write` | Save one declared assessment version with a stable UUID requestKey; never accept verified ownership claims. |
 | `social_profiles_check` | `social:check` | Observe up to five GitHub profiles; absence is not registrability. |
 | `trading_scenarios_list` | `trading:read` | Read the scenario journal with active Trading access. |
 | `trading_scenarios_save` | `trading:write` | Save one user-authored scenario; return only its mutation receipt. |

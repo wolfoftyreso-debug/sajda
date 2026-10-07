@@ -11,6 +11,9 @@ const routes: Record<string, Route> = {
   brand_lookup: post("/api/v1/public/brand-lookup"), brand_index_assess: post("/api/v1/public/brand-index"),
   account_membership: account("membership"),
   name_projects_list: account("name-projects"), name_projects_save: account("name-projects", "POST"),
+  brand_reports_list: account("brand-reports"), brand_reports_save: account("brand-reports", "POST"),
+  brand_reports_get: { method: "GET", path: "/api/v1/account?resource=brand-reports&id={id}" },
+  brand_reports_history: { method: "GET", path: "/api/v1/account?resource=brand-reports&id={id}&history=true" },
   social_profiles_check: account("social-profiles", "POST"),
   trading_scenarios_list: account("trading-scenarios"), trading_scenarios_save: account("trading-scenarios", "POST"),
   saved_domains_list: account("saved-domains"), saved_domains_save: account("saved-domains", "POST"),
@@ -41,6 +44,7 @@ export const capabilities = {
     input_schema_transport: "mcp",
     rest_contract: "/api/openapi",
     conditions: tool.name.startsWith("name_projects_") ? ["verified_account", "name_projects_feature_enabled"]
+      : tool.name.startsWith("brand_reports_") ? ["verified_account", "brand_reports_feature_enabled"]
       : tool.name.startsWith("trading_scenarios_") ? ["verified_account", "active_trading_entitlement"]
         : tool.name.startsWith("trading_") ? ["account_ownership", "operation_specific_trading_entitlement_and_budgets"]
           : publicRoutes[tool.name] ? ["shared_request_and_provider_limits"] : ["account_ownership", "operation_specific_limits"],

@@ -5,8 +5,8 @@ import { openApiDocument } from "../api/_shared/openapi-document.mjs";
 import { readFileSync } from "node:fs";
 
 test("all advertised account tools map to documented REST routes and exact input schemas", () => {
-  assert.equal(capabilities.capabilities.length, 21);
-  assert.equal(new Set(capabilities.capabilities.map(tool => tool.name)).size, 21);
+  assert.equal(capabilities.capabilities.length, 25);
+  assert.equal(new Set(capabilities.capabilities.map(tool => tool.name)).size, 25);
   for (const tool of capabilities.capabilities) {
     assert.ok(tool.rest, tool.name);
     const path = tool.rest.path.split("?")[0];
@@ -17,6 +17,19 @@ test("all advertised account tools map to documented REST routes and exact input
   }
   assert.equal(capabilities.additional_public_tools[0].rest, null);
   assert.equal(capabilities.capabilities.filter(tool => tool.public_mcp).length, 5);
+  for (const [name, method, path] of [
+    ["brand_reports_list", "GET", "/api/v1/account?resource=brand-reports"],
+    ["brand_reports_get", "GET", "/api/v1/account?resource=brand-reports&id={id}"],
+    ["brand_reports_history", "GET", "/api/v1/account?resource=brand-reports&id={id}&history=true"],
+    ["brand_reports_save", "POST", "/api/v1/account?resource=brand-reports"],
+  ]) {
+    const tool = capabilities.capabilities.find(item => item.name === name)!;
+    assert.deepEqual(tool.rest, { method, path });
+    assert.deepEqual(tool.conditions, ["verified_account", "brand_reports_feature_enabled"]);
+    assert.equal(tool.public_rest, null);
+    assert.equal(tool.public_mcp, false);
+    assert.equal(tool.scope, method === "POST" ? "projects:write" : "projects:read");
+  }
 });
 
 test("capability discovery has no account/provider runtime imports and no side effects", () => {

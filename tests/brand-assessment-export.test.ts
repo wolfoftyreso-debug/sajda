@@ -4,7 +4,8 @@ import { load } from "cheerio";
 import { exportBrandAssessment } from "../src/lib/brandAssessmentExport";
 import { brandWorksheetCopy } from "../src/i18n/brandWorksheetCopy";
 import { brandEvidenceCopy } from "../src/i18n/brandEvidenceCopy";
-import { brandIndexInputSchema, type BrandIndexInput } from "../shared/brand-presence-index";
+import { assessBrandPresence, brandIndexInputSchema, type BrandIndexInput } from "../shared/brand-presence-index";
+import { brandReportSnapshotSchema } from "../shared/brand-reports";
 import { brandEvidenceReportSchema } from "../shared/brand-evidence";
 import type { PackageDomainInput } from "../shared/name-packages";
 
@@ -48,4 +49,24 @@ test("export ages evidence without refreshing dates or converting reports to ver
   assert.equal(portable.assessment.index.reported_score, null);
   assert.throws(() => exportBrandAssessment(input, rows, "en", NaN), /time/);
   assert.throws(() => exportBrandAssessment(input, [{ ...rows[0], domain: "unrequested.com" }], "en", at), /domain_response/);
+});
+
+test("exporting a saved assessment does not falsely declare the report unsaved or claim a new account save", () => {
+  const saved = brandReportSnapshotSchema.parse({ id: "b31f5ec2-6ebf-4b57-a03f-9477d8ad037f", title: "Saved launch review",
+    version: 2, savedAt: new Date(at).toISOString(), assessment: input, result: assessBrandPresence(input, at) });
+  const obsolete = {
+    en: "not saved to a Sajda account", sv: "inte sparad på ett Sajda-konto", es: "no guardada en una cuenta de Sajda",
+    fr: "non sauvegardé dans un compte Sajda", zh: "未保存到 Sajda 账号",
+  };
+  for (const language of ["en", "sv", "es", "fr", "zh"] as const) {
+    const $ = load(exportBrandAssessment(saved.assessment, [], language, at));
+    assert.ok($("body").text().includes(brandWorksheetCopy[language].localBoundary));
+    assert.ok(!$("body").text().includes(obsolete[language]));
+    const portable = JSON.parse($("[data-portable-brand-assessment]").text());
+    assert.deepEqual(portable.input, saved.assessment);
+    assert.equal(portable.evidence_report.summary.checked, 0);
+    assert.equal(portable.input.observations[0].reported_at, original);
+    assert.ok(!JSON.stringify(portable).includes(saved.id), "A private account identifier is not needed in an offline export");
+  }
+  assert.match(brandWorksheetCopy.en.localBoundary, /exporting does not create or update an account version/iu);
 });

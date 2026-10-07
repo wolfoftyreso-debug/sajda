@@ -384,6 +384,8 @@ ownership, Trading entitlement and durable product limits remain enforced.
 | --- | --- | --- | --- |
 | `name-projects` | `GET` | `projects:read` | Account-owned project list, including saved brand-package configurations. |
 | `name-projects` | `POST {"project": ...}` | `projects:write` | Only the affected project in `projects`, never unrelated workspace records. |
+| `brand-reports` | `GET` with optional `id` and `version` or `history=true` | `projects:read` | Account-owned summaries, one dated self-assessment, or version receipts. |
+| `brand-reports` | `POST {"report": ...}` | `projects:write` | One immutable version receipt; UUID `requestKey` required and reused for identical retries. |
 | `social-profiles` | `POST {"handles": ["example"]}` | `social:check` | Up to five public GitHub profile observations. |
 | `trading-scenarios` | `GET` | `trading:read` | Account-owned scenario journal; active Trading access required. |
 | `trading-scenarios` | `POST {"scenario": ...}` | `trading:write` | Only the affected scenario in `scenarios`; active Trading access required. |
@@ -396,13 +398,13 @@ already belong to the account. Write permissions do not imply list access.
 Missing or ambiguous mutation receipts return a safe failure, since the write
 may already have committed.
 
-REST body ceilings are 32 KiB for projects, 16 KiB for scenarios and 4 KiB for
+REST body ceilings are 64 KiB for brand reports, 32 KiB for projects, 16 KiB for scenarios and 4 KiB for
 social checks; underlying product envelope/storage limits also apply. MCP
 retains its 16 KiB complete JSON-RPC message limit. A GitHub `not_found`
 observation does not prove registrability. Other social networks remain manual
 review candidates. Scenario prices and probabilities remain user assumptions.
 
-The current source catalogue contains 21 authenticated MCP tools and six public
+The current source catalogue contains 25 authenticated MCP tools and six public
 tools; discover contracts using `tools/list` and `/api/openapi`. This is not a
 claim of universal feature parity: billing, authentication, key management and
 account deletion remain separate control-plane workflows, not agent tools.

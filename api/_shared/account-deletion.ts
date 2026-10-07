@@ -165,10 +165,12 @@ export function createAccountDeletionService(deps: {
           [[hash(`lost-domains:${owner}`), hash(`saved-domains:${owner}`), hash(`commerce:${owner}`), ...["development", "preview", "production"].flatMap(namespace => [
             hash(`native:${namespace}:${owner}`), hash(`account-membership:${namespace}:${owner}`), hash(`trading-scenarios:${namespace}:${owner}`),
             hash(`name-projects:${namespace}:${owner}`),
+            hash(`brand-reports:${namespace}:${owner}`),
             hash(`name-package-social:${namespace}:${owner}`),
           ])]]);
         // Auth sessions, passwords, API keys, native sessions, entitlements,
-        // Trading campaigns/runs/work/evidence and commerce rows cascade here.
+        // Trading campaigns/runs/work/evidence, brand report versions/receipts
+        // and commerce rows cascade here.
         // New account-owned tables must also FK to this user ON DELETE CASCADE.
         const deleted = await client.query("/* deletion:delete-user */ DELETE FROM public.sajda_auth_user WHERE id=$1 RETURNING id", [owner]);
         if (deleted.rows.length !== 1 || deleted.rows[0].id !== owner) throw unavailable();

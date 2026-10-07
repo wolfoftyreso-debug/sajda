@@ -75,12 +75,29 @@ export const storageReadinessSql = `SELECT
         WHERE actual.table_schema='sajda' AND actual.table_name=required.table_name
           AND actual.column_name=required.column_name)
     )
+  ))
+  AND (NOT $3::boolean OR (
+    (SELECT bool_and(to_regclass(name) IS NOT NULL)
+      FROM unnest(ARRAY['sajda.brand_reports', 'sajda.brand_report_versions', 'sajda.brand_report_requests']) AS required(name))
+    AND NOT EXISTS (
+      SELECT 1 FROM (VALUES
+        ('brand_reports','namespace'), ('brand_reports','owner_id'), ('brand_reports','id'),
+        ('brand_reports','title'), ('brand_reports','version'), ('brand_reports','created_at'), ('brand_reports','updated_at'),
+        ('brand_report_versions','namespace'), ('brand_report_versions','owner_id'), ('brand_report_versions','report_id'),
+        ('brand_report_versions','version'), ('brand_report_versions','title'), ('brand_report_versions','assessment'), ('brand_report_versions','saved_at'),
+        ('brand_report_requests','namespace'), ('brand_report_requests','owner_id'), ('brand_report_requests','request_key'),
+        ('brand_report_requests','report_id'), ('brand_report_requests','version'), ('brand_report_requests','input_hash')
+      ) AS required(table_name,column_name)
+      WHERE NOT EXISTS (SELECT 1 FROM information_schema.columns actual
+        WHERE actual.table_schema='sajda' AND actual.table_name=required.table_name
+          AND actual.column_name=required.column_name)
+    )
   )) AS ready`;
 
-export function storageReadinessParameters(env: NodeJS.ProcessEnv = process.env): [boolean, string[]] {
+export function storageReadinessParameters(env: NodeJS.ProcessEnv = process.env): [boolean, string[], boolean] {
   // Match the feature route's exact opt-in. Disabling an optional feature must
   // not accidentally require its schema or turn it on through the health probe.
-  return [env.SAJDA_NAME_PROJECTS_ENABLED === "true", [...DEVELOPER_API_SCOPES]];
+  return [env.SAJDA_NAME_PROJECTS_ENABLED === "true", [...DEVELOPER_API_SCOPES], env.SAJDA_BRAND_REPORTS_ENABLED === "true"];
 }
 
 function setHealthHeaders(response: VercelResponseLike, requestId: string): void {

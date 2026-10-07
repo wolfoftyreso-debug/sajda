@@ -46,7 +46,7 @@ for (const isPublic of [true, false]) test(`${isPublic ? "public" : "scoped"} SD
   const expected = isPublic
     ? ["business_names_recommend", "domains_suggest", "domains_check", "name_packages_search", "brand_index_assess", "brand_lookup"]
     : ["business_names_recommend", "domains_check", "domains_search", "name_packages_search", "brand_index_assess", "brand_lookup",
-      "account_membership", "name_projects_list", "name_projects_save", "social_profiles_check", "trading_scenarios_list", "trading_scenarios_save",
+      "account_membership", "name_projects_list", "name_projects_save", "brand_reports_list", "brand_reports_get", "brand_reports_history", "brand_reports_save", "social_profiles_check", "trading_scenarios_list", "trading_scenarios_save",
       "saved_domains_list", "saved_domains_save", "saved_domains_remove", "trading_status", "trading_report", "trading_start", "trading_advance",
       "trading_stop", "trading_refresh_quote"];
   assert.deepEqual(catalogue.tools.map(tool => tool.name).sort(), expected.sort(), "Discovery must match the published product operations");

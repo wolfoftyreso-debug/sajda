@@ -1,7 +1,7 @@
 # Sajda AI connector
 
 Current source, 2026-10-07: public MCP `1.7.0` has six tools and private MCP
-`1.7.0` has 21. Both also provide optional naming prompts and static policy
+`1.8.0` has 25. Both also provide optional naming prompts and static policy
 resources. See [six-client distribution and consent](CONNECTOR-DISTRIBUTION.md)
 for installation packages and verification boundaries.
 The new [brand evidence ledger](BRAND-EVIDENCE.md) separates current provider
@@ -124,7 +124,7 @@ The [public setup page](https://sajda-connector.vercel.app) includes the endpoin
 | --- | --- | --- |
 | `sajda-connector.vercel.app/api/mcp/public` | Stable alias; 1.6.0 and six tools anonymously verified 2026-10-07 | None; omit `Authorization`, API keys, and account credentials |
 | Main Sajda deployment: `/api/mcp/public` | Six-tool public source catalogue; verify the deployed host separately | None; omit `Authorization` |
-| Main Sajda deployment: `/api/mcp` | 21-tool private source catalogue, not deployed on the connector host | Scoped Sajda API key in a bearer header; not OAuth |
+| Main Sajda deployment: `/api/mcp` | 25-tool private source catalogue, not deployed on the connector host | Scoped Sajda API key in a bearer header; not OAuth |
 | `sajda-connector.vercel.app/api/mcp` | No private integration exists on this host | 404; do not send a private key here |
 
 The public endpoint rejects an `Authorization` header. It does not create an account principal or forward cookies, account headers, or caller credentials to the search engine. Connecting it does not link a Sajda account. Private client setup and existing private integration evidence are documented separately in [MCP.md](MCP.md). The dedicated release has two functions: public MCP and the separately authenticated read-only registrar bridge, with no private account/database/payment/AI-provider modules. Its server-only credential allowlist is the two dedicated Cloudflare settings and independent bridge token described below; public users still provide no credentials. The main Sajda deployment and its protection are outside this release.

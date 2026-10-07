@@ -3,6 +3,7 @@ import membership from "../account/membership.js";
 import savedDomains from "../account/saved-domains.js";
 import trading from "../account/lost-domains.js";
 import nameProjects from "../account/name-projects.js";
+import brandReports from "../account/brand-reports.js";
 import socialProfiles from "../account/name-package-social.js";
 import tradingScenarios from "../account/trading-scenarios.js";
 import { AccountAccessError } from "./account-error.js";
@@ -81,6 +82,7 @@ export function createMcpProductExecutor(dependencies: {
   savedDomains?: typeof savedDomains;
   trading?: typeof trading;
   nameProjects?: typeof nameProjects;
+  brandReports?: typeof brandReports;
   socialProfiles?: typeof socialProfiles;
   tradingScenarios?: typeof tradingScenarios;
   quota?: typeof consumeApiKeyQuota;
@@ -155,6 +157,9 @@ export function createMcpProductExecutor(dependencies: {
     let query: Record<string, unknown> | undefined;
     if (operation === "saved_domains_list") query = args;
     else if (operation === "name_projects_save") { method = "POST"; body = { action: "save", ...args }; }
+    else if (operation === "brand_reports_save") { method = "POST"; body = args; }
+    else if (operation === "brand_reports_get") { query = { id: args.id, ...(args.version === undefined ? {} : { version: String(args.version) }) }; }
+    else if (operation === "brand_reports_history") { query = { ...args, history: "true" }; }
     else if (operation === "trading_scenarios_save") { method = "POST"; body = { action: "save", ...args }; }
     else if (operation === "social_profiles_check") { method = "POST"; body = args; }
     else if (operation === "saved_domains_save" || operation === "saved_domains_remove") {
@@ -170,6 +175,7 @@ export function createMcpProductExecutor(dependencies: {
     const request = { method, headers, ...(body !== undefined ? { body } : {}), ...(query ? { query } : {}) };
     if (operation === "account_membership") await (dependencies.membership ?? membership)(request, output.response);
     else if (operation === "name_projects_list" || operation === "name_projects_save") await (dependencies.nameProjects ?? nameProjects)(request, output.response);
+    else if (operation.startsWith("brand_reports_")) await (dependencies.brandReports ?? brandReports)(request, output.response);
     else if (operation === "social_profiles_check") await (dependencies.socialProfiles ?? socialProfiles)(request, output.response);
     else if (operation === "trading_scenarios_list" || operation === "trading_scenarios_save") await (dependencies.tradingScenarios ?? tradingScenarios)(request, output.response);
     else if (operation.startsWith("saved_domains_")) await (dependencies.savedDomains ?? savedDomains)(request, output.response);

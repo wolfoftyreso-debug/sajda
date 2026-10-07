@@ -89,17 +89,18 @@ export function createAccountApiHandler(dependencies: {
       const principal = await (dependencies.authorize ?? requireApiKey)(request.headers);
       const query = readRequestQuery(request);
       const resource = query.resource;
-      if (typeof resource !== "string" || !["membership", "saved-domains", "trading", "trading-status", "name-projects", "social-profiles", "trading-scenarios"].includes(resource)) {
-        throw new AccountAccessError("invalid_resource", 400, "Choose a documented account resource: membership, saved-domains, name-projects, social-profiles, trading, trading-status or trading-scenarios.");
+      if (typeof resource !== "string" || !["membership", "saved-domains", "trading", "trading-status", "name-projects", "brand-reports", "social-profiles", "trading-scenarios"].includes(resource)) {
+        throw new AccountAccessError("invalid_resource", 400, "Choose a documented account resource: membership, saved-domains, name-projects, brand-reports, social-profiles, trading, trading-status or trading-scenarios.");
       }
       const allowedMethods = resource === "saved-domains" ? ["GET", "POST", "DELETE"]
-        : ["trading", "name-projects", "trading-scenarios"].includes(resource) ? ["GET", "POST"]
+        : ["trading", "name-projects", "brand-reports", "trading-scenarios"].includes(resource) ? ["GET", "POST"]
         : resource === "social-profiles" ? ["POST"] : ["GET"];
       if (!request.method || !allowedMethods.includes(request.method)) {
         response.setHeader("Allow", allowedMethods.join(", "));
         throw new AccountAccessError("method_not_allowed", 405, "Use a supported method for this resource.");
       }
       const allowedQuery = request.method === "GET" && resource === "saved-domains" ? ["resource", "cursor"]
+        : request.method === "GET" && resource === "brand-reports" ? ["resource", "id", "version", "history"]
         : request.method === "GET" && resource === "trading" ? ["resource", "offset", "limit"] : ["resource"];
       if (Object.keys(query).some(key => !allowedQuery.includes(key))) {
         throw new AccountAccessError("invalid_request", 400, "Use only documented query parameters for this resource.");
@@ -111,6 +112,21 @@ export function createAccountApiHandler(dependencies: {
       else if (resource === "name-projects") {
         operation = request.method === "GET" ? "name_projects_list" : "name_projects_save";
         args = request.method === "GET" ? {} : await readBody(request, 32768);
+      } else if (resource === "brand-reports") {
+        if (request.method === "POST") {
+          operation = "brand_reports_save";
+          args = await readBody(request, 65536);
+        } else if (query.id === undefined) {
+          if (query.version !== undefined || query.history !== undefined) throw new AccountAccessError("invalid_request", 400, "Select a report id before choosing a version or history.");
+          operation = "brand_reports_list";
+        } else if (query.history !== undefined) {
+          if (query.history !== "true" || query.version !== undefined) throw new AccountAccessError("invalid_request", 400, "Use history=true without a version.");
+          operation = "brand_reports_history"; args = { id: query.id };
+        } else {
+          operation = "brand_reports_get";
+          const version = queryNumber(query.version);
+          args = { id: query.id, ...(version === undefined ? {} : { version }) };
+        }
       } else if (resource === "trading-scenarios") {
         operation = request.method === "GET" ? "trading_scenarios_list" : "trading_scenarios_save";
         args = request.method === "GET" ? {} : await readBody(request, 16384);

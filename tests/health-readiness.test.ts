@@ -87,3 +87,21 @@ test("readiness rejects old or unvalidated API-key scope constraints without wri
   assert.match(storageReadinessSql, /quote_literal\(required\.scope\)/u);
   assert.doesNotMatch(storageReadinessSql, /\b(?:INSERT|UPDATE|DELETE|ALTER|CREATE|DROP)\b/u);
 });
+
+test("optional report readiness checks its schema only after exact feature opt-in", () => {
+  for (const value of [undefined, "false", "1", "TRUE", "true; DROP TABLE example"]) {
+    assert.equal(storageReadinessParameters({ SAJDA_BRAND_REPORTS_ENABLED: value })[2], false);
+  }
+  assert.equal(storageReadinessParameters({ SAJDA_BRAND_REPORTS_ENABLED: "true" })[2], true);
+  assert.match(storageReadinessSql, /AND \(NOT \$3::boolean OR \(/u);
+  for (const table of ["brand_reports", "brand_report_versions", "brand_report_requests"]) {
+    assert.ok(storageReadinessSql.includes(`'sajda.${table}'`));
+    for (const column of ["namespace", "owner_id", "version"]) {
+      assert.ok(storageReadinessSql.includes(`('${table}','${column}')`));
+    }
+  }
+  for (const [table, column] of [["brand_report_versions", "assessment"], ["brand_report_versions", "saved_at"],
+    ["brand_report_requests", "request_key"], ["brand_report_requests", "input_hash"]]) {
+    assert.ok(storageReadinessSql.includes(`('${table}','${column}')`));
+  }
+});
