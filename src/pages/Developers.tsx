@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { throwIfCancelled } from "@/lib/abort";
+import { requestDeadline, throwIfCancelled } from "@/lib/abort";
 import { DEVELOPER_API_SCOPES } from "../../shared/developer-scopes";
 import {
   ArrowLeft,
@@ -71,6 +71,7 @@ type DeveloperCopy = {
   response: string;
   responseIdle: string;
   responseError: string;
+  responseTimeout: string;
   capabilitiesLabel: string;
   capabilitiesTitle: string;
   capabilitiesLead: string;
@@ -405,7 +406,8 @@ const developerCopy: Record<Language, DeveloperCopy> = {
     runDescription: "Makes a real POST request to /api/v1/public/domains. No key is sent or stored.",
     response: "Response",
     responseIdle: "Run the public request to inspect a current JSON response.",
-    responseError: "The public endpoint did not return JSON. Check the deployed application route and try again.",
+    responseError: "The request could not be completed. Check your connection and try again. No account data was changed.",
+    responseTimeout: "The search took too long. Try again to request a fresh result. No account data was changed.",
     capabilitiesLabel: "Endpoint status",
     capabilitiesTitle: "What is public, what is protected.",
     capabilitiesLead: "Public endpoints are available without a key. Authenticated domain search uses a self-service key from your Sajda account and must run from your server.",
@@ -462,7 +464,8 @@ const developerCopy: Record<Language, DeveloperCopy> = {
     runDescription: "Gör ett riktigt POST-anrop till /api/v1/public/domains. Ingen nyckel skickas eller lagras.",
     response: "Svar",
     responseIdle: "Kör det publika anropet för att granska ett aktuellt JSON-svar.",
-    responseError: "Den publika endpointen returnerade inte JSON. Kontrollera den deployade applikationens route och försök igen.",
+    responseError: "Anropet kunde inte slutföras. Kontrollera anslutningen och försök igen. Inga kontouppgifter ändrades.",
+    responseTimeout: "Sökningen tog för lång tid. Försök igen för att hämta ett nytt resultat. Inga kontouppgifter ändrades.",
     capabilitiesLabel: "Endpointstatus",
     capabilitiesTitle: "Vad som är publikt och vad som är skyddat.",
     capabilitiesLead: "Publika endpoints är tillgängliga utan nyckel. Autentiserad domänsökning använder en självbetjäningsnyckel från ditt Sajda-konto och ska köras från din server.",
@@ -519,7 +522,8 @@ const developerCopy: Record<Language, DeveloperCopy> = {
     runDescription: "Realiza una petición POST real a /api/v1/public/domains. No se envía ni almacena ninguna clave.",
     response: "Respuesta",
     responseIdle: "Ejecuta la petición pública para inspeccionar una respuesta JSON actual.",
-    responseError: "El endpoint público no devolvió JSON. Comprueba la ruta de la aplicación desplegada e inténtalo de nuevo.",
+    responseError: "No se pudo completar la petición. Comprueba tu conexión e inténtalo de nuevo. No se modificaron datos de tu cuenta.",
+    responseTimeout: "La búsqueda tardó demasiado. Inténtalo de nuevo para obtener un resultado actualizado. No se modificaron datos de tu cuenta.",
     capabilitiesLabel: "Estado de endpoints",
     capabilitiesTitle: "Qué es público y qué está protegido.",
     capabilitiesLead: "Los endpoints públicos están disponibles sin clave. La búsqueda de dominios autenticada usa una clave autoservicio de tu cuenta Sajda y debe ejecutarse desde tu servidor.",
@@ -576,7 +580,8 @@ const developerCopy: Record<Language, DeveloperCopy> = {
     runDescription: "Effectue une véritable requête POST vers /api/v1/public/domains. Aucune clé n’est envoyée ni stockée.",
     response: "Réponse",
     responseIdle: "Exécutez la requête publique pour examiner une réponse JSON actuelle.",
-    responseError: "L’endpoint public n’a pas renvoyé de JSON. Vérifiez la route de l’application déployée puis réessayez.",
+    responseError: "La requête n’a pas pu aboutir. Vérifiez votre connexion puis réessayez. Aucune donnée de votre compte n’a été modifiée.",
+    responseTimeout: "La recherche a pris trop de temps. Réessayez pour obtenir un résultat actualisé. Aucune donnée de votre compte n’a été modifiée.",
     capabilitiesLabel: "État des endpoints",
     capabilitiesTitle: "Ce qui est public et ce qui est protégé.",
     capabilitiesLead: "Les endpoints publics sont accessibles sans clé. La recherche de domaines authentifiée utilise une clé libre-service de votre compte Sajda et doit s’exécuter depuis votre serveur.",
@@ -633,7 +638,8 @@ const developerCopy: Record<Language, DeveloperCopy> = {
     runDescription: "对 /api/v1/public/domains 发起真实的 POST 请求。不发送或存储密钥。",
     response: "响应",
     responseIdle: "运行公开请求以查看当前 JSON 响应。",
-    responseError: "公开端点没有返回 JSON。请检查已部署应用的路由后重试。",
+    responseError: "请求未能完成。请检查网络连接后重试。账户数据未被修改。",
+    responseTimeout: "搜索耗时过长。请重试以获取最新结果。账户数据未被修改。",
     capabilitiesLabel: "端点状态",
     capabilitiesTitle: "哪些公开，哪些受保护。",
     capabilitiesLead: "公开端点无需密钥即可使用。已认证的域名搜索使用 Sajda 账户中的自助密钥，必须从你的服务器运行。",
@@ -1151,6 +1157,12 @@ export default function Developers() {
   const copy = keyPortalEnabled ? developerCopy[language] : { ...developerCopy[language], ...accessCopy };
   const [publicResponse, setPublicResponse] = useState<string>();
   const [publicRequestState, setPublicRequestState] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const publicRequest = useRef<ReturnType<typeof requestDeadline>>();
+
+  useEffect(() => () => {
+    publicRequest.current?.cancel();
+    publicRequest.current = undefined;
+  }, []);
 
   const origin = isNativeApp ? import.meta.env.VITE_NATIVE_API_ORIGIN?.trim() ?? ""
     : typeof window === "undefined" ? "" : window.location.origin;
@@ -1183,11 +1195,19 @@ export default function Developers() {
   }, [copy.documentTitle]);
 
   const runPublicExample = async () => {
+    // The synchronous guard also covers two clicks before React renders disabled.
+    if (publicRequest.current) return;
+    const deadline = requestDeadline(35_000);
+    publicRequest.current = deadline;
     setPublicRequestState("loading");
     setPublicResponse(undefined);
     try {
       const response = await productFetch("/api/v1/public/domains", {
         method: "POST",
+        signal: deadline.signal,
+        credentials: "same-origin",
+        cache: "no-store",
+        redirect: "error",
         headers: { Accept: "application/json", "Content-Type": "application/json" },
         body: JSON.stringify({
           query: "calm scheduling for small clinics",
@@ -1201,11 +1221,17 @@ export default function Developers() {
       const contentType = response.headers.get("content-type") ?? "";
       if (!contentType.includes("application/json")) throw new Error("Expected JSON response");
       const data: unknown = await response.json();
+      throwIfCancelled(deadline.signal);
+      if (publicRequest.current !== deadline) return;
       setPublicResponse(JSON.stringify(data, null, 2));
       setPublicRequestState(response.ok ? "success" : "error");
     } catch {
-      setPublicResponse(copy.responseError);
+      if (publicRequest.current !== deadline) return;
+      setPublicResponse(deadline.signal.reason?.name === "TimeoutError" ? copy.responseTimeout : copy.responseError);
       setPublicRequestState("error");
+    } finally {
+      deadline.dispose();
+      if (publicRequest.current === deadline) publicRequest.current = undefined;
     }
   };
 

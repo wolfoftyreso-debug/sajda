@@ -25,6 +25,50 @@ test("redacted launch evidence supports a web verdict while keeping App Store se
   assert.deepEqual(launchEvidenceIssues(complete()), []);
 });
 
+test("evidence observations can precede or equal the receipt timestamp", () => {
+  for (const observedAt of ["2026-10-03T23:59:59.999Z", "2026-10-04T01:00:00.000Z"]) {
+    const evidence = complete();
+    evidence.gates[0].evidence[0].observed_at = observedAt;
+    assert.deepEqual(launchEvidenceIssues(evidence), [], observedAt);
+  }
+});
+
+test("observations after the receipt are rejected even when their timestamps are in the past", () => {
+  const evidence = complete();
+  evidence.gates[0].evidence[0].observed_at = "2026-10-04T01:00:00.001Z";
+  assert.deepEqual(launchEvidenceIssues(evidence), ["baseline_evidence_invalid"]);
+});
+
+test("receipt clock tolerance never permits an observation later than that receipt", () => {
+  const previousNow = Date.now;
+  Date.now = () => Date.parse("2026-10-04T01:00:00.000Z");
+  try {
+    const evidence = complete();
+    evidence.recorded_at = "2026-10-04T01:00:30.000Z";
+    evidence.gates[0].evidence[0].observed_at = evidence.recorded_at;
+    assert.deepEqual(launchEvidenceIssues(evidence), []);
+    evidence.gates[0].evidence[0].observed_at = "2026-10-04T01:00:30.001Z";
+    assert.deepEqual(launchEvidenceIssues(evidence), ["baseline_evidence_invalid"]);
+    evidence.gates[0].evidence[0].observed_at = "2026-10-04T01:02:00.000Z";
+    assert.deepEqual(launchEvidenceIssues(evidence), ["baseline_evidence_invalid"]);
+  } finally {
+    Date.now = previousNow;
+  }
+});
+
+test("invalid receipt and observation timestamps fail without inventing chronology", () => {
+  for (const observedAt of [undefined, null, 0, "invalid", "2026-02-30T01:00:00.000Z", "2026-10-04T01:00:00Z"]) {
+    const evidence = complete();
+    evidence.gates[0].evidence[0].observed_at = observedAt;
+    assert.deepEqual(launchEvidenceIssues(evidence), ["baseline_evidence_invalid"]);
+  }
+  for (const recordedAt of [undefined, null, 0, "invalid", "2026-02-30T01:00:00.000Z", "2026-10-04T01:00:00Z"]) {
+    const evidence = complete();
+    evidence.recorded_at = recordedAt;
+    assert.deepEqual(launchEvidenceIssues(evidence), ["recorded_at_invalid"]);
+  }
+});
+
 test("a release verdict cannot outrun a missing web gate", () => {
   const evidence = complete();
   evidence.gates.find(gate => gate.id === "transactional_email").status = "blocked";

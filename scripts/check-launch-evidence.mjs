@@ -43,7 +43,8 @@ export function launchEvidenceIssues(input) {
   if (input.repository !== "https://github.com/wolfoftyreso-debug/sajda.git") issues.push("repository_invalid");
   if (input.release_branch !== "codex/launch-hardening") issues.push("release_branch_invalid");
   if (typeof input.release_commit !== "string" || !/^[0-9a-f]{40}$/u.test(input.release_commit)) issues.push("release_commit_invalid");
-  if (!utcTimestamp(input.recorded_at) || new Date(input.recorded_at).valueOf() > Date.now() + 60_000) issues.push("recorded_at_invalid");
+  const recordedAt = utcTimestamp(input.recorded_at) ? Date.parse(input.recorded_at) : NaN;
+  if (!Number.isFinite(recordedAt) || recordedAt > Date.now() + 60_000) issues.push("recorded_at_invalid");
   if (typeof input.recorded_by !== "string" || input.recorded_by.trim().length < 2 || input.recorded_by.length > 120) issues.push("recorded_by_invalid");
   if (!verdicts.has(input.verdict)) issues.push("verdict_invalid");
 
@@ -74,7 +75,8 @@ export function launchEvidenceIssues(input) {
     else for (const item of gate.evidence) {
       if (!exactKeys(item, ["type", "reference", "observed_at"]) || !evidenceTypes.has(item.type)
         || typeof item.reference !== "string" || item.reference.trim().length < 3 || item.reference.length > 500
-        || !utcTimestamp(item.observed_at)) issues.push(`${gate.id}_evidence_invalid`);
+        || !utcTimestamp(item.observed_at)
+        || Number.isFinite(recordedAt) && Date.parse(item.observed_at) > recordedAt) issues.push(`${gate.id}_evidence_invalid`);
     }
     const hasBlocker = typeof gate.remaining_blocker === "string" && gate.remaining_blocker.trim().length >= 3 && gate.remaining_blocker.length <= 500;
     if (gate.status === "verified" && (!hasEvidence || gate.remaining_blocker !== null)) issues.push(`${gate.id}_verified_evidence_invalid`);

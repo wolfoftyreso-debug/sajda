@@ -265,11 +265,13 @@ It is CORS-enabled for the consumer search UI, but its advanced and Swipe
 fields are not the stable public developer contract. New integrations should
 use `/api/v1/public/domains`.
 
-## Protected integration API — development and preview
+## Protected integration API — release validation
 
 > Neon-backed self-service keys are deployed and verified in development and
-> protected preview. The production key migration has not been applied. This
-> is not a production rollout or a purchasable API plan.
+> protected preview. Read-only migration checks on 2026-10-07 confirmed all 22
+> migrations applied in both Preview and Production. An applied schema is not
+> production runtime or provider verification: production rollout and the
+> external release gates remain pending. This is not a purchasable API plan.
 
 `POST /api/v1/domains` is a narrow, authenticated domain-search API for trusted server-side
 integrations. It uses the same bounded candidate generator, authoritative
@@ -344,9 +346,12 @@ prices remain separate from availability and are not a checkout quote.
 
 ## Required deployment configuration
 
-Development and protected preview use the reviewed migrations under
-`db/migrations/`, including `0013_developer_api_keys.sql`. Production migration
-and rollout remain pending. Keep preview data isolated from production.
+Development, protected preview and production have separate database targets.
+The read-only Preview and Production ledger checks on 2026-10-07 found all
+reviewed migrations `0000`–`0021` applied, including
+`0013_developer_api_keys.sql`, with matching source checksums and none pending.
+Recheck the intended environment before release; production rollout remains
+pending. Keep preview data isolated from production.
 `DATABASE_URL` and `BETTER_AUTH_SECRET` are server-only; browser authentication
 uses Sajda's same-origin `/api/auth` service backed by Neon. Do not publish
 database credentials or configure a direct Neon browser auth endpoint.
