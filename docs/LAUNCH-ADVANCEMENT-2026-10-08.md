@@ -184,3 +184,48 @@ signing, TestFlight, StoreKit transaction or physical-device claim is made.
 The fresh network-backed `npm audit --omit=dev` returned zero known production
 dependency vulnerabilities. This is not a claim that the development toolchain
 has no advisories or that dependencies alone constitute a security review.
+
+## Final code deployment verification — 2026-10-08 UTC
+
+Code commit `707596e95daeb334876035d258349884679a8897` was pushed to
+`codex/launch-hardening`. GitHub [Verify run 37854643204](https://github.com/wolfoftyreso-debug/sajda/actions/runs/37854643204)
+completed successfully against that commit: **2,244 tests, 2,236 passed, zero
+failed, eight opt-in PostgreSQL suites skipped**. Its logs confirm 104 language
+dictionaries, 41-file syntax validation, Vercel build, 85 credential-free local
+HTTP checks and zero known production dependency advisories. Unlike the earlier
+local full-suite receipt, this run includes the final timing correction.
+Fresh full `npm audit` still reports five high advisories in the development
+dependency chain (`braces`, `chokidar`, `fast-glob`, `micromatch`, `tailwindcss`).
+The production-only result is zero, not a claim that the full audit is clean.
+No forced major Tailwind migration or unsupported override was applied here.
+
+The manually uploaded protected [Preview](https://sajda-vf2wx0cxw-hypbit.vercel.app)
+is READY: `dpl_ENJbyg1k94CZrhhNLTHpaao7XF7j`. Official CLI/API inspection verified
+the pinned Sajda project/team and matching release/source metadata. Manual CLI
+metadata is not evidence that a Git integration deployed the commit. Local
+Vercel/Git/environment exclusion guards passed; the file-tree API exposes an
+internal archived source part, not its expanded contents, so those contents are
+not independently asserted to have been inspected.
+
+The official authenticated runtime transport passed **85 deployed HTTP checks**:
+public HTML/crawl routes and assets, OpenAPI, anonymous MCP initialization/tool
+listing, expected invalid-request handling and private account/API denials.
+The actual Preview `/api/health` returned HTTP 200 with Neon connected.
+This is deployed HTTP/API smoke, not every rendered product or payment journey.
+
+The bounded browser account probe also passed on this exact Preview/code SHA,
+run `4414eb38-aea1-4a74-8924-43bb83e7fa44`: real login, saved-work/reload/owner
+isolation, logout/return login, session renewal/expiry and deployed password
+change/replay/revocation. Both allocated accounts and their children were removed;
+zero fixtures remained. Its local SDK mail-capture and responsive-browser limits
+are stated in [auth lifecycle evidence](AUTH-LIFECYCLE-VERIFICATION.md).
+
+A bounded CLI request-log query on this exact deployment, starting at 22:41 UTC
+and limited to 100 matching 5xx records, returned zero records. This does not
+claim indefinite production reliability, zero business errors, or a complete
+all-level log audit. No production deployment, merge/promotion, live checkout,
+protection bypass, sender/DNS change or social-provider activation occurred.
+
+The permanent deployed TEST webhook, complete hosted portal/post-cancel read,
+actual delivered mail, social consent and operator/legal/app release gates
+remain open. The commercial release verdict therefore remains **NO-GO**.
