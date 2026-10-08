@@ -5,6 +5,39 @@ request for another audit. It records the repository state observed on
 2026-10-05 and tells an authorized operator agent exactly what must be completed
 before unrestricted production launch.
 
+## Current overrides — 2026-10-08 UTC
+
+Read [current launch advancement](LAUNCH-ADVANCEMENT-2026-10-08.md),
+[the billing contract](TRADING-ADDON.md), [email operation](RESEND-CONTACT.md)
+and [auth verification](AUTH-LIFECYCLE-VERIFICATION.md) before executing this
+historical handoff. Later dated evidence supersedes its old counts and previews;
+it does not silently satisfy an external gate.
+
+- Public base plans are Free, Basic USD 9/month and **Pro USD 19/month**.
+  Trading is a **USD 30/month add-on to Pro**, total USD 49, not a separate
+  account or parallel subscription. `premium`/`trading` remain internal
+  compatibility IDs. The cancel-only portal must not switch Prices immediately.
+- Preview and Production now both have 28 applied migrations, zero pending.
+  New production checkout/live/add-on and brand-monitor flags remain off.
+  Run migrations only with the reviewed exact-target manifest; a Neon hostname
+  or this old branch baseline is not adequate authority to mutate a database.
+- Local signed Stripe CLI renewal evidence is not registered deployed delivery.
+  Do not reuse an unknown older webhook signing secret or change that endpoint
+  blindly. A new TEST destination needs its own sensitive branch-specific
+  Preview signing secret. Vercel's automation bypass is project-wide and would
+  be held by Stripe; obtain an explicit choice before widening that access.
+- Resend's approved `mail.sajda.com` domain is absent and domain creation was
+  blocked by account capacity. Do not remove another product's domain or
+  upgrade a paid plan without its explicit approval. Resolve capacity before
+  requesting the actual provider-generated DNS records.
+- Retired `check-account-runtime.ts` must not be re-enabled: it exposed test
+  credentials through child-process arguments. Use the bounded replacement
+  and verify the selected immutable deployment's project and source SHA first.
+
+The full social-provider, received-email, permanent payment-callback, legal and
+signed iOS gates below still need their own evidence. Unrestricted launch remains
+**NO-GO**; a new successful build is not permission to merge/promote it.
+
 ## Fixed scope
 
 - Repository: `https://github.com/wolfoftyreso-debug/sajda.git`

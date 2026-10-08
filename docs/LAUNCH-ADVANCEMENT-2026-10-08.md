@@ -119,3 +119,68 @@ access uses official Vercel authentication; protection is not disabled. Environm
 Secret placeholders are unknown values, not credentials. Provider history may remain
 after synthetic customer cleanup. Historical receipts remain historical and are not
 rewritten as permission for a new production release.
+
+## Continued release work — later 2026-10-08 pass
+
+This later pass supersedes the earlier **25 applied** schema count above, not
+the historical evidence or the **NO-GO** commercial release verdict.
+
+- Fresh official Preview/Production environment pulls confirmed separate Neon
+  project and normalized database identities. The migration CLI now requires a
+  reviewed non-secret target manifest, linked Sajda project/team, matching Neon
+  project and exact database/role/pool-direct pair. Apply also requires the
+  reviewed immutable migration-set SHA256. See [migration operation](NEON-VERCEL.md).
+- Operator CLI transport now uses actual `pg` TCP certificate-verified TLS to
+  the Neon proxy and checks the server-reported database/role before starting a
+  transaction. Internal Neon backend-hop TLS is not inferred from this check.
+  Unknown COMMIT results no longer claim rollback; a fenced read-only check is
+  required before retrying. Untrusted migration ledger details are not echoed.
+- Production preflight found zero checkout/customer rows, no new offer columns,
+  no add-on ledger and no enabled checkout/live/add-on flag. Reviewed additive
+  migrations `0025`, `0026`, `0027` were applied in one transaction: nullable
+  offer/return snapshots, their constraint correction, and a new retry ledger.
+  No existing user, provider, price, entitlement, DNS or deployment was changed.
+  Both databases now report **28 applied, zero pending**, with immutable
+  plan hash `80c0a7fe6c295e463d8c37facde3f48556142bb09b61b75ab6311065bbce6776`.
+  Existing Production `/api/health` returned HTTP 200, database connected, after
+  the apply. This is schema/health evidence, not production commerce approval.
+- The retired auth QA transport no longer sends passwords/session cookies as
+  child-process arguments. Its replacement keeps exact-origin protected
+  Preview access in memory and removes only its two disposable owned accounts.
+  Real compiled Preview login, saved-work/reload/isolation, returning login,
+  logout, expiration and session-renewal boundaries passed. Deployed password
+  change/replay/revocation used a locally captured real-SDK token. No inbox or
+  deployed signup claim is made. Exact SHA, viewport, receipt and cleanup are
+  recorded in [auth lifecycle evidence](AUTH-LIFECYCLE-VERIFICATION.md).
+- Account email receipts are bounded to 16 KiB within a ten-second deadline.
+  Safe logs correlate kind, request hash, status and validated provider ID,
+  never recipient/body/action URL/code/credential. There is no automatic resend
+  after an unknown outcome. Provider acceptance is not inbox delivery.
+  Fresh Resend reads still find the approved sender domain absent; no email or
+  configuration write was performed by that readiness check.
+
+These improvements do not close sender/DNS, social-provider, permanent deployed
+webhook, live-payment, legal-operator or signed iOS release gates. Stripe TEST
+renewal/portal evidence belongs in [the Trading add-on record](TRADING-ADDON.md);
+local CLI-signed delivery must never be relabeled as a permanent deployed hook.
+
+Local release regression completed before the final read-action timing correction:
+`npm run check:ci` passed with **2,239 tests, 2,231 passed, zero failed and eight
+opt-in PostgreSQL suites skipped**. Language contracts covered 104 English-source
+dictionaries; lint/types, SEO/Neon/UI policies, Vercel build and 85 local HTTP
+checks passed. The local runtime intentionally had no injected database and
+reported `not_configured`/503; this is not a deployed database-health result.
+Later QA-tooling changes receive their own fresh syntax/lint/refusal checks.
+The subsequent correction makes Trading add/remove actions unavailable in the
+last 120 seconds before renewal, matching the strict mutation boundary while
+preserving billing management. Its 120/121-second regression was observed
+failing before the fix. After the fix, 135 targeted commerce/client/UI/probe
+tests, server types, targeted lint, 41-file syntax checks and a fresh Vercel
+build passed. This is not a rerun of the earlier full suite; the next GitHub CI
+and deployed checks must identify their actual source commit.
+The native product bundle also rebuilt against the controlled HTTPS Vercel alias
+and passed provider/secret and SEO/service-worker exclusion. No iOS compilation,
+signing, TestFlight, StoreKit transaction or physical-device claim is made.
+The fresh network-backed `npm audit --omit=dev` returned zero known production
+dependency vulnerabilities. This is not a claim that the development toolchain
+has no advisories or that dependencies alone constitute a security review.

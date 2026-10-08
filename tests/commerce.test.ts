@@ -576,6 +576,49 @@ test("subscription, invoice, test mode and customer ownership are checked indepe
     );
   }
 });
+test("the portal's exact cancel_at boundary is projected as period-end cancellation without extending paid access", () => {
+  const f = fixtures(), end = f.subscription.items.data[0].current_period_end;
+  const original = evaluateSubscription(f.subscription, f.invoices, "cus_fixture", config);
+  const current = evaluateSubscription({ ...f.subscription, cancel_at_period_end: false, cancel_at: end }, f.invoices, "cus_fixture", config);
+  assert.equal(current.cancelAtPeriodEnd, true);
+  assert.deepEqual(current.grant, original.grant);
+  for (const status of ["past_due", "unpaid"]) {
+    const unpaid = evaluateSubscription({ ...f.subscription, status, cancel_at: end }, f.invoices, "cus_fixture", config);
+    assert.equal(unpaid.cancelAtPeriodEnd, true);
+    assert.equal(unpaid.grant, null);
+  }
+});
+
+test("earlier or later explicit cancellations are not mislabeled as period end and never extend paid time", () => {
+  const f = fixtures(), end = f.subscription.items.data[0].current_period_end;
+  for (const cancelAt of [end - 3600, end + 3600]) {
+    const actual = evaluateSubscription({ ...f.subscription, cancel_at: cancelAt }, f.invoices, "cus_fixture", config);
+    assert.equal(actual.cancelAtPeriodEnd, false);
+    assert.equal(actual.grant?.expiresAt, new Date(Math.min(end, cancelAt) * 1000).toISOString());
+  }
+  const canceled = evaluateSubscription({ ...f.subscription, status: "canceled", cancel_at: end }, f.invoices, "cus_fixture", config);
+  assert.equal(canceled.cancelAtPeriodEnd, false);
+  assert.equal(canceled.grant, null);
+});
+
+test("period-end inference requires one known Price and a valid exact timestamp; payment and owner gates remain authoritative", () => {
+  const f = fixtures(), end = f.subscription.items.data[0].current_period_end;
+  const exact = { ...f.subscription, cancel_at: end };
+  assert.equal(evaluateSubscription(f.subscription, f.invoices, "cus_fixture", config).cancelAtPeriodEnd, false);
+  assert.equal(evaluateSubscription({ ...exact, items: { ...exact.items, data: [...exact.items.data, ...exact.items.data] } }, f.invoices, "cus_fixture", config).cancelAtPeriodEnd, false);
+  const unknown = structuredClone(exact); unknown.items.data[0].price.id = "price_unknown";
+  const absent = evaluateSubscription(unknown, f.invoices, "cus_fixture", config);
+  assert.equal(absent.cancelAtPeriodEnd, false); assert.equal(absent.grant, null);
+  for (const cancelAt of [0, -1, end + 0.5, Number.NaN])
+    assert.throws(() => evaluateSubscription({ ...exact, cancel_at: cancelAt }, f.invoices, "cus_fixture", config), code("invalid_provider_response"));
+  for (const cancelAt of [String(end), null])
+    assert.equal(evaluateSubscription({ ...exact, cancel_at: cancelAt }, f.invoices, "cus_fixture", config).cancelAtPeriodEnd, false);
+  const unpaid = structuredClone(f.invoices); unpaid.data[0].status = "open";
+  const noAccess = evaluateSubscription(exact, unpaid, "cus_fixture", config);
+  assert.equal(noAccess.cancelAtPeriodEnd, true); assert.equal(noAccess.grant, null);
+  assert.throws(() => evaluateSubscription(exact, f.invoices, "cus_other", config), code("provider_owner_mismatch"));
+});
+
 test("cancel-at-period-end retains only paid time and future or unbounded periods grant nothing", () => {
   const f = fixtures();
   const s = {

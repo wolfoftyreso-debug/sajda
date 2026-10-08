@@ -335,6 +335,22 @@ export function evaluateSubscription(
     grant: null,
   };
   const items = list(s.items);
+  const ongoing = ["active", "past_due", "unpaid"].includes(String(s.status));
+  const plan = ongoing && items.length === 1 && items[0].quantity === 1 ? PAID_PLAN_ORDER.find(candidate => {
+    try { validateCommercePrice(items[0].price, config, candidate, false); return true; }
+    catch (error) {
+      if (error instanceof CommerceError && error.code === "billing_price_unavailable") return false;
+      throw error;
+    }
+  }) : undefined;
+  // A cancel-only Stripe portal may use cancel_at rather than the boolean.
+  // Normalize only the exact, independently validated single-item boundary;
+  // a custom earlier/later date is not a period-end cancellation. This status
+  // projection never supplies payment evidence or extends an access grant.
+  if (plan && Number.isSafeInteger(s.cancel_at) && Number(s.cancel_at) > 0
+    && Number.isSafeInteger(items[0].current_period_end)
+    && s.cancel_at === items[0].current_period_end && Number(s.cancel_at) > Math.floor(now / 1000))
+    state.cancelAtPeriodEnd = true;
   if (
     s.status !== "active" ||
     s.pause_collection ||
@@ -342,13 +358,6 @@ export function evaluateSubscription(
     items[0].quantity !== 1
   )
     return state;
-  const plan = PAID_PLAN_ORDER.find(candidate => {
-    try { validateCommercePrice(items[0].price, config, candidate, false); return true; }
-    catch (error) {
-      if (error instanceof CommerceError && error.code === "billing_price_unavailable") return false;
-      throw error;
-    }
-  });
   if (!plan) return state;
   const contract = PLANS[plan], expectedPriceId = commercePriceId(config, plan);
   const subscriptionMetadata = obj(s.metadata);

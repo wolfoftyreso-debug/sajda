@@ -93,14 +93,14 @@ export function createCommerceService(
   }
   const resultFor = (change: AddonChange): TradingAddonChangeResult => ({ state: "scheduled",
     enabled: change.targetPlan === "trading", effectiveAt: new Date(change.effectiveAt * 1000).toISOString() });
-  async function addonCurrent(store: CommerceStore, provider: CommerceProvider, lease: CommerceLease) {
+  async function addonCurrent(store: CommerceStore, provider: CommerceProvider, lease: CommerceLease, forManagement = false) {
     if (!lease.customerId || lease.paymentHold || await store.appStoreSubscription(lease.ownerId, lease))
       throw new CommerceError("pro_subscription_required", 409);
     const actual = await provider.reconcile(lease.customerId, () => store.introReservations(lease));
     await store.sync(lease, actual);
     if (!actual.grant || actual.status !== "active" || !actual.subscriptionId || !["premium", "trading"].includes(actual.grant.plan ?? "trading"))
       throw new CommerceError("pro_subscription_required", 409);
-    const api = addonProvider(provider), context = await api.subscription(actual.subscriptionId, lease.customerId);
+    const api = addonProvider(provider), context = await api.subscription(actual.subscriptionId, lease.customerId, forManagement);
     if (context.plan !== (actual.grant.plan ?? "trading") || actual.grant.subscriptionId !== context.id
       || Date.parse(actual.grant.expiresAt) < context.end * 1000) throw new CommerceError("addon_change_review_required", 409);
     return { context, api, actual };
@@ -252,14 +252,18 @@ export function createCommerceService(
             // portal, but never authorizes a new add-on or removes paid access.
             if (lease.status !== "active" || !customer?.activePlan || customer.activePlan === "basic")
               return { canAdd: false, canRemove: false, pending: null };
-            const { context } = await addonCurrent(store, provider, lease);
+            // A paid subscriber who scheduled cancellation still needs billing
+            // management. Only reads use the cancellation-tolerant validator;
+            // purchase mutations retain its strict uncanceled contract.
+            const { context } = await addonCurrent(store, provider, lease, true);
             if (context.scheduleId) {
               const owned = await store.addonScheduleOwner(lease, context.scheduleId);
               if (!owned || owned.state !== "applied" || validateAddonSchedule(await api.schedule(context.scheduleId), lease.customerId!, owned, config) !== "scheduled")
                 throw new CommerceError("addon_change_review_required", 409);
             }
-            return { canAdd: config.tradingAddonEnabled === true && context.plan === "premium" && plans.trading.ready,
-              canRemove: config.tradingAddonEnabled === true && context.plan === "trading" && Boolean(prices.premium), pending: null };
+            const canChange = !context.cancellationScheduled && context.end > Math.floor(Date.now() / 1000) + 120;
+            return { canAdd: canChange && config.tradingAddonEnabled === true && context.plan === "premium" && plans.trading.ready,
+              canRemove: canChange && config.tradingAddonEnabled === true && context.plan === "trading" && Boolean(prices.premium), pending: null };
           });
         } catch { console.error(JSON.stringify({ event: "commerce_addon_read_failed" })); }
         customer = await store.read(ownerId);

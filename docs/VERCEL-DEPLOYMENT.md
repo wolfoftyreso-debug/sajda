@@ -147,8 +147,9 @@ if abuse becomes a concern.
   or account credentials is used for production.
 
 At this historical baseline, both resources had migrations `0000`–`0008` applied.
-This is not the current schema ledger: run `scripts/migrate-neon.mjs --check`
-against each intended environment before release. The production baseline was
+This is not the current schema ledger: use the reviewed-target `--check`
+workflow in [NEON-VERCEL.md](NEON-VERCEL.md) against each intended environment
+before release. Bare migration commands intentionally fail closed. The production baseline was
 verified empty before applying them, with zero accounts, customers and Plus grants
 afterward. `vercel.json` selects `fra1` for Functions to match the Frankfurt
 database; verify the deployment's actual regions after deploying. This placement

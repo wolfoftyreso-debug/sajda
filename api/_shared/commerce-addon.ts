@@ -5,7 +5,7 @@ import { validateCommercePrice } from "./commerce-provider.js";
 export type AddonPlan = "premium" | "trading";
 export interface AddonSubscription {
   id: string; plan: AddonPlan; priceId: string; start: number; end: number;
-  scheduleId: string | null; metadata: Record<string, string>;
+  scheduleId: string | null; cancellationScheduled: boolean; metadata: Record<string, string>;
 }
 export interface AddonChange {
   id: string; requestKey: string; subscriptionId: string; fromPlan: AddonPlan; targetPlan: AddonPlan;
@@ -41,8 +41,10 @@ export function validateAddonSubscription(value: unknown, customerId: string, co
   if (!plan) throw new CommerceError("pro_subscription_required", 409);
   const start = epoch(item.current_period_start), end = epoch(item.current_period_end), seconds = Math.floor(now / 1000);
   if (start > seconds || end <= seconds + (forRelease ? 0 : 120) || end - start > 45 * 86400) return fail();
+  if (sub.cancel_at != null) epoch(sub.cancel_at);
   return { id: commerceId(sub.id, "sub"), plan, priceId: commercePriceId(config, plan), start, end,
-    scheduleId: sub.schedule == null ? null : commerceId(sub.schedule, "sub_sched"), metadata: metadata(sub.metadata) };
+    scheduleId: sub.schedule == null ? null : commerceId(sub.schedule, "sub_sched"),
+    cancellationScheduled: sub.cancel_at_period_end === true || sub.cancel_at != null, metadata: metadata(sub.metadata) };
 }
 function schedule(value: unknown, customerId: string, change: AddonChange, config: CommerceConfig): Record<string, unknown> {
   const row = obj(value);

@@ -1,5 +1,49 @@
 # Sajda transactional email and contact
 
+## Read-only recheck and delivery hardening, 2026-10-08 21:19 UTC
+
+An official Vercel CLI 62.5.0 `env run --environment development --scope hypbit`
+read resolved the existing `hypbit/sajda` project
+(`prj_UO900Jp4qJF1eS4hkOrebIzwMVlI`) before executing the existing readiness
+checker. The fresh Development operator credential returned
+`sender_domain_not_registered` for `mail.sajda.com` at
+`2026-10-08T21:19:22.657Z`. Only its in-memory sender configuration was changed
+for this diagnostic; no environment variable or sender fallback was installed.
+The earlier Development credential also returned verified/enabled `hypbit.com`
+with open/click tracking disabled at `2026-10-08T21:17:57.259Z`. This is not a
+Production sender, application-flow, or inbox-delivery sign-off.
+
+This recheck used four provider GET requests in total and sent **zero emails**.
+It did not retry domain creation, remove other domains, upgrade capacity, change
+DNS, alter Production configuration, or reset the existing operator's password.
+The previous domain-capacity HTTP 403 remains an earlier observation, not a new
+write test. The current verified blocker is that the approved sender is absent.
+
+The application email adapter now records allowlisted `account_email_provider`
+diagnostics for verification, reset, contact and deletion-code sends. Each record
+contains the message kind, a one-way immutable-payload correlation identifier,
+`accepted` or `unconfirmed`, and HTTP status when received. Accepted receipts
+also include a validated UUID provider message ID, usable in Resend's email
+lookup. Neither recipient, sender, subject, message content, credential, private
+action URL, deletion code nor raw provider error is recorded. These diagnostic
+identifiers are operational data and remain subject to the operator's log
+access and retention policy; they are not anonymous customer analytics.
+
+`accepted` remains provider acceptance only, **never delivery**. Timeouts,
+HTTP rejections, malformed or oversized receipts are `unconfirmed`; the adapter
+does not automatically resend or invent a delivered state. Receipt parsing is
+bounded to 16 KiB within the existing ten-second abort deadline. A failed log
+sink cannot turn an accepted email into a delivery error and trigger an
+unnecessary retry. Synthetic tests cover the four message types, stable retry
+correlation, all sensitive-data exclusions, UUID validation, HTTP failures,
+oversized/absent receipt streams, receipt-body timeouts and log-sink failure.
+No test of this code change sends real mail.
+
+The provider receipt and 24-hour idempotency contracts were checked against
+Resend's [send-email API](https://resend.com/docs/api-reference/emails/send-email)
+and the provider-ID lookup against
+[retrieve-email](https://resend.com/docs/api-reference/emails/retrieve-email).
+
 ## Current provider inspection, 2026-10-08
 
 This section supersedes the older infrastructure observations below. It is not

@@ -6,6 +6,9 @@ const variables = ["RESEND_API_KEY", "SAJDA_EMAIL_FROM", "VERCEL"] as const;
 let previousEnvironment: (string | undefined)[];
 let originalFetch: typeof globalThis.fetch;
 let requests: { url: string; init: RequestInit }[];
+let originalInfo: typeof console.info;
+let diagnostics: Record<string, unknown>[];
+const providerId = "49a3999c-0ce1-4ea6-ab68-afcd6dc2e794";
 const actionUrl = "https://sajda.dev/api/auth/verify-email?token=private-link-token&callbackURL=%2Fwatchlist";
 const message: AccountEmailMessage = { kind: "verify", to: "qa+sajda@example.com", url: actionUrl };
 
@@ -15,16 +18,20 @@ beforeEach(() => {
   process.env.SAJDA_EMAIL_FROM = "Sajda <konto@sajda.dev>";
   process.env.VERCEL = "1";
   originalFetch = globalThis.fetch;
+  originalInfo = console.info;
+  diagnostics = [];
+  console.info = value => { diagnostics.push(JSON.parse(String(value))); };
   requests = [];
   // All tests replace fetch. No test may send actual email.
   globalThis.fetch = async (url, init = {}) => {
     requests.push({ url: String(url), init });
-    return Response.json({ id: "fixture-email-id" });
+    return Response.json({ id: providerId });
   };
 });
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
+  console.info = originalInfo;
   variables.forEach((key, index) => {
     if (previousEnvironment[index] === undefined) delete process.env[key];
     else process.env[key] = previousEnvironment[index];
@@ -249,7 +256,7 @@ test("locale-specific email retries deduplicate identical payloads without provi
   assert.equal(requests[2].init.body, requests[3].init.body);
 });
 
-test("provider failures return controlled errors without logging tokens, addresses or raw bodies", async (context) => {
+test("provider failures return controlled errors with only allowlisted diagnostics", async (context) => {
   const logs: unknown[] = [];
   context.mock.method(console, "error", (...args) => logs.push(args));
   context.mock.method(console, "warn", (...args) => logs.push(args));
@@ -268,15 +275,33 @@ test("provider failures return controlled errors without logging tokens, address
   globalThis.fetch = async () => { throw new Error(privateDetail); };
   await assert.rejects(() => sendAccountEmail(message), (error: unknown) => error instanceof AccountEmailError && !String(error).includes(privateDetail));
   assert.deepEqual(logs, []);
+  assert.equal(diagnostics.length, 7);
+  assert.deepEqual(diagnostics.map(record => record.providerStatus), [400, 401, 403, 429, 500, 503, undefined]);
+  for (const record of diagnostics) {
+    assert.equal(record.event, "account_email_provider");
+    assert.equal(record.kind, "verify");
+    assert.equal(record.outcome, "unconfirmed");
+    assert.equal(record.providerMessageId, undefined);
+    assert.match(String(record.emailRequestId), /^[a-f0-9]{64}$/u);
+    assert.ok(["provider_rejected", "provider_unavailable"].includes(String(record.failure)));
+    assert.deepEqual(Object.keys(record).sort(), (record.providerStatus === undefined
+      ? ["emailRequestId", "event", "failure", "kind", "outcome"]
+      : ["emailRequestId", "event", "failure", "kind", "outcome", "providerStatus"]).sort());
+  }
+  assert.equal(new Set(diagnostics.map(record => record.emailRequestId)).size, 1);
+  assert.doesNotMatch(JSON.stringify(diagnostics), /private-link-token|example.com|re_testonly|callbackURL|Bearer/u);
 });
 
 test("success requires a provider message ID and valid JSON, not merely HTTP 200", async () => {
-  for (const payload of [null, {}, { id: "" }, { id: 123 }, { data: { id: "not-rest-contract" } }, { id: "ok", error: "failed" }]) {
+  for (const payload of [null, {}, { id: "" }, { id: 123 }, { id: "private-link-token" },
+    { id: "owner@example.com" }, { data: { id: "not-rest-contract" } }, { id: providerId, error: "failed" }]) {
     globalThis.fetch = async () => Response.json(payload);
     await assert.rejects(() => sendAccountEmail(message), (error: unknown) => error instanceof AccountEmailError && error.code === "email_delivery_failed");
   }
   globalThis.fetch = async () => new Response("<html>provider proxy failure</html>");
   await assert.rejects(() => sendAccountEmail(message), (error: unknown) => error instanceof AccountEmailError && error.code === "email_delivery_failed");
+  assert.ok(diagnostics.every(record => record.outcome === "unconfirmed" && record.providerMessageId === undefined));
+  assert.doesNotMatch(JSON.stringify(diagnostics), /private-link-token|owner@example|failed|provider proxy/u);
 });
 
 test("provider timeout is ten seconds and aborts as a controlled retryable failure", async (context) => {
@@ -291,4 +316,75 @@ test("provider timeout is ten seconds and aborts as a controlled retryable failu
   });
   await assert.rejects(() => sendAccountEmail(message), (error: unknown) =>
     error instanceof AccountEmailError && error.code === "email_delivery_failed" && !String(error).includes("secret"));
+  assert.equal(diagnostics[0].failure, "provider_timeout");
+  assert.equal(requests.length, 0, "Unknown outcomes do not trigger an automatic resend");
+});
+
+test("accepted receipts correlate unchanged retries and log only a validated provider ID", async () => {
+  await sendAccountEmail(message);
+  await sendAccountEmail({ ...message });
+  await sendAccountEmail({ ...message, kind: "reset" });
+  await sendContactEmail(contact);
+  assert.deepEqual(diagnostics.map(record => record.kind), ["verify", "verify", "reset", "contact"]);
+  assert.equal(diagnostics[0].emailRequestId, diagnostics[1].emailRequestId);
+  assert.notEqual(diagnostics[1].emailRequestId, diagnostics[2].emailRequestId);
+  for (const record of diagnostics) {
+    assert.deepEqual(Object.keys(record).sort(), ["emailRequestId", "event", "kind", "outcome", "providerMessageId", "providerStatus"].sort());
+    assert.equal(record.outcome, "accepted");
+    assert.equal(record.providerStatus, 200);
+    assert.equal(record.providerMessageId, providerId);
+    assert.match(String(record.emailRequestId), /^[a-f0-9]{64}$/u);
+  }
+  assert.doesNotMatch(JSON.stringify(diagnostics), /private-link-token|example.com|re_testonly|callbackURL|Bearer|Sajda kontakt|dev@/u);
+  assert.equal(JSON.stringify(diagnostics).includes("delivered"), false);
+});
+
+test("oversized receipts are canceled and cannot confirm sending or leak body contents", async () => {
+  let canceled = 0;
+  globalThis.fetch = async () => new Response(new ReadableStream<Uint8Array>({
+    start(controller) { controller.enqueue(new TextEncoder().encode(JSON.stringify({ id: providerId, extra: "private-recipient-token".repeat(1000) }))); },
+    cancel() { canceled += 1; },
+  }));
+  await assert.rejects(() => sendAccountEmail(message), { code: "email_delivery_failed" });
+  assert.equal(canceled, 1);
+  assert.equal(diagnostics[0].failure, "provider_response_unconfirmed");
+  assert.equal(diagnostics[0].outcome, "unconfirmed");
+  assert.equal(diagnostics[0].providerMessageId, undefined);
+  assert.doesNotMatch(JSON.stringify(diagnostics), /private-recipient-token/u);
+});
+
+test("missing receipt stream fails closed and a broken log sink cannot cause duplicate sends", async () => {
+  globalThis.fetch = async () => new Response(null);
+  await assert.rejects(() => sendAccountEmail(message), { code: "email_delivery_failed" });
+  assert.equal(diagnostics[0].outcome, "unconfirmed");
+  let sends = 0;
+  globalThis.fetch = async () => { sends += 1; return Response.json({ id: providerId.toUpperCase() }); };
+  console.info = () => { throw new Error("Log sink unavailable"); };
+  await sendAccountEmail(message);
+  assert.equal(sends, 1, "Accepted mail must not be reported as failed because logging failed");
+});
+
+test("receipt parsing remains inside the ten-second deadline without an automatic resend", async context => {
+  const abort = new AbortController();
+  context.mock.method(AbortSignal, "timeout", duration => {
+    assert.equal(duration, 10_000);
+    return abort.signal;
+  });
+  let sends = 0;
+  globalThis.fetch = async (_url, init) => {
+    sends += 1;
+    return new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"id":"'));
+        init?.signal?.addEventListener("abort", () => controller.error(new Error("raw-private-stream-error")), { once: true });
+        queueMicrotask(() => abort.abort());
+      },
+    }));
+  };
+  await assert.rejects(() => sendAccountEmail(message), { code: "email_delivery_failed", status: 503 });
+  assert.equal(sends, 1);
+  assert.equal(diagnostics[0].failure, "provider_timeout");
+  assert.equal(diagnostics[0].providerStatus, 200);
+  assert.equal(diagnostics[0].providerMessageId, undefined);
+  assert.doesNotMatch(JSON.stringify(diagnostics), /private|stream-error|example.com|private-link-token/u);
 });

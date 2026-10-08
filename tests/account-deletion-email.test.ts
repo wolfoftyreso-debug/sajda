@@ -5,18 +5,23 @@ import { sendAccountDeletionEmail } from "../api/_shared/account-email.js";
 const variables = ["RESEND_API_KEY", "SAJDA_EMAIL_FROM"];
 let previous: (string | undefined)[];
 let original: typeof fetch;
+let originalInfo: typeof console.info;
+const diagnostics: Record<string, unknown>[] = [];
 const requests: RequestInit[] = [];
 beforeEach(() => {
   previous = variables.map(key => process.env[key]); original = globalThis.fetch; requests.length = 0;
+  originalInfo = console.info; diagnostics.length = 0;
+  console.info = value => { diagnostics.push(JSON.parse(String(value))); };
   process.env.RESEND_API_KEY = "re_deletionTestOnly0000";
   process.env.SAJDA_EMAIL_FROM = "Sajda <account@mail.hypbit.com>";
   globalThis.fetch = async (url, init) => {
     assert.equal(url, "https://api.resend.com/emails"); requests.push(init!);
-    return Response.json({ id: "fixture-deletion-email" });
+    return Response.json({ id: "49a3999c-0ce1-4ea6-ab68-afcd6dc2e794" });
   };
 });
 afterEach(() => {
   globalThis.fetch = original;
+  console.info = originalInfo;
   variables.forEach((key, index) => { if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index]; });
 });
 const message = { to: "owner@example.test", code: "04213798", requestId: "820b9baa-4444-4dca-99e2-a63854384a18" };
@@ -33,6 +38,9 @@ test("deletion codes use five localized multipart messages, account-only recipie
     assert.doesNotMatch(JSON.stringify(request.headers), /04213798|owner@example|820b9baa/u);
   }
   assert.equal(new Set(requests.map(request => JSON.parse(String(request.body)).subject)).size, 5);
+  assert.equal(diagnostics.length, 5);
+  assert.ok(diagnostics.every(record => record.kind === "delete" && record.outcome === "accepted"));
+  assert.doesNotMatch(JSON.stringify(diagnostics), /04213798|owner@example|820b9baa|re_deletionTest|<|https?:/u);
 });
 test("deletion delivery retries are immutable and no fake provider success is accepted", async () => {
   await sendAccountDeletionEmail(message); await sendAccountDeletionEmail(message);

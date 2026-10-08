@@ -78,7 +78,7 @@ test("first-month once discount is reused by Discount identity, never redeemed a
 function fixture() {
   let context: AddonSubscription = validateAddonSubscription(subscription(), "cus_fixture", config);
   let saved: AddonChange | null = null, raw: unknown = initial(), creates = 0, updates = 0, releases = 0;
-  let unknownCreate = false, unknownUpdate = false, rejectedUpdate = false, unknownRelease = false, busy = false, migration = true, appStore = false, paid = true, portals = 0;
+  let unknownCreate = false, unknownUpdate = false, rejectedUpdate = false, unknownRelease = false, busy = false, migration = true, appStore = false, paid = true, portals = 0, cancellationScheduled = false;
   const state = (): BillingState => ({ status: "active", subscriptionId: context.id, cancelAtPeriodEnd: false, grant: paid ? {
     plan: context.plan, subscriptionId: context.id, invoiceId: "in_paid", priceId: context.priceId,
     validFrom: new Date(context.start * 1000).toISOString(), expiresAt: new Date(context.end * 1000).toISOString() } : null });
@@ -100,7 +100,10 @@ function fixture() {
   } as unknown as CommerceStore;
   const provider = {
     price: async (plan: "premium" | "trading") => ({ currency: "usd", unitAmount: plan === "premium" ? 1900 : 4900, interval: "month", intervalCount: 1, taxBehavior: "exclusive" }),
-    reconcile: async () => state(), addonSubscription: async () => structuredClone(context),
+    reconcile: async () => state(), addonSubscription: async (_subscriptionId: string, _customerId: string, forRelease = false) => {
+      if (cancellationScheduled && !forRelease) throw new CommerceError("addon_change_review_required", 409);
+      return structuredClone(context);
+    },
     portal: async () => { portals++; return "https://billing.stripe.com/p/session/fixture"; },
     addonSchedule: async () => structuredClone(raw),
     createAddonSchedule: async () => { creates++; context.scheduleId = "sub_sched_fixture"; if (unknownCreate) { unknownCreate = false; throw new Error("unknown_create"); } return raw; },
@@ -121,6 +124,12 @@ function fixture() {
     set paid(value: boolean) { paid = value; }, set raw(value: unknown) { raw = value; },
     get raw() { return raw; }, age(minutes: number) { saved!.createdAt = new Date(Date.now() - minutes * 60000).toISOString(); },
     bundle() { context = { ...context, plan: "trading", priceId: "price_trading" }; },
+    cancel(mode: "boolean" | "date") {
+      cancellationScheduled = true;
+      const raw = subscription(); raw.items.data[0].price = price(context.plan);
+      context = validateAddonSubscription({ ...raw, schedule: context.scheduleId, cancel_at_period_end: mode === "boolean", cancel_at: mode === "date" ? end : null }, "cus_fixture", config, Date.now(), true);
+    },
+    foreignSchedule() { context.scheduleId = "sub_sched_external"; },
     applied() { context = { ...context, plan: saved!.targetPlan, priceId: saved!.targetPriceId, start: end, end: end + 30 * 86400 }; },
     reorderBody() {
       const reorder = (value: unknown): unknown => Array.isArray(value) ? value.map(reorder) : value && typeof value === "object"
@@ -129,6 +138,59 @@ function fixture() {
     },
   };
 }
+
+test("scheduled cancellation keeps paid billing management visible but cannot start another add-on", async () => {
+  for (const plan of ["premium", "trading"] as const) for (const mode of ["boolean", "date"] as const) {
+    const f = fixture(); if (plan === "trading") f.bundle(); f.cancel(mode);
+    const before = f.counts, snapshot = await f.service.read("owner");
+    assert.equal(snapshot.activePlan, plan); assert.equal(snapshot.accessExpiresAt, new Date(end * 1000).toISOString());
+    assert.equal(snapshot.canManage, true);
+    assert.deepEqual(snapshot.tradingAddon, { canAdd: false, canRemove: false, pending: null });
+    assert.deepEqual(f.counts, before, "reading cancellation must not modify Stripe");
+    await assert.rejects(() => f.service.changeTradingAddon("owner", randomUUID(), plan === "premium"), code("addon_change_review_required"));
+    assert.equal(await f.service.portal("owner", randomUUID(), "https://sajda.example.test"), "https://billing.stripe.com/p/session/fixture");
+    assert.equal(f.portals, 1); assert.deepEqual(f.counts, before);
+  }
+});
+
+test("scheduled cancellation does not erase an owned pending Trading transition", async () => {
+  const f = fixture(); await f.service.changeTradingAddon("owner", randomUUID(), true); f.cancel("date");
+  const before = f.counts, snapshot = await f.service.read("owner");
+  assert.equal(snapshot.tradingAddon!.pending!.enabled, true);
+  assert.equal(snapshot.tradingAddon!.pending!.state, "scheduled");
+  assert.equal(snapshot.tradingAddon!.pending!.effectiveAt, new Date(end * 1000).toISOString());
+  assert.equal(snapshot.tradingAddon!.canAdd, false); assert.equal(snapshot.tradingAddon!.canRemove, false);
+  assert.deepEqual(f.counts, before);
+});
+
+test("billing-management validation rejects malformed cancellation timestamps", () => {
+  for (const cancelAt of [0, -1, "tomorrow", end + 0.5, Number.NaN])
+    assert.throws(() => validateAddonSubscription({ ...subscription(), cancel_at: cancelAt }, "cus_fixture", config, Date.now(), true), code("addon_change_review_required"));
+});
+
+test("a cancellation cannot disguise a foreign schedule as an empty pending ledger", async () => {
+  const f = fixture(); f.cancel("date"); f.foreignSchedule();
+  const snapshot = await f.service.read("owner");
+  assert.equal(snapshot.tradingAddon, undefined);
+  assert.equal(snapshot.activePlan, "premium");
+  assert.deepEqual(f.counts, { creates: 0, updates: 0, releases: 0 });
+});
+
+test("read action eligibility matches the strict120-second mutation window without hiding billing management", async () => {
+  const realNow = Date.now;
+  for (const plan of ["premium", "trading"] as const) for (const remaining of [120, 121]) for (const cancellation of [null, "boolean", "date"] as const) {
+    const f = fixture(); if (plan === "trading") f.bundle(); if (cancellation) f.cancel(cancellation);
+    Date.now = () => (end - remaining) * 1000;
+    try {
+      const snapshot = await f.service.read("owner"), canChange = remaining > 120 && cancellation === null;
+      assert.equal(snapshot.canManage, true); assert.equal(snapshot.tradingAddon!.pending, null);
+      assert.equal(snapshot.tradingAddon!.canAdd, canChange && plan === "premium");
+      assert.equal(snapshot.tradingAddon!.canRemove, canChange && plan === "trading");
+      assert.equal(snapshot.activePlan, plan); assert.equal(snapshot.accessExpiresAt, new Date(end * 1000).toISOString());
+      assert.deepEqual(f.counts, { creates: 0, updates: 0, releases: 0 });
+    } finally { Date.now = realNow; }
+  }
+});
 test("selecting Trading schedules one bundle without granting access or changing the current paid Pro invoice", async () => {
   const f = fixture(), key = randomUUID(), result = await f.service.changeTradingAddon("owner", key, true);
   assert.deepEqual(result, { state: "scheduled", enabled: true, effectiveAt: new Date(end * 1000).toISOString() });

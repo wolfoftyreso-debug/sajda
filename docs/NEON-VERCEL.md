@@ -184,16 +184,61 @@ Supabase-specific auth, RLS, Edge Functions, Realtime and cron helpers.
 # Local file/checksum inspection only; no database connection.
 node scripts/migrate-neon.mjs --plan
 
-# First verify DATABASE_URL_UNPOOLED targets the intended isolated branch.
-node --env-file-if-exists=.env.local scripts/migrate-neon.mjs --check
-node --env-file-if-exists=.env.local scripts/migrate-neon.mjs --apply
-node --env-file-if-exists=.env.local scripts/migrate-neon.mjs --check
+# Inject fresh variables for the exact reviewed environment. Never put a DSN
+# or a credential in CLI arguments. The target JSON below has no credentials.
+npm run db:check -- --target .vercel/migration-target.preview.json
+# Review every pending SQL file and copy planSha256 from the check/plan receipt.
+npm run db:apply -- --target .vercel/migration-target.preview.json --reviewed-plan <planSha256>
+npm run db:check -- --target .vercel/migration-target.preview.json
 ```
 
 `--check` is read-only. `--apply` is explicit, uses a transaction and advisory
 lock, and records each filename/checksum in `sajda.schema_migrations`. Changed
 or unknown applied migrations, out-of-order history and unchecked legacy ledgers
 stop the run. The web build does not automatically apply migrations.
+
+Database commands now fail closed without an explicit target manifest. Old
+bare `db:check`/`db:apply` commands in dated verification records are historical,
+not executable instructions. Prepare the non-secret manifest from the reviewed
+Vercel Marketplace/Neon inventory, not from an arbitrary connection string:
+
+```json
+{
+  "version": 1,
+  "environment": "preview",
+  "vercelProjectId": "prj_UO900Jp4qJF1eS4hkOrebIzwMVlI",
+  "vercelOrgId": "team_GP2MTfBKmxj8ajYLvQtV7clA",
+  "neonProjectId": "REVIEWED_NEON_PROJECT",
+  "directHostname": "REVIEWED_PREVIEW_DIRECT_HOST",
+  "databaseName": "REVIEWED_DATABASE_NAME",
+  "role": "REVIEWED_SERVER_ROLE",
+  "productionHostname": "REVIEWED_PRODUCTION_DIRECT_HOST",
+  "productionDatabaseName": "REVIEWED_PRODUCTION_DATABASE_NAME"
+}
+```
+
+Replace all `REVIEWED_*` placeholders before use. Preview cannot target the
+normalized Production host/database pair. Production must match that pair,
+`NEON_PROJECT_ID` and `SAJDA_PRODUCTION_NEON_PROJECT`. The project link and any
+injected Vercel environment/project/team identifiers must agree. Both direct
+and pooled DSNs must match the reviewed role/database, each other and the
+expected hosts; only the direct TLS-verified connection is used for migrations.
+Missing or mismatched manifest, environment, project and DSN identities stop
+**before** opening the database connection. The operator CLI uses the PostgreSQL
+TCP driver rather than the serverless WebSocket tunnel. After connection, it
+requires an encrypted, certificate-authorized client TLS socket and matching
+server-reported database/role before starting the transaction. Neon can terminate
+client TLS at its proxy, so backend `pg_stat_ssl` is not proof of the client's
+certificate verification; this check does not claim TLS on a separate internal
+proxy-to-database hop.
+The exact migration-set SHA256 is mandatory for apply and changes whenever an
+SQL filename/checksum changes. This is a technical target fence, not automatic
+permission to run destructive SQL or proof that the underlying branch was
+correctly identified. Review data/locks, backup and recovery before Production
+DDL. Retain only redacted receipts; `.vercel/` is ignored by Git.
+An interrupted COMMIT or unsuccessful rollback is an unknown result, not proof
+that nothing changed. Read the fenced migration ledger with `--check` before
+retrying; the application build never retries or applies DDL automatically.
 
 Confirm branch identity before any database mutation. Managed integration
 webhooks can supply branch-specific deployment connections which may differ
