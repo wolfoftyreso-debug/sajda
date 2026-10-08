@@ -1,4 +1,5 @@
 import Stripe from "stripe";
+import { validateAddonSubscription, type AddonSubscription } from "./commerce-addon.js";
 import { createHash } from "node:crypto";
 import { PAID_PLAN_ORDER, PLANS, PREMIUM_INTRO_OFFER, type PaidPlanId } from "../../shared/plans.js";
 import {
@@ -60,6 +61,11 @@ export interface BillingEvent {
   hold: boolean;
 }
 export interface CommerceProvider {
+  addonSubscription?(subscriptionId: string, customerId: string, forRelease?: boolean): Promise<AddonSubscription>;
+  addonSchedule?(scheduleId: string): Promise<unknown>;
+  createAddonSchedule?(subscriptionId: string, changeId: string): Promise<unknown>;
+  updateAddonSchedule?(scheduleId: string, body: Stripe.SubscriptionScheduleUpdateParams, changeId: string): Promise<unknown>;
+  releaseAddonSchedule?(scheduleId: string, operationId: string): Promise<unknown>;
   price(plan?: PaidPlanId): Promise<CommercePrice>;
   createCustomer(key: string, ownerId: string): Promise<string>;
   reconcile(customerId: string, approvedIntro?: IntroEvidence): Promise<BillingState>;
@@ -454,6 +460,25 @@ export function createCommerceProvider(
   const checkoutResult = (session: Stripe.Checkout.Session, customerId: string, plan: PaidPlanId, intent: CheckoutIntent = {}) =>
     validateCommerceCheckout(stripeSdkPayload(session), customerId, config, plan, intent);
   return {
+    async addonSubscription(subscriptionId, customerId, forRelease = false) {
+      const subscription = await stripe.subscriptions.retrieve(commerceId(subscriptionId, "sub"));
+      return validateAddonSubscription(JSON.parse(JSON.stringify(subscription)), customerId, config, Date.now(), forRelease);
+    },
+    async addonSchedule(scheduleId) {
+      return JSON.parse(JSON.stringify(await stripe.subscriptionSchedules.retrieve(commerceId(scheduleId, "sub_sched"))));
+    },
+    async createAddonSchedule(subscriptionId, changeId) {
+      return JSON.parse(JSON.stringify(await stripe.subscriptionSchedules.create(
+        { from_subscription: commerceId(subscriptionId, "sub") }, { idempotencyKey: `sajda-addon-create-${changeId}` })));
+    },
+    async updateAddonSchedule(scheduleId, body, changeId) {
+      return JSON.parse(JSON.stringify(await stripe.subscriptionSchedules.update(commerceId(scheduleId, "sub_sched"), body,
+        { idempotencyKey: `sajda-addon-update-${changeId}` })));
+    },
+    async releaseAddonSchedule(scheduleId, operationId) {
+      return JSON.parse(JSON.stringify(await stripe.subscriptionSchedules.release(commerceId(scheduleId, "sub_sched"),
+        { preserve_cancel_date: true }, { idempotencyKey: `sajda-addon-release-${operationId}` })));
+    },
     async price(plan = "trading") {
       await verifyPortal();
       const price = await stripe.prices.retrieve(commercePriceId(config, plan));

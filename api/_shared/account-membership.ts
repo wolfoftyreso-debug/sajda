@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { AccountMembership } from "../../shared/account-membership.js";
+import { membershipProductModel, type AccountMembership } from "../../shared/account-membership.js";
 import { AccountAccessError, type VerifiedAccount } from "./account-auth.js";
 import { getNeonSql } from "./neon.js";
 import { refreshNativeCommerceMembership } from "./native-commerce-service.js";
@@ -107,8 +107,9 @@ export function createAccountMembershipReader(deps: {
       return createAccountMembershipReader({ query, environment: () => env })(account);
     }
     if (row.plan === null && row.access_source === null && row.expires_at === null) {
-      return { plan: "free", accessSource: "free", expiresAt: null,
+      const membership: AccountMembership = { plan: "free", accessSource: "free", expiresAt: null,
         capabilities: { save_domains: true, swipe_undo: false, trading: false } };
+      return { ...membership, ...membershipProductModel(membership) };
     }
     const checkedAt = timestamp(row.checked_at);
     const expiresAt = timestamp(row.expires_at);
@@ -118,9 +119,12 @@ export function createAccountMembershipReader(deps: {
       || !Number.isFinite(checkedAt) || !Number.isFinite(expiresAt) || expiresAt <= checkedAt) {
       throw new Error("Invalid membership grant response");
     }
-    return { plan: row.plan as "basic" | "premium" | "trading", accessSource: row.access_source as "operator" | "subscription",
+    const membership: AccountMembership = { plan: row.plan as "basic" | "premium" | "trading", accessSource: row.access_source as "operator" | "subscription",
       expiresAt: new Date(expiresAt).toISOString(),
       capabilities: { save_domains: true, swipe_undo: row.plan === "premium" || row.plan === "trading", trading: row.plan === "trading" } };
+    // Describe the verified legacy bundle as Pro plus Trading. This projection
+    // does not create an independent add-on grant or extend its expiry.
+    return { ...membership, ...membershipProductModel(membership) };
   };
 }
 

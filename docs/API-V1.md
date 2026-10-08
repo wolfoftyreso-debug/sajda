@@ -378,7 +378,7 @@ integrations should use a self-service key in a migrated environment.
 
 Use a persisted bearer key with `GET` or `POST /api/v1/account?resource=...`.
 The account comes only from that key. Project availability, verified email,
-ownership, Trading entitlement and durable product limits remain enforced.
+ownership, active Trading add-on access on Pro and durable product limits remain enforced. Public base plans are Free, Basic and Pro; Trading uses the same account rather than a separate plan or login. Legacy `premium` and `trading` identifiers remain compatible; use membership `basePlan`, `addons` and `capabilities` for verified presentation.
 
 | Resource | Method and body | Required scope | Result |
 | --- | --- | --- | --- |

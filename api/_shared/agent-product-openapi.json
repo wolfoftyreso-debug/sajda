@@ -80,7 +80,7 @@
     {
       "name": "account_membership",
       "title": "Read account membership",
-      "description": "Read the authenticated account's current server-verified plan, capabilities and expiry. Does not change membership or billing.",
+      "description": "Read the authenticated account's current server-verified basePlan, add-ons, capabilities and expiry. Pro is the premium base plan; legacy plan=trading represents Pro with its Trading add-on, not a separate account or fourth base plan. Does not change membership or billing.",
       "scope": "account:read",
       "readOnly": true,
       "idempotent": true,
@@ -183,7 +183,7 @@
     {
       "name": "brand_monitors_configure",
       "title": "Enable or resume daily registry monitoring",
-      "description": "Only on an explicit user request: enable, resume or rebind a daily registry monitor for an account-owned saved brand report. Requires projects:write AND domains:search and live paid plan capacity: Basic1, Premium5, Trading10 active monitors; Free0. Enabling records consent to future bounded registry checks but does not run a provider in this request. The scope is pinned to a saved version; rebind explicitly accepts the latest scope and resets the comparison baseline. Use a new requestKey UUID per intentional action, retry identical content after an uncertain result, and preserve monitor/report version conflicts. First observations are baseline only; alerts compare a newer definitive observation with an earlier baseline from the same audited source. No purchases, emails, legal clearance or ownership verification.",
+      "description": "Only on an explicit user request: enable, resume or rebind a daily registry monitor for an account-owned saved brand report. Requires projects:write AND domains:search and live paid capacity: Basic1, Pro5, Pro with Trading add-on10 active monitors; Free0. Enabling records consent to future bounded registry checks but does not run a provider in this request. The scope is pinned to a saved version; rebind explicitly accepts the latest scope and resets the comparison baseline. Use a new requestKey UUID per intentional action, retry identical content after an uncertain result, and preserve monitor/report version conflicts. First observations are baseline only; alerts compare a newer definitive observation with an earlier baseline from the same audited source. No purchases, emails, legal clearance or ownership verification.",
       "scope": "projects:write",
       "readOnly": false,
       "idempotent": true,
@@ -226,7 +226,7 @@
     {
       "name": "trading_scenarios_list",
       "title": "List Trading scenarios",
-      "description": "Read the authenticated account's scenario journal. Active Trading entitlement is required by the shared account handler. These are user-authored what-if assumptions, not market forecasts, live prices or investment recommendations. Does not start research or spend a quote budget.",
+      "description": "Read the authenticated account's scenario journal. Verified Pro with the Trading add-on is required by the shared account handler; an API-key scope alone never grants access. These are user-authored what-if assumptions, not market forecasts, live prices or investment recommendations. Does not start research or spend a quote budget.",
       "scope": "trading:read",
       "readOnly": true,
       "idempotent": true,
@@ -236,7 +236,7 @@
     {
       "name": "trading_scenarios_save",
       "title": "Save a Trading scenario",
-      "description": "Save an explicit user-authored Trading scenario and assumptions. Returns only the affected scenario, not the whole journal. Requires active Trading entitlement. Use a stable UUID id and expectedVersion 0 for a new scenario, then the current returned version for updates; retry the identical request after an ambiguous failure. Rejects stale versions rather than overwriting another edit. All financial inputs and sale probabilities remain user assumptions, not observed prices or forecasts. Does not initiate research, quote refresh, trade or purchase.",
+      "description": "Save an explicit user-authored Trading scenario and assumptions. Returns only the affected scenario, not the whole journal. Requires verified Pro with the Trading add-on. Use a stable UUID id and expectedVersion 0 for a new scenario, then the current returned version for updates; retry the identical request after an ambiguous failure. Rejects stale versions rather than overwriting another edit. All financial inputs and sale probabilities remain user assumptions, not observed prices or forecasts. Does not initiate research, quote refresh, trade or purchase.",
       "scope": "trading:write",
       "readOnly": false,
       "idempotent": true,
@@ -286,7 +286,7 @@
     {
       "name": "trading_report",
       "title": "Read Trading report",
-      "description": "Read a page of the authenticated account's existing Trading report, including dated evidence and safety diagnostics. This is a snapshot; it does not start research or refresh prices. Offsets may change after a report update.",
+      "description": "Read a page of the authenticated account's existing Trading report, including dated evidence and safety diagnostics. Requires verified Pro with the Trading add-on; an API-key scope alone never grants access. This is a snapshot; it does not start research or refresh prices. Offsets may change after a report update.",
       "scope": "trading:read",
       "readOnly": true,
       "idempotent": true,
@@ -296,7 +296,7 @@
     {
       "name": "trading_start",
       "title": "Start Trading research",
-      "description": "Explicitly start a new Trading research run for this account. Requires active Trading membership and consumes its shared research budget. Supply a fresh UUID requestKey per intended run and reuse the SAME key after timeout or retry. Read status to observe progress; use trading_advance only when explicitly continuing work.",
+      "description": "Explicitly start a new Trading research run for this account. Requires verified Pro with the Trading add-on and consumes its shared research budget. Supply a fresh UUID requestKey per intended run and reuse the SAME key after timeout or retry. Read status to observe progress; use trading_advance only when explicitly continuing work.",
       "scope": "trading:run",
       "readOnly": false,
       "idempotent": true,
@@ -306,7 +306,7 @@
     {
       "name": "trading_advance",
       "title": "Advance Trading research",
-      "description": "Explicitly perform the next bounded work batch for an existing run. Requires Trading access and may call research providers. Each call may advance more work; this is not an idempotent status poll. Never starts a new run.",
+      "description": "Explicitly perform the next bounded work batch for an existing run. Requires verified Pro with the Trading add-on and may call research providers. Each call may advance more work; this is not an idempotent status poll. Never starts a new run.",
       "scope": "trading:run",
       "readOnly": false,
       "idempotent": false,
@@ -326,7 +326,7 @@
     {
       "name": "trading_refresh_quote",
       "title": "Refresh a Trading quote",
-      "description": "Explicitly request a fresh registrar price observation for one server-approved candidate in this account's report. Requires Trading membership, connected provider and remaining quote budget. Supply a fresh UUID requestKey and reuse it for retries of the same run/domain. This cannot reserve, register or purchase a domain.",
+      "description": "Explicitly request a fresh registrar price observation for one server-approved candidate in this account's report. Requires verified Pro with the Trading add-on, a connected provider and remaining quote budget. Supply a fresh UUID requestKey and reuse it for retries of the same run/domain. This cannot reserve, register or purchase a domain.",
       "scope": "trading:quote",
       "readOnly": false,
       "idempotent": true,

@@ -11,6 +11,9 @@ function membership(plan: AccountMembership["plan"] = "premium"): AccountMembers
     expiresAt: plan === "free" ? null : new Date(Date.now() + 3_600_000).toISOString(),
     capabilities: { save_domains: true, swipe_undo: plan === "premium" || plan === "trading", trading: plan === "trading" } };
 }
+function canonicalMembership(plan: AccountMembership["plan"] = "premium"): AccountMembership {
+  return { ...membership(plan), basePlan: plan === "trading" ? "premium" : plan, addons: { trading: plan === "trading" } };
+}
 
 test("membership client trusts only current owner-scoped, strictly validated server snapshots", async t => {
   const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window"), originalFetch = globalThis.fetch;
@@ -45,12 +48,14 @@ test("membership client trusts only current owner-scoped, strictly validated ser
       && error.name === "MembershipError" && (error as Error & { code: string }).code === code;
     const reads = () => requests.filter(row => row.url.pathname === "/api/account/membership");
 
-    await t.test("all four server plans preserve exact capabilities and use safe GET requests", async () => {
+    await t.test("legacy and canonical server products preserve exact capabilities and use safe GET requests", async () => {
       for (const plan of ["free", "basic", "premium", "trading"] as const) {
-        const value = membership(plan); reply = () => Response.json(payload(value));
-        assert.deepEqual(await getAccountMembership({ accountId: "account-a" }), value);
+        for (const value of [membership(plan), canonicalMembership(plan)]) {
+          reply = () => Response.json(payload(value));
+          assert.deepEqual(await getAccountMembership({ accountId: "account-a" }), value);
+        }
       }
-      assert.equal(reads().length, 4, "Membership reads do not reuse a browser plan as authorization");
+      assert.equal(reads().length, 8, "Membership reads do not reuse a browser plan as authorization");
       for (const { url, init } of requests) {
         assert.equal(url.origin, origin); assert.equal(init.credentials, "same-origin");
         assert.equal(new Headers(init.headers).has("authorization"), false);
@@ -59,6 +64,25 @@ test("membership client trusts only current owner-scoped, strictly validated ser
         assert.equal(init.method, "GET"); assert.equal(init.body, undefined);
         assert.equal(init.cache, "no-store"); assert.equal(init.redirect, "error");
         assert.equal(new Headers(init.headers).get("x-sajda-account"), "account-a");
+      }
+    });
+
+    await t.test("half-shaped or conflicting product dimensions cannot advertise a Trading add-on without Pro", async () => {
+      const legacy = membership(), canonical = canonicalMembership();
+      for (const value of [
+        { ...legacy, basePlan: "premium" }, { ...legacy, addons: { trading: false } },
+        { ...canonical, basePlan: null }, { ...canonical, basePlan: "trading" },
+        { ...canonical, basePlan: "basic" }, { ...canonical, addons: null },
+        { ...canonical, addons: [] }, { ...canonical, addons: { trading: "false" } },
+        { ...canonical, addons: { trading: 0 } }, { ...canonical, addons: { trading: true } },
+        { ...canonical, addons: { trading: false, arbitrary: true } },
+        { ...canonicalMembership("free"), basePlan: "premium", addons: { trading: true } },
+        { ...canonicalMembership("basic"), addons: { trading: true } },
+        { ...canonicalMembership("trading"), basePlan: "basic" },
+        { ...canonicalMembership("trading"), addons: { trading: false } },
+      ]) {
+        reply = () => Response.json(payload(value));
+        await assert.rejects(getAccountMembership({ accountId: "account-a" }), failed("invalid_response"), JSON.stringify(value));
       }
     });
 
@@ -124,8 +148,19 @@ test("membership client trusts only current owner-scoped, strictly validated ser
     });
 
     await t.test("expired grants cannot survive an otherwise valid account session", async () => {
-      reply = () => Response.json(payload({ ...membership(), expiresAt: new Date(Date.now() - 1_000).toISOString() }));
-      await assert.rejects(getAccountMembership({ accountId: "account-a" }), failed("expired"));
+      for (const value of [membership(), canonicalMembership(), canonicalMembership("trading")]) {
+        reply = () => Response.json(payload({ ...value, expiresAt: new Date(Date.now() - 1_000).toISOString() }));
+        await assert.rejects(getAccountMembership({ accountId: "account-a" }), failed("expired"));
+      }
+    });
+
+    await t.test("a valid canonical Trading response never bypasses a changed or logged-out session owner", async () => {
+      reply = () => Response.json(payload(canonicalMembership("trading")));
+      for (const nextOwner of ["account-b", null]) {
+        owner = "account-a"; duringResponse = () => { owner = nextOwner; };
+        await assert.rejects(getAccountMembership({ accountId: "account-a" }), failed(nextOwner ? "account_changed" : "unauthenticated"));
+      }
+      duringResponse = undefined; owner = "account-a";
     });
 
     await t.test("scope is immutable and aborted requests never return an access snapshot", async () => {

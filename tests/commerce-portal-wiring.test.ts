@@ -106,6 +106,7 @@ function transportState() {
     },
     service() {
       const store = {
+        addonAvailable: async () => false,
         appStoreSubscription: async () => null,
         read: async () => null,
         acquire: async () => { this.leases++; throw new Error("unexpected_fixture_customer_lease"); },

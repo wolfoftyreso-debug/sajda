@@ -1,8 +1,11 @@
 # Sajda web billing operations
 
-The site now has Gratis, Bas, Premium and Trading. Current monthly prices are
-USD 0 / 9 / 19 / 49 in `shared/plans.ts`, revised on 2026-09-11. The website
-billing contract supports **Basic, Premium and Trading** as distinct plans.
+The public product has **Free, Basic and Pro**, with **Trading as an optional
+Pro add-on**, approved on 2026-10-08. Base prices are USD 0 / 9 / 19 monthly;
+Trading adds USD 30, for a Pro + Trading total of USD 49 before applicable tax.
+The existing billing IDs `premium` and `trading` remain compatibility IDs for
+Pro and the single Pro + Trading bundle subscription. They do not represent
+four public base plans. See [Trading add-on contract](TRADING-ADDON.md).
 `STRIPE_PLUS_PRICE_ID` remains a temporary Trading-only alias for existing
 sandbox configuration; new environments use the three explicit plan Price IDs.
 Each plan has an independent checkout release flag.
@@ -36,13 +39,16 @@ session from an older price cannot bypass the current contract.
 Tax treatment, cancellation terms and actual service/payment
 verification still need to be completed before sales are enabled.
 Trials, annual plans, seat quantities and zero-value invoices are unsupported.
-Self-service plan switching is not supported in this release. The reviewed
+General self-service base-plan switching is not supported in this release. The reviewed
 Stripe customer portal supports invoices, payment-method updates and cancellation
 at the end of the paid period only. Direct API plan mutation is not exposed to
 the browser. A customer can cancel, retain already-paid access and choose another
 available plan after that period ends. UI copy states this limitation explicitly.
 Support can help investigate an account but does not promise an unimplemented
-upgrade process.
+upgrade process. The separately gated Trading add-on change is the exception:
+it schedules Pro ↔ Pro + Trading at the next renewal without proration or a
+second subscription. It requires migration `0027_trading_addon_changes.sql` and
+`STRIPE_TRADING_ADDON_ENABLED=true`; default configuration is fail-closed.
 
 The provider validates the actual configured portal before both new-checkout
 price reads and portal creation. Automatic price switching, immediate cancellation,
@@ -70,6 +76,7 @@ All variables below are **server-only** and must never have a `VITE_` prefix.
 | `STRIPE_BASIC_CHECKOUT_ENABLED`           | Exactly `true` to permit new Basic checkout                                                |
 | `STRIPE_PREMIUM_CHECKOUT_ENABLED`         | Exactly `true` to permit new Premium checkout                                              |
 | `STRIPE_CHECKOUT_ENABLED`                 | Exactly `true` to permit new Trading checkout                                              |
+| `STRIPE_TRADING_ADDON_ENABLED`            | Exactly `true`, with migration 0027, to schedule adding/removing Trading on an existing Pro subscription |
 | `STRIPE_LIVE_ENABLED`                     | Exactly `true`, **in addition** to live mode and production, to permit live configuration |
 | `BETTER_AUTH_URL` and Vercel URL metadata | Existing trusted origin/callback configuration                                            |
 

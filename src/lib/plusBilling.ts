@@ -8,6 +8,7 @@ export const billingStatuses = ["none", "incomplete", "incomplete_expired", "tri
 export type PlusBillingStatus = typeof billingStatuses[number];
 export type PlusBillingAction = "checkout" | "portal";
 export interface PlusBillingSnapshot {
+  tradingAddon?: { canAdd: boolean; canRemove: boolean; pending: { enabled: boolean; effectiveAt: string; canCancel: boolean; state?: "processing" | "scheduled"; canRetry?: boolean } | null };
   accountId: string;
   requestId: string;
   ready: boolean;
@@ -88,10 +89,45 @@ export function parsePlusBilling(value: unknown, accountId: string): PlusBilling
       firstUnitAmount: PREMIUM_INTRO_OFFER.firstUnitAmount, renewalUnitAmount: PREMIUM_INTRO_OFFER.renewalUnitAmount,
       currency: PREMIUM_INTRO_OFFER.currency, interval: PREMIUM_INTRO_OFFER.interval };
   }
+  let tradingAddon: PlusBillingSnapshot["tradingAddon"];
+  if (payload.tradingAddon !== undefined) {
+    const addon = object(payload.tradingAddon);
+    if (!addon || typeof addon.canAdd !== "boolean" || typeof addon.canRemove !== "boolean"
+      || addon.canAdd && addon.canRemove || addon.pending !== null && !object(addon.pending)) return invalid();
+    let pending: NonNullable<PlusBillingSnapshot["tradingAddon"]>["pending"] = null;
+    if (addon.pending !== null) {
+      const row = object(addon.pending)!;
+      const state = row.state ?? "scheduled", canRetry = row.canRetry ?? false;
+      if (typeof row.enabled !== "boolean" || typeof row.canCancel !== "boolean" || !isoDate(row.effectiveAt)
+        || !["processing", "scheduled"].includes(String(state)) || typeof canRetry !== "boolean"
+        || addon.canAdd || addon.canRemove || !payload.canManage || payload.canCheckout
+        || canRetry && (state !== "processing" || payload.status !== "active" || !["premium", "trading"].includes(String(activePlan)))
+        || ["premium", "trading"].includes(String(activePlan)) && row.enabled !== (activePlan === "premium")) return invalid();
+      pending = { enabled: row.enabled, effectiveAt: row.effectiveAt as string, canCancel: row.canCancel, state: state as "processing" | "scheduled", canRetry };
+    }
+    if ((addon.canAdd || addon.canRemove || pending) && (payload.appStoreManaged === true || !payload.mode || payload.canCheckout)
+      || (addon.canAdd || addon.canRemove) && payload.status !== "active"
+      || addon.canAdd && (activePlan !== "premium" || !plans.trading.ready)
+      || addon.canRemove && (activePlan !== "trading" || !plans.premium.price)) return invalid();
+    tradingAddon = { canAdd: addon.canAdd, canRemove: addon.canRemove, pending };
+  }
   return { accountId, requestId: String(payload.requestId), ready: payload.ready as boolean, mode: payload.mode as PlusBillingSnapshot["mode"], price,
     status: payload.status as PlusBillingStatus, canCheckout: payload.canCheckout as boolean, canManage: payload.canManage as boolean, accessExpiresAt: payload.accessExpiresAt as string | null,
-    activePlan, plans, premiumIntro,
+    activePlan, plans, premiumIntro, ...(tradingAddon ? { tradingAddon } : {}),
     ...(payload.appStoreManaged === true ? { appStoreManaged: true } : {}) };
+}
+const isoDate = (value: unknown): value is string => typeof value === "string" && /^\d{4}-\d{2}-\d{2}T/u.test(value)
+  && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
+export interface TradingAddonChangeResult { accountId: string; requestId: string; state: "scheduled"; enabled: boolean; effectiveAt: string }
+export function parseTradingAddonChange(value: unknown, accountId: string, enabled: boolean): TradingAddonChangeResult {
+  const payload = owned(value, accountId);
+  if (payload.state !== "scheduled" || payload.enabled !== enabled || !isoDate(payload.effectiveAt) || payload.url !== undefined) return invalid();
+  return { accountId, requestId: String(payload.requestId), state: "scheduled", enabled, effectiveAt: payload.effectiveAt };
+}
+export function parseCanceledTradingAddonChange(value: unknown, accountId: string): { state: "canceled"; accountId: string; requestId: string } {
+  const payload = owned(value, accountId);
+  if (payload.state !== "canceled" || payload.url !== undefined) return invalid();
+  return { state: "canceled", accountId, requestId: String(payload.requestId) };
 }
 export function parseBillingRedirect(value: unknown, accountId: string, action: PlusBillingAction): string {
   const payload = owned(value, accountId);
@@ -116,11 +152,14 @@ function safeFailure(error: unknown): Error {
   if (row?.code === "checkout_plan_conflict") return new PlusBillingError("checkout_plan_conflict", requestId);
   if (row?.code === "checkout_context_conflict") return new PlusBillingError("checkout_context_conflict", requestId);
   if (row?.code === "intro_offer_unavailable") return new PlusBillingError("intro_offer_unavailable", requestId);
+  if (row?.code === "addon_change_unavailable") return new PlusBillingError("not_ready", requestId);
+  if (["addon_change_pending", "addon_change_completed", "addon_already_selected", "pro_subscription_required"].includes(String(row?.code))) return new PlusBillingError("subscription_changed", requestId);
+  if (row?.code === "addon_change_review_required") return new PlusBillingError("review_required", requestId);
   if (["billing_review_required", "billing_reconciliation_required"].includes(String(row?.code))) return new PlusBillingError("review_required", requestId);
   return new PlusBillingError("unavailable", requestId);
 }
 export interface PremiumCheckoutOptions { offer?: typeof PREMIUM_INTRO_OFFER.id; returnTo?: "swipe" }
-async function request<T>(scope: AccountRequestScope, parse: (value: unknown) => T, body?: { action: PlusBillingAction; requestKey: string; plan?: PaidPlanId } & PremiumCheckoutOptions): Promise<T> {
+async function request<T>(scope: AccountRequestScope, parse: (value: unknown) => T, body?: ({ action: PlusBillingAction; requestKey: string; plan?: PaidPlanId } & PremiumCheckoutOptions) | { action: "trading-addon"; requestKey: string; enabled: boolean } | { action: "cancel-trading-addon-change"; requestKey: string }): Promise<T> {
   try {
     const result = parse(await accountRequest<unknown>("/api/account/billing", { ...scope, ...(body ? { method: "POST", body } : {}) }));
     throwIfCancelled(scope.signal);
@@ -132,6 +171,14 @@ async function request<T>(scope: AccountRequestScope, parse: (value: unknown) =>
   } catch (error) { throw safeFailure(error); }
 }
 export const getPlusBilling = (scope: AccountRequestScope) => request(scope, value => parsePlusBilling(value, scope.accountId));
+export function changeTradingAddon(scope: AccountRequestScope, requestKey: string, enabled: boolean): Promise<TradingAddonChangeResult> {
+  if (!uuid.test(requestKey) || typeof enabled !== "boolean") return Promise.reject(new PlusBillingError("invalid_response"));
+  return request(scope, value => parseTradingAddonChange(value, scope.accountId, enabled), { action: "trading-addon", requestKey, enabled });
+}
+export function cancelTradingAddonChange(scope: AccountRequestScope, requestKey: string): Promise<{ state: "canceled"; accountId: string; requestId: string }> {
+  if (!uuid.test(requestKey)) return Promise.reject(new PlusBillingError("invalid_response"));
+  return request(scope, value => parseCanceledTradingAddonChange(value, scope.accountId), { action: "cancel-trading-addon-change", requestKey });
+}
 export function openPlusBilling(scope: AccountRequestScope, action: PlusBillingAction, requestKey: string, plan: PaidPlanId = "trading", options: PremiumCheckoutOptions = {}): Promise<string> {
   if (!["checkout", "portal"].includes(action) || !uuid.test(requestKey) || (options.offer !== undefined && (options.offer !== PREMIUM_INTRO_OFFER.id || plan !== "premium" || action !== "checkout"))
     || options.returnTo !== undefined && (options.returnTo !== "swipe" || action !== "checkout")) return Promise.reject(new PlusBillingError("invalid_response"));

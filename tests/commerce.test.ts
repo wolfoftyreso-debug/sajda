@@ -689,6 +689,12 @@ function memory(configuration: CommerceConfig = config) {
     syncedAt: null,
   });
   const store: CommerceStore = {
+    addonAvailable: async () => false,
+    addonChange: async () => null,
+    addonCancelChange: async () => null,
+    addonScheduleOwner: async () => null,
+    reserveAddonChange: async () => { throw new Error("addon_fixture_disabled"); },
+    saveAddonChange: async () => { throw new Error("addon_fixture_disabled"); },
     introAvailable: async () => true,
     appStoreSubscription: async () => false,
     read: async (id) => {

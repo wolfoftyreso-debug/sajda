@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { PLANS, PLAN_ORDER, formatPlanMonthlyPrice } from "../shared/plans";
+import { BASE_PLAN_ORDER, PLANS, PLAN_ORDER, TRADING_ADDON, basePlanFor, formatPlanMonthlyPrice, formatTradingAddonMonthlyPrice, formatTradingBundleMonthlyPrice } from "../shared/plans";
 import { PLUS_PLAN, formatPlusMonthlyPrice } from "../shared/plus-plan";
 
-test("four distinct approved tiers have fixed monthly USD prices", () => {
+test("three base plans and the compatible Pro+Trading bundle have fixed monthly USD prices", () => {
+  assert.deepEqual(BASE_PLAN_ORDER, ["free", "basic", "premium"]);
   assert.deepEqual(PLAN_ORDER, ["free", "basic", "premium", "trading"]);
   assert.deepEqual(PLAN_ORDER.map(id => PLANS[id].unitAmount), [0, 900, 1900, 4900]);
   for (const id of PLAN_ORDER) {
@@ -17,6 +18,20 @@ test("four distinct approved tiers have fixed monthly USD prices", () => {
   }
   assert.ok(Object.isFrozen(PLANS));
   assert.ok(Object.isFrozen(PLAN_ORDER));
+});
+
+test("Trading is a Pro add-on, not a fourth base plan or an independent subscription price", () => {
+  assert.equal(PLANS.premium.name, "Pro");
+  assert.equal(PLANS.trading.name, "Pro + Trading");
+  assert.equal(basePlanFor("trading"), "premium");
+  assert.equal(basePlanFor("premium"), "premium");
+  assert.equal(TRADING_ADDON.basePlan, "premium");
+  assert.equal(TRADING_ADDON.unitAmount + PLANS.premium.unitAmount, PLANS.trading.unitAmount);
+  assert.equal(TRADING_ADDON.totalUnitAmount, PLANS.trading.unitAmount);
+  assert.ok(Object.isFrozen(TRADING_ADDON));
+  assert.equal(formatTradingAddonMonthlyPrice("en"), "USD 30 / month");
+  assert.equal(formatTradingAddonMonthlyPrice("sv"), "30 USD / månad");
+  assert.equal(formatTradingBundleMonthlyPrice("en"), "USD 49 / month");
 });
 
 test("displayed prices and legacy Trading commerce use one source of truth", () => {

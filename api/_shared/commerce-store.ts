@@ -9,6 +9,7 @@ import type {
   AppliedIntroReservation,
 } from "./commerce-provider.js";
 import type { PaidPlanId } from "../../shared/plans.js";
+import type { AddonChange, AddonSubscription, AddonPlan } from "./commerce-addon.js";
 
 export interface CommerceClient {
   query(
@@ -76,6 +77,15 @@ const checkout = (r: Record<string, unknown>): CheckoutReservation => ({
   ...(r.offer_id === "premium-first-month-v1" ? { offer: r.offer_id } : {}),
   ...(typeof r.coupon_id === "string" ? { couponId: r.coupon_id } : {}),
   ...(r.return_to === "swipe" ? { returnTo: r.return_to } : {}),
+});
+const addonChange = (r: Record<string, unknown>): AddonChange => ({
+  id: String(r.id), requestKey: String(r.request_key), subscriptionId: String(r.subscription_id),
+  fromPlan: r.from_plan as AddonPlan, targetPlan: r.target_plan as AddonPlan,
+  fromPriceId: String(r.from_price_id), targetPriceId: String(r.target_price_id),
+  periodStart: Math.floor(Date.parse(date(r.period_start)) / 1000), effectiveAt: Math.floor(Date.parse(date(r.effective_at)) / 1000),
+  createdAt: date(r.created_at), scheduleId: typeof r.schedule_id === "string" ? r.schedule_id : null,
+  body: r.request_body == null ? null : r.request_body as AddonChange["body"], state: r.state as AddonChange["state"],
+  ...(typeof r.cancel_request_key === "string" ? { cancelRequestKey: r.cancel_request_key } : {}),
 });
 let runtimePool: Pool | undefined;
 function defaultPool(): CommercePool {
@@ -164,6 +174,68 @@ export function createCommerceStore(
     }
   }
   return {
+    async addonAvailable(): Promise<boolean> {
+      return transaction(async client => {
+        const rows = (await client.query("/* commerce:addon-schema */ SELECT to_regclass('sajda.commerce_addon_changes') IS NOT NULL AND EXISTS(SELECT 1 FROM sajda.schema_migrations WHERE id='0027_trading_addon_changes.sql') AS ready")).rows;
+        if (rows.length !== 1 || typeof rows[0].ready !== "boolean") throw new CommerceError("billing_unavailable");
+        return rows[0].ready;
+      });
+    },
+    async addonChange(lease: CommerceLease, requestKey?: string): Promise<AddonChange | null> {
+      return transaction(async client => {
+        await fence(client, lease);
+        const rows = (await client.query(`/* commerce:addon-existing */ SELECT * FROM sajda.commerce_addon_changes
+          WHERE namespace=$1 AND owner_id=$2 AND (request_key=$3::uuid OR state IN ('creating','scheduled','canceling'))
+          ORDER BY (request_key=$3::uuid) DESC NULLS LAST,created_at DESC LIMIT 1`, [ns, lease.ownerId, requestKey ?? null])).rows;
+        return rows[0] ? addonChange(rows[0]) : null;
+      });
+    },
+    async addonScheduleOwner(lease: CommerceLease, scheduleId: string): Promise<AddonChange | null> {
+      return transaction(async client => {
+        await fence(client, lease);
+        const rows = (await client.query("/* commerce:addon-owner */ SELECT * FROM sajda.commerce_addon_changes WHERE namespace=$1 AND owner_id=$2 AND schedule_id=$3", [ns, lease.ownerId, scheduleId])).rows;
+        return rows[0] ? addonChange(rows[0]) : null;
+      });
+    },
+    async addonCancelChange(lease: CommerceLease, requestKey: string): Promise<AddonChange | null> {
+      return transaction(async client => {
+        await fence(client, lease);
+        const rows = (await client.query(`/* commerce:addon-cancel-existing */ SELECT * FROM sajda.commerce_addon_changes
+          WHERE namespace=$1 AND owner_id=$2 AND (cancel_request_key=$3::uuid OR state IN ('creating','scheduled','canceling'))
+          ORDER BY (cancel_request_key=$3::uuid) DESC NULLS LAST,created_at DESC LIMIT 1`, [ns, lease.ownerId, requestKey])).rows;
+        return rows[0] ? addonChange(rows[0]) : null;
+      });
+    },
+    async reserveAddonChange(lease: CommerceLease, requestKey: string, context: AddonSubscription, targetPlan: AddonPlan, targetPriceId: string): Promise<AddonChange> {
+      return transaction(async client => {
+        await fence(client, lease);
+        const existing = (await client.query(`/* commerce:addon-existing */ SELECT * FROM sajda.commerce_addon_changes
+          WHERE namespace=$1 AND owner_id=$2 AND (request_key=$3::uuid OR state IN ('creating','scheduled','canceling'))
+          ORDER BY (request_key=$3::uuid) DESC,created_at DESC LIMIT 1`, [ns, lease.ownerId, requestKey])).rows;
+        if (existing[0]) return addonChange(existing[0]);
+        const count = (await client.query("SELECT count(*)::int AS n FROM sajda.commerce_addon_changes WHERE namespace=$1 AND owner_id=$2 AND created_at>clock_timestamp()-interval '24 hours'", [ns, lease.ownerId])).rows;
+        if (Number(count[0]?.n) >= 5) throw new CommerceError("addon_change_limit", 429);
+        const rows = (await client.query(`/* commerce:addon-reserve */ INSERT INTO sajda.commerce_addon_changes
+          (id,namespace,owner_id,request_key,subscription_id,from_plan,target_plan,from_price_id,target_price_id,period_start,effective_at)
+          VALUES($1::uuid,$2,$3,$4::uuid,$5,$6,$7,$8,$9,to_timestamp($10),to_timestamp($11)) RETURNING *`,
+        [randomUUID(), ns, lease.ownerId, requestKey, context.id, context.plan, targetPlan, context.priceId, targetPriceId, context.start, context.end])).rows;
+        return addonChange(rows[0]);
+      });
+    },
+    async saveAddonChange(lease: CommerceLease, change: AddonChange, patch: Partial<Pick<AddonChange, "state" | "scheduleId" | "body" | "cancelRequestKey">>): Promise<AddonChange> {
+      return transaction(async client => {
+        await fence(client, lease);
+        const rows = (await client.query(`/* commerce:addon-save */ UPDATE sajda.commerce_addon_changes
+          SET state=$4,schedule_id=COALESCE($5,schedule_id),request_body=COALESCE($6::jsonb,request_body),cancel_request_key=COALESCE(cancel_request_key,$8::uuid),updated_at=clock_timestamp()
+          WHERE namespace=$1 AND owner_id=$2 AND id=$3::uuid AND state=$7
+            AND ($5::text IS NULL OR schedule_id IS NULL OR schedule_id=$5)
+            AND ($6::jsonb IS NULL OR request_body IS NULL OR request_body=$6::jsonb)
+          RETURNING *`, [ns, lease.ownerId, change.id, patch.state ?? change.state, patch.scheduleId ?? null,
+          patch.body == null ? null : JSON.stringify(patch.body), change.state, patch.cancelRequestKey ?? null])).rows;
+        if (rows.length !== 1) throw new CommerceError("addon_change_review_required", 409);
+        return addonChange(rows[0]);
+      });
+    },
     async introAvailable(): Promise<boolean> {
       return transaction(async client => {
         const result = await client.query(`/* commerce:intro-schema */ SELECT

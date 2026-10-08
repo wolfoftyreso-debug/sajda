@@ -748,7 +748,7 @@ export const PUBLIC_INDEX_PAGES = Object.freeze([
     path: "/pricing",
     title: "Pricing & plans — Sajda",
     description:
-      "Compare Free, Basic, Premium and Trading. Clear monthly prices in USD, with current details on features and access.",
+      "Compare Free, Basic and Pro. Add Trading to Pro for domain research. Clear monthly USD prices, features and access.",
     h1: "Pricing & plans",
   },
   {

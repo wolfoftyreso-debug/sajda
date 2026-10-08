@@ -63,6 +63,14 @@ test("readiness inventory covers every migrated application relation, including 
   for (const relation of relations) assert.ok(storageReadinessSql.includes(`'${relation}'`), `${relation} is missing from structural readiness`);
 });
 
+test("Trading add-on readiness requires recovery state without implying provider or entitlement verification", () => {
+  for (const column of ["namespace", "owner_id", "request_key", "cancel_request_key", "subscription_id", "schedule_id",
+    "from_plan", "target_plan", "from_price_id", "target_price_id", "period_start", "effective_at", "request_body", "state", "created_at", "updated_at"]) {
+    assert.ok(storageReadinessSql.includes(`('commerce_addon_changes','${column}')`), column);
+  }
+  assert.doesNotMatch(storageReadinessSql, /\b(?:INSERT|UPDATE|DELETE|ALTER|CREATE|DROP)\b/u);
+});
+
 test("optional name-project readiness follows the route flag without interpolating environment input into SQL", () => {
   for (const value of [undefined, "false", "1", "TRUE", "true; DROP TABLE example"]) {
     assert.equal(storageReadinessParameters({ SAJDA_NAME_PROJECTS_ENABLED: value })[0], false);

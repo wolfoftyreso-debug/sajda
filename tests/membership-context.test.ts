@@ -13,6 +13,9 @@ function membership(plan: AccountMembership["plan"] = "premium", expiresAt = new
   return { plan, accessSource: plan === "free" ? "free" : "subscription", expiresAt: plan === "free" ? null : expiresAt,
     capabilities: { save_domains: true, swipe_undo: plan === "premium" || plan === "trading", trading: plan === "trading" } };
 }
+function canonicalMembership(plan: AccountMembership["plan"] = "premium", expiresAt?: string): AccountMembership {
+  return { ...membership(plan, expiresAt), basePlan: plan === "trading" ? "premium" : plan, addons: { trading: plan === "trading" } };
+}
 interface Value { membership: AccountMembership | null; loading: boolean; error: { code: string } | null; refresh(): Promise<void> }
 
 // Real React provider and membership/session client; only auth context, browser
@@ -52,6 +55,7 @@ test("one mounted membership provider follows account ownership, refresh and exp
   const requests: { owner: string | null; signal?: AbortSignal | null }[] = [];
   const frames: { owner: string | null; plan: string | null; loading: boolean; error: string | null }[] = [];
   const payload = (plan: AccountMembership["plan"] = "premium", owner = fixture.owner, expiresAt?: string) => ({ accountId: owner, requestId, membership: membership(plan, expiresAt) });
+  const canonicalPayload = (plan: AccountMembership["plan"] = "premium", owner = fixture.owner, expiresAt?: string) => ({ accountId: owner, requestId, membership: canonicalMembership(plan, expiresAt) });
   let reply: (request: typeof requests[number]) => Response | Promise<Response> = () => Response.json(payload());
   let renderer: ReactTestRenderer | undefined, latest: Value | undefined;
   globalThis.fetch = async (input, init = {}) => {
@@ -119,6 +123,29 @@ test("one mounted membership provider follows account ownership, refresh and exp
       assert.equal(requests.length, 7);
     });
 
+    await t.test("canonical Pro plus Trading survives a valid read, but conflicting or half-shaped responses stay unconfirmed", async () => {
+      const invalidResponses = [
+        { ...membership("trading"), basePlan: "premium" },
+        { ...membership("premium"), addons: { trading: true } },
+        { ...canonicalMembership("premium"), addons: { trading: true } },
+        { ...canonicalMembership("trading"), basePlan: "basic" },
+      ];
+      for (const invalid of invalidResponses) {
+        const failure = () => Response.json({ accountId: fixture.owner, requestId, membership: invalid });
+        await mount({ response: failure });
+        assert.equal(latest!.membership, null); assert.equal(latest!.error?.code, "invalid_response");
+        assert.ok(frames.every(frame => frame.plan === null), "An invalid initial snapshot is never shown as Free or paid");
+        await mount({ response: () => Response.json(canonicalPayload("trading")) });
+        assert.deepEqual(latest!.membership, canonicalMembership("trading"));
+        reply = failure; await act(async () => { await latest!.refresh(); });
+        assert.equal(latest!.membership, null); assert.equal(latest!.error?.code, "invalid_response");
+        assert.equal(latest!.loading, false);
+      }
+      reply = () => Response.json(canonicalPayload("premium"));
+      await act(async () => { await latest!.refresh(); });
+      assert.deepEqual(latest!.membership, canonicalMembership("premium"));
+    });
+
     await t.test("switching accounts aborts old work and hides it before the new account resolves", async () => {
       await mount(); const previous = deferred<Response>(), next = deferred<Response>();
       reply = request => request.owner === "account-a" ? previous.promise : next.promise;
@@ -126,10 +153,10 @@ test("one mounted membership provider follows account ownership, refresh and exp
       await until(() => requests.length === 2); const oldRequest = requests.at(-1)!;
       frames.length = 0; fixture.owner = "account-b"; await render(); await until(() => requests.length === 3);
       assert.equal(oldRequest.signal?.aborted, true); assert.equal(latest!.membership, null); assert.equal(latest!.loading, true);
-      await act(async () => { previous.resolve(Response.json(payload("trading", "account-a"))); await pause(); });
+      await act(async () => { previous.resolve(Response.json(canonicalPayload("trading", "account-a"))); await pause(); });
       assert.equal(latest!.membership, null);
       assert.ok(frames.every(frame => frame.owner !== "account-b" || frame.plan === null));
-      await act(async () => { next.resolve(Response.json(payload("basic", "account-b"))); await pause(); });
+      await act(async () => { next.resolve(Response.json(canonicalPayload("basic", "account-b"))); await pause(); });
       await until(() => latest!.membership?.plan === "basic");
     });
 
@@ -165,6 +192,22 @@ test("one mounted membership provider follows account ownership, refresh and exp
       await act(async () => { pending.resolve(Response.json(payload("free"))); await pause(); });
       await until(() => latest!.membership?.plan === "free");
       assert.ok([...timers.values()].every(timer => timer.interval), "Free plans leave no expiry timer");
+    });
+
+    await t.test("canonical Trading expiry hides the whole grant and restores Pro only from fresh server evidence", async () => {
+      const expiry = now + 5_000;
+      await mount({ response: () => Response.json(canonicalPayload("trading", "account-a", new Date(expiry).toISOString())) });
+      assert.equal(latest!.membership?.basePlan, "premium"); assert.deepEqual(latest!.membership?.addons, { trading: true });
+      const expiryTimer = [...timers].find(([, timer]) => !timer.interval && timer.delay === 5_000);
+      assert.ok(expiryTimer);
+      const pending = deferred<Response>(); reply = () => pending.promise; now = expiry + 1;
+      await act(async () => { timers.delete(expiryTimer[0]); expiryTimer[1].callback(); await pause(); });
+      await until(() => requests.length === 2);
+      assert.equal(latest!.membership, null); assert.equal(latest!.loading, true);
+      await act(async () => { pending.resolve(Response.json(canonicalPayload("premium"))); await pause(); });
+      await until(() => latest!.membership?.plan === "premium");
+      assert.equal(latest!.membership?.basePlan, "premium"); assert.deepEqual(latest!.membership?.addons, { trading: false });
+      assert.equal(latest!.membership?.capabilities.trading, false); assert.equal(latest!.membership?.capabilities.swipe_undo, true);
     });
 
     await t.test("focus and visible polling revalidate; hidden tabs do not start background reads", async () => {

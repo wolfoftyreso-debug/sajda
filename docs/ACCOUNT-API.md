@@ -2,6 +2,8 @@
 
 Users can connect an AI assistant to their own Sajda account through the authenticated [MCP endpoint](MCP.md), or use the equivalent REST operations below. Both operate on the same account data as the website. An assistant can read saved domains, naming projects, membership and existing Trading reports, and can save changes only when the user has granted the matching permission.
 
+The public base plans are Free, Basic and Pro. Trading is an optional Pro add-on on the same account, not a fourth base plan or another login. Membership presentation includes `basePlan` and `addons.trading`; legacy `plan: "premium"` means Pro and `plan: "trading"` means Pro with active Trading access. These compatibility identifiers are not permission grants. API/MCP keys cannot purchase or activate the add-on.
+
 The anonymous connector at `/api/mcp/public` exposes six public research tools and cannot read or change an account. The authenticated `/api/mcp` 1.10.0 catalogue has 31 tools, including saved brand reports, archived registry checks and daily registry-monitor controls. Discovery does not grant scopes, membership or another account's data. These are source contracts, not a claim that every client or deployed host is connected.
 
 ## Saved brand assessments
@@ -104,7 +106,7 @@ rebind also requires the latest report version and resets its baseline. Each
 intent uses a fresh UUID request key; an uncertain response must be retried with
 the identical payload/key. The original receipt is immutable.
 
-Server-verified Basic/Premium/Trading accounts allow 1/5/10 active monitors;
+Server-verified Basic/Pro/Pro-with-Trading accounts allow 1/5/10 active monitors;
 Free allows none. Reading, pausing and acknowledging remain available after
 downgrade. The oldest eligible monitors survive a lower limit; paused monitors
 do not silently reactivate after upgrade. Changed report scope pauses until
@@ -164,7 +166,7 @@ Responses preserve the product handler's body and HTTP status. A successful memb
 
 Project/scenario reads return the owner's collection. Their save responses contain only the affected item in `projects` or `scenarios`, so write-only keys cannot read unrelated private records. Use `expectedVersion: 0` for creation and the last returned version for an update. Retry an identical request after an uncertain failure; a version conflict requires a fresh authorized read. Project shortlist references must already belong to the same account's saved domains. Naming projects also require `SAJDA_NAME_PROJECTS_ENABLED=true` in the deployment. GitHub observations do not prove profile ownership or that an absent handle can be registered.
 
-Account permissions are independent of the user's package. The current plan and capabilities come from the server on the membership read, and restricted operations repeat their live entitlement checks. Trading reports, scenarios, new research and quote refreshes retain their operation-specific Trading membership and budget requirements; an API key cannot upgrade a Free, Basic or Premium account. Feature flags, account verification, environment isolation and product quotas apply just as on the website. Newly added scopes require database migration `0020_agent_product_scopes.sql`; existing keys are not silently expanded.
+Account permissions are independent of the user's package. The current base plan, add-ons and capabilities come from the server on the membership read, and restricted operations repeat their live entitlement checks. Trading reports, scenarios, new research and quote refreshes require active Trading access on Pro and their operation-specific budgets; an API key cannot upgrade a Free, Basic or Pro account or activate Trading. Feature flags, account verification, environment isolation and product quotas apply just as on the website. Newly added scopes require database migration `0020_agent_product_scopes.sql`; existing keys are not silently expanded.
 
 Failures have `{code, error, requestId}`. Authentication uses 401 with `WWW-Authenticate: Bearer`; missing scope or entitlement is 403; invalid input is 400; unsupported methods are 405 with `Allow`; provider/database failures are 503. Throttling uses 429 and `Retry-After` when available. Correlation IDs are echoed in `X-Request-Id`. No provider secrets, SQL error messages or credential values are returned.
 

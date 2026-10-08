@@ -31,15 +31,17 @@ export function billingHeaders(
 }
 const action = z
   .object({
-    action: z.enum(["checkout", "portal"]),
+    action: z.enum(["checkout", "portal", "trading-addon", "cancel-trading-addon-change"]),
     requestKey: z.string().uuid(),
     plan: z.enum(["basic", "premium", "trading"]).optional(),
     offer: z.literal("premium-first-month-v1").optional(),
     returnTo: z.literal("swipe").optional(),
+    enabled: z.boolean().optional(),
   })
   .strict()
   .superRefine((value, context) => {
-    if (value.action === "portal" && (value.plan !== undefined || value.offer !== undefined || value.returnTo !== undefined)) context.addIssue({ code: "custom", path: ["plan"], message: "purchase fields are only valid for checkout" });
+    if (value.action !== "checkout" && (value.plan !== undefined || value.offer !== undefined || value.returnTo !== undefined)) context.addIssue({ code: "custom", path: ["plan"], message: "purchase fields are only valid for checkout" });
+    if (value.action === "trading-addon" ? typeof value.enabled !== "boolean" : value.enabled !== undefined) context.addIssue({ code: "custom", path: ["enabled"], message: "explicit boolean required only for Trading add-on" });
     if (value.offer !== undefined && value.plan !== "premium") context.addIssue({ code: "custom", path: ["offer"], message: "intro offer requires the Premium plan" });
   });
 export async function billingAction(

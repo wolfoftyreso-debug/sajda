@@ -1146,7 +1146,7 @@ const Swipe = () => {
                 aria-describedby="swipe-undo-hint" className="h-auto min-h-11 max-w-full flex-wrap gap-x-2 gap-y-1 px-3 py-2 text-sm">
                 <Undo2 className={cn("h-4 w-4", isUndoPending && "animate-pulse")} aria-hidden="true" />
                 <span>{isUndoPending ? premiumCopy.pending : premiumCopy.undo}</span>
-                <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-[10px] font-semibold text-primary">Premium</span>
+                <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-[10px] font-semibold text-primary">Pro</span>
               </Button>
               <p id="swipe-undo-hint" className="text-xs text-muted-foreground">{premiumCopy.hint}</p>
             </div>

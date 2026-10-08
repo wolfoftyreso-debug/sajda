@@ -93,7 +93,7 @@ The implemented and tested negotiated protocol versions are **2025-11-25**, **20
 
 ## Connect
 
-Create a scoped API key from the Sajda account that owns the saved domains and Trading membership. Keep the key in the MCP client's secret settings. Send `Authorization: Bearer <key>` on **every** request. Keys belong to one account and deployment environment, expire, and stop working after revocation or loss of a verified account.
+Create a scoped API key from the same Sajda account that owns the saved domains and, when applicable, the Trading add-on on Pro. Keep the key in the MCP client's secret settings. Send `Authorization: Bearer <key>` on **every** request. Keys belong to one account and deployment environment, expire, and stop working after revocation or loss of a verified account. Trading never requires another account or login.
 
 This release supports MCP clients that can send a configured bearer header. It does **not** implement OAuth discovery, OAuth registration, or OAuth login for clients that require those flows. A browser session cookie and the legacy operator search key cannot authenticate this endpoint.
 
@@ -167,7 +167,7 @@ latest. Retry an uncertain start with its identical UUID receipt; `pending` is
 not success and terminal receipts never change. See [limits, source coverage and
 recovery](ACCOUNT-API.md#archived-registry-observations).
 
-There are no payment, purchase, registration, reservation, or automatic buying tools. Trading scopes do not grant Trading membership; the same server-side membership, quota, kill-switch, candidate and ownership checks used by the website remain in force. Saved fields are research notes, not an authoritative quote. Domain results preserve unknown availability, evidence dates, price scope, and currency.
+There are no payment, purchase, registration, reservation, or automatic buying tools. Trading scopes do not activate the Pro add-on; the same server-side membership, quota, kill-switch, candidate and ownership checks used by the website remain in force. Saved fields are research notes, not an authoritative quote. Domain results preserve unknown availability, evidence dates, price scope, and currency.
 
 The four new permissions are opt-in. Apply migration
 `0020_agent_product_scopes.sql` before issuing keys with `projects:read`,

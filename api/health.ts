@@ -32,6 +32,7 @@ export const storageReadinessSql = `SELECT
       'sajda.lost_domain_runs', 'sajda.lost_domain_work_items', 'sajda.lost_domain_assessments',
       'sajda.lost_domain_attempts', 'sajda.lost_domain_effective_access', 'sajda.lost_domain_provider_backoff',
       'sajda.commerce_events', 'sajda.commerce_customers', 'sajda.commerce_checkouts', 'sajda.commerce_access',
+      'sajda.commerce_addon_changes',
       'sajda.lost_domain_quote_requests', 'sajda.lost_domain_quote_observations',
       'sajda.trading_scenarios', 'sajda.developer_api_keys', 'sajda.developer_api_quotas',
       'sajda.native_authorization_codes', 'sajda.native_sessions', 'sajda.account_deletion_challenges',
@@ -44,7 +45,15 @@ export const storageReadinessSql = `SELECT
       ('lost_domain_quote_requests','request_key'), ('lost_domain_quote_requests','assessment_id'),
       ('lost_domain_quote_observations','evidence'),
       ('trading_scenarios','namespace'), ('trading_scenarios','owner_id'),
-      ('trading_scenarios','payload'), ('trading_scenarios','version'), ('trading_scenarios','last_input_hash')
+      ('trading_scenarios','payload'), ('trading_scenarios','version'), ('trading_scenarios','last_input_hash'),
+      ('commerce_addon_changes','id'), ('commerce_addon_changes','namespace'), ('commerce_addon_changes','owner_id'),
+      ('commerce_addon_changes','request_key'), ('commerce_addon_changes','cancel_request_key'),
+      ('commerce_addon_changes','subscription_id'), ('commerce_addon_changes','schedule_id'),
+      ('commerce_addon_changes','from_plan'), ('commerce_addon_changes','target_plan'),
+      ('commerce_addon_changes','from_price_id'), ('commerce_addon_changes','target_price_id'),
+      ('commerce_addon_changes','period_start'), ('commerce_addon_changes','effective_at'),
+      ('commerce_addon_changes','request_body'), ('commerce_addon_changes','state'),
+      ('commerce_addon_changes','created_at'), ('commerce_addon_changes','updated_at')
     ) AS required(table_name,column_name)
     WHERE NOT EXISTS (SELECT 1 FROM information_schema.columns actual
       WHERE actual.table_schema='sajda' AND actual.table_name=required.table_name

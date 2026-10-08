@@ -5,7 +5,7 @@ import { createElement as h } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
 import { createServer } from "vite";
-import { PLAN_ORDER, PLANS, formatPlanMonthlyPrice } from "../shared/plans";
+import { BASE_PLAN_ORDER, PLANS, formatPlanMonthlyPrice, formatTradingAddonMonthlyPrice, formatTradingBundleMonthlyPrice } from "../shared/plans";
 import { PLUS_PLAN } from "../shared/plus-plan";
 import { getPricingCopy } from "../src/i18n/pricingCopy";
 
@@ -13,8 +13,8 @@ function label(node: ReactTestInstance): string {
   return node.children.map(child => typeof child === "string" ? child : label(child)).join("");
 }
 
-test("pricing describes four distinct levels without advertising unfinished monitoring as live", () => {
-  assert.deepEqual(PLAN_ORDER, ["free", "basic", "premium", "trading"]);
+test("pricing describes three base plans plus a Trading add-on without advertising unfinished monitoring as live", () => {
+  assert.deepEqual(BASE_PLAN_ORDER, ["free", "basic", "premium"]);
   assert.equal(PLANS.trading.unitAmount, PLUS_PLAN.unitAmount);
   for (const language of ["sv", "en"]) {
     const copy = getPricingCopy(language);
@@ -33,7 +33,7 @@ test("pricing describes four distinct levels without advertising unfinished moni
     assert.deepEqual(Object.keys(copy).sort(), Object.keys(getPricingCopy("en")).sort());
     assert.equal(Object.keys(copy.plans).length, 4);
     assert.equal(copy.plans.trading.name, "Trading");
-    assert.equal(copy.plans.premium.name, "Premium");
+    assert.equal(copy.plans.premium.name, "Pro");
   }
   assert.deepEqual(getPricingCopy("unsupported"), getPricingCopy("en"));
 });
@@ -75,7 +75,7 @@ test("mounted pricing presents the shared prices and only truthful navigation, w
   try {
     const { default: Pricing } = await vite.ssrLoadModule("/src/pages/Pricing.tsx");
     for (const language of ["en", "sv", "es", "fr", "zh"]) {
-      await t.test(`${language}: four prices, authenticated purchase entry and no overflow-prone controls`, async () => {
+      await t.test(`${language}: three base prices plus the add-on, authenticated purchase entry and no overflow-prone controls`, async () => {
         setLanguage(language);
         if (renderer) await act(async () => renderer!.unmount());
         await act(async () => { renderer = create(h(MemoryRouter, { initialEntries: ["/pricing"], future: { v7_startTransition: true, v7_relativeSplatPath: true } }, h(Pricing))); });
@@ -83,13 +83,16 @@ test("mounted pricing presents the shared prices and only truthful navigation, w
         assert.equal(cards.length, 4);
         assert.equal(renderer!.root.findAllByType("h1").length, 1);
         const founderSection = renderer!.root.findByProps({ "data-plan-group": "founder" });
-        const specialistSection = renderer!.root.findByProps({ "data-plan-group": "specialist" });
+        const specialistSection = renderer!.root.findByProps({ "data-plan-group": "addon" });
         assert.deepEqual(founderSection.findAllByType("article").map(card => card.props["data-plan"]), ["free", "basic", "premium"]);
-        assert.deepEqual(specialistSection.findAllByType("article").map(card => card.props["data-plan"]), ["trading"]);
+        assert.deepEqual(specialistSection.findAllByType("article").map(card => card.props["data-addon"]), ["trading"]);
+        assert.equal(label(specialistSection.findByProps({ "data-addon-price": "trading" })), `+ ${formatTradingAddonMonthlyPrice(language)}`);
+        assert.ok(label(specialistSection.findByProps({ "data-addon-total": true })).includes(formatTradingBundleMonthlyPrice(language)));
+        assert.equal(specialistSection.findByType("a").props.href, "/auth?next=%2Fpricing%23trading-addon");
         const freeStart = renderer!.root.findByProps({ "aria-labelledby": "pricing-current-title" }).findByType("a");
         assert.equal(freeStart.props.href, "/", "Visitors can reach value before weighing unavailable subscriptions");
         assert.equal(label(freeStart), getPricingCopy(language).trySearch);
-        for (const id of PLAN_ORDER) {
+        for (const id of BASE_PLAN_ORDER) {
           const card = cards.find(card => card.props["data-plan"] === id)!;
           const price = card.findByProps({ "data-plan-price": id });
           assert.equal(label(price), formatPlanMonthlyPrice(id, language));
@@ -142,11 +145,11 @@ test("pricing preserves a cross-plan checkout conflict and never redirects or au
       const normalized = id.replaceAll("\\", "/");
       if (normalized.endsWith("/src/i18n/LanguageProvider.tsx")) return 'export const useLanguage=()=>({language:"en"});export const applyDocumentMetadata=()=>{};';
       if (normalized.endsWith("/src/contexts/AuthContext.tsx")) return 'const user={id:"qa-account"};export const useAuth=()=>({user,loading:false});';
-      if (normalized.endsWith("/src/contexts/MembershipContext.tsx")) return 'export const useMembership=()=>({membership:{plan:"free",accessSource:"free",expiresAt:null},loading:false,error:null});';
+      if (normalized.endsWith("/src/contexts/MembershipContext.tsx")) return 'export const useMembership=()=>({membership:{plan:"free",accessSource:"free",expiresAt:null,capabilities:{save_domains:true,swipe_undo:false,trading:false}},loading:false,error:null});';
       if (normalized.endsWith("/src/components/LanguageSwitcher.tsx")) return "export default function LanguageSwitcher(){return null;}";
       if (normalized.endsWith("/src/lib/plusBilling.ts")) return `
         export class PlusBillingError extends Error {constructor(code,requestId){super(code);this.code=code;this.requestId=requestId;}}
-        export async function getPlusBilling(){return {canManage:false,plans:{basic:{ready:true,canCheckout:true},premium:{ready:true,canCheckout:true},trading:{ready:true,canCheckout:true}}};}
+        export async function getPlusBilling(){return {accountId:"qa-account",canManage:false,plans:{basic:{ready:true,canCheckout:true},premium:{ready:true,canCheckout:true},trading:{ready:true,canCheckout:true}}};}
         export async function openPlusBilling(scope,action,key,plan){globalThis.${fixtureKey}.push(plan);throw new PlusBillingError("checkout_plan_conflict","req_0123456789abcdef");}
       `;
     } }],
@@ -187,11 +190,11 @@ test("returning canceled customers can choose a new plan while active customers 
       const normalized = id.replaceAll("\\", "/");
       if (normalized.endsWith("/src/i18n/LanguageProvider.tsx")) return 'export const useLanguage=()=>({language:"en"});export const applyDocumentMetadata=()=>{};';
       if (normalized.endsWith("/src/contexts/AuthContext.tsx")) return 'const user={id:"qa-returning"};export const useAuth=()=>({user,loading:false});';
-      if (normalized.endsWith("/src/contexts/MembershipContext.tsx")) return 'export const useMembership=()=>({membership:{plan:"free",accessSource:"free",expiresAt:null},loading:false,error:null});';
+      if (normalized.endsWith("/src/contexts/MembershipContext.tsx")) return 'export const useMembership=()=>({membership:{plan:"free",accessSource:"free",expiresAt:null,capabilities:{save_domains:true,swipe_undo:false,trading:false}},loading:false,error:null});';
       if (normalized.endsWith("/src/components/LanguageSwitcher.tsx")) return "export default function LanguageSwitcher(){return null;}";
       if (normalized.endsWith("/src/lib/plusBilling.ts")) return `
         export class PlusBillingError extends Error {constructor(code){super(code);this.code=code;}}
-        export async function getPlusBilling(){const eligible=globalThis.${fixtureKey}.eligible;return {canManage:true,status:eligible?"canceled":"active",plans:Object.fromEntries(["basic","premium","trading"].map(plan=>[plan,{ready:true,canCheckout:eligible}]))};}
+        export async function getPlusBilling(){const eligible=globalThis.${fixtureKey}.eligible;return {accountId:"qa-returning",canManage:true,tradingAddon:{canAdd:false,canRemove:false,pending:null},status:eligible?"canceled":"active",plans:Object.fromEntries(["basic","premium","trading"].map(plan=>[plan,{ready:true,canCheckout:eligible}]))};}
         export async function openPlusBilling(scope,action,key,plan){globalThis.${fixtureKey}.calls.push(action+":"+plan);return action==="portal"?"https://billing.stripe.com/p/session/fixture":"https://checkout.stripe.com/c/pay/fixture";}
       `;
     } }],
@@ -205,7 +208,8 @@ test("returning canceled customers can choose a new plan while active customers 
       if (renderer) await act(async () => renderer!.unmount());
       await act(async () => { renderer = create(h(MemoryRouter, { initialEntries: ["/pricing"] }, h(Pricing))); await pause(); });
       for (let i = 0; i < 100 && !renderer!.root.findAllByProps({ "data-plan-change-policy": true }).length; i++) await act(pause);
-      assert.match(label(renderer!.root.findByProps({ "data-plan-change-policy": true })), /Self-service plan changes are not available yet/);
+      assert.match(label(renderer!.root.findByProps({ "data-plan-change-policy": true })), /Manage the Trading add-on on the pricing page/);
+      assert.match(label(renderer!.root.findByProps({ "data-plan-change-policy": true })), /next monthly renewal/);
       const basic = renderer!.root.findByProps({ "data-plan": "basic" }).findByType("button");
       assert.equal(label(basic), eligible ? "Choose Basic" : "Manage subscription");
       calls.length = 0;

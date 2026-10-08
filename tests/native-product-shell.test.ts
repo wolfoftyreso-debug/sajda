@@ -8,6 +8,7 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from "rea
 import { createServer } from "vite";
 import { nativeCopy } from "../src/app/nativeCopy";
 import { accountAccessCopy } from "../src/i18n/accountAccessCopy";
+import { tradingAddonCopy } from "../src/i18n/tradingAddonCopy";
 
 const label = (node: ReactTestInstance): string => node.children.map(child => typeof child === "string" ? child : label(child)).join("");
 
@@ -65,7 +66,7 @@ test("native product routes, navigation, sign-in and payment boundaries", async 
       fixture.user = null;
       await mount(h(Navigation), "/swipe");
       const links = renderer!.root.findAllByType("a");
-      assert.deepEqual(links.map(link => link.props.href), ["/", "/swipe", "/watchlist", "/plus", "/account"]);
+      assert.deepEqual(links.map(link => link.props.href), ["/", "/swipe", "/watchlist", "/account#trading", "/account"]);
       assert.deepEqual(links.map(label), ["Sök", "Swipe", "Sparat", "Trading", "Konto"]);
       assert.equal(links[2].props["aria-label"], "Sparade domäner");
       assert.equal(links[1].props["aria-current"], "page");
@@ -117,7 +118,8 @@ test("native product routes, navigation, sign-in and payment boundaries", async 
     await t.test("Trading shows confirmed membership but cannot read or open web billing", async () => {
       fixture.user = { id: "native-account" };
       await mount(h(PlusBilling, { accountId: fixture.user.id, language: "sv", fallback: getLostDomainsCopy("sv") }), "/plus?billing=success");
-      assert.equal(renderer!.root.findByProps({ "data-current-plan": "trading" }).children[0], "Trading");
+      assert.equal(renderer!.root.findByProps({ "data-current-plan": "premium" }).children[0], "Pro");
+      assert.ok(label(renderer!.root.findByProps({ "data-trading-addon": "active" })).includes(tradingAddonCopy.sv.active));
       assert.ok(label(renderer!.root).includes(nativeCopy.sv.checkoutTitle));
       assert.equal(fixture.reads, 0);
       assert.equal(fixture.payments, 0);

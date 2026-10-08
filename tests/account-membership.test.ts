@@ -7,9 +7,9 @@ import membershipHandler, { createAccountMembershipHandler } from "../api/accoun
 
 const account = { id: "membership-owner-a", emailVerified: true };
 const now = Date.parse("2026-09-10T12:00:00Z");
-const free: AccountMembership = { plan: "free", accessSource: "free", expiresAt: null,
+const free: AccountMembership = { plan: "free", basePlan: "free", addons: { trading: false }, accessSource: "free", expiresAt: null,
   capabilities: { save_domains: true, swipe_undo: false, trading: false } };
-type Grant = { owner: string; plan: "premium" | "trading"; source: "operator" | "subscription";
+type Grant = { owner: string; plan: "basic" | "premium" | "trading"; source: "operator" | "subscription";
   starts: number; expires: number; revoked?: boolean; namespace?: string };
 
 /** Deliberately labelled simulation: real PostgreSQL is exercised separately
@@ -38,7 +38,8 @@ function membershipFixture(namespace = "preview") {
       const active = grants.filter(grant => grant.owner === params[1] && !grant.revoked
         && grant.starts <= now && grant.expires > now && state.verified && state.count <= 120
         && (grant.source === "operator" || grant.namespace === namespace));
-      active.sort((a, b) => Number(b.plan === "trading") - Number(a.plan === "trading") || b.expires - a.expires);
+      const tiers = { basic: 1, premium: 2, trading: 3 };
+      active.sort((a, b) => tiers[b.plan] - tiers[a.plan] || b.expires - a.expires);
       const top = active[0];
       return [state.corrupt ?? { request_count: state.count, account_id: params[1], verified: state.verified,
         namespace, checked_at: new Date(now), plan: top?.plan ?? null, access_source: top?.source ?? null,
@@ -51,7 +52,7 @@ test("Trading includes Premium on the same verified account without writing a se
   const fixture = membershipFixture();
   assert.deepEqual(await fixture.read(account), free);
   fixture.grants.push({ owner: account.id, plan: "trading", source: "operator", starts: now - 1, expires: now + 60_000 });
-  assert.deepEqual(await fixture.read(account), { plan: "trading", accessSource: "operator",
+  assert.deepEqual(await fixture.read(account), { plan: "trading", basePlan: "premium", addons: { trading: true }, accessSource: "operator",
     expiresAt: new Date(now + 60_000).toISOString(), capabilities: { save_domains: true, swipe_undo: true, trading: true } });
   assert.deepEqual(await fixture.read({ id: "membership-owner-b", emailVerified: true }), free);
   assert.notEqual(fixture.calls[1].params[0], fixture.calls[2].params[0]);
@@ -66,10 +67,44 @@ test("Trading downgrade uses only still-active Premium and eventually Free, with
   trading.revoked = true;
   const downgraded = await fixture.read(account);
   assert.equal(downgraded.plan, "premium");
+  assert.equal(downgraded.basePlan, "premium");
+  assert.deepEqual(downgraded.addons, { trading: false });
   assert.equal(downgraded.expiresAt, new Date(premium.expires).toISOString());
   assert.deepEqual(downgraded.capabilities, { save_domains: true, swipe_undo: true, trading: false });
   premium.expires = now;
   assert.deepEqual(await fixture.read(account), free);
+});
+
+test("canonical base plan and Trading add-on describe the same fresh grant without inventing access", async () => {
+  const fixture = membershipFixture();
+  for (const plan of ["basic", "premium", "trading"] as const) {
+    fixture.grants.splice(0, Infinity, { owner: account.id, plan, source: "subscription", namespace: "preview",
+      starts: now - 1, expires: now + 60_000 });
+    const membership = await fixture.read(account);
+    assert.equal(membership.plan, plan, "The legacy plan remains compatible with existing clients");
+    assert.equal(membership.basePlan, plan === "trading" ? "premium" : plan);
+    assert.deepEqual(membership.addons, { trading: plan === "trading" });
+    assert.equal(membership.capabilities.trading, membership.addons?.trading);
+    assert.equal(membership.capabilities.swipe_undo, membership.basePlan === "premium");
+    assert.equal(membership.accessSource, "subscription");
+    assert.equal(membership.expiresAt, new Date(now + 60_000).toISOString());
+    fixture.grants[0].revoked = true;
+    assert.deepEqual(await fixture.read(account), free, "Neither a base plan nor an add-on survives its only grant");
+  }
+});
+
+test("row-supplied product dimensions cannot turn Pro, Basic or Free into Trading", async () => {
+  const fixture = membershipFixture();
+  for (const plan of ["basic", "premium", null] as const) {
+    fixture.state.corrupt = { request_count: 1, account_id: account.id, verified: true, namespace: "preview",
+      checked_at: new Date(now), plan, access_source: plan ? "subscription" : null,
+      expires_at: plan ? new Date(now + 60_000) : null, basePlan: "premium", addons: { trading: true },
+      capabilities: { save_domains: true, swipe_undo: true, trading: true } };
+    const membership = await fixture.read(account);
+    assert.equal(membership.basePlan, plan ?? "free");
+    assert.deepEqual(membership.addons, { trading: false });
+    assert.equal(membership.capabilities.trading, false);
+  }
 });
 
 test("future, expired and revoked grants cannot produce a paid tier; active expiry is exact", async () => {
@@ -193,8 +228,16 @@ test("membership API errors contain correlation, never leak SQL/provider data or
       if (response.code === 429) assert.equal(response.headers.get("retry-after"), 60);
       assert.doesNotMatch(JSON.stringify(response.body), /private-user|secret|private-host/u);
     }
-    const bad = createAccountMembershipHandler(async () => account, async () => ({ ...free, capabilities: { ...free.capabilities, trading: true } }));
-    assert.equal((await perform(bad)).code, 503);
+    for (const invalid of [
+      { ...free, capabilities: { ...free.capabilities, trading: true } },
+      { ...free, addons: { trading: true } },
+      { ...free, basePlan: "premium" as const },
+    ]) {
+      const bad = createAccountMembershipHandler(async () => account, async () => invalid);
+      const response = await perform(bad);
+      assert.equal(response.code, 503);
+      assert.equal("membership" in (response.body as object), false);
+    }
     assert.doesNotMatch(logs.join("\n"), /private-user|secret|private-host|membership-owner-a/u);
   } finally { console.error = before; }
 });

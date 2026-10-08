@@ -7,6 +7,7 @@ import { useLanguage, type Language } from "@/i18n/LanguageProvider";
 import { accountNavigationCopy } from "@/i18n/accountNavigationCopy";
 import { nameProjectsEnabled } from "@/lib/nameProjectsFeature";
 import { projectEntryCopy } from "@/i18n/projectEntryCopy";
+import { tradingAddonCopy } from "@/i18n/tradingAddonCopy";
 
 type FooterCopy = {
   label: string;
@@ -364,7 +365,7 @@ export default function SajdaFooter() {
               <FooterLink to="/swipe" description={copy.swipeHint}>{copy.swipe}</FooterLink>
               {nameProjectsEnabled && <FooterLink to="/projects">{projectEntryCopy[language].projects}</FooterLink>}
               <FooterLink to="/pricing">{language === "sv" ? "Priser & nivåer" : language === "es" ? "Precios y planes" : language === "fr" ? "Tarifs et offres" : language === "zh" ? "价格与方案" : "Pricing & plans"}</FooterLink>
-              <FooterLink to="/plus">Sajda Trading · Lost Domains</FooterLink>
+              <FooterLink to="/account#trading">{tradingAddonCopy[language].title}</FooterLink>
               <FooterLink to="/marketplace" description={copy.marketplaceHint}>{copy.marketplace}</FooterLink>
               {user && !authDisabled ? (
                 <>

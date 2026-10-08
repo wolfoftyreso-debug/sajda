@@ -108,7 +108,7 @@ test("mounted Swipe Premium offer keeps pricing, account, intent and deck-return
     await t.test("a verified ineligible returning account sees the explicit regular 19 USD price, not a first-month offer", async () => {
       const base = billing();
       await mount({ ...base, status: "canceled", canManage: true, premiumIntro: { ...base.premiumIntro, eligible: false } });
-      assert.match(text(), /Premium · USD 19\/month/); assert.match(text(), /first Sajda subscription only/);
+      assert.match(text(), /Pro · USD 19\/month/); assert.match(text(), /first Sajda subscription only/);
       assert.doesNotMatch(text(), /USD 9 for your first month/); assert.equal(buttons(swipePremiumCopy.en.testUpgrade).length, 0);
       reply = row => Response.json({ accountId: row.owner, requestId, url: "https://checkout.stripe.com/c/pay/cs_test_regular" });
       await click(swipePremiumCopy.en.testStandardUpgrade); await until(() => navigations.length === 1);

@@ -289,7 +289,7 @@ Project/scenario saves return only the affected record, not the entire private
 workspace. Use stable IDs and optimistic versions; retry the identical payload
 after an ambiguous failure. A GitHub missing-profile observation does not prove
 that a handle can be registered. Trading scenarios remain user-authored
-assumptions and require active Trading membership.
+assumptions and require active Trading access as an add-on to Pro on the same account. Connector permissions cannot activate it or create another subscription.
 
 Authentication, billing, deletion and key administration remain controlled
 account flows, not public agent actions. Disabled legacy Supabase features are

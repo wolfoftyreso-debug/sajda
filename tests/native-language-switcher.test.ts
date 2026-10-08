@@ -133,7 +133,7 @@ test("compact native language selection uses the real shared language provider",
       const sourceClassBudget = 24 + 44 + 4 + 76 + 8 + 64 + 8 + 44 + 44;
       assert.equal(sourceClassBudget, 316);
       assert.ok(sourceClassBudget <= 320);
-      assert.deepEqual(root().findByType("nav").findAllByType("a").map(link => link.props.href), ["/", "/swipe", "/watchlist", "/plus", "/account"]);
+      assert.deepEqual(root().findByType("nav").findAllByType("a").map(link => link.props.href), ["/", "/swipe", "/watchlist", "/account#trading", "/account"]);
     });
 
     await t.test("the website keeps its five-button language switcher and shares the same saved preference", async () => {

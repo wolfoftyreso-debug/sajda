@@ -147,15 +147,15 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
     await t.test("guest sees plan limits before signup without loading private data", async () => {
       await mount(empty(), null);
       assert.equal(requests.length, 0); assert.equal(polls.size, 0);
-      assert.equal(label(renderer!.root.findByType("h1")), "Trading");
+      assert.equal(label(renderer!.root.findByType("h1")), "Trading research");
       assert.equal(nextStep().props["data-state"], "guest");
       const signIn = nextStep().findAllByType("a").find(node => label(node) === "Sign in with your Sajda account");
       assert.ok(signIn, "The first action uses the existing Sajda account");
-      assert.equal(signIn.props.href, "/auth?next=%2Fplus");
+      assert.equal(signIn.props.href, "/auth?next=%2Faccount%23trading");
       assert.equal(startButtons().length, 0);
       const elements = renderer!.root.findAll(node => typeof node.type === "string");
       assert.ok(elements.indexOf(nextStep()) < elements.indexOf(renderer!.root.findByType("aside")), "Sign-in guidance precedes the sales card");
-      assert.match(text(), /An account does not automatically include Trading/);
+      assert.match(text(), /Trading is an optional add-on to Pro/);
       const pricing = label(renderer!.root.findByType("aside"));
       assert.match(pricing, /What's included/);
       assert.match(pricing, /up to 24 approved source pages and 600 names/);
@@ -169,7 +169,7 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
         assert.equal(nextStep().props["data-state"], "loading");
         assert.equal(renderer!.root.findAllByType("aside").length, 0);
         assert.equal(startButtons().length, 0);
-        assert.doesNotMatch(label(nextStep()), /Sign in with your Sajda account|An account does not automatically include Trading/u);
+        assert.doesNotMatch(label(nextStep()), /Sign in with your Sajda account|Trading is an optional add-on to Pro/u);
         assert.equal(requests.length, 0, "Auth must settle before any private report request");
       }
       const pending = deferred<Response>();
@@ -371,7 +371,7 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
     await t.test("Trading report filters change only the visible report and keep subscription below the workspace", async () => {
       await mount();
       assert.equal(renderer!.root.findAllByType("aside").length,0,"An active account does not see the sales card before work");
-      assert.match(text(),/Account and Trading subscription/);
+      assert.match(text(),/Pro and Trading billing/);
       const originalNextStep = label(nextStep());
       const input=reportSection().findByType("input");
       await act(async()=>{input.props.onChange({target:{value:"no-match"}});await pause();});
@@ -695,7 +695,7 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
       await click("Refresh status"); await until(() => requests.length === 2);
       await act(async () => { fixture.billingVerified("account-a"); await pause(); });
       assert.equal(requests.length, 2, "Existing GET is not interrupted or duplicated");
-      assert.match(text(), /An account does not automatically include Trading/);
+      assert.match(text(), /Trading is an optional add-on to Pro/);
       reply = () => Response.json(snapshot());
       await act(async () => { pending.resolve(Response.json(empty("account-a", false))); await pause(); });
       await until(() => text().includes("private-alpha.dev"));
@@ -788,7 +788,7 @@ test("mounted Lost Domains protects explicit work, private reports and concurren
       await mount(); assert.match(text(), /private-alpha\.dev/);
       reply = () => Response.json(empty("account-a", false));
       await click("Refresh status");
-      await until(() => text().includes("An account does not automatically include Trading"));
+      await until(() => text().includes("Trading is an optional add-on to Pro"));
       assert.doesNotMatch(text(), /private-alpha\.dev/); assert.equal(clocks.size, 0); assert.equal(polls.size, 0);
       reply = () => Response.json(empty());
       await click("Refresh status");

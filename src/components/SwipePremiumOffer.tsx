@@ -68,7 +68,7 @@ export default function SwipePremiumOffer({ accountId, language, authLoading, pr
   if (isNativeApp) return <div className="space-y-4"><p className="text-sm leading-6 text-muted-foreground">{copy.native}</p><Button variant="outline" className={actionClass} onClick={onClose}>{copy.close}</Button></div>;
   return <div className="space-y-4" data-premium-offer>
     <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 sm:p-5">
-      <p className="text-xs font-semibold uppercase tracking-wide text-primary">{intro ? copy.offer : "Premium"}</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-primary">{intro ? copy.offer : "Pro"}</p>
       <p className="mt-2 text-2xl font-semibold leading-tight tracking-tight" data-intro-price>{intro ? copy.firstMonth : copy.standard}</p>
       {intro && <p className="mt-2 text-base font-semibold" data-intro-renewal>{copy.renewal}</p>}
       {intro && <p className="mt-2 text-sm leading-6 text-muted-foreground">{copy.eligibility}</p>}

@@ -4,7 +4,7 @@ import { getLostDomainsCopy } from "../src/i18n/lostDomainsCopy";
 import { getPlusBillingCopy } from "../src/i18n/plusBillingCopy";
 import { PLUS_PLAN, formatPlusMonthlyPrice } from "../shared/plus-plan";
 
-test("the expert plan is consistently named Trading without changing its internal access key", () => {
+test("Trading remains identifiable as an add-on without changing its internal access key", () => {
   for (const language of ["sv", "en"]) {
     const research = getLostDomainsCopy(language), billing = getPlusBillingCopy(language);
     for (const label of [research.eyebrow, research.contact, research.locked, research.lockedBody,
@@ -24,8 +24,8 @@ test("Plus shows the approved fixed monthly US dollar price independently of che
   assert.equal(PLUS_PLAN.unitAmount, 4900);
   assert.equal(sv.price, formatPlusMonthlyPrice("sv"));
   assert.equal(en.price, formatPlusMonthlyPrice("en"));
-  assert.equal(sv.priceLabel, "Månadspris");
-  assert.equal(en.priceLabel, "Monthly price");
+  assert.equal(sv.priceLabel, "Totalt för Pro + Trading");
+  assert.equal(en.priceLabel, "Total for Pro + Trading");
   assert.match(sv.priceNote, /amerikanska dollar/);
   assert.match(en.priceNote, /US dollars/);
   assert.match(sv.priceNote, /skatt och slutligt totalbelopp visas innan du bekräftar betalningen/);
