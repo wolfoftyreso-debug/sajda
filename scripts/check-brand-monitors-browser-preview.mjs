@@ -19,6 +19,7 @@ import { brandIndexCopy } from "../src/i18n/brandIndexCopy.ts";
 import { SOCIAL_PLATFORMS } from "../shared/name-packages.ts";
 
 let phase = "configuration", setupAttempted = false, created = false, cleanupVerified = false, cleanupFailed = false;
+let safeFailureDiagnostics = null;
 const check = value => assert.ok(value);
 async function main() {
   check(process.env.SAJDA_BRAND_MONITORS_BROWSER_PREVIEW_TEST === "1" && !process.env.VERCEL);
@@ -49,7 +50,7 @@ async function main() {
   const pool = new Pool({ connectionString: database.toString(), max: 2, connectionTimeoutMillis: 8_000, query_timeout: 10_000 });
   const owner = randomUUID(), email = `brand-monitor-browser-${owner}@example.test`, password = `Sajda-${randomBytes(28).toString("base64url")}`;
   let browser, transaction, reportId, firstRun, syntheticAlert;
-  const measurements = [], runtimeErrors = [], posts = [], blockedWrites = [];
+  const measurements = [], runtimeErrors = [], posts = [], blockedWrites = [], sessionRequests = [], sessionResponses = [], sessionRateLimitRecoveries = [];
   let blockedExternal = 0, transportFailures = 0, actualLogin = false, declaredAt;
   try {
     phase = "protected_preview_health";
@@ -93,6 +94,10 @@ async function main() {
       }
     });
     const page = await context.newPage();
+    page.on("request", request => { if (new URL(request.url()).pathname === "/api/auth/get-session") sessionRequests.push(Date.now()); });
+    page.on("response", response => {
+      if (new URL(response.url()).pathname === "/api/auth/get-session") sessionResponses.push({ at: Date.now(), status: response.status(), retryAfter: response.headers()["retry-after"] ?? null });
+    });
     page.on("pageerror", () => runtimeErrors.push("browser_runtime_exception"));
     page.on("dialog", dialog => dialog.dismiss());
     await page.goto(new URL("/auth?next=%2Fbrand-index%2Fassessment&lang=en", origin).toString(), { waitUntil: "domcontentloaded" });
@@ -222,9 +227,59 @@ async function main() {
       await page.keyboard.press("Tab"); await page.keyboard.press("Shift+Tab");
       check(await refresh.evaluate(element => element === document.activeElement && getComputedStyle(element).outlineStyle !== "none" || element === document.activeElement && getComputedStyle(element).boxShadow !== "none"));
       phase = `responsive_keyboard_activate_${width}`;
-      const refreshed = page.waitForResponse(response => new URL(response.url()).pathname === "/api/account/brand-monitors" && response.request().method() === "GET");
-      await refresh.press("Enter"); check((await refreshed).status() === 200);
+      safeFailureDiagnostics = await refresh.evaluate(element => ({ disabled: element.disabled, focused: element === document.activeElement,
+        buttonType: element.type, alertCards: document.querySelectorAll("[data-brand-monitor-alert]").length }));
+      const activationRequests = [];
+      const recordActivationRequest = request => { const target = new URL(request.url()); activationRequests.push({ path: target.pathname, method: request.method() }); };
+      page.on("request", recordActivationRequest);
+      await refresh.evaluate(element => {
+        window.__sajdaQaKeyboardEvents = [];
+        for (const kind of ["keydown", "keyup", "click"]) element.addEventListener(kind, event => {
+          window.__sajdaQaKeyboardEvents.push({ kind, key: event.key ?? null, trusted: event.isTrusted, disabled: element.disabled, focused: document.activeElement === element, prevented: event.defaultPrevented });
+        }, { once: true });
+      });
+      const refreshed = page.waitForResponse(response => new URL(response.url()).pathname === "/api/account/brand-monitors" && response.request().method() === "GET")
+        .then(response => ({ kind: "monitor", response }), () => ({ kind: "timeout" }));
+      const sessionLimited = page.waitForResponse(response => new URL(response.url()).pathname === "/api/auth/get-session" && response.status() === 429)
+        .then(response => ({ kind: "limited", response }), () => ({ kind: "timeout" }));
+      await refresh.press("Enter");
+      phase = `responsive_keyboard_response_${width}`;
+      let outcome = await Promise.race([refreshed, sessionLimited]);
+      if (outcome.kind === "limited") {
+        // Accelerated UI probes can exceed the genuine shared client-address
+        // session-read budget. Do not spoof addresses, delete shared buckets or
+        // silently replay a mutation: wait the real Retry-After, then perform one
+        // explicit keyboard read retry after the visible rate-limit explanation.
+        const retryAfter = Number(outcome.response.headers()["retry-after"]);
+        check(Number.isSafeInteger(retryAfter) && retryAfter >= 1 && retryAfter <= 60);
+        await page.waitForFunction(message => [...document.querySelectorAll('[data-brand-monitoring] [role="alert"]')].some(node => node.textContent === message), brandMonitorsCopy.en.rate_limited);
+        const now = Date.now(), recent = sessionRequests.filter(at => at >= now - 60_000);
+        const recovery = { width, status: 429, retryAfterSeconds: retryAfter, sessionRequestsThisProbe: sessionRequests.length,
+          sessionRequestsLast60Seconds: recent.length, elapsedSeconds: Math.round((now - sessionRequests[0]) / 1000), sharedAddressBudgetModified: false };
+        sessionRateLimitRecoveries.push(recovery); console.info(JSON.stringify({ event: "brand_monitors_browser_session_rate_limit_observed", ...recovery }));
+        phase = `responsive_keyboard_retry_after_${width}`;
+        const writesAtLimit = posts.length;
+        await page.waitForTimeout(retryAfter * 1000 + 250);
+        check(posts.length === writesAtLimit);
+        await page.waitForFunction(() => !document.querySelector("[data-brand-monitor-refresh]")?.disabled);
+        await refresh.focus(); await page.keyboard.press("Tab"); await page.keyboard.press("Shift+Tab");
+        const retryResponse = page.waitForResponse(response => new URL(response.url()).pathname === "/api/account/brand-monitors" && response.request().method() === "GET")
+          .then(response => ({ kind: "monitor", response }), () => ({ kind: "timeout" }));
+        await refresh.press("Enter"); outcome = await retryResponse;
+      }
+      if (outcome.kind !== "monitor") {
+        safeFailureDiagnostics = { ...safeFailureDiagnostics, activationRequests, transportFailures, runtimeExceptions: runtimeErrors.length,
+          afterActivation: await refresh.evaluate(element => ({ disabled: element.disabled, focused: element === document.activeElement,
+            documentFocused: document.hasFocus(), events: window.__sajdaQaKeyboardEvents, alerts: [...document.querySelectorAll('[data-brand-monitoring] [role="alert"]')].map(node => node.textContent) })) };
+        throw Object.assign(new Error("Keyboard monitoring response unavailable"), { name: "TimeoutError" });
+      }
+      const refreshHttp = outcome.response;
+      page.off("request", recordActivationRequest);
+      safeFailureDiagnostics = { method: "GET", path: "/api/account/brand-monitors", status: refreshHttp.status(), transportFailures, runtimeExceptions: runtimeErrors.length };
+      check(refreshHttp.status() === 200);
+      phase = `responsive_keyboard_read_state_${width}`;
       check(await page.locator(`[data-brand-monitor-alert="${syntheticAlert.id}"]`).getAttribute("data-brand-alert-read") === "true");
+      safeFailureDiagnostics = null;
     }
     await mkdir(path.join(root, "brand-monitors-browser"), { recursive: true });
     await page.setViewportSize({ width: 390, height: 900 });
@@ -243,7 +298,9 @@ async function main() {
       actualSessionStored: true, realUiSave: true, realUiRegistryCheck: true, supportedObservationChecked: true, unsupportedObservationUnknown: true,
       realUiMonitorEnablePauseResumeRebind: true, syntheticAlertFixture: true, realUiAlertAcknowledgment: true, exactServerPremiumAllowance: 5, previewSchedulerTruthfullyOff: true, scheduledWorkerExecuted: false, noLiveRegistrationChangeClaim: true,
       reloadWithoutNewProviderRequest: true, originalDeclarationDatesPreserved: true, originalProviderDatesPreserved: true, databaseReceiptUiAgreement: true,
-      measurements, keyboardActivation: true, focusVisible: true, runtimeExceptions: runtimeErrors.length, blockedExternalRequests: blockedExternal, transportFailures,
+      measurements, keyboardActivation: true, focusVisible: true, sessionReadRequests: sessionRequests.length,
+      sessionReadStatuses: sessionResponses.reduce((totals, value) => ({ ...totals, [value.status]: (totals[value.status] ?? 0) + 1 }), {}),
+      sessionRateLimitRecoveries, runtimeExceptions: runtimeErrors.length, blockedExternalRequests: blockedExternal, transportFailures,
       sourceCheckPosts: 1, reportSavePosts: 2, monitoringPosts: 5, ownershipVerified: false, legalClearance: false, continuousMonitoring: false,
       actualIPhone: false, voiceOver: false, emailCalls: 0, paymentCalls: 0, productionWrites: 0 };
     await writeFile(path.join(root, "brand-monitors-browser", "result.json"), JSON.stringify(result, null, 2)); console.info(JSON.stringify(result));
@@ -274,5 +331,6 @@ async function main() {
   }
   if (cleanupFailed) throw new Error("Synthetic fixture cleanup unconfirmed");
 }
-main().catch(() => { console.error(JSON.stringify({ event: "brand_monitors_authenticated_browser_preview_failed", phase,
+main().catch(error => { console.error(JSON.stringify({ event: "brand_monitors_authenticated_browser_preview_failed", phase,
+  failureClass: ["TimeoutError", "AssertionError"].includes(error?.name) ? error.name : "SuppressedError", diagnostics: safeFailureDiagnostics,
   cleanupRequired: setupAttempted, cleanupConfirmed: !setupAttempted || cleanupVerified && !cleanupFailed, rawPrivateDetailsSuppressed: true })); process.exitCode = 1; });

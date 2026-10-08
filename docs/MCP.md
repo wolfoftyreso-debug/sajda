@@ -142,6 +142,10 @@ Use HTTPS outside localhost. The deployment must configure its own trusted origi
 | `brand_reports_save` | `projects:write` | Save one declared assessment version with a stable UUID requestKey; never accept verified ownership claims. |
 | `brand_checks_history` | `projects:read` | Read archived source observations, preserving original dates; optional version filter, paginated, no provider call. |
 | `brand_checks_start` | `projects:write` **and** `domains:search` | Explicitly check the latest saved report's exact domain scope; stable UUID receipt, no automatic monitoring or ownership claim. |
+| `brand_monitors_get` | `projects:read` | Read an owned report's monitoring status and paginated private alerts; no provider call. |
+| `brand_monitors_configure` | `projects:write` **and** `domains:search` | Explicitly enable, resume or rebind an eligible saved report's daily registry monitoring with a stable UUID receipt and expected versions. |
+| `brand_monitors_pause` | `projects:write` | Withdraw monitoring consent with a stable UUID receipt and expected monitor version; available after downgrade. |
+| `brand_monitor_alerts_acknowledge` | `projects:write` | Mark one owned alert read with a stable UUID receipt; available after downgrade. |
 | `social_profiles_check` | `social:check` | Observe up to five GitHub profiles; absence is not registrability. |
 | `trading_scenarios_list` | `trading:read` | Read the scenario journal with active Trading access. |
 | `trading_scenarios_save` | `trading:write` | Save one user-authored scenario; return only its mutation receipt. |
