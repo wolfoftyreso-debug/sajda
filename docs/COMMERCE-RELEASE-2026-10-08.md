@@ -4,7 +4,7 @@ This ledger distinguishes actual external-provider checks from local fixtures.
 It is not approval to enable live payments. No live payment or production
 commerce/database mutation was performed in this pass.
 
-## Verified current TEST configuration
+## Baseline verified TEST configuration
 
 The official Vercel CLI independently confirmed the linked `hypbit/sajda`
 project. Stripe SDK reads used fresh Preview process configuration from an
@@ -14,6 +14,8 @@ Secret values were not treated as retrieved credentials.
 - Sandbox account: `acct_1UDqPlAJ7seQoN51`, observed `livemode=false`.
 - Active monthly USD Price contracts: Basic 9, Premium 19, Trading 49.
 - Preview new-checkout flags: Basic off, Premium off, Trading on.
+  This was the baseline inspection; a subsequent isolated Premium introductory
+  TEST pass is recorded below and is not live-payment approval.
 - The existing configured event destination points to the older immutable
   `sajda-k455asubf-hypbit.vercel.app` deployment. Its signing secret was not
   available through environment pull. Neither destination nor secret was changed.
@@ -102,7 +104,8 @@ Actual execution completed successfully for run
 - The actual reviewed Stripe portal session was created.
 - Actual cancel-at-period-end updated the exact owned database record while
   preserving paid access; immediate TEST cancellation revoked access and central
-  membership returned Free. The returning customer could choose checkout again.
+  membership returned Free. The authenticated snapshot reported the returning
+  customer checkout-eligible; fresh Checkout creation was not exercised there.
 - After browser/listener shutdown and HTTP drain, exact owned fixture cleanup
   confirmed zero database account/customer/checkout/access/event records, zero
   active TEST subscriptions, one successful TEST refund and deletion of the exact
@@ -119,6 +122,44 @@ real Stripe email delivery and production commerce remain separate release gates
 The local fixture authentication boundary and injected rate limiter are explicitly
 not authentication/rate-limit verification. The unclaimed-sandbox notice observed
 on hosted Checkout is not a merchant's completed live onboarding.
+
+## Premium introductory-month follow-up
+
+The approved offer is USD 9 for the first month, then the unchanged USD 19
+monthly Premium Price. The server verifies an exact USD 10 once coupon scoped
+to Premium, complete customer history and a persisted owner-specific offer
+reservation. It never substitutes an ordinary USD 19 purchase for an unavailable
+intro offer. The additive Preview migrations 0025/0026 were applied with the
+original 0025 checksum preserved; no production migration was part of this pass.
+
+Final actual hosted TEST run `61021d1c-3f18-4b37-b3ab-4f2d53fffa86` completed:
+decline → same-session successful retry → paid USD 9 invoice with underlying
+USD 19 Price → genuine signed CLI events → actual Neon Premium entitlement and
+central membership. Duplicate/tampered deliveries, actual portal creation,
+period-end retention, immediate TEST cancellation and repeat-intro denial were
+also verified. The repeat offer returned `409 intro_offer_unavailable` with no
+Checkout URL and no second session. Exact owned cleanup read back zero fixtures
+and active TEST subscriptions, one TEST refund and deletion of the owned customer.
+
+The actual loop exposed a previously untested returning-customer defect: a
+locally open reservation could already be completed at Stripe and block a fresh
+post-cancel request. Failing-then-passing regressions and a minimal fenced fix
+now persist the proved completed state before evaluating a new request. Same-key
+and active-subscription requests remain blocked; another intro is denied, and
+a new ordinary plan is allowed only when explicitly selected. That latter
+ordinary-price Checkout path is fixture-verified, not a second external purchase.
+
+The redacted local receipt is `.vercel/commerce-fresh/premium-intro-result.json`
+(ignored, no credentials). Seventy-four focused commerce/SDK/portal tests and
+two setup-guard tests passed, with API type checking, targeted lint and diff
+hygiene. See [Premium offer contract and evidence](./PREMIUM-INTRO-OFFER.md).
+
+Three concurrent authentic deliveries received `billing_busy` 503 before other
+authentic delivery reconciled access. `authenticInvoiceExplicitRetry` was false
+in the final run. Registered deployed callback, automatic provider retry, actual
+account authentication, renewal/failed renewal, real email, incomplete-state UI
+re-entry, fresh ordinary Checkout, live charging and App Store offers remain
+unverified. No live funds or production commerce/database writes occurred.
 
 ## Primary documentation
 

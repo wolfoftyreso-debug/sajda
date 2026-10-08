@@ -17,7 +17,12 @@ import {
   type CommerceLease,
   type CheckoutReservation,
 } from "./commerce-store.js";
-import { PAID_PLAN_ORDER, type PaidPlanId } from "../../shared/plans.js";
+import { PAID_PLAN_ORDER, PREMIUM_INTRO_OFFER, type PaidPlanId } from "../../shared/plans.js";
+
+export interface BillingCheckoutIntent {
+  offer?: typeof PREMIUM_INTRO_OFFER.id;
+  returnTo?: "swipe";
+}
 
 export interface BillingSnapshot {
   ready: boolean;
@@ -30,6 +35,15 @@ export interface BillingSnapshot {
   appStoreManaged?: boolean;
   activePlan: PaidPlanId | null;
   plans: Record<PaidPlanId, { ready: boolean; price: CommercePrice | null; canCheckout: boolean }>;
+  premiumIntro: {
+    id: typeof PREMIUM_INTRO_OFFER.id;
+    eligible: boolean;
+    ready: boolean;
+    firstUnitAmount: 900;
+    renewalUnitAmount: 1900;
+    currency: "usd";
+    interval: "month";
+  } | null;
 }
 const terminal = (status: SubscriptionStatus) =>
   ["none", "canceled", "incomplete_expired"].includes(status);
@@ -85,6 +99,7 @@ export function createCommerceService(
             canCheckout: false,
             canManage: false,
             accessExpiresAt: null,
+            premiumIntro: null,
           } as BillingSnapshot;
         throw error;
       }
@@ -101,7 +116,7 @@ export function createCommerceService(
           await withLease(store, ownerId, async (lease) => {
             if (!lease.customerId)
               throw new CommerceError("provider_owner_mismatch");
-            const state = await provider.reconcile(lease.customerId);
+            const state = await provider.reconcile(lease.customerId, () => store.introReservations(lease));
             await store.sync(lease, state);
           });
           customer = await store.read(ownerId);
@@ -127,6 +142,29 @@ export function createCommerceService(
       })) as BillingSnapshot["plans"];
       const price = plans.trading.price;
       const ready = plans.trading.ready;
+      const premiumIntro: BillingSnapshot["premiumIntro"] = config.premiumIntroEnabled ? {
+        id: PREMIUM_INTRO_OFFER.id, eligible: false, ready: false,
+        firstUnitAmount: PREMIUM_INTRO_OFFER.firstUnitAmount,
+        renewalUnitAmount: PREMIUM_INTRO_OFFER.renewalUnitAmount,
+        currency: PREMIUM_INTRO_OFFER.currency, interval: PREMIUM_INTRO_OFFER.interval,
+      } : null;
+      if (premiumIntro && plans.premium.ready && config.premiumIntroCouponId) {
+        try {
+          await provider.introCoupon(config.premiumIntroCouponId);
+          if (!await store.introAvailable()) throw new CommerceError("intro_offer_unavailable", 409);
+          // `ready=true, eligible=false` means verified ineligible, not unknown.
+          // A missing/partial provider history never authorizes a price fallback.
+          const unused = customer?.customerId ? await withLease(store, ownerId, async lease => {
+            if (!lease.customerId) throw new CommerceError("provider_owner_mismatch");
+            const history = await store.introReservations(lease);
+            return await provider.introEligible(lease.customerId) && !history.some(row => row.completed);
+          }) : true;
+          premiumIntro.ready = true;
+          premiumIntro.eligible = eligible && unused;
+        } catch {
+          console.error(JSON.stringify({ event: "commerce_intro_read_failed" }));
+        }
+      }
       return {
         ready,
         mode: config.mode,
@@ -137,6 +175,7 @@ export function createCommerceService(
         accessExpiresAt: customer?.accessExpiresAt ?? null,
         activePlan: customer?.activePlan ?? null,
         plans,
+        premiumIntro,
         ...(appStoreManaged ? { appStoreManaged: true } : {}),
       };
     },
@@ -145,23 +184,37 @@ export function createCommerceService(
       requestKey: string,
       origin: string,
       plan: PaidPlanId = "trading",
+      intent: BillingCheckoutIntent = {},
     ): Promise<string> {
       const { config, store, provider } = resolve();
       const enabled = config.checkoutPlans?.[plan] ?? (plan === "trading" && config.checkoutEnabled);
       if (!enabled)
-        throw new CommerceError("checkout_disabled", 503);
+        throw new CommerceError(intent.offer ? "intro_offer_unavailable" : "checkout_disabled", intent.offer ? 409 : 503);
+      if (intent.offer !== undefined && (intent.offer !== PREMIUM_INTRO_OFFER.id || plan !== "premium" || !config.premiumIntroEnabled))
+        throw new CommerceError("intro_offer_unavailable", 409);
+      if (intent.returnTo !== undefined && intent.returnTo !== "swipe") throw new CommerceError("checkout_context_conflict", 409);
+      if (intent.offer) {
+        try { if (!await store.introAvailable()) throw new Error("offer_schema_not_ready"); }
+        catch { throw new CommerceError("intro_offer_unavailable", 409); }
+      }
       if (await store.appStoreSubscription(ownerId))
         throw new CommerceError("app_store_subscription_exists", 409);
       const priceId = config.priceIds?.[plan] ?? (plan === "trading" ? config.priceId : "");
       if (!priceId) throw new CommerceError("billing_price_unavailable");
+      const assertReservationPrice = (reservation: CheckoutReservation) => {
+        if (["creating", "open"].includes(reservation.state) && reservation.priceId !== priceId)
+          throw new CommerceError("billing_price_unavailable");
+      };
       const assertReservationPlan = (reservation: CheckoutReservation) => {
         // The owner lease prevents parallel checkouts, but its existing session
         // can belong to another plan. Never substitute that plan's payment URL
         // for the customer's selection, even when they supply a fresh key.
         if ((reservation.plan ?? "trading") !== plan)
           throw new CommerceError("checkout_plan_conflict", 409);
-        if (["creating", "open"].includes(reservation.state) && reservation.priceId !== priceId)
-          throw new CommerceError("billing_price_unavailable");
+        assertReservationPrice(reservation);
+        if (reservation.offer !== intent.offer) throw new CommerceError("intro_offer_unavailable", 409);
+        if (reservation.returnTo !== intent.returnTo) throw new CommerceError("checkout_context_conflict", 409);
+        if (reservation.offer && !reservation.couponId) throw new CommerceError("intro_offer_unavailable", 409);
       };
       await provider.price(plan);
       return withLease(store, ownerId, async (lease) => {
@@ -181,20 +234,52 @@ export function createCommerceService(
           );
           await store.customer(lease, customerId);
         }
-        const state = await provider.reconcile(customerId);
+        const state = await provider.reconcile(customerId, () => store.introReservations(lease));
         await store.sync(lease, state);
-        if (!terminal(state.status))
+        let reservation = await store.existingReservation(lease, requestKey);
+        if (!terminal(state.status)) {
+          // A declined payment may leave the SAME hosted session recoverable.
+          // Never create a second subscription; only return its proven session.
+          if (state.status === "incomplete" && reservation?.offer && reservation.sessionId) {
+            assertReservationPlan(reservation);
+            const existing = await provider.checkout(reservation.sessionId, customerId, plan, { ...reservation });
+            if (existing.status === "open" && existing.subscriptionId === state.subscriptionId) {
+              await store.saveCheckout(lease, reservation.id, existing);
+              return safeStripeUrl(existing.url, "checkout");
+            }
+          }
           throw new CommerceError("subscription_exists", 409);
-        let reservation = await store.reservation(
-          lease,
-          requestKey,
-          priceId,
-          origin,
-          plan,
-        );
-        // An older session for another plan may now be expired. Validate its
-        // provider state below before retiring it; never return its open URL.
-        if ((reservation.plan ?? "trading") === plan) assertReservationPlan(reservation);
+        }
+        const reserveNew = async (): Promise<CheckoutReservation> => {
+          let couponId: string | undefined;
+          if (intent.offer) {
+            couponId = config.premiumIntroCouponId;
+            if (!couponId) throw new CommerceError("intro_offer_unavailable", 409);
+            try {
+              // First subscription of any plan/status, not merely first Premium.
+              // Complete provider history + local consumed intent are checked
+              // under the same owner lease immediately before reservation.
+              const history = await store.introReservations(lease);
+              if (history.some(row => row.completed) || !await provider.introEligible(customerId))
+                throw new CommerceError("intro_offer_unavailable", 409);
+              await provider.introCoupon(couponId);
+            } catch (error) {
+              if (error instanceof CommerceError && error.code === "billing_busy") throw error;
+              throw new CommerceError("intro_offer_unavailable", 409);
+            }
+          }
+          return store.reservation(lease, requestKey, priceId, origin, plan, { ...intent, couponId });
+        };
+        reservation ??= await reserveNew();
+        // A stored open session may actually be completed or expired. Verify
+        // its persisted intent with Stripe before deciding whether a NEW key
+        // may select another offer/context. A genuinely open session can never
+        // substitute its plan or price for the customer's current selection.
+        if ((reservation.plan ?? "trading") === plan) {
+          assertReservationPrice(reservation);
+          if (!reservation.sessionId && Date.now() - Date.parse(reservation.createdAt) <= 25 * 60000)
+            assertReservationPlan(reservation);
+        }
         if (
           reservation.state === "creating" &&
           !reservation.sessionId &&
@@ -207,6 +292,7 @@ export function createCommerceService(
             reservation.id,
             reservation.createdAt,
             reservation.plan ?? "trading",
+            { ...reservation },
           );
           if (recovered) {
             await store.saveCheckout(lease, reservation.id, recovered);
@@ -221,13 +307,7 @@ export function createCommerceService(
             await store.abandonCheckout(lease, reservation.id);
             if (reservation.requestKey === requestKey)
               throw new CommerceError("checkout_expired", 409);
-            reservation = await store.reservation(
-              lease,
-              requestKey,
-              priceId,
-              origin,
-              plan,
-            );
+            reservation = await reserveNew();
             assertReservationPlan(reservation);
           }
         }
@@ -236,23 +316,23 @@ export function createCommerceService(
             reservation.sessionId,
             customerId,
             reservation.plan ?? "trading",
+            { ...reservation },
           );
           await store.saveCheckout(lease, reservation.id, existing);
           if (existing.status === "open") {
             assertReservationPlan(reservation);
             return safeStripeUrl(existing.url, "checkout");
           }
-          if (existing.status === "complete")
-            throw new CommerceError("checkout_completed", 409);
-          if (reservation.requestKey === requestKey)
+          if (existing.status === "complete") {
+            // A previous paid checkout does not permanently block a returning
+            // canceled subscriber. Only a fresh key with verified terminal
+            // subscription state can start a new purchase. reserveNew rechecks
+            // intro history/consumption; it never silently reapplies the offer.
+            if (reservation.requestKey === requestKey || !["canceled", "incomplete_expired"].includes(state.status))
+              throw new CommerceError("checkout_completed", 409);
+          } else if (reservation.requestKey === requestKey)
             throw new CommerceError("checkout_expired", 409);
-          reservation = await store.reservation(
-            lease,
-            requestKey,
-            priceId,
-            origin,
-            plan,
-          );
+          reservation = await reserveNew();
           assertReservationPlan(reservation);
         }
         assertReservationPlan(reservation);
@@ -265,12 +345,21 @@ export function createCommerceService(
         // expiry becomes too near, stop and require operator reconciliation.
         if (Date.now() - Date.parse(reservation.createdAt) > 25 * 60000)
           throw new CommerceError("billing_reconciliation_required", 409);
+        // Even before the provider resource exists, a retry keeps the exact
+        // persisted coupon. A config change cannot mutate its idempotent body.
+        if (reservation.offer) {
+          try { await provider.introCoupon(reservation.couponId!); }
+          catch { throw new CommerceError("intro_offer_unavailable", 409); }
+        }
         const created = await provider.createCheckout({
           id: reservation.id,
           customerId,
           origin: reservation.origin,
           createdAt: reservation.createdAt,
           plan,
+          offer: reservation.offer,
+          couponId: reservation.couponId,
+          returnTo: reservation.returnTo,
         });
         await store.saveCheckout(lease, reservation.id, created);
         if (created.status !== "open")
@@ -330,7 +419,7 @@ export function createCommerceService(
           throw new CommerceError("provider_owner_mismatch");
         // Always retrieve present state; even an old delivery sees current
         // cancellation/payment status and cannot restore a stale paid period.
-        const current = await provider.reconcile(lease.customerId);
+        const current = await provider.reconcile(lease.customerId, () => store.introReservations(lease));
         await store.sync(lease, current, { event, hash });
       });
       return { duplicate: false, ignored: false };

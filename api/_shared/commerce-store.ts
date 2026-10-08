@@ -6,6 +6,7 @@ import type {
   BillingEvent,
   CheckoutState,
   SubscriptionStatus,
+  AppliedIntroReservation,
 } from "./commerce-provider.js";
 import type { PaidPlanId } from "../../shared/plans.js";
 
@@ -44,6 +45,9 @@ export interface CheckoutReservation {
   state: "creating" | "open" | "complete" | "expired" | "abandoned";
   sessionId: string | null;
   createdAt: string;
+  offer?: "premium-first-month-v1";
+  couponId?: string;
+  returnTo?: "swipe";
 }
 const date = (value: unknown) =>
   new Date(value instanceof Date ? value : String(value)).toISOString();
@@ -69,6 +73,9 @@ const checkout = (r: Record<string, unknown>): CheckoutReservation => ({
   state: r.state as CheckoutReservation["state"],
   sessionId: typeof r.session_id === "string" ? r.session_id : null,
   createdAt: date(r.created_at),
+  ...(r.offer_id === "premium-first-month-v1" ? { offer: r.offer_id } : {}),
+  ...(typeof r.coupon_id === "string" ? { couponId: r.coupon_id } : {}),
+  ...(r.return_to === "swipe" ? { returnTo: r.return_to } : {}),
 });
 let runtimePool: Pool | undefined;
 function defaultPool(): CommercePool {
@@ -157,6 +164,16 @@ export function createCommerceStore(
     }
   }
   return {
+    async introAvailable(): Promise<boolean> {
+      return transaction(async client => {
+        const result = await client.query(`/* commerce:intro-schema */ SELECT
+          (SELECT count(*)=3 FROM information_schema.columns
+            WHERE table_schema='sajda' AND table_name='commerce_checkouts' AND column_name IN ('offer_id','coupon_id','return_to'))
+          AND EXISTS(SELECT 1 FROM sajda.schema_migrations WHERE id='0026_premium_intro_constraint.sql') AS ready`);
+        if (result.rows.length !== 1 || typeof result.rows[0].ready !== "boolean") throw new CommerceError("billing_unavailable");
+        return result.rows[0].ready;
+      });
+    },
     async appStoreSubscription(ownerId: string, lease?: CommerceLease): Promise<boolean> {
       return transaction(async (client) => {
         if (lease) {
@@ -240,12 +257,32 @@ export function createCommerceStore(
           throw new CommerceError("provider_owner_mismatch");
       });
     },
+    async existingReservation(lease: CommerceLease, requestKey: string): Promise<CheckoutReservation | null> {
+      return transaction(async client => {
+        await fence(client, lease);
+        const result = await client.query(`/* commerce:checkout-existing */ SELECT * FROM sajda.commerce_checkouts
+          WHERE namespace=$1 AND owner_id=$2 AND (request_key=$3::uuid OR state IN ('creating','open'))
+          ORDER BY (request_key=$3::uuid) DESC,created_at DESC LIMIT 1`, [ns, lease.ownerId, requestKey]);
+        return result.rows[0] ? checkout(result.rows[0]) : null;
+      });
+    },
+    async introReservations(lease: CommerceLease): Promise<AppliedIntroReservation[]> {
+      return transaction(async client => {
+        await fence(client, lease);
+        const result = await client.query(`/* commerce:intro-history */ SELECT id,offer_id,coupon_id,price_id,state FROM sajda.commerce_checkouts
+          WHERE namespace=$1 AND owner_id=$2 AND offer_id='premium-first-month-v1' AND plan='premium'
+          ORDER BY created_at DESC LIMIT 101`, [ns, lease.ownerId]);
+        if (result.rows.length > 100) throw new CommerceError("billing_reconciliation_required", 409);
+        return result.rows.map(row => ({ id: String(row.id), offer: "premium-first-month-v1", couponId: String(row.coupon_id), priceId: String(row.price_id), completed: row.state === "complete" }));
+      });
+    },
     async reservation(
       lease: CommerceLease,
       requestKey: string,
       priceId: string,
       origin: string,
       plan: PaidPlanId = "trading",
+      intent: { offer?: "premium-first-month-v1"; couponId?: string; returnTo?: "swipe" } = {},
     ): Promise<CheckoutReservation> {
       return transaction(async (client) => {
         await fence(client, lease);
@@ -261,10 +298,19 @@ export function createCommerceStore(
         );
         if (Number(count.rows[0]?.n) >= 5)
           throw new CommerceError("checkout_limit", 429);
+        // Keep ordinary billing compatible with the previous schema until the
+        // additive migration is installed. Intro/context writes fail closed if
+        // their columns are absent; no discounted intent is silently lost.
+        const extended = intent.offer !== undefined || intent.returnTo !== undefined;
         const created = await client.query(
-          `/* commerce:checkout-reserve */ INSERT INTO sajda.commerce_checkouts(id,namespace,owner_id,request_key,price_id,origin,plan)
-        VALUES($1::uuid,$2,$3,$4::uuid,$5,$6,$7) RETURNING *`,
-          [randomUUID(), ns, lease.ownerId, requestKey, priceId, origin, plan],
+          extended
+            ? `/* commerce:checkout-reserve */ INSERT INTO sajda.commerce_checkouts(id,namespace,owner_id,request_key,price_id,origin,plan,offer_id,coupon_id,return_to)
+               VALUES($1::uuid,$2,$3,$4::uuid,$5,$6,$7,$8,$9,$10) RETURNING *`
+            : `/* commerce:checkout-reserve */ INSERT INTO sajda.commerce_checkouts(id,namespace,owner_id,request_key,price_id,origin,plan)
+               VALUES($1::uuid,$2,$3,$4::uuid,$5,$6,$7) RETURNING *`,
+          extended
+            ? [randomUUID(), ns, lease.ownerId, requestKey, priceId, origin, plan, intent.offer ?? null, intent.couponId ?? null, intent.returnTo ?? null]
+            : [randomUUID(), ns, lease.ownerId, requestKey, priceId, origin, plan],
         );
         return checkout(created.rows[0]);
       });

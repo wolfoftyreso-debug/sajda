@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
   Check,
@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import AccountLink from "@/components/AccountLink";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SwipeWishlistPanel } from "@/components/SwipeWishlistPanel";
+import SwipePremiumOffer from "@/components/SwipePremiumOffer";
 import { cn } from "@/lib/utils";
 import { getSwipeTlds, isAnonymousSearchMode, isPublicSearchMode } from "@/lib/anonymousSearchMode";
 import { runAnonymousSearch, type AnonymousSearchResult } from "@/lib/localTestSearch";
@@ -46,6 +47,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { canUndoSwipe, consumeSwipeUndo, createSwipeUndo, type SwipeUndoToken } from "@/lib/swipeUndo";
 import { authorizeSwipeUndo, SwipePremiumError } from "@/lib/swipePremium";
 import { swipePremiumCopy } from "@/i18n/swipePremiumCopy";
+import { saveSwipeCheckoutCheckpoint, consumeSwipeCheckoutCheckpoint } from "@/lib/swipeCheckoutCheckpoint";
 import { SWIPE_DECK_SIZE as DECK_SIZE, SWIPE_MIN_LENGTH as MIN_LABEL_LENGTH, SWIPE_MAX_LENGTH as MAX_LABEL_LENGTH, toVerifiedSwipeDeck } from "@/lib/swipeDeck";
 
 type SwipeDirection = "skip" | "keep";
@@ -410,6 +412,7 @@ function swipeAssessment(domain: string, language: SwipeLanguage): string {
 }
 
 const Swipe = () => {
+  const location = useLocation();
   const anonymousMode = isAnonymousSearchMode();
   const availableTlds = useMemo(() => [...getSwipeTlds()], []);
   const defaultTlds = availableTlds;
@@ -421,6 +424,7 @@ const Swipe = () => {
   const [deck, setDeck] = useState<AnonymousSearchResult[]>([]);
   const [nextDeck, setNextDeck] = useState<AnonymousSearchResult[]>([]);
   const [deckIndex, setDeckIndex] = useState(0);
+  const [restoredDeck, setRestoredDeck] = useState(false);
   const [saved, setSaved] = useState<SwipeWishlistEntry[]>(() => readSwipeWishlist());
   const [isRefreshingSaved, setIsRefreshingSaved] = useState(false);
   const [isWishlistOpen, setIsWishlistOpen] = useState(false);
@@ -462,6 +466,7 @@ const Swipe = () => {
   const deckControllerRef = useRef<AbortController | null>(null);
   const savedControllerRef = useRef<AbortController | null>(null);
   const pendingAccessRef = useRef(new Set<NonNullable<ReturnType<typeof requestAnonymousSearchAccess>>>());
+  const restoredCheckpointRef = useRef(false);
 
   const current = deck[deckIndex];
   const allExtensionsSelected = draftTlds.length === availableTlds.length;
@@ -490,7 +495,32 @@ const Swipe = () => {
     setIsPremiumDialogOpen(false);
   }, [user?.id]);
 
+  useLayoutEffect(() => {
+    if (authLoading || restoredCheckpointRef.current) return;
+    restoredCheckpointRef.current = true;
+    const restored = consumeSwipeCheckoutCheckpoint({ ownerId: user?.id ?? null, pathname: location.pathname, search: location.search });
+    if (!restored) return;
+    deckGenerationRef.current = restored.generation;
+    lastUndoRef.current = restored.undo;
+    positionRef.current = restored.deckIndex;
+    setDeck(restored.deck); setDeckIndex(restored.deckIndex); setLastUndo(restored.undo);
+    setSelectedTlds(restored.selectedTlds); setDraftTlds(restored.selectedTlds);
+    setHasRequestedDeck(true); setIsSettingsOpen(false); setRestoredDeck(true);
+    const params = new URLSearchParams(location.search);
+    if (params.get("premium") === "offer") setIsPremiumDialogOpen(true);
+    else setNotice(params.get("billing") === "success" ? premiumCopy.returnPending : premiumCopy.cancelled);
+    // Restoring UI state is never a payment receipt. Undo still authorizes
+    // against the current account on every click, including a forged return URL.
+  }, [authLoading, location.pathname, location.search, premiumCopy.cancelled, premiumCopy.returnPending, user?.id]);
+
+  const preparePremiumReturn = useCallback(() => {
+    if (decisionTimerRef.current !== null || !canUndoSwipe(lastUndoRef.current, { generation: deckGenerationRef.current, deckIndex: positionRef.current })) return false;
+    return saveSwipeCheckoutCheckpoint({ ownerId: ownerRef.current, deck, deckIndex: positionRef.current,
+      generation: deckGenerationRef.current, undo: lastUndoRef.current, selectedTlds });
+  }, [deck, selectedTlds]);
+
   const commitNewDeck = useCallback((cards: AnonymousSearchResult[]) => {
+    setRestoredDeck(false);
     deckGenerationRef.current++;
     lastUndoRef.current = null;
     positionRef.current = 0;
@@ -985,7 +1015,7 @@ const Swipe = () => {
                   <div className="flex items-center justify-between gap-4">
                     <span className="rounded-full bg-success/10 px-3 py-1.5 text-xs font-semibold text-success">
                       <Check className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />
-                      {copy.available}
+                      {restoredDeck ? premiumCopy.previousCheck : copy.available}
                     </span>
                     <span className="text-xs font-medium text-muted-foreground">
                       {withValue(copy.cardNumber, deckIndex + 1)}
@@ -1126,8 +1156,8 @@ const Swipe = () => {
             <DialogTitle className="pr-6 leading-7">{premiumCopy.title}</DialogTitle>
             <DialogDescription className="pt-2 leading-6">{premiumCopy.description}</DialogDescription>
           </DialogHeader>
-          <p className="rounded-xl border border-border bg-secondary/50 p-3 text-sm leading-6 text-muted-foreground">{premiumCopy.availability}</p>
-          <DialogFooter><Button className="h-auto min-h-11 whitespace-normal" onClick={() => setIsPremiumDialogOpen(false)}>{premiumCopy.close}</Button></DialogFooter>
+          {isPremiumDialogOpen && <SwipePremiumOffer accountId={user?.id ?? null} authLoading={authLoading} language={swipeLanguage}
+            prepareReturn={preparePremiumReturn} onClose={() => setIsPremiumDialogOpen(false)} />}
         </DialogContent>
       </Dialog>
 

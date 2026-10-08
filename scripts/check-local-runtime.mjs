@@ -7,6 +7,9 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const projectRoot = fileURLToPath(new URL("..", import.meta.url));
+// This credential-free adapter eagerly imports every API handler. A measured
+// local cold start exceeded 30 seconds; this is not a production latency limit.
+export const LOCAL_QA_STARTUP_TIMEOUT_MS = 60_000;
 const runtimeKeys = new Set([
   "PATH", "PATHEXT", "COMSPEC", "SYSTEMROOT", "WINDIR", "HOME", "USERPROFILE",
   "APPDATA", "LOCALAPPDATA", "TMP", "TEMP", "LANG", "LC_ALL", "TZ", "CI",
@@ -50,7 +53,7 @@ async function verifyLocalRuntime() {
     stream.on("data", chunk => { serverOutput = (serverOutput + chunk.toString()).slice(-6000); });
   }
   try {
-    const deadline = Date.now() + 30_000;
+    const deadline = Date.now() + LOCAL_QA_STARTUP_TIMEOUT_MS;
     while (true) {
       if (startupError) throw startupError;
       if (server.exitCode !== null) throw new Error(`QA server exited before readiness (${server.exitCode}): ${serverOutput}`);

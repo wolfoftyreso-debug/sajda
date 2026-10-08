@@ -51,7 +51,7 @@ export function createBillingHandler(
       const action = await billingAction(request),
         origin = (deps.origin ?? accountRequestOrigin)(request.headers);
       const url = action.action === "checkout"
-        ? await service.checkout(account.id, action.requestKey, origin, action.plan ?? "trading")
+        ? await service.checkout(account.id, action.requestKey, origin, action.plan ?? "trading", { offer: action.offer, returnTo: action.returnTo })
         : await service.portal(account.id, action.requestKey, origin);
       response.status(200).json({ url, accountId: account.id, requestId });
     } catch (error) {

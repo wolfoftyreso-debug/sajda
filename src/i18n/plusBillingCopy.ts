@@ -18,6 +18,8 @@ const en = {
     app_store_subscription_exists: "Your subscription is managed by Apple. Open Apple subscription settings. No Stripe checkout was started.",
     checkout_expired: "This checkout link has expired. Check billing status, then start a new checkout if needed.",
     checkout_plan_conflict: "An unfinished checkout belongs to a different plan. No payment page was opened for this request. Resume that plan, or wait for its checkout link to expire before choosing another. Contact us if you need help.",
+    intro_offer_unavailable: "The introductory offer could not be confirmed for this account. No full-price checkout was started. Check billing status before choosing an offer again.",
+    checkout_context_conflict: "An unfinished checkout was started from a different page. Resume it there, or wait for the link to expire before starting here. No new payment page was opened.",
     review_required: "Your billing account needs review before another payment can start. Contact us with the reference below; you can still manage an existing subscription." } satisfies Record<PlusBillingErrorCode, string>,
 };
 const sv: typeof en = {
@@ -38,6 +40,8 @@ const sv: typeof en = {
     app_store_subscription_exists: "Ditt abonnemang hanteras av Apple. Öppna Apples abonnemangsinställningar. Ingen Stripe-betalning startades.",
     checkout_expired: "Betalningslänken har gått ut. Kontrollera betalstatus och starta sedan en ny betalning om det behövs.",
     checkout_plan_conflict: "En tidigare, oavslutad betalning gäller ett annat paket. Ingen betalningssida öppnades för denna begäran. Fortsätt med det paketet eller vänta tills länken har gått ut innan du väljer ett annat. Kontakta oss om du behöver hjälp.",
+    intro_offer_unavailable: "Introduktionserbjudandet kunde inte bekräftas för kontot. Ingen betalning till ordinarie pris startades. Kontrollera betalstatus innan du väljer erbjudande igen.",
+    checkout_context_conflict: "En oavslutad betalning startades från en annan sida. Fortsätt där eller vänta tills länken har gått ut innan du startar här. Ingen ny betalningssida öppnades.",
     review_required: "Ditt betalningskonto behöver granskas innan en ny betalning kan starta. Kontakta oss och ange referensen nedan. Du kan fortfarande hantera ett befintligt abonnemang." },
 };
 const es: typeof en = {
@@ -62,6 +66,8 @@ const es: typeof en = {
     app_store_subscription_exists: "Apple gestiona tu suscripción. Abre los ajustes de suscripciones de Apple. No se ha iniciado ningún pago con Stripe.",
     checkout_expired: "Este enlace de pago ha caducado. Consulta el estado de facturación e inicia un nuevo pago si es necesario.",
     checkout_plan_conflict: "Hay un pago sin finalizar para otro plan. No se abrió ninguna página de pago para esta solicitud. Retoma ese plan o espera a que caduque su enlace antes de elegir otro. Contacta con nosotros si necesitas ayuda.",
+    intro_offer_unavailable: "No se pudo confirmar la oferta para esta cuenta. No se inició ningún pago al precio habitual. Comprueba la facturación antes de volver a elegir una oferta.",
+    checkout_context_conflict: "Hay un pago sin finalizar iniciado desde otra página. Retómalo allí o espera a que caduque el enlace antes de empezar aquí. No se abrió ninguna nueva página de pago.",
     review_required: "Tenemos que revisar tu cuenta de facturación antes de iniciar otro pago. Contacta con nosotros e indica la referencia que aparece abajo. Puedes seguir gestionando una suscripción existente.",
   },
 };
@@ -87,6 +93,8 @@ const fr: typeof en = {
     app_store_subscription_exists: "Votre abonnement est géré par Apple. Ouvrez les réglages des abonnements Apple. Aucun paiement Stripe n’a été lancé.",
     checkout_expired: "Ce lien de paiement a expiré. Vérifiez la facturation, puis lancez un nouveau paiement si nécessaire.",
     checkout_plan_conflict: "Une session de paiement inachevée concerne une autre offre. Aucune page de paiement n’a été ouverte pour cette demande. Reprenez cette offre ou attendez l’expiration du lien avant d’en choisir une autre. Contactez-nous si vous avez besoin d’aide.",
+    intro_offer_unavailable: "L’offre n’a pas pu être confirmée pour ce compte. Aucun paiement au tarif habituel n’a été lancé. Vérifiez la facturation avant de choisir à nouveau une offre.",
+    checkout_context_conflict: "Une session de paiement inachevée a été lancée depuis une autre page. Reprenez-la là-bas ou attendez l’expiration du lien avant de recommencer ici. Aucune nouvelle page de paiement n’a été ouverte.",
     review_required: "Votre compte de facturation doit être vérifié avant de lancer un autre paiement. Contactez-nous en indiquant la référence ci-dessous. Vous pouvez toujours gérer un abonnement existant.",
   },
 };
@@ -112,6 +120,8 @@ const zh: typeof en = {
     app_store_subscription_exists: "您的订阅由 Apple 管理。请打开 Apple 订阅设置。尚未发起 Stripe 付款。",
     checkout_expired: "支付链接已过期。请检查账单状态，如有需要再发起新的付款。",
     checkout_plan_conflict: "已有一笔未完成的支付对应其他方案。本次请求未打开支付页面。请继续购买原方案，或等其支付链接过期后再选择其他方案。如需帮助，请联系我们。",
+    intro_offer_unavailable: "无法确认此账户符合优惠条件。未发起标准价格付款。请先检查账单状态，再重新选择优惠。",
+    checkout_context_conflict: "已有一笔从其他页面发起的未完成付款。请在那里继续，或等待链接过期后再从此处发起。未打开新的付款页面。",
     review_required: "再次付款前需要审核你的账单账户。请联系我们并提供下方的参考编号。你仍可管理已有订阅。",
   },
 };

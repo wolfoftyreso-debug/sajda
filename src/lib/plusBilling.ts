@@ -2,7 +2,7 @@ import { accountRequest, readAccountSession } from "@/integrations/neon/auth";
 import { throwIfCancelled } from "./abort";
 import { assertAccountSessionOwner, type AccountRequestScope } from "@/lib/accountRequestScope";
 import { PLUS_PLAN } from "../../shared/plus-plan";
-import { PAID_PLAN_ORDER, PLANS, type PaidPlanId } from "../../shared/plans";
+import { PAID_PLAN_ORDER, PLANS, PREMIUM_INTRO_OFFER, type PaidPlanId } from "../../shared/plans";
 
 export const billingStatuses = ["none", "incomplete", "incomplete_expired", "trialing", "active", "past_due", "canceled", "unpaid", "paused", "conflict"] as const;
 export type PlusBillingStatus = typeof billingStatuses[number];
@@ -20,9 +20,10 @@ export interface PlusBillingSnapshot {
   appStoreManaged?: boolean;
   activePlan: PaidPlanId | null;
   plans: Record<PaidPlanId, { ready: boolean; price: PlusBillingSnapshot["price"]; canCheckout: boolean }>;
+  premiumIntro?: { id: typeof PREMIUM_INTRO_OFFER.id; eligible: boolean; ready: boolean; firstUnitAmount: 900; renewalUnitAmount: 1900; currency: "usd"; interval: "month" } | null;
 }
 export type PlusBillingErrorCode = "unavailable" | "invalid_response" | "unauthenticated" | "account_changed" | "rate_limited" | "not_ready"
-  | "email_verification_required" | "subscription_changed" | "checkout_expired" | "checkout_plan_conflict" | "review_required" | "app_store_subscription_exists";
+  | "email_verification_required" | "subscription_changed" | "checkout_expired" | "checkout_plan_conflict" | "checkout_context_conflict" | "review_required" | "app_store_subscription_exists" | "intro_offer_unavailable";
 export class PlusBillingError extends Error {
   constructor(readonly code: PlusBillingErrorCode, readonly requestId?: string) { super("Billing could not be confirmed."); this.name = "PlusBillingError"; }
 }
@@ -75,9 +76,21 @@ export function parsePlusBilling(value: unknown, accountId: string): PlusBilling
     : PAID_PLAN_ORDER.includes(payload.activePlan as PaidPlanId) ? payload.activePlan as PaidPlanId : invalid();
   if (payload.ready && (!price || !payload.mode) || payload.canCheckout && !payload.ready || payload.canManage && !payload.mode
     || payload.canCheckout && ["active", "trialing", "past_due", "unpaid", "paused", "conflict"].includes(String(payload.status))) return invalid();
+  let premiumIntro: PlusBillingSnapshot["premiumIntro"] = null;
+  if (payload.premiumIntro !== undefined && payload.premiumIntro !== null) {
+    const offer = object(payload.premiumIntro);
+    if (!offer || offer.id !== PREMIUM_INTRO_OFFER.id || offer.firstUnitAmount !== PREMIUM_INTRO_OFFER.firstUnitAmount
+      || offer.renewalUnitAmount !== PREMIUM_INTRO_OFFER.renewalUnitAmount || offer.currency !== PREMIUM_INTRO_OFFER.currency
+      || offer.interval !== PREMIUM_INTRO_OFFER.interval || typeof offer.ready !== "boolean" || typeof offer.eligible !== "boolean"
+      || offer.ready && (!plans.premium.ready || !payload.mode)
+      || offer.eligible && (!offer.ready || !plans.premium.canCheckout || payload.appStoreManaged === true)) return invalid();
+    premiumIntro = { id: PREMIUM_INTRO_OFFER.id, ready: offer.ready, eligible: offer.eligible,
+      firstUnitAmount: PREMIUM_INTRO_OFFER.firstUnitAmount, renewalUnitAmount: PREMIUM_INTRO_OFFER.renewalUnitAmount,
+      currency: PREMIUM_INTRO_OFFER.currency, interval: PREMIUM_INTRO_OFFER.interval };
+  }
   return { accountId, requestId: String(payload.requestId), ready: payload.ready as boolean, mode: payload.mode as PlusBillingSnapshot["mode"], price,
     status: payload.status as PlusBillingStatus, canCheckout: payload.canCheckout as boolean, canManage: payload.canManage as boolean, accessExpiresAt: payload.accessExpiresAt as string | null,
-    activePlan, plans,
+    activePlan, plans, premiumIntro,
     ...(payload.appStoreManaged === true ? { appStoreManaged: true } : {}) };
 }
 export function parseBillingRedirect(value: unknown, accountId: string, action: PlusBillingAction): string {
@@ -101,10 +114,13 @@ function safeFailure(error: unknown): Error {
   if (["subscription_exists", "checkout_completed"].includes(String(row?.code))) return new PlusBillingError("subscription_changed", requestId);
   if (row?.code === "checkout_expired") return new PlusBillingError("checkout_expired", requestId);
   if (row?.code === "checkout_plan_conflict") return new PlusBillingError("checkout_plan_conflict", requestId);
+  if (row?.code === "checkout_context_conflict") return new PlusBillingError("checkout_context_conflict", requestId);
+  if (row?.code === "intro_offer_unavailable") return new PlusBillingError("intro_offer_unavailable", requestId);
   if (["billing_review_required", "billing_reconciliation_required"].includes(String(row?.code))) return new PlusBillingError("review_required", requestId);
   return new PlusBillingError("unavailable", requestId);
 }
-async function request<T>(scope: AccountRequestScope, parse: (value: unknown) => T, body?: { action: PlusBillingAction; requestKey: string; plan?: PaidPlanId }): Promise<T> {
+export interface PremiumCheckoutOptions { offer?: typeof PREMIUM_INTRO_OFFER.id; returnTo?: "swipe" }
+async function request<T>(scope: AccountRequestScope, parse: (value: unknown) => T, body?: { action: PlusBillingAction; requestKey: string; plan?: PaidPlanId } & PremiumCheckoutOptions): Promise<T> {
   try {
     const result = parse(await accountRequest<unknown>("/api/account/billing", { ...scope, ...(body ? { method: "POST", body } : {}) }));
     throwIfCancelled(scope.signal);
@@ -116,7 +132,8 @@ async function request<T>(scope: AccountRequestScope, parse: (value: unknown) =>
   } catch (error) { throw safeFailure(error); }
 }
 export const getPlusBilling = (scope: AccountRequestScope) => request(scope, value => parsePlusBilling(value, scope.accountId));
-export function openPlusBilling(scope: AccountRequestScope, action: PlusBillingAction, requestKey: string, plan: PaidPlanId = "trading"): Promise<string> {
-  if (!["checkout", "portal"].includes(action) || !uuid.test(requestKey)) return Promise.reject(new PlusBillingError("invalid_response"));
-  return request(scope, value => parseBillingRedirect(value, scope.accountId, action), { action, requestKey, ...(action === "checkout" && plan !== "trading" ? { plan } : {}) });
+export function openPlusBilling(scope: AccountRequestScope, action: PlusBillingAction, requestKey: string, plan: PaidPlanId = "trading", options: PremiumCheckoutOptions = {}): Promise<string> {
+  if (!["checkout", "portal"].includes(action) || !uuid.test(requestKey) || (options.offer !== undefined && (options.offer !== PREMIUM_INTRO_OFFER.id || plan !== "premium" || action !== "checkout"))
+    || options.returnTo !== undefined && (options.returnTo !== "swipe" || action !== "checkout")) return Promise.reject(new PlusBillingError("invalid_response"));
+  return request(scope, value => parseBillingRedirect(value, scope.accountId, action), { action, requestKey, ...(action === "checkout" && plan !== "trading" ? { plan } : {}), ...options });
 }

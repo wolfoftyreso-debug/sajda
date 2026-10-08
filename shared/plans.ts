@@ -13,6 +13,21 @@ export type PaidPlanId = Exclude<PlanId, "free">;
 export const PLAN_ORDER = Object.freeze(["free", "basic", "premium", "trading"] as const);
 export const PAID_PLAN_ORDER = Object.freeze(["basic", "premium", "trading"] as const satisfies readonly PaidPlanId[]);
 
+/** An approved commercial offer, not a checkout or access authorization.
+ * The server verifies eligibility and its Stripe coupon before accepting it.
+ * The regular Premium catalog price remains unchanged.
+ */
+export const PREMIUM_INTRO_OFFER = Object.freeze({
+  id: "premium-first-month-v1",
+  plan: "premium",
+  currency: "usd",
+  firstUnitAmount: 900,
+  discountAmount: 1000,
+  renewalUnitAmount: PLANS.premium.unitAmount,
+  interval: "month",
+  duration: "once",
+} as const);
+
 export function isPaidPlanId(value: unknown): value is PaidPlanId {
   return typeof value === "string" && PAID_PLAN_ORDER.includes(value as PaidPlanId);
 }

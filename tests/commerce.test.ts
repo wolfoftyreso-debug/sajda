@@ -19,6 +19,7 @@ import {
   validateCommerceCheckout,
   stripeSdkPayload,
   validateCommercePortalConfiguration,
+  validatePremiumIntroCoupon,
   type BillingState,
   type CommerceProvider,
   type CommercePrice,
@@ -37,7 +38,7 @@ import { createBillingWebhookHandler } from "../api/billing-webhook";
 import { AccountAccessError } from "../api/_shared/account-error";
 import { billingAction, rawWebhookBody } from "../api/_shared/commerce-http";
 import { PLUS_PLAN } from "../shared/plus-plan";
-import { PAID_PLAN_ORDER, PLANS } from "../shared/plans";
+import { PAID_PLAN_ORDER, PLANS, PREMIUM_INTRO_OFFER } from "../shared/plans";
 
 const environment = {
   STRIPE_SECRET_KEY: "sk_test_fixtureNotARealKey123",
@@ -688,6 +689,7 @@ function memory(configuration: CommerceConfig = config) {
     syncedAt: null,
   });
   const store: CommerceStore = {
+    introAvailable: async () => true,
     appStoreSubscription: async () => false,
     read: async (id) => {
       assert.equal(id, "owner");
@@ -706,11 +708,13 @@ function memory(configuration: CommerceConfig = config) {
     customer: async (_lease, id) => {
       customerId = id;
     },
-    reservation: async (_lease, key, priceId, origin, plan = "trading") => {
+    existingReservation: async (_lease, key) => reservation && (reservation.requestKey === key || ["creating", "open"].includes(reservation.state)) ? reservation : null,
+    introReservations: async () => reservation?.offer ? [{ id: reservation.id, offer: reservation.offer, couponId: reservation.couponId!, priceId: reservation.priceId, completed: reservation.state === "complete" }] : [],
+    reservation: async (_lease, key, priceId, origin, plan = "trading", intent = {}) => {
       if (
         !reservation ||
         (reservation.requestKey !== key &&
-          ["expired", "abandoned"].includes(reservation.state))
+          ["complete", "expired", "abandoned"].includes(reservation.state))
       )
         reservation = {
           id: randomUUID(),
@@ -721,6 +725,7 @@ function memory(configuration: CommerceConfig = config) {
           state: "creating",
           sessionId: null,
           createdAt: new Date().toISOString(),
+          ...intent,
         };
       return reservation;
     },
@@ -745,6 +750,8 @@ function memory(configuration: CommerceConfig = config) {
   };
   const provider: CommerceProvider = {
     price: async () => price,
+    introEligible: async () => true,
+    introCoupon: async () => undefined,
     createCustomer: async () => {
       calls.push("createCustomer");
       return "cus_fixture";
@@ -791,6 +798,7 @@ function memory(configuration: CommerceConfig = config) {
     set pending(value: CheckoutReservation) {
       reservation = value;
     },
+    get pending() { return reservation; },
     get service() {
       return createCommerceService({
         config: () => configuration,
@@ -820,6 +828,278 @@ test("checkout refresh/retry reuses the same pending session and never grants fr
   );
   assert.equal(fixture.stored.grant, null);
   assert.equal((await fixture.service.read("owner")).accessExpiresAt, null);
+});
+
+const introConfiguration: CommerceConfig = { ...config,
+  priceIds: { basic: "price_basic", premium: "price_premium", trading: config.priceId },
+  checkoutPlans: { basic: true, premium: true, trading: true },
+  premiumIntroEnabled: true, premiumIntroCouponId: "sajda_premium_intro_fixture" };
+const introIntent = { offer: PREMIUM_INTRO_OFFER.id, returnTo: "swipe" as const };
+function introCoupon() {
+  return { object: "coupon", id: introConfiguration.premiumIntroCouponId!, livemode: false, valid: true,
+    amount_off: 1000, percent_off: null, currency: "usd", duration: "once", duration_in_months: null,
+    applies_to: { products: ["prod_premium"] }, metadata: { sajda_offer: PREMIUM_INTRO_OFFER.id, sajda_environment: "test" } };
+}
+function introPayment() {
+  const approved = [{ id: "fixture-reservation", offer: PREMIUM_INTRO_OFFER.id, couponId: introConfiguration.premiumIntroCouponId!, priceId: "price_premium" }];
+  const { subscription: original, invoices: originalInvoices } = fixtures();
+  const premiumPrice = { ...stripePrice(), id: "price_premium", unit_amount: 1900, unit_amount_decimal: "1900", product: "prod_premium" };
+  const subscription = { ...original, metadata: { sajda_offer: PREMIUM_INTRO_OFFER.id, sajda_coupon: approved[0].couponId, sajda_checkout: approved[0].id },
+    items: { ...original.items, data: [{ ...original.items.data[0], price: premiumPrice }] } };
+  const invoices = { has_more: false, data: [{ ...originalInvoices.data[0], amount_paid: 900, amount_due: 900, billing_reason: "subscription_create",
+    discounts: [{ id: "di_fixture", source: { type: "coupon", coupon: introCoupon() }, customer: "cus_fixture", subscription: "sub_fixture", promotion_code: null }],
+    lines: { has_more: false, data: [{ ...originalInvoices.data[0].lines.data[0], amount: 1900,
+      pricing: { price_details: { price: "price_premium" } }, discount_amounts: [{ amount: 1000, discount: "di_fixture" }] }] } }] };
+  const checkout = { ...stripeCheckout(), amount_subtotal: 1900, amount_total: 900,
+    metadata: { sajda_offer: PREMIUM_INTRO_OFFER.id, sajda_coupon: approved[0].couponId, sajda_checkout: approved[0].id, sajda_return_to: "swipe" },
+    success_url: "https://sajda.example/swipe?billing=success", cancel_url: "https://sajda.example/swipe?billing=cancel", discounts: [{ coupon: approved[0].couponId, promotion_code: null }],
+    total_details: { amount_discount: 1000 }, line_items: { has_more: false, data: [{ quantity: 1, currency: "usd", price: premiumPrice }] } };
+  return { approved, subscription, invoices, checkout };
+}
+
+test("Premium intro coupon is exactly USD 10 off once, scoped to the approved Premium product and environment", () => {
+  validatePremiumIntroCoupon(introCoupon(), introConfiguration.premiumIntroCouponId!, "prod_premium", "test");
+  for (const patch of [ { id: "another_coupon" }, { object: "price" }, { livemode: true }, { valid: false }, { deleted: true },
+    { amount_off: 900 }, { amount_off: 1000.1 }, { percent_off: 50 }, { currency: "sek" }, { duration: "forever" },
+    { duration: "repeating", duration_in_months: 1 }, { applies_to: { products: [] } }, { applies_to: { products: ["prod_basic"] } },
+    { applies_to: { products: ["prod_premium", "prod_basic"] } }, { metadata: { sajda_offer: "other", sajda_environment: "test" } },
+    { metadata: { sajda_offer: PREMIUM_INTRO_OFFER.id, sajda_environment: "live" } },
+  ]) assert.throws(() => validatePremiumIntroCoupon({ ...introCoupon(), ...patch }, introConfiguration.premiumIntroCouponId!, "prod_premium", "test"), code("intro_offer_unavailable"));
+});
+
+test("discounted hosted checkout verifies unchanged USD 19 Price, actual USD 10 discount and persisted Swipe intent", () => {
+  const { approved, checkout } = introPayment(), intent = { ...introIntent, ...approved[0], origin: "https://sajda.example" };
+  assert.equal(validateCommerceCheckout(checkout, "cus_fixture", introConfiguration, "premium", intent).status, "open");
+  for (const patch of [ { discounts: [] }, { discounts: [{ coupon: "foreign", promotion_code: null }] },
+    { discounts: [{ coupon: approved[0].couponId, promotion_code: "promo_other" }] }, { total_details: { amount_discount: 0 } },
+    { total_details: { amount_discount: 1000.1 } }, { metadata: { ...checkout.metadata, sajda_coupon: "foreign" } },
+    { metadata: { ...checkout.metadata, sajda_checkout: "another-reservation" } },
+  ]) assert.throws(() => validateCommerceCheckout({ ...checkout, ...patch }, "cus_fixture", introConfiguration, "premium", intent), code("intro_offer_unavailable"));
+  assert.throws(() => validateCommerceCheckout({ ...checkout, success_url: "https://sajda.example/pricing?billing=success" }, "cus_fixture", introConfiguration, "premium", intent), code("checkout_context_conflict"));
+  for (const patch of [ { cancel_url: "https://sajda.example/pricing?billing=cancel" }, { cancel_url: "https://evil.example/swipe?billing=cancel" },
+    { success_url: "https://evil.example/swipe?billing=success" }, { cancel_url: "https://sajda.example/swipe?billing=success" },
+    { success_url: "https://sajda.example/swipe?billing=success&other=1" }, { cancel_url: "https://sajda.example/swipe?billing=cancel#hidden" },
+  ]) assert.throws(() => validateCommerceCheckout({ ...checkout, ...patch }, "cus_fixture", introConfiguration, "premium", intent), code("checkout_context_conflict"));
+  assert.throws(() => validateCommerceCheckout(checkout, "cus_fixture", introConfiguration, "premium"), code("billing_price_unavailable"));
+  const changed = structuredClone(checkout); changed.line_items.data[0].price.unit_amount = 900;
+  changed.line_items.data[0].price.unit_amount_decimal = "900";
+  assert.throws(() => validateCommerceCheckout(changed, "cus_fixture", introConfiguration, "premium", intent), code("billing_price_unavailable"));
+});
+
+test("paid first-month invoice fixtures grant Premium only with the exact persisted intro and invoice evidence", () => {
+  const { approved, subscription, invoices } = introPayment();
+  assert.equal(evaluateSubscription(subscription, invoices, "cus_fixture", introConfiguration, Date.now(), approved).grant?.plan, "premium");
+  assert.equal(evaluateSubscription(subscription, invoices, "cus_fixture", introConfiguration).grant, null, "Browser/provider metadata alone is not a reservation");
+  for (const mutate of [
+    (value: ReturnType<typeof introPayment>) => { value.approved[0].couponId = "foreign"; },
+    (value: ReturnType<typeof introPayment>) => { value.approved[0].id = "foreign"; },
+    (value: ReturnType<typeof introPayment>) => { value.approved[0].priceId = "price_basic"; },
+    (value: ReturnType<typeof introPayment>) => { value.invoices.data[0].discounts[0].source.coupon.id = "foreign"; },
+    (value: ReturnType<typeof introPayment>) => { value.invoices.data[0].discounts[0].customer = "cus_other"; },
+    (value: ReturnType<typeof introPayment>) => { value.invoices.data[0].discounts[0].subscription = "sub_other"; },
+    (value: ReturnType<typeof introPayment>) => { value.invoices.data[0].lines.data[0].discount_amounts[0].amount = 1001; },
+    (value: ReturnType<typeof introPayment>) => { value.invoices.data[0].lines.data[0].discount_amounts[0].discount = "di_other"; },
+    (value: ReturnType<typeof introPayment>) => { value.invoices.data[0].lines.data[0].amount = 900; },
+    (value: ReturnType<typeof introPayment>) => { value.invoices.data[0].billing_reason = "manual"; },
+    (value: ReturnType<typeof introPayment>) => { value.invoices.data[0].amount_paid = 0; },
+  ]) {
+    const value = introPayment(); mutate(value);
+    assert.equal(evaluateSubscription(value.subscription, value.invoices, "cus_fixture", introConfiguration, Date.now(), value.approved).grant, null);
+  }
+});
+
+test("first-month tax totals do not change the standard Price or approved exact discount", () => {
+  const { approved, subscription, invoices } = introPayment();
+  invoices.data[0].amount_paid = 1080; invoices.data[0].amount_due = 1080;
+  assert.equal(evaluateSubscription(subscription, invoices, "cus_fixture", introConfiguration, Date.now(), approved).grant?.plan, "premium");
+});
+
+test("Premium renewal accepts USD 19 without the once discount even after campaign withdrawal, and rejects a repeated discount", () => {
+  const { approved, subscription, invoices } = introPayment();
+  const invoice = invoices.data[0]; invoice.billing_reason = "subscription_cycle"; invoice.amount_paid = invoice.amount_due = 1900;
+  assert.equal(evaluateSubscription(subscription, invoices, "cus_fixture", introConfiguration, Date.now(), approved).grant, null, "The once discount cannot recur");
+  invoice.discounts = []; invoice.lines.data[0].discount_amounts = [];
+  assert.equal(evaluateSubscription(subscription, invoices, "cus_fixture", { ...introConfiguration, premiumIntroEnabled: false }, Date.now(), approved).grant?.plan, "premium");
+});
+
+test("intro availability distinguishes verified new, verified returning and unknown rather than silently charging USD 19", async () => {
+  const fixture = memory(introConfiguration);
+  assert.deepEqual((await fixture.service.read("owner")).premiumIntro, { id: PREMIUM_INTRO_OFFER.id, eligible: true, ready: true,
+    firstUnitAmount: 900, renewalUnitAmount: 1900, currency: "usd", interval: "month" });
+  await fixture.service.checkout("owner", randomUUID(), "https://sajda.example", "premium", introIntent);
+  fixture.provider.introEligible = async () => false;
+  const returning = (await fixture.service.read("owner")).premiumIntro!;
+  assert.equal(returning.ready, true); assert.equal(returning.eligible, false);
+  fixture.provider.introEligible = async () => { throw new CommerceError("invalid_provider_response"); };
+  const unknown = (await fixture.service.read("owner")).premiumIntro!;
+  assert.equal(unknown.ready, false); assert.equal(unknown.eligible, false);
+  fixture.provider.introCoupon = async () => { throw new Error("coupon_unavailable"); };
+  const unavailable = (await fixture.service.read("owner")).premiumIntro!;
+  assert.equal(unavailable.ready, false); assert.equal(unavailable.eligible, false);
+});
+
+test("new intro checkout has no standard-price fallback when history, coupon, migration or campaign eligibility is unavailable", async () => {
+  for (const scenario of ["disabled", "missing-coupon", "used", "unknown-history", "wrong-coupon", "missing-migration"] as const) {
+    const configuration = { ...introConfiguration }, fixture = memory(configuration);
+    if (scenario === "disabled") configuration.premiumIntroEnabled = false;
+    if (scenario === "missing-coupon") configuration.premiumIntroCouponId = undefined;
+    if (scenario === "used") fixture.provider.introEligible = async () => false;
+    if (scenario === "unknown-history") fixture.provider.introEligible = async () => { throw new Error("partial_provider_history"); };
+    if (scenario === "wrong-coupon") fixture.provider.introCoupon = async () => { throw new CommerceError("intro_offer_unavailable", 409); };
+    if (scenario === "missing-migration") fixture.store.introAvailable = async () => false;
+    await assert.rejects(() => fixture.service.checkout("owner", randomUUID(), "https://sajda.example", "premium", introIntent),
+      (error: CommerceError) => error.code === "intro_offer_unavailable" && error.status === 409);
+    assert.equal(fixture.calls.includes("createCheckout"), false); assert.equal(fixture.pending, null); assert.equal(fixture.stored.grant, null);
+  }
+});
+
+test("a completed local intro reservation prevents repeat redemption even if a provider history were subsequently empty", async () => {
+  const fixture = memory(introConfiguration), key = randomUUID();
+  await fixture.service.checkout("owner", key, "https://sajda.example", "premium", introIntent);
+  fixture.pending = { ...fixture.pending!, state: "complete" };
+  fixture.provider.introEligible = async () => true;
+  const snapshot = await fixture.service.read("owner");
+  assert.equal(snapshot.premiumIntro?.ready, true); assert.equal(snapshot.premiumIntro?.eligible, false);
+  await assert.rejects(() => fixture.service.checkout("owner", randomUUID(), "https://sajda.example", "premium", introIntent), code("intro_offer_unavailable"));
+  assert.equal(fixture.calls.filter(row => row === "createCheckout").length, 1);
+});
+
+test("post-cancel fresh intro rejects repeat offer rather than checkout_completed from a stale open paid reservation", async () => {
+  const fixture = memory(introConfiguration), firstKey = randomUUID();
+  await fixture.service.checkout("owner", firstKey, "https://sajda.example", "premium", introIntent);
+  fixture.state = { ...noState, status: "canceled", subscriptionId: "sub_paidCanceled" };
+  fixture.provider.introEligible = async () => false;
+  fixture.provider.checkout = async () => ({ id: "cs_test_fixture", status: "complete", url: null,
+    expiresAt: new Date().toISOString(), subscriptionId: "sub_paidCanceled" });
+  assert.equal(fixture.pending?.state, "open", "Webhooks did not previously update the reservation state");
+  await assert.rejects(() => fixture.service.checkout("owner", randomUUID(), "https://sajda.example", "premium", introIntent), code("intro_offer_unavailable"));
+  assert.equal(fixture.pending?.state, "complete", "Persisted state must reflect the verified provider session before evaluating a new request");
+  assert.equal(fixture.calls.filter(row => row === "createCheckout").length, 1); assert.equal(fixture.stored.grant, null);
+});
+
+test("post-cancel explicitly selected ordinary plan retires only a proved completed checkout and creates a new undiscounted intent", async () => {
+  for (const plan of PAID_PLAN_ORDER) {
+    const fixture = memory(introConfiguration), firstKey = randomUUID();
+    await fixture.service.checkout("owner", firstKey, "https://sajda.example", "premium", introIntent);
+    const previous = fixture.pending!, requestKey = randomUUID(), created: unknown[] = [];
+    fixture.state = { ...noState, status: "canceled", subscriptionId: "sub_paidCanceled" };
+    fixture.provider.checkout = async () => ({ id: "cs_test_fixture", status: "complete", url: null,
+      expiresAt: new Date().toISOString(), subscriptionId: "sub_paidCanceled" });
+    fixture.provider.createCheckout = async input => { created.push(structuredClone(input)); return { id: "cs_test_newOrdinary", status: "open",
+      url: "https://checkout.stripe.com/c/pay/newOrdinary", expiresAt: new Date(Date.now() + 3600000).toISOString() }; };
+    assert.equal(await fixture.service.checkout("owner", requestKey, "https://sajda.example", plan, { returnTo: "swipe" }), "https://checkout.stripe.com/c/pay/newOrdinary");
+    assert.notEqual(fixture.pending?.id, previous.id); assert.equal(fixture.pending?.requestKey, requestKey);
+    assert.equal(fixture.pending?.plan, plan); assert.equal(fixture.pending?.priceId, introConfiguration.priceIds![plan]);
+    assert.equal(fixture.pending?.offer, undefined); assert.equal(fixture.pending?.couponId, undefined);
+    assert.equal(created.length, 1); assert.equal(fixture.stored.grant, null);
+  }
+});
+
+test("same completed request key and active subscriptions cannot start another checkout", async () => {
+  for (const status of ["canceled", "active"] as const) {
+    const fixture = memory(introConfiguration), key = randomUUID();
+    await fixture.service.checkout("owner", key, "https://sajda.example", "premium", introIntent);
+    fixture.state = { ...noState, status, subscriptionId: "sub_paid" };
+    fixture.provider.checkout = async () => ({ id: "cs_test_fixture", status: "complete", url: null,
+      expiresAt: new Date().toISOString(), subscriptionId: "sub_paid" });
+    await assert.rejects(() => fixture.service.checkout("owner", key, "https://sajda.example", "premium", introIntent), code(status === "active" ? "subscription_exists" : "checkout_completed"));
+    assert.equal(fixture.calls.filter(row => row === "createCheckout").length, 1);
+  }
+});
+
+test("intro readiness is false before its reviewed migration without disturbing ordinary billing", async () => {
+  const fixture = memory(introConfiguration);
+  fixture.store.introAvailable = async () => false;
+  const snapshot = await fixture.service.read("owner");
+  assert.equal(snapshot.premiumIntro?.ready, false); assert.equal(snapshot.premiumIntro?.eligible, false);
+  assert.equal(snapshot.plans.premium.canCheckout, true);
+  await fixture.service.checkout("owner", randomUUID(), "https://sajda.example", "premium");
+  assert.equal(fixture.pending?.offer, undefined); assert.equal(fixture.pending?.couponId, undefined);
+});
+
+test("fenced intro reservation persistence retains exact server offer, coupon and return context with bounded owner history", async () => {
+  const queries: { sql: string; params: unknown[] }[] = [], timestamp = new Date().toISOString();
+  let saved: Record<string, unknown> | undefined, historySize = 1;
+  const client = { release() {}, async query(sql: string, params: unknown[] = []) {
+    queries.push({ sql, params });
+    if (sql.includes("commerce:fence")) return { rows: [{ payment_hold: false }] };
+    if (sql.includes("commerce:intro-schema")) return { rows: [{ ready: true }] };
+    if (sql.includes("commerce:intro-history")) return { rows: Array.from({ length: historySize }, () => saved!) };
+    if (sql.includes("commerce:checkout-existing")) return { rows: saved ? [saved] : [] };
+    if (sql.includes("count(*)")) return { rows: [{ n: 0 }] };
+    if (sql.includes("commerce:checkout-reserve")) {
+      saved = { id: params[0], request_key: params[3], price_id: params[4], origin: params[5], plan: params[6],
+        offer_id: params[7], coupon_id: params[8], return_to: params[9], state: "creating", session_id: null, created_at: timestamp };
+      return { rows: [saved] };
+    }
+    return { rows: [] };
+  } };
+  const store = createCommerceStore(introConfiguration, { connect: async () => client });
+  assert.equal(await store.introAvailable(), true);
+  assert.ok(queries.find(row => row.sql.includes("0026_premium_intro_constraint.sql")));
+  const lease = { ownerId: "owner", token: randomUUID(), fence: 2 } as CommerceLease, requestKey = randomUUID();
+  const reservation = await store.reservation(lease, requestKey, "price_premium", "https://sajda.example", "premium", { ...introIntent, couponId: introConfiguration.premiumIntroCouponId });
+  assert.equal(reservation.offer, PREMIUM_INTRO_OFFER.id); assert.equal(reservation.couponId, introConfiguration.premiumIntroCouponId); assert.equal(reservation.returnTo, "swipe");
+  const rows = await store.introReservations(lease); assert.equal(rows[0].id, reservation.id); assert.equal(rows[0].completed, false);
+  const history = queries.find(row => row.sql.includes("commerce:intro-history"))!;
+  assert.match(history.sql, /namespace=\$1 AND owner_id=\$2/u); assert.match(history.sql, /LIMIT 101/u);
+  assert.deepEqual(history.params, [introConfiguration.namespace, "owner"]);
+  historySize = 101; await assert.rejects(() => store.introReservations(lease), code("billing_reconciliation_required"));
+});
+
+test("follow-up migration makes coupon/offer null pairing explicit without rewriting the applied migration or deleting data", async () => {
+  const sql = await readFile(new URL("../db/migrations/0026_premium_intro_constraint.sql", import.meta.url), "utf8");
+  assert.match(sql, /offer_id IS NULL AND coupon_id IS NULL/u);
+  assert.match(sql, /offer_id IS NOT NULL AND offer_id='premium-first-month-v1'/u);
+  assert.match(sql, /coupon_id IS NOT NULL/u);
+  assert.doesNotMatch(sql, /\b(?:BEGIN|COMMIT|DELETE|TRUNCATE|UPDATE)\b/u);
+});
+
+test("a timed-out intro creation retries exactly the persisted coupon, UUID and context after config changes", async () => {
+  const configuration = { ...introConfiguration }, fixture = memory(configuration), key = randomUUID();
+  const calls: unknown[] = []; let first = true;
+  const create = fixture.provider.createCheckout;
+  fixture.provider.createCheckout = async input => { calls.push(structuredClone(input)); if (first) { first = false; throw new Error("unknown_create_result"); } return create(input); };
+  await assert.rejects(() => fixture.service.checkout("owner", key, "https://sajda.example", "premium", introIntent));
+  configuration.premiumIntroCouponId = "new_coupon";
+  fixture.provider.introEligible = async () => { throw new Error("Existing intent must not become a new subscription"); };
+  await fixture.service.checkout("owner", key, "https://different-preview.example", "premium", introIntent);
+  assert.deepEqual(calls[1], calls[0]); assert.equal(fixture.pending?.couponId, introConfiguration.premiumIntroCouponId);
+  assert.equal(fixture.pending?.returnTo, "swipe");
+});
+
+test("retry never substitutes standard price for intro, intro for standard price, or another return destination", async () => {
+  for (const firstOffer of [true, false]) {
+    const fixture = memory(introConfiguration), key = randomUUID();
+    await fixture.service.checkout("owner", key, "https://sajda.example", "premium", firstOffer ? introIntent : { returnTo: "swipe" });
+    for (const requestKey of [key, randomUUID()]) {
+      await assert.rejects(() => fixture.service.checkout("owner", requestKey, "https://sajda.example", "premium", firstOffer ? { returnTo: "swipe" } : introIntent), code("intro_offer_unavailable"));
+      await assert.rejects(() => fixture.service.checkout("owner", requestKey, "https://sajda.example", "premium", firstOffer ? { offer: PREMIUM_INTRO_OFFER.id } : {}), code("checkout_context_conflict"));
+    }
+    assert.equal(fixture.calls.filter(row => row === "createCheckout").length, 1);
+  }
+});
+
+test("an incomplete subscription can only return the exact same proven intro session, never create another", async () => {
+  for (const matches of [true, false]) {
+    const fixture = memory(introConfiguration), key = randomUUID();
+    await fixture.service.checkout("owner", key, "https://sajda.example", "premium", introIntent);
+    fixture.state = { ...noState, status: "incomplete", subscriptionId: "sub_incomplete" };
+    const checkout = fixture.provider.checkout;
+    fixture.provider.checkout = async (...args) => ({ ...await checkout(...args), subscriptionId: matches ? "sub_incomplete" : "sub_other" });
+    if (matches) assert.match(await fixture.service.checkout("owner", key, "https://sajda.example", "premium", introIntent), /^https:\/\/checkout\.stripe\.com/u);
+    else await assert.rejects(() => fixture.service.checkout("owner", key, "https://sajda.example", "premium", introIntent), code("subscription_exists"));
+    assert.equal(fixture.calls.filter(row => row === "createCheckout").length, 1);
+  }
+});
+
+test("billing action accepts only server-known intro IDs and Swipe context, never a browser price, coupon or URL", async () => {
+  const requestKey = randomUUID(), valid = { action: "checkout", requestKey, plan: "premium", ...introIntent };
+  const request = (body: unknown) => ({ headers: { "content-type": "application/json" }, body });
+  assert.deepEqual(await billingAction(request(valid)), valid);
+  for (const body of [ { ...valid, couponId: "external" }, { ...valid, amount: 900 }, { ...valid, returnTo: "https://evil.example" },
+    { ...valid, offer: "another" }, { ...valid, plan: "basic" }, { ...valid, plan: undefined }, { ...valid, action: "portal" },
+  ]) await assert.rejects(() => billingAction(request(body)), code("invalid_billing_request"));
 });
 
 test("signed concurrent events receive a retryable lease denial, then the identical bytes reconcile exactly once", { timeout: 5000 }, async () => {
@@ -962,11 +1242,11 @@ test("checkout replacements are checked again after expired-session retirement o
     const reserve = fixture.store.reservation; let reservations = 0;
     fixture.store.reservation = async (...args) => {
       const existing = await reserve(...args); reservations++;
-      return reservations === 1 ? existing : { ...existing, plan: "trading", priceId: config.priceId };
+      return { ...existing, plan: "trading", priceId: config.priceId };
     };
     await assert.rejects(() => fixture.service.checkout("owner", randomUUID(), "https://sajda.example", "basic"),
       (error: CommerceError) => error.code === "checkout_plan_conflict" && error.status === 409);
-    assert.equal(reservations, 2); assert.equal(fixture.calls.filter(value => value === "createCheckout").length, 1);
+    assert.equal(reservations, 1); assert.equal(fixture.calls.filter(value => value === "createCheckout").length, 1);
     assert.equal(fixture.stored.grant, null);
   }
 });
@@ -1199,6 +1479,7 @@ test("missing configuration returns honest unavailable snapshot and performs no 
     canCheckout: false,
     canManage: false,
     accessExpiresAt: null,
+    premiumIntro: null,
   });
   await assert.rejects(
     () => service.checkout("owner", randomUUID(), "https://sajda.example"),

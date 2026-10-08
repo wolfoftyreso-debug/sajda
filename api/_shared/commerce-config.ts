@@ -20,6 +20,8 @@ export interface CommerceConfig {
   portalConfigurationId: string;
   checkoutEnabled: boolean;
   checkoutPlans?: Record<PaidPlanId, boolean>;
+  premiumIntroEnabled?: boolean;
+  premiumIntroCouponId?: string;
 }
 export function commerceConfig(
   env: NodeJS.ProcessEnv = process.env,
@@ -66,6 +68,8 @@ export function commerceConfig(
     priceIds,
     portalConfigurationId,
     checkoutEnabled: env.STRIPE_CHECKOUT_ENABLED === "true",
+    premiumIntroEnabled: env.STRIPE_PREMIUM_INTRO_ENABLED === "true",
+    premiumIntroCouponId: /^[A-Za-z0-9_-]{1,255}$/u.test(env.STRIPE_PREMIUM_INTRO_COUPON_ID ?? "") ? env.STRIPE_PREMIUM_INTRO_COUPON_ID : undefined,
     checkoutPlans: {
       basic: env.STRIPE_BASIC_CHECKOUT_ENABLED === "true",
       premium: env.STRIPE_PREMIUM_CHECKOUT_ENABLED === "true",

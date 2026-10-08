@@ -34,10 +34,13 @@ const action = z
     action: z.enum(["checkout", "portal"]),
     requestKey: z.string().uuid(),
     plan: z.enum(["basic", "premium", "trading"]).optional(),
+    offer: z.literal("premium-first-month-v1").optional(),
+    returnTo: z.literal("swipe").optional(),
   })
   .strict()
   .superRefine((value, context) => {
-    if (value.action === "portal" && value.plan !== undefined) context.addIssue({ code: "custom", path: ["plan"], message: "plan is only valid for checkout" });
+    if (value.action === "portal" && (value.plan !== undefined || value.offer !== undefined || value.returnTo !== undefined)) context.addIssue({ code: "custom", path: ["plan"], message: "purchase fields are only valid for checkout" });
+    if (value.offer !== undefined && value.plan !== "premium") context.addIssue({ code: "custom", path: ["offer"], message: "intro offer requires the Premium plan" });
   });
 export async function billingAction(
   request: BillingRequest,

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { isolatedRuntimeEnvironment } from "../scripts/check-local-runtime.mjs";
+import { isolatedRuntimeEnvironment, LOCAL_QA_STARTUP_TIMEOUT_MS } from "../scripts/check-local-runtime.mjs";
 
 const read = path => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const manifest = JSON.parse(read("package.json"));
@@ -60,6 +60,19 @@ test("local HTTP smoke never inherits secrets, production settings, proxy or Nod
   for (const port of [0, 80, 65536, 4000.5, "4000", NaN]) {
     assert.throws(() => isolatedRuntimeEnvironment({}, port), /Invalid QA port/u);
   }
+});
+
+test("local QA startup has a finite 60-second cap without changing request or smoke deadlines", () => {
+  assert.equal(LOCAL_QA_STARTUP_TIMEOUT_MS, 60_000);
+  assert.ok(Number.isSafeInteger(LOCAL_QA_STARTUP_TIMEOUT_MS));
+  const runtime = read("scripts/check-local-runtime.mjs");
+  assert.match(runtime, /const deadline = Date\.now\(\) \+ LOCAL_QA_STARTUP_TIMEOUT_MS;/u);
+  assert.match(runtime, /Date\.now\(\) >= deadline/u);
+  assert.match(runtime, /QA server did not become ready/u);
+  assert.match(runtime, /AbortSignal\.timeout\(1000\)/u);
+  assert.match(runtime, /Local HTTP smoke timed out[\s\S]*120_000/u);
+  assert.match(runtime, /finally \{[\s\S]*server\.kill\(\)/u);
+  assert.doesNotMatch(runtime, /process\.env\.[A-Z_]*TIMEOUT/u);
 });
 
 test("runtime smoke expects all six anonymous research tools and covers brand/package pages", () => {

@@ -26,6 +26,9 @@ const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const emit = value => process.stdout.write(JSON.stringify(value) + "\n");
 const check = (condition, code) => { if (!condition) throw new Error(code); };
 const args = new Map(process.argv.slice(2).map(value => { const i = value.indexOf("="); check(i > 0, "invalid_arguments"); return [value.slice(0, i), value.slice(i + 1)]; }));
+const intro = args.get("--premium-intro") === "1", plan = intro ? "premium" : "trading";
+const checkoutInput = key => ({ action: "checkout", requestKey: key, plan,
+  ...(intro ? { offer: "premium-first-month-v1", returnTo: "swipe" } : {}) });
 const runId = randomUUID(), owner = "stripe-qa-" + runId, token = randomUUID();
 let phase = "preflight", stripe, db, server, listener, browser, checkoutPage, customerId, config, setupAttempted = false;
 let listenerSecret, localOrigin, capturedEvent, cleanupConfirmed = false;
@@ -46,7 +49,7 @@ async function main() {
   // that must never authorize executing this destructive fixture-only harness.
   check(process.env.SAJDA_STRIPE_SANDBOX_LIFECYCLE === "1" && !process.env.VERCEL && !process.env.VERCEL_ENV && !process.env.VERCEL_URL && !process.env.VERCEL_OIDC_TOKEN, "explicit_local_test_opt_in_required");
   check(await realpath(process.cwd()) === await realpath(path.join(repo, ".vercel/commerce-fresh")), "explicit_local_probe_directory_required");
-  check(args.size === 1 && args.has("--stripe-cli") && process.argv.length === 3, "stripe_cli_path_required");
+  check(args.has("--stripe-cli") && (args.size === 1 || args.size === 2 && intro) && process.argv.length === args.size + 2, "stripe_cli_path_required");
   check(process.env.STRIPE_MODE === "test" && /^sk_test_[A-Za-z0-9]{12,}$/u.test(process.env.STRIPE_SECRET_KEY ?? ""), "fresh_test_key_required");
   const cli = await realpath(args.get("--stripe-cli"));
   check(path.basename(cli).toLowerCase() === "stripe.exe", "explicit_stripe_binary_required");
@@ -93,7 +96,7 @@ async function main() {
         adapter.json = payload => { accepted.push({ eventId: event.id, type: event.type, status: response.statusCode, duplicate: payload.duplicate === true }); originalJson(payload); };
         await webhook({ method: "POST", headers: request.headers, body }, adapter); return;
       }
-      response.statusCode = request.url?.startsWith("/plus") ? 200 : 404;
+      response.statusCode = request.url?.startsWith(intro ? "/swipe" : "/plus") ? 200 : 404;
       response.end("Sajda sandbox QA return — payment is verified separately.");
     } catch { response.statusCode = 500; response.end("{}"); }
     finally { activeHandlers--; }
@@ -113,15 +116,18 @@ async function main() {
   const call = async body => { const result = await fetch(localOrigin + "/api/account/billing", { method: body ? "POST" : "GET", headers, ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(25000) }); check(result.status === 200, "local_billing_http_" + result.status); return result.json(); };
   const key = randomUUID();
   phase = "actual_checkout";
-  const initial = await call(); check(initial.canCheckout === true && initial.activePlan === null, "fresh_owner_checkout_required");
-  const checkout = await call({ action: "checkout", requestKey: key, plan: "trading" });
+  const initial = await call(); check(initial.plans[plan].canCheckout === true && initial.activePlan === null, "fresh_owner_checkout_required");
+  if (intro) check(initial.premiumIntro?.eligible === true && initial.premiumIntro?.ready === true, "verified_intro_offer_required");
+  const checkout = await call(checkoutInput(key));
   customerId = (await store.read(owner)).customerId;
   check(customerId && (await stripe.customers.retrieve(customerId)).livemode === false, "owned_test_customer_required");
   const current = await stripe.checkout.sessions.list({ customer: customerId, limit: 100 });
   check(!current.has_more && current.data.length === 1 && current.data[0].livemode === false, "one_owned_test_checkout_required");
   const session = current.data[0]; sessions.add(session.id);
-  check((await call({ action: "checkout", requestKey: key, plan: "trading" })).url === checkout.url, "checkout_retry_duplicate");
-  check((await call({ action: "checkout", requestKey: randomUUID(), plan: "trading" })).url === checkout.url, "new_key_checkout_duplicate");
+  check((await call(checkoutInput(key))).url === checkout.url, "checkout_retry_duplicate");
+  check((await call(checkoutInput(randomUUID()))).url === checkout.url, "new_key_checkout_duplicate");
+  if (intro) check(session.amount_subtotal === 1900 && session.amount_total === 900 && session.total_details?.amount_discount === 1000
+    && new URL(session.success_url).pathname === "/swipe" && new URL(session.cancel_url).pathname === "/swipe", "actual_intro_checkout_contract_required");
   check((await store.read(owner)).activePlan === null, "browser_redirect_must_not_grant");
   browser = await chromium.launch({ channel: "msedge", headless: true });
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: "en-US" });
@@ -161,6 +167,13 @@ async function main() {
   phase = "hosted_decline_response";
   await page.getByText(/(?:credit )?card (?:was|has been) declined/i).first().waitFor({ timeout: 30000 });
   check((await store.read(owner)).activePlan === null && !(await createCommerceProvider(config).reconcile(customerId)).grant, "decline_must_not_grant");
+  const afterDecline = await call();
+  const declinedSubscriptions = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 100 });
+  check(!declinedSubscriptions.has_more && afterDecline.activePlan === null, "decline_state_required");
+  if (intro && declinedSubscriptions.data.length === 0) check(afterDecline.premiumIntro?.eligible === true && afterDecline.plans.premium.canCheckout === true, "declined_intro_resume_required");
+  emit({ check: "actual_post_decline_snapshot", subscriptionCount: declinedSubscriptions.data.length,
+    canCheckout: afterDecline.plans[plan].canCheckout, introEligible: intro ? afterDecline.premiumIntro?.eligible : null,
+    activePlan: afterDecline.activePlan });
   emit({ check: "actual_hosted_card_decline", rejected: true, paidAccess: false });
   phase = "hosted_retry_number_fill";
   await fill(['input[name="cardNumber"]', 'input[autocomplete="cc-number"]'], "4242424242424242");
@@ -169,7 +182,7 @@ async function main() {
   phase = "hosted_paid_return";
   await page.waitForURL(url => url.origin === localOrigin, { timeout: 45000 });
   phase = "webhook_entitlement";
-  await awaitCondition(async () => (await store.read(owner))?.activePlan === "trading", "actual_webhook_entitlement_not_received");
+  await awaitCondition(async () => (await store.read(owner))?.activePlan === plan, "actual_webhook_entitlement_not_received");
   // The CLI forwards each event once; unlike a registered Stripe endpoint it
   // does not exercise provider retry scheduling. Concurrent lease denials are
   // retried explicitly using the exact authentic event bytes/signature.
@@ -184,13 +197,19 @@ async function main() {
       check(result.status === 200, "actual_signed_invoice_retry_rejected"); return true;
     }, "actual_signed_invoice_retry_timeout");
   }
-  const paid = await call(); check(paid.activePlan === "trading" && paid.status === "active" && paid.canCheckout === false && paid.canManage === true, "paid_application_state_required");
+  const paid = await call(); check(paid.activePlan === plan && paid.status === "active" && paid.plans[plan].canCheckout === false && paid.canManage === true, "paid_application_state_required");
   const membership = createAccountMembershipReader({ query: async (sql, values) => (await db.query(sql, values)).rows, environment: () => ({ VERCEL: "1", VERCEL_ENV: "preview" }) });
-  check((await membership({ id: owner, emailVerified: true })).plan === "trading", "central_membership_required");
+  check((await membership({ id: owner, emailVerified: true })).plan === plan, "central_membership_required");
   check(accepted.some(event => event.type === "invoice.paid" && event.status === 200) && capturedEvent, "real_invoice_delivery_required");
   const completed = await stripe.checkout.sessions.retrieve(session.id);
   check(completed.status === "complete" && completed.payment_status === "paid" && completed.customer === customerId, "actual_stripe_checkout_paid_required");
   const actualSubscription = await stripe.subscriptions.retrieve(typeof completed.subscription === "string" ? completed.subscription : completed.subscription.id);
+  if (intro) {
+    const firstInvoice = await stripe.invoices.retrieve(typeof actualSubscription.latest_invoice === "string" ? actualSubscription.latest_invoice : actualSubscription.latest_invoice.id);
+    check(firstInvoice.status === "paid" && firstInvoice.currency === "usd" && firstInvoice.amount_paid === 900 && firstInvoice.amount_due === 900
+      && actualSubscription.items.data[0].price.unit_amount === 1900, "actual_intro_paid_invoice_required");
+    emit({ check: "actual_premium_intro_invoice", runId, paidFirstMonthMinor: 900, regularPriceMinor: 1900, currency: "usd", plan: "premium", renewalActuallyExecuted: false });
+  }
   const portal = await call({ action: "portal", requestKey: randomUUID() });
   check(new URL(portal.url).hostname === "billing.stripe.com", "actual_cancel_portal_required");
   phase = "replay_signature";
@@ -209,15 +228,25 @@ async function main() {
   // CommerceCustomer intentionally projects membership, not this provider flag.
   // Inspect the exact persisted owner record, not an invented API property.
   await awaitCondition(async () => (await db.query("SELECT cancel_at_period_end FROM sajda.commerce_customers WHERE namespace='preview' AND owner_id=$1 AND customer_id=$2 AND livemode=false", [owner, customerId])).rows[0]?.cancel_at_period_end === true, "period_end_webhook_not_received");
-  check((await store.read(owner)).activePlan === "trading", "cancel_at_period_end_keeps_paid_access");
+  check((await store.read(owner)).activePlan === plan, "cancel_at_period_end_keeps_paid_access");
   await stripe.subscriptions.cancel(actualSubscription.id, { invoice_now: false, prorate: false });
   await awaitCondition(async () => (await store.read(owner))?.status === "canceled" && (await store.read(owner))?.activePlan === null, "cancellation_revocation_not_received");
   check((await membership({ id: owner, emailVerified: true })).plan === "free", "central_membership_revocation_required");
-  const afterCancel = await call(); check(afterCancel.canCheckout === true && afterCancel.canManage === true, "returning_customer_can_choose_again");
+  const afterCancel = await call(); check(afterCancel.plans[plan].canCheckout === true && afterCancel.canManage === true, "returning_customer_can_choose_again");
+  if (intro) {
+    check(afterCancel.premiumIntro?.ready === true && afterCancel.premiumIntro?.eligible === false, "returning_customer_intro_denied");
+    const deniedOffer = await fetch(localOrigin + "/api/account/billing", { method: "POST", headers, body: JSON.stringify(checkoutInput(randomUUID())), signal: AbortSignal.timeout(25000) });
+    const deniedOfferBody = await deniedOffer.json();
+    emit({ check: "returning_intro_request_rejected", status: deniedOffer.status, code: deniedOfferBody.code ?? null,
+      hasCheckoutUrl: typeof deniedOfferBody.url === "string" });
+    check(deniedOffer.status === 409 && deniedOfferBody.code === "intro_offer_unavailable", "explicit_intro_must_not_fall_back_to_full_price");
+    check((await stripe.checkout.sessions.list({ customer: customerId, limit: 100 })).data.length === 1, "denied_offer_must_not_create_second_checkout");
+  }
   emit({ check: "actual_local_stripe_application_lifecycle", success: true, runId, account: "acct_1UDqPlAJ7seQoN51", mode: "test",
     hostedCheckout: true, cardDeclineAndRetry: true, exactlyOneCheckout: true, signedStripeCliDelivery: true, authenticInvoiceExplicitRetry: invoiceNeededRetry, actualNeonEntitlement: true,
     centralMembership: true, duplicateDelivery: true, invalidSignature: true, billingPortalCreated: true, periodEndCancellationKeepsPaidAccess: true,
     immediateTestCancellationRevokesAccess: true, returningCustomerCanCheckout: true, deliveredEvents: accepted.length,
+    premiumIntro: intro, plan, firstInvoiceMinor: intro ? 900 : 4900, returningIntroDeniedWithoutFullPriceFallback: intro,
     deployedCallbackTested: false, automaticProviderRetryTested: false, actualAccountAuthTested: false, renewalTested: false, realEmailDeliveryTested: false, productionWrites: 0 });
 }
 async function cleanup() {
