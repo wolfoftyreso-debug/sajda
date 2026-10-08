@@ -1,7 +1,10 @@
 /** Opt-in, isolated browser QA for Swipe's Premium introduction and return.
  * Registry cards are EXPLICITLY SYNTHETIC, intercepted only at the exact
  * /api/domain-search route. Auth, authorization and billing GET use unchanged
- * real Preview responses. No checkout, email, entitlement or production writes.
+ * real Preview responses. The first real guest session response is held behind
+ * a bounded transport gate until disabled-start/readiness UI assertions finish;
+ * its actual status and body are never mocked. No checkout, email, entitlement
+ * or production writes.
  * Run: node --import tsx scripts/check-swipe-premium-browser-preview.mjs
  * with the same six fenced environment/origin/runtime arguments as the
  * brand-monitor browser probe. --check-fixtures performs no network or DB work.
@@ -102,8 +105,13 @@ async function main() {
   const runId = randomUUID(), owner = randomUUID(), email = `swipe-premium-browser-${owner}@example.test`, password = `Sajda-${randomBytes(28).toString("base64url")}`;
   const artifacts = path.join(root, "swipe-premium-browser");
   const measurements = [], sessionResponses = [], billingReceipts = [], capabilities = [], fixtureRequests = [], posts = [], blockedWrites = [];
-  let browser, result, blockedExternal = 0, transportFailures = 0, runtimeExceptions = 0, actualLogin = false;
-  let fixtureFailure = false, observedAt, guestState;
+  let browser, page, result, blockedExternal = 0, transportFailures = 0, runtimeExceptions = 0, actualLogin = false;
+  let fixtureFailure = false, observedAt, guestState, sessionRequests = 0;
+  const initialSessionHoldMaxMs = 10_000;
+  let releaseInitialSession, resolveInitialSessionReady, initialSessionHoldTimer;
+  let initialSessionReserved = false, initialSessionHoldExpired = false, initialSessionHoldStartedAt, initialSessionHoldElapsedMs, guestReadiness;
+  const initialSessionDeliveryGate = new Promise(resolve => { releaseInitialSession = resolve; });
+  const initialSessionReady = new Promise(resolve => { resolveInitialSessionReady = resolve; });
   try {
     phase = "protected_preview_health";
     const health = await fetch(new URL("/api/health", origin), { headers: { "x-vercel-trusted-oidc-idp-token": token }, redirect: "error", signal: AbortSignal.timeout(30_000) });
@@ -126,6 +134,9 @@ async function main() {
     await context.route("**/*", async route => {
       const request = route.request(), target = new URL(request.url());
       if (target.origin !== origin.origin) { blockedExternal++; return route.abort("blockedbyclient"); }
+      if (target.pathname === "/api/auth/get-session") sessionRequests++;
+      const holdInitialSession = target.pathname === "/api/auth/get-session" && request.method() === "GET" && !initialSessionReserved;
+      if (holdInitialSession) initialSessionReserved = true;
       if (target.pathname === "/api/domain-search") {
         // This sole intercepted endpoint is NOT evidence of a registry result.
         // A complete long deck avoids accidental prefetch/provider expenditure.
@@ -153,6 +164,17 @@ async function main() {
         // Unlike continue(headers), this cannot forward private protection
         // headers on a redirect. Real backend response bodies stay unchanged.
         const response = await route.fetch({ headers: { ...request.headers(), "x-vercel-trusted-oidc-idp-token": token }, maxRedirects: 0, maxRetries: 0, timeout: 60_000 });
+        if (holdInitialSession) {
+          const guestBodyNull = await response.json().then(value => value === null, () => false);
+          initialSessionHoldStartedAt = Date.now();
+          initialSessionHoldTimer = setTimeout(() => { initialSessionHoldExpired = true; releaseInitialSession(); }, initialSessionHoldMaxMs);
+          resolveInitialSessionReady({ status: response.status(), guestBodyNull });
+          // Delivery only is controlled: no fabricated auth response, extra
+          // provider request, arbitrary warm-up sleep or entitlement bypass.
+          await initialSessionDeliveryGate;
+          clearTimeout(initialSessionHoldTimer);
+          initialSessionHoldElapsedMs = Date.now() - initialSessionHoldStartedAt;
+        }
         if (target.pathname === "/api/account/billing" && request.method() === "GET") {
           const value = await response.json().catch(() => null);
           billingReceipts.push({ status: response.status(), accountMatches: value?.accountId === owner, mode: value?.mode ?? null,
@@ -164,9 +186,12 @@ async function main() {
         }
         if (target.pathname === "/api/auth/get-session") sessionResponses.push(response.status());
         return await route.fulfill({ response });
-      } catch { transportFailures++; return route.abort("failed").catch(() => undefined); }
+      } catch {
+        if (holdInitialSession) resolveInitialSessionReady({ status: null, guestBodyNull: false });
+        transportFailures++; return route.abort("failed").catch(() => undefined);
+      }
     });
-    const page = await context.newPage();
+    page = await context.newPage();
     page.on("pageerror", () => { runtimeExceptions++; });
     const undo = () => page.locator('button[aria-describedby="swipe-undo-hint"]');
     const dialog = () => page.getByRole("dialog", { name: copy.title, exact: true });
@@ -199,14 +224,56 @@ async function main() {
       await close.press("Enter"); await dialog().waitFor({ state: "hidden" });
       check(await undo().evaluate(element => element === document.activeElement));
     };
-    phase = "guest_synthetic_deck_real_swipe";
+    phase = "guest_load_preview";
     await page.goto(new URL("/swipe?lang=en", origin).toString(), { waitUntil: "domcontentloaded" });
-    await page.getByRole("dialog", { name: "Deck controls", exact: true }).waitFor();
-    await page.getByRole("button", { name: "Start swiping", exact: true }).click();
+    phase = "guest_settings_dialog";
+    const settingsDialog = page.getByRole("dialog", { name: "Deck controls", exact: true });
+    await settingsDialog.waitFor();
+    phase = "guest_real_session_held_start_guard";
+    let responseReadyTimer;
+    const initialReceipt = await Promise.race([initialSessionReady, new Promise((_, reject) => {
+      responseReadyTimer = setTimeout(() => reject(new Error("Initial real guest session response unavailable")), 25_000);
+    })]).finally(() => clearTimeout(responseReadyTimer));
+    const start = page.getByRole("button", { name: "Start swiping", exact: true });
+    safeDiagnostics = { guestStartSnapshot: { startEnabled: await start.isEnabled(),
+      sessionRequests, completedSessionReads: sessionResponses.length, completedSessionStatuses: [...sessionResponses] } };
+    check(initialReceipt.status === 200 && initialReceipt.guestBodyNull && !initialSessionHoldExpired && sessionResponses.length === 0);
+    check(await start.isDisabled() && await settingsDialog.isVisible());
+    check(await start.getAttribute("aria-describedby") === "swipe-account-check");
+    const pendingStatus = settingsDialog.getByRole("status");
+    check(await pendingStatus.innerText() === "Checking your account…" && await pendingStatus.isVisible());
+    const pendingStatusBounds = await pendingStatus.evaluate(node => {
+      const box = node.getBoundingClientRect(), dialogBox = node.closest('[role="dialog"]').getBoundingClientRect();
+      return { width: innerWidth, height: innerHeight, fullyWithinViewportAndDialog: box.width > 0 && box.height > 0
+        && box.left >= Math.max(0, dialogBox.left) - 1 && box.right <= Math.min(innerWidth, dialogBox.right) + 1
+        && box.top >= Math.max(0, dialogBox.top) - 1 && box.bottom <= Math.min(innerHeight, dialogBox.bottom) + 1 };
+    });
+    check(pendingStatusBounds.fullyWithinViewportAndDialog);
+    await start.scrollIntoViewIfNeeded(); const startBounds = await start.boundingBox(); check(startBounds);
+    // Native input on the disabled control must not close the drawer or search.
+    // Locator.click would wait for enabled state and conceal the race entirely.
+    await page.mouse.click(startBounds.x + startBounds.width / 2, startBounds.y + startBounds.height / 2);
+    check(await start.isDisabled() && await settingsDialog.isVisible() && fixtureRequests.length === 0 && !initialSessionHoldExpired);
+    guestReadiness = { realSessionStatus: initialReceipt.status, realGuestBodyNull: initialReceipt.guestBodyNull,
+      responseBodyUnchanged: true, responseDeliveryGated: true, maximumHoldMs: initialSessionHoldMaxMs,
+      startDisabledBeforeSessionDelivery: true, pendingAccountStatusVisible: true, nativeDisabledClickTested: true,
+      pendingStatusBounds, drawerStayedOpen: true, searchRequestsBeforeSessionDelivery: fixtureRequests.length };
+    const deliveredSession = page.waitForResponse(response => new URL(response.url()).pathname === "/api/auth/get-session" && response.request().method() === "GET");
+    releaseInitialSession(); check((await deliveredSession).status() === 200 && !initialSessionHoldExpired);
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some(button => button.textContent?.trim() === "Start swiping" && !button.disabled));
+    check(await start.isEnabled() && await settingsDialog.isVisible());
+    guestReadiness.startEnabledAfterRealSessionDelivery = true;
+    guestReadiness.actualHoldMs = initialSessionHoldElapsedMs;
+    phase = "guest_start_deck_button";
+    await start.click();
+    phase = "guest_deck_card";
     await cardTitle().waitFor();
     const firstDomain = await cardTitle().innerText();
+    phase = "guest_skip_click";
     await page.getByRole("button", { name: `Skip ${firstDomain}`, exact: true }).click();
+    phase = "guest_next_card";
     await page.waitForFunction(previous => document.querySelector('main [role="group"] h2')?.textContent !== previous, firstDomain);
+    phase = "guest_undo_ready";
     await page.waitForFunction(() => !document.querySelector('button[aria-describedby="swipe-undo-hint"]')?.disabled);
     const secondDomain = await cardTitle().innerText(); check(firstDomain !== secondDomain && fixtureRequests.length === 1);
     for (const width of [320, 390, 768, 1440]) {
@@ -289,7 +356,7 @@ async function main() {
     result = { event: "swipe_premium_authenticated_browser_preview_verified", runId, previewOrigin: origin.origin, expectedSourceCommit,
       commitMetadataSource: "operator_supplied_expected_preview_commit", browser: browserChannel, realResponseProtectionProxy: true,
       syntheticRegistryDeck: true, interceptedPath: "/api/domain-search", fixtureRequests: fixtureRequests.length, syntheticCards: 100, realRegistryChecks: 0,
-      realGuestSwipe: true, guestUndoOffer: true, guestAuthCheckpointSavedByUi: true, actualBrowserLogin: true, actualSessionStored: true,
+      guestReadiness, realGuestSwipe: true, guestUndoOffer: true, guestAuthCheckpointSavedByUi: true, actualBrowserLogin: true, actualSessionStored: true,
       realServerBillingGet: true, firstMonthUsd: 9, subsequentMonthsUsd: 19, realServerIntroReady: true, realServerIntroEligible: true,
       authenticatedReturnPreservesCardAndEndings: true, historicalAvailabilityLabel: true, originalCheckpointObservationDatesPreserved: true,
       returnUiObservationDatetimesDisplayed: false, syntheticUnconnectedPriceDatesPreserved: true,
@@ -300,6 +367,23 @@ async function main() {
       checkoutPosts: 0, paymentTransactions: 0, emailCalls: 0, productionWrites: 0, actualIPhone: false, voiceOver: false };
   } finally {
     const testedPhase = phase; phase = "exact_fixture_cleanup";
+    if (!result && page && !page.isClosed()) {
+      try {
+        const view = await page.evaluate(() => ({ pathname: location.pathname, documentTitle: document.title,
+          dialogs: [...document.querySelectorAll('[role="dialog"]')].map(node => ({ state: node.getAttribute("data-state"),
+            name: (node.getAttribute("aria-labelledby") ?? "").split(/\s+/u).map(id => document.getElementById(id)?.textContent ?? "").join(" ") })),
+          headings: [...document.querySelectorAll("h1,h2")].map(node => node.textContent?.slice(0, 120)),
+          buttons: [...document.querySelectorAll("button")].filter(node => node.getBoundingClientRect().width > 0)
+            .slice(0, 30).map(node => ({ name: node.getAttribute("aria-label") ?? node.textContent?.trim().slice(0, 100), disabled: node.disabled })),
+        }));
+        safeDiagnostics = { ...safeDiagnostics, view, fixtureRequests: fixtureRequests.length, fixtureContractFailed: fixtureFailure,
+          runtimeExceptions, transportFailures, blockedWrites: blockedWrites.length, blockedExternalRequests: blockedExternal,
+          sessionRequests, completedSessionStatuses: [...sessionResponses] };
+        // Capture only the synthetic/guest Swipe surface, never credentials.
+        if (view.pathname === "/swipe") await page.screenshot({ path: path.join(artifacts, "failure-swipe.png"), fullPage: false });
+      } catch { /* Diagnostics never replace the original failure or cleanup. */ }
+    }
+    clearTimeout(initialSessionHoldTimer); releaseInitialSession();
     await browser?.close().catch(() => undefined);
     try {
       let retired = 0;

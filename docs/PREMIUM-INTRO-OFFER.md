@@ -152,6 +152,40 @@ UI re-entry, fresh ordinary USD 19 Checkout after cancellation, real email
 delivery, live coupon/payment activation and App Store introductory products.
 No physical iPhone/VoiceOver testing is claimed by this integration probe.
 
+## Swipe return and deployed-browser evidence
+
+Swipe's offer states both USD 9 for the first month and USD 19/month afterward,
+the first-subscription restriction, automatic renewal, cancellation and the
+tax/total boundary. Preview explicitly labels TEST payment. A native app does
+not open web Stripe checkout or imply that this web offer is an App Store offer.
+
+Before sign-in or checkout, a bounded, two-hour, same-tab checkpoint preserves
+the selected endings, cards, current position and one-step undo history. It
+contains no payment entitlement. An explicit return consumes it once, enforces
+the settled owner and labels old availability as an earlier registry check.
+Neither a success URL nor a restored card grants Premium: undo still needs the
+current server authorization. Storage failure prevents leaving the deck.
+
+The separate Preview browser probe exercises actual account sign-in, session
+persistence, billing GET and Free-account undo denial. Only `/api/domain-search`
+is intercepted with an explicitly synthetic 100-card deck, so this is navigation
+and account evidence, not evidence of real domain availability or provider prices.
+The pre-fix candidate passed at 320, 390, 768 and 1440 CSS pixels, including
+keyboard focus, auth return, synthetic canceled/successful checkout-return URLs
+and no checkpoint replay after reload. Exact owned fixture cleanup read back zero.
+The browser probe does not create a Checkout Session or send email.
+
+A separate reproduction held an unchanged successful guest session response
+before delivery and proved a startup race: Start was enabled, the settings
+closed, and no deck request was made. The fix keeps Start disabled with a
+localized account-check status and also guards the handler before dismissal.
+The probe now holds that real response deterministically until the disabled
+button, visible settings and absence of a deck request are asserted; it then
+releases the response and requires a successful start. A delayed response is not
+an authentication mock. Each run writes its exact candidate and cleanup result
+to `.vercel/swipe-premium-browser/result.json`; do not attribute a pre-fix pass
+to a later deployment. No physical iPhone or VoiceOver check is implied.
+
 Primary references: [Stripe coupons](https://docs.stripe.com/billing/subscriptions/coupons),
 [Coupon object and includable product scope](https://docs.stripe.com/api/coupons/object),
 [Checkout discounts](https://docs.stripe.com/payments/checkout/discounts),

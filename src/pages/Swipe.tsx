@@ -69,6 +69,7 @@ const swipeMessages = {
     selectedExtensions: "Selected: {count}",
     updateDeck: "Update deck",
     startDeck: "Start swiping",
+    checkingAccount: "Checking your account…",
     deckComplete: "You’ve reached the end of this deck",
     deckCompleteDescription: "Your saved picks are still here. Choose endings to check a new deck.",
     chooseFirst: "Choose your domain endings",
@@ -128,6 +129,7 @@ const swipeMessages = {
     selectedExtensions: "Valda: {count}",
     updateDeck: "Uppdatera kortleken",
     startDeck: "Börja swajpa",
+    checkingAccount: "Kontrollerar ditt konto…",
     deckComplete: "Du har gått igenom kortleken",
     deckCompleteDescription: "Dina sparade val finns kvar. Välj ändelser för att kontrollera en ny kortlek.",
     chooseFirst: "Välj dina domänändelser",
@@ -187,6 +189,7 @@ const swipeMessages = {
     selectedExtensions: "Seleccionadas: {count}",
     updateDeck: "Actualizar baraja",
     startDeck: "Empezar a deslizar",
+    checkingAccount: "Comprobando tu cuenta…",
     deckComplete: "Has terminado esta baraja",
     deckCompleteDescription: "Tus selecciones guardadas siguen aquí. Elige extensiones para comprobar otra baraja.",
     chooseFirst: "Elige tus extensiones de dominio",
@@ -246,6 +249,7 @@ const swipeMessages = {
     selectedExtensions: "Sélectionnées : {count}",
     updateDeck: "Mettre le jeu à jour",
     startDeck: "Commencer à parcourir",
+    checkingAccount: "Vérification de votre compte…",
     deckComplete: "Vous avez parcouru tout le jeu",
     deckCompleteDescription: "Vos sélections enregistrées sont conservées. Choisissez des extensions pour vérifier un nouveau jeu.",
     chooseFirst: "Choisissez vos extensions de domaine",
@@ -305,6 +309,7 @@ const swipeMessages = {
     selectedExtensions: "已选 {count} 个",
     updateDeck: "更新卡组",
     startDeck: "开始滑选",
+    checkingAccount: "正在检查你的账户…",
     deckComplete: "你已浏览完这组卡片",
     deckCompleteDescription: "你保存的选择仍然保留。选择后缀以核验一组新卡片。",
     chooseFirst: "选择域名后缀",
@@ -830,7 +835,9 @@ const Swipe = () => {
   };
 
   const applySettings = () => {
-    if (draftTlds.length === 0 || undoControllerRef.current) return;
+    // Do not dismiss the user's selection before the session check permits a
+    // search. Otherwise loadDeck's readiness guard silently discards the start.
+    if (!anonymousSearchAccessReady || draftTlds.length === 0 || undoControllerRef.current) return;
     const changed = draftTlds.length !== selectedTlds.length
       || draftTlds.some((tld) => !selectedTlds.includes(tld));
     setIsSettingsOpen(false);
@@ -1170,6 +1177,11 @@ const Swipe = () => {
             <DialogDescription className="mt-1 max-w-xl leading-6">
               {copy.deckControlsDescription}
             </DialogDescription>
+            {!anonymousSearchAccessReady && (
+              <p id="swipe-account-check" role="status" className="mt-3 text-sm font-medium text-muted-foreground">
+                {copy.checkingAccount}
+              </p>
+            )}
           </DialogHeader>
 
           <div className="min-h-0 overflow-y-auto px-5 py-5 sm:px-7">
@@ -1230,7 +1242,9 @@ const Swipe = () => {
             <Button type="button" variant="ghost" onClick={() => setIsSettingsOpen(false)}>
               {copy.closeSettings}
             </Button>
-            <Button type="button" onClick={applySettings} disabled={draftTlds.length === 0 || isLoading || isPrefetching || isUndoPending}>
+            <Button type="button" onClick={applySettings}
+              aria-describedby={!anonymousSearchAccessReady ? "swipe-account-check" : undefined}
+              disabled={!anonymousSearchAccessReady || draftTlds.length === 0 || isLoading || isPrefetching || isUndoPending}>
               <RefreshCw className="h-4 w-4" aria-hidden="true" />
               {deck.length > 0 ? copy.updateDeck : copy.startDeck}
             </Button>
