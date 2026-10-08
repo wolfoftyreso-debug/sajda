@@ -67,7 +67,7 @@ export const brandMonitorAlertSchema = z.strictObject({ id: storedId, reportId: 
     || Date.parse(alert.current.observedAt) <= Date.parse(alert.previous.observedAt)
     || Date.parse(alert.createdAt) < Date.parse(alert.current.observedAt)
     || alert.acknowledgedAt !== null && Date.parse(alert.acknowledgedAt) < Date.parse(alert.createdAt)) {
-    context.addIssue({ code: "custom", message: "An alert requires two newer, same-source definitive observations of the same target." });
+    context.addIssue({ code: "custom", message: "An alert requires a newer definitive observation compared with an earlier baseline from the same audited source and target." });
   }
 });
 export type BrandMonitorAlert = z.infer<typeof brandMonitorAlertSchema>;

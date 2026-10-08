@@ -174,3 +174,48 @@ test("pricing preserves a cross-plan checkout conflict and never redirects or au
     if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow); else Reflect.deleteProperty(globalThis, "window");
   }
 });
+
+test("returning canceled customers can choose a new plan while active customers see cancellation, not an invented upgrade", async () => {
+  const fixtureKey = "__SAJDA_PRICING_RETURNING_STATE__";
+  const originalFixture = Object.getOwnPropertyDescriptor(globalThis, fixtureKey), originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const calls: string[] = [];
+  Object.defineProperty(globalThis, fixtureKey, { configurable: true, value: { eligible: true, calls } });
+  Object.defineProperty(globalThis, "window", { configurable: true, value: { location: { pathname: "/pricing", assign: () => undefined } } });
+  const vite = await createServer({ configFile: false, appType: "custom", server: { middlewareMode: true, watch: null, hmr: false, ws: false },
+    resolve: { alias: { "@": path.resolve("src") } }, optimizeDeps: { noDiscovery: true, include: [] }, esbuild: { jsx: "automatic" },
+    plugins: [{ name: "pricing-returning-boundary", enforce: "pre", load(id) {
+      const normalized = id.replaceAll("\\", "/");
+      if (normalized.endsWith("/src/i18n/LanguageProvider.tsx")) return 'export const useLanguage=()=>({language:"en"});export const applyDocumentMetadata=()=>{};';
+      if (normalized.endsWith("/src/contexts/AuthContext.tsx")) return 'const user={id:"qa-returning"};export const useAuth=()=>({user,loading:false});';
+      if (normalized.endsWith("/src/contexts/MembershipContext.tsx")) return 'export const useMembership=()=>({membership:{plan:"free",accessSource:"free",expiresAt:null},loading:false,error:null});';
+      if (normalized.endsWith("/src/components/LanguageSwitcher.tsx")) return "export default function LanguageSwitcher(){return null;}";
+      if (normalized.endsWith("/src/lib/plusBilling.ts")) return `
+        export class PlusBillingError extends Error {constructor(code){super(code);this.code=code;}}
+        export async function getPlusBilling(){const eligible=globalThis.${fixtureKey}.eligible;return {canManage:true,status:eligible?"canceled":"active",plans:Object.fromEntries(["basic","premium","trading"].map(plan=>[plan,{ready:true,canCheckout:eligible}]))};}
+        export async function openPlusBilling(scope,action,key,plan){globalThis.${fixtureKey}.calls.push(action+":"+plan);return action==="portal"?"https://billing.stripe.com/p/session/fixture":"https://checkout.stripe.com/c/pay/fixture";}
+      `;
+    } }],
+  });
+  let renderer: ReactTestRenderer | undefined;
+  const pause = () => new Promise(resolve => setTimeout(resolve, 5));
+  try {
+    const { default: Pricing } = await vite.ssrLoadModule("/src/pages/Pricing.tsx");
+    for (const eligible of [true, false]) {
+      Object.defineProperty(globalThis, fixtureKey, { configurable: true, value: { eligible, calls } });
+      if (renderer) await act(async () => renderer!.unmount());
+      await act(async () => { renderer = create(h(MemoryRouter, { initialEntries: ["/pricing"] }, h(Pricing))); await pause(); });
+      for (let i = 0; i < 100 && !renderer!.root.findAllByProps({ "data-plan-change-policy": true }).length; i++) await act(pause);
+      assert.match(label(renderer!.root.findByProps({ "data-plan-change-policy": true })), /Self-service plan changes are not available yet/);
+      const basic = renderer!.root.findByProps({ "data-plan": "basic" }).findByType("button");
+      assert.equal(label(basic), eligible ? "Choose Basic" : "Manage subscription");
+      calls.length = 0;
+      await act(async () => { basic.props.onClick(); await pause(); });
+      assert.deepEqual(calls, [eligible ? "checkout:basic" : "portal:trading"]);
+    }
+  } finally {
+    if (renderer) await act(async () => renderer!.unmount());
+    await vite.close();
+    if (originalFixture) Object.defineProperty(globalThis, fixtureKey, originalFixture); else Reflect.deleteProperty(globalThis, fixtureKey);
+    if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow); else Reflect.deleteProperty(globalThis, "window");
+  }
+});

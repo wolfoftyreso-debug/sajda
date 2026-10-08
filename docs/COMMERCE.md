@@ -7,6 +7,9 @@ billing contract supports **Basic, Premium and Trading** as distinct plans.
 sandbox configuration; new environments use the three explicit plan Price IDs.
 Each plan has an independent checkout release flag.
 See `PRICING-TIERS-2026-09-09.md` for the tier/feature activation boundaries.
+See [2026-10-08 commerce release evidence](COMMERCE-RELEASE-2026-10-08.md)
+for fresh TEST-provider observations, the confirmed plan-switch defect, its
+cancel-only portal repair and the exact limits of external verification.
 
 ## What is implemented (not a claim that Stripe has been activated)
 
@@ -33,9 +36,21 @@ session from an older price cannot bypass the current contract.
 Tax treatment, cancellation terms and actual service/payment
 verification still need to be completed before sales are enabled.
 Trials, annual plans, seat quantities and zero-value invoices are unsupported.
-Plan switching is delegated to the reviewed Stripe customer portal and its
-explicit Basic/Premium/Trading product allow-list; direct API plan mutation is
-not exposed to the browser.
+Self-service plan switching is not supported in this release. The reviewed
+Stripe customer portal supports invoices, payment-method updates and cancellation
+at the end of the paid period only. Direct API plan mutation is not exposed to
+the browser. A customer can cancel, retain already-paid access and choose another
+available plan after that period ends. UI copy states this limitation explicitly.
+Support can help investigate an account but does not promise an unimplemented
+upgrade process.
+
+The provider validates the actual configured portal before both new-checkout
+price reads and portal creation. Automatic price switching, immediate cancellation,
+cancellation prorations, customer-profile editing or a public portal login page
+fail the reviewed configuration contract closed. Portal evidence is coalesced only
+within a single service request, so a later request reads Stripe configuration
+again. A current paid subscription still requires its own paid-invoice evidence;
+a marketing plan label or active subscription is not a payment proof.
 
 ## Environment contract
 
@@ -85,10 +100,17 @@ subscriber state was not verified. Never infer that production is empty from
 this sandbox result.
 
 ```sh
+export SAJDA_STRIPE_SANDBOX_SETUP=1
 node --import tsx scripts/setup-stripe-sandbox.mjs --account=acct_1UDqPlAJ7seQoN51
 # Only after approval to write the sandbox catalog:
 node --import tsx scripts/setup-stripe-sandbox.mjs --account=acct_1UDqPlAJ7seQoN51 --apply
 ```
+
+The setup script requires this explicit opt-in and a fresh TEST key supplied in
+the process environment. It does not load a cached local secret file. Obtain
+configuration through a verified, linked Vercel CLI environment in a directory
+without local dotenv fallbacks; never print keys or pass them as CLI arguments.
+Unreadable Vercel Secret values are not replaced with guessed credentials.
 
 The setup script reads the complete paid catalog and versions Price lookup and
 idempotency keys with each plan and amount. It preserves existing products and portals

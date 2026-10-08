@@ -126,6 +126,8 @@ test("Plus billing validates server truth and protects explicit checkout, portal
     await t.test("existing customers can reach portal even when new purchases or price lookup are unavailable", async () => {
       await mount({ ...billing(), ready: false, canCheckout: false, canManage: true, price: null, status: "active" });
       assert.equal(buttons("Try test checkout").length, 0); assert.ok(button("Manage subscription"));
+      assert.match(text(), /Self-service plan changes are not available yet/);
+      assert.match(text(), /wait until the current subscription ends/);
       assert.match(text(), /Test mode — no real payment/, "Test mode is visible even without price or checkout readiness");
       reply = () => Response.json({ accountId: owner, requestId, url: "https://billing.stripe.com/p/session/fixture" });
       await click("Manage subscription"); await until(() => navigations.length === 1);

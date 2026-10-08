@@ -18,6 +18,7 @@ import {
   validateCommercePrice,
   validateCommerceCheckout,
   stripeSdkPayload,
+  validateCommercePortalConfiguration,
   type BillingState,
   type CommerceProvider,
   type CommercePrice,
@@ -152,6 +153,31 @@ const fixtures = () => {
 };
 const code = (value: string) => (error: unknown) =>
   error instanceof CommerceError && error.code === value;
+
+test("the launch portal cannot change paid plans, but preserves cancellation, invoices and payment methods", () => {
+  const portal = { id: config.portalConfigurationId, object: "billing_portal.configuration", active: true, livemode: false,
+    features: { subscription_cancel: { enabled: true, mode: "at_period_end", proration_behavior: "none" },
+      subscription_update: { enabled: false }, customer_update: { enabled: false }, invoice_history: { enabled: true }, payment_method_update: { enabled: true } },
+    login_page: { enabled: false } };
+  assert.equal(validateCommercePortalConfiguration(portal, config), undefined);
+  for (const mutate of [
+    (row: typeof portal) => { row.id = "bpc_other"; },
+    (row: typeof portal) => { row.object = "customer"; },
+    (row: typeof portal) => { row.livemode = true; },
+    (row: typeof portal) => { row.active = false; },
+    (row: typeof portal) => { row.features.subscription_update.enabled = true; },
+    (row: typeof portal) => { row.features.subscription_cancel.enabled = false; },
+    (row: typeof portal) => { row.features.subscription_cancel.mode = "immediately"; },
+    (row: typeof portal) => { row.features.subscription_cancel.proration_behavior = "create_prorations"; },
+    (row: typeof portal) => { row.features.payment_method_update.enabled = false; },
+    (row: typeof portal) => { row.features.invoice_history.enabled = false; },
+    (row: typeof portal) => { row.features.customer_update.enabled = true; },
+    (row: typeof portal) => { row.login_page.enabled = true; },
+  ]) {
+    const changed = structuredClone(portal); mutate(changed);
+    assert.throws(() => validateCommercePortalConfiguration(changed, config), code("billing_portal_unavailable"));
+  }
+});
 
 test("multi-plan configuration keeps Basic, Premium and Trading prices distinct and exact", () => {
   const multi = commerceConfig({
@@ -794,6 +820,47 @@ test("checkout refresh/retry reuses the same pending session and never grants fr
   );
   assert.equal(fixture.stored.grant, null);
   assert.equal((await fixture.service.read("owner")).accessExpiresAt, null);
+});
+
+test("signed concurrent events receive a retryable lease denial, then the identical bytes reconcile exactly once", { timeout: 5000 }, async () => {
+  const fixture = memory();
+  await fixture.service.checkout("owner", randomUUID(), "https://sajda.example");
+  fixture.state = { status: "active", subscriptionId: "sub_fixture", cancelAtPeriodEnd: false,
+    grant: { plan: "trading", subscriptionId: "sub_fixture", priceId: config.priceId,
+      validFrom: new Date(Date.now() - 60_000).toISOString(), expiresAt: new Date(Date.now() + 86_400_000).toISOString(), invoiceId: "in_fixture" } };
+  const sdk = createCommerceProvider(config);
+  fixture.provider.verifyEvent = (body, signature) => sdk.verifyEvent(body, signature);
+  const originalReconcile = fixture.provider.reconcile;
+  let releaseFirst!: () => void, enteredFirst!: () => void, reconciliations = 0;
+  const blocked = new Promise<void>(resolve => { releaseFirst = resolve; });
+  const entered = new Promise<void>(resolve => { enteredFirst = resolve; });
+  fixture.provider.reconcile = async customer => {
+    reconciliations++;
+    if (reconciliations === 1) { enteredFirst(); await blocked; }
+    return originalReconcile(customer);
+  };
+  const request = (id: string, type: string) => {
+    const payload = JSON.stringify({ id, object: "event", created: now, livemode: false, type, data: { object: { customer: "cus_fixture" } } });
+    return { method: "POST", headers: { "stripe-signature": Stripe.webhooks.generateTestHeaderString({ payload, secret: config.webhookSecret, timestamp: now }) }, body: Buffer.from(payload) };
+  };
+  const handler = createBillingWebhookHandler(fixture.service), first = response();
+  const firstCall = handler(request("evt_firstLease", "customer.subscription.updated"), first);
+  const retryRequest = request("evt_retryLease", "invoice.paid");
+  try {
+    await entered;
+    const denied = response(); await handler(retryRequest, denied);
+    assert.equal(denied.statusCode, 503);
+    assert.equal(denied.body.code, "billing_busy");
+    assert.equal(await fixture.store.processed("evt_retryLease", "fixture"), false, "A lease denial cannot consume the event");
+    assert.equal(fixture.stored.grant, null);
+  } finally { releaseFirst(); await firstCall; }
+  assert.equal(first.statusCode, 200);
+  const retried = response(); await handler(retryRequest, retried);
+  assert.equal(retried.statusCode, 200); assert.equal(retried.body.duplicate, false);
+  assert.equal(fixture.stored.grant?.plan, "trading");
+  const duplicate = response(); await handler(retryRequest, duplicate);
+  assert.equal(duplicate.statusCode, 200); assert.equal(duplicate.body.duplicate, true);
+  assert.equal(reconciliations, 2, "The exact retry can reconcile once; its subsequent duplicate must not query provider state again");
 });
 
 const multiPlanConfiguration: CommerceConfig = {

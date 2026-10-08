@@ -101,3 +101,63 @@ test("exact price refresh cannot be advertised as enabled with missing or sandbo
   assert.ok(productionConfigurationIssues({ ...env, SAJDA_LOST_DOMAINS_ENABLED: "false" }).includes("production_registrar_requires_engine"));
   assert.throws(() => assertProductionConfiguration({ ...env, PORKBUN_SECRET_API_KEY: "private-do-not-print" }), error => !error.message.includes("private-do-not-print"));
 });
+
+test("brand checks and monitors cannot be enabled without their report/check dependencies", () => {
+  assert.ok(productionConfigurationIssues({ ...ready(), SAJDA_BRAND_CHECKS_ENABLED: "true" })
+    .includes("production_brand_checks_require_reports"));
+  for (const change of [{}, { SAJDA_BRAND_REPORTS_ENABLED: "true" }, { SAJDA_BRAND_CHECKS_ENABLED: "true" }]) {
+    assert.ok(productionConfigurationIssues({ ...ready(), ...change, SAJDA_BRAND_MONITORS_ENABLED: "true" })
+      .includes("production_brand_monitors_require_reports_and_checks"));
+  }
+  assert.deepEqual(productionConfigurationIssues({ ...ready(), SAJDA_BRAND_REPORTS_ENABLED: "true",
+    SAJDA_BRAND_CHECKS_ENABLED: "true", SAJDA_BRAND_MONITORS_ENABLED: "true" }), []);
+  // A paused scheduler needs no scheduler credential and does not imply automation.
+  assert.deepEqual(productionConfigurationIssues({ ...ready(), SAJDA_BRAND_MONITORS_CRON_ENABLED: "false" }), []);
+});
+
+test("automated brand monitoring requires one bounded schedule and an independent scheduler credential", () => {
+  const env = { ...ready(), SAJDA_BRAND_REPORTS_ENABLED: "true", SAJDA_BRAND_CHECKS_ENABLED: "true",
+    SAJDA_BRAND_MONITORS_ENABLED: "true", SAJDA_BRAND_MONITORS_CRON_ENABLED: "true",
+    CRON_SECRET: "scheduler-only-test-secret-".repeat(2) };
+  const config = { crons: [{ path: "/api/cron/brand-monitors", schedule: "*/5 * * * *" }],
+    functions: { "api/cron/brand-monitors.ts": { maxDuration: 180 } } };
+  assert.deepEqual(productionConfigurationIssues(env, config), []);
+  assert.doesNotThrow(() => createVercelBuildEnvironment(env, config));
+  assert.throws(() => createVercelBuildEnvironment(env), /production_brand_monitor_worker_schedule_required/u);
+  for (const flag of ["SAJDA_BRAND_REPORTS_ENABLED", "SAJDA_BRAND_CHECKS_ENABLED", "SAJDA_BRAND_MONITORS_ENABLED"]) {
+    assert.ok(productionConfigurationIssues({ ...env, [flag]: "false" }, config)
+      .includes("production_brand_monitor_cron_requires_monitors"));
+  }
+  for (const crons of [undefined, [], [{ path: "/api/cron/brand-monitors", schedule: "0 0 * * *" }],
+    [{ path: "/api/cron/lost-domains", schedule: "*/5 * * * *" }], [...config.crons, ...config.crons],
+    [{ path: "/api/cron/brand-monitors", schedule: "*/10 * * * *" }]]) {
+    assert.ok(productionConfigurationIssues(env, { ...config, crons })
+      .includes("production_brand_monitor_worker_schedule_required"));
+  }
+  for (const duration of [undefined, 20, 60, 300]) {
+    assert.ok(productionConfigurationIssues(env, { ...config, functions: {
+      "api/cron/brand-monitors.ts": { maxDuration: duration } } })
+      .includes("production_brand_monitor_worker_duration_invalid"));
+  }
+  for (const secret of [undefined, " ".repeat(64), "x".repeat(257), "x".repeat(32) + "\n", env.BETTER_AUTH_SECRET]) {
+    assert.ok(productionConfigurationIssues({ ...env, CRON_SECRET: secret }, config)
+      .includes("production_brand_monitor_cron_secret_required"));
+  }
+  assert.throws(() => assertProductionConfiguration({ ...env, CRON_SECRET: "private-do-not-print" }, config),
+    error => !error.message.includes("private-do-not-print"));
+});
+
+test("monitor and Trading workers validate independently in the actual Vercel schedule", () => {
+  const env = { ...ready(), SAJDA_BRAND_REPORTS_ENABLED: "true", SAJDA_BRAND_CHECKS_ENABLED: "true",
+    SAJDA_BRAND_MONITORS_ENABLED: "true", SAJDA_BRAND_MONITORS_CRON_ENABLED: "true",
+    SAJDA_LOST_DOMAINS_ENABLED: "true", SAJDA_LOST_DOMAINS_CRON_ENABLED: "true",
+    CRON_SECRET: "scheduler-only-test-secret-".repeat(2) };
+  const config = { crons: [{ path: "/api/cron/brand-monitors", schedule: "*/5 * * * *" },
+    { path: "/api/cron/lost-domains", schedule: "*/5 * * * *" }], functions: {
+    "api/cron/brand-monitors.ts": { maxDuration: 180 }, "api/cron/lost-domains.ts": { maxDuration: 60 } } };
+  assert.deepEqual(productionConfigurationIssues(env, config), []);
+  const missingMonitor = productionConfigurationIssues(env, { ...config, crons: config.crons.slice(1) });
+  assert.ok(missingMonitor.includes("production_brand_monitor_worker_schedule_required"));
+  assert.ok(!missingMonitor.includes("production_trading_worker_schedule_required"));
+  assert.deepEqual(productionConfigurationIssues({ ...env, VERCEL_ENV: "preview", CRON_SECRET: "" }), []);
+});

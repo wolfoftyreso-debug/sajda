@@ -89,10 +89,10 @@ export default function Pricing() {
             <Button asChild variant="outline" className={actionClass}><Link to="/auth?next=%2Fpricing">{copy.signIn}<ArrowRight aria-hidden="true" /></Link></Button>
           ) : isNativeApp ? (
             <Button type="button" disabled variant="secondary" className={`${actionClass} disabled:opacity-100`}>{purchaseCopy.unavailable}</Button>
-          ) : billing?.canManage ? (
-            <Button type="button" variant="outline" disabled={Boolean(billingBusy)} className={actionClass} onClick={() => void openBilling("portal")}>{billingBusy === "portal" ? purchaseCopy.opening : purchaseCopy.manage}<ArrowRight aria-hidden="true" /></Button>
           ) : billing?.plans[id].canCheckout ? (
             <Button type="button" disabled={Boolean(billingBusy)} className={actionClass} onClick={() => void openBilling("checkout", id)}>{billingBusy === id ? purchaseCopy.opening : `${purchaseCopy.choose} ${plan.name}`}<ArrowRight aria-hidden="true" /></Button>
+          ) : billing?.canManage ? (
+            <Button type="button" variant="outline" disabled={Boolean(billingBusy)} className={actionClass} onClick={() => void openBilling("portal")}>{billingBusy === "portal" ? purchaseCopy.opening : purchaseCopy.manage}<ArrowRight aria-hidden="true" /></Button>
           ) : id === "trading" ? (
             <Button asChild variant="outline" className={actionClass}><Link to="/plus">{copy.exploreTrading}<ArrowRight aria-hidden="true" /></Link></Button>
           ) : (
@@ -144,6 +144,7 @@ export default function Pricing() {
             <p className="mt-2 max-w-4xl text-sm leading-relaxed text-muted-foreground">{checkoutAvailable ? purchaseCopy.ready : copy.notice}</p>
           </div>
         </aside>
+        {billing?.canManage && <div className="-mt-4 mb-8 max-w-4xl space-y-2 text-sm leading-relaxed text-muted-foreground" data-plan-change-policy><p>{billingCopy.planChangePolicy}</p><Link to="/contact" className="inline-flex min-h-11 items-center text-primary underline underline-offset-4">{legalRightsCopy[language].contactLink}</Link></div>}
         {billingError && <div role="alert" className="-mt-5 mb-8 space-y-2 text-sm font-medium text-destructive">
           <p>{billingCopy.errors[billingError.code]}</p>
           {billingError.requestId && <p className="break-all text-xs font-normal">{billingError.requestId}</p>}

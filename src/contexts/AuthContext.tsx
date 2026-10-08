@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 /* eslint-disable react-refresh/only-export-components -- The provider and consumer hook belong together. */
 import type { AccountSession, AccountUser } from "@/integrations/neon/account-types";
-import { accountError, getAccountAuthClient, isAccountAuthConfigured, readAccountSession } from "@/integrations/neon/auth";
+import { accountError, getAccountAuthClient, invalidateAccountSessionReads, isAccountAuthConfigured, readAccountSession } from "@/integrations/neon/auth";
 import { accountCallbackUrl, passwordRecoveryUrl, socialAuthErrorUrl } from "@/lib/authNavigation";
 import { readSocialAuthProviders, verifiedSocialAuthorizationUrl, type SocialAuthProviderAvailability, type SocialAuthProviderId } from "@/integrations/neon/social-auth";
 import { isNativeApp } from "@/lib/appSurface";
@@ -62,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   currentSession.current = session;
 
   const publishSession = useCallback((next: AccountSession | null) => {
+    if (currentOwner.current !== (next?.user.id ?? null)) invalidateAccountSessionReads();
     currentSession.current = next;
     currentOwner.current = next?.user.id ?? null;
     setSession(next);
@@ -72,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Credentials changed locally/in another tab: the previous owner is no
       // longer a safe fallback, even when the following request is unavailable.
       revision.current += 1;
+      invalidateAccountSessionReads();
       publishSession(null);
       setError(null);
     } else if (pendingRefresh.current?.revision === revision.current) {
@@ -81,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const previous = currentSession.current;
     const promise = (async () => {
       try {
-        const received = await readAccountSession();
+        const received = await readAccountSession({ coalesce: !identityChanged });
         const restored = unexpiredSession(received) ? received : null;
         if (!mounted.current || current !== revision.current) return { session: null, error: new Error("Your account changed while checking the session. Try again.") };
         publishSession(restored);
@@ -140,6 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       mounted.current = false;
       revision.current += 1;
+      invalidateAccountSessionReads();
       window.clearInterval(interval);
       window.removeEventListener("focus", restoreOnFocus);
       document.removeEventListener("visibilitychange", restoreOnFocus);
@@ -249,6 +252,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const result = await client.signOut({});
     if (result.error) throw accountError(result.error, "Sign-out failed. Please try again.");
     revision.current += 1;
+    invalidateAccountSessionReads();
     publishSession(null);
     setError(null);
     channel.current?.postMessage("session-changed");
@@ -259,6 +263,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Fence outstanding refreshes before clearing the deleted identity. Never
     // issue a generic signOut: a different tab may have installed a new cookie.
     revision.current += 1;
+    invalidateAccountSessionReads();
     try {
       if (isNativeApp) await forgetDeletedAccount(expectedAccountId);
     } finally {

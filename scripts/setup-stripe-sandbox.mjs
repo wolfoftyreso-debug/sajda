@@ -1,19 +1,23 @@
 // Explicitly opt-in, test-only catalog setup. It never changes Vercel,
 // webhooks, customers, subscriptions, payment state, env files or live data.
+// One explicitly named existing Sajda portal can be made cancel-only using
+// --apply --repair-portal=bpc_...; no automatic portal replacement or duplication.
 // Inspect: node --import tsx scripts/setup-stripe-sandbox.mjs --account=acct_...
 // Apply:   node --import tsx scripts/setup-stripe-sandbox.mjs --account=acct_... --apply
-import { readFileSync } from "node:fs";
-import { parseEnv } from "node:util";
 import Stripe from "stripe";
 import { PAID_PLAN_ORDER, PLANS } from "../shared/plans.ts";
+import { validateCommercePortalConfiguration, stripeSdkPayload } from "../api/_shared/commerce-provider.ts";
 
 const args = process.argv.slice(2);
 const accountArgs = args.filter(value => /^--account=acct_[A-Za-z0-9]+$/u.test(value));
-if (accountArgs.length !== 1 || args.some(value => value !== "--apply" && !accountArgs.includes(value))) {
-  process.stderr.write("Usage: node --import tsx scripts/setup-stripe-sandbox.mjs --account=acct_... [--apply]\n");
+const portalArgs = args.filter(value => /^--repair-portal=bpc_[A-Za-z0-9]+$/u.test(value));
+if (accountArgs.length !== 1 || portalArgs.length > 1 || portalArgs.length === 1 && !args.includes("--apply")
+  || args.some(value => value !== "--apply" && !accountArgs.includes(value) && !portalArgs.includes(value))) {
+  process.stderr.write("Usage: node --import tsx scripts/setup-stripe-sandbox.mjs --account=acct_... [--apply [--repair-portal=bpc_...]]\n");
   process.exit(1);
 }
 const expectedAccount = accountArgs[0].slice("--account=".length), apply = args.includes("--apply");
+const repairPortalId = portalArgs[0]?.slice("--repair-portal=".length);
 const emit = value => process.stdout.write(`${JSON.stringify(value)}\n`);
 const ensure = (condition, code) => { if (!condition) throw new Error(code); };
 const catalogKey = plan => `sajda_${plan}_${PLANS[plan].currency}_${PLANS[plan].unitAmount}_cents_monthly_test_v1`;
@@ -29,18 +33,25 @@ const exactPrice = (price, productId, plan) => {
     && price.recurring.usage_type === "licensed" && price.tiers_mode == null
     && price.transform_quantity == null && price.custom_unit_amount == null;
 };
-const exactPortal = portal => portal.active && portal.livemode === false
-    && portal.features.subscription_cancel.enabled && portal.features.subscription_cancel.mode === "at_period_end"
-    && portal.features.subscription_cancel.proration_behavior === "none"
-    && portal.features.subscription_update.enabled
-    && portal.features.subscription_update.default_allowed_updates.length === 1
-    && portal.features.subscription_update.default_allowed_updates[0] === "price"
-    && portal.features.subscription_update.proration_behavior === "create_prorations"
-    && !portal.features.customer_update.enabled && portal.features.invoice_history.enabled
-    && portal.features.payment_method_update.enabled && !portal.login_page.enabled;
+const exactPortal = portal => {
+  try { validateCommercePortalConfiguration(stripeSdkPayload(portal), { mode: "test", portalConfigurationId: portal.id }); return true; }
+  catch { return false; }
+};
+const exactLegacyPortal = portal => portal.active && portal.livemode === false
+  && portal.features.subscription_cancel.enabled && portal.features.subscription_cancel.mode === "at_period_end"
+  && portal.features.subscription_cancel.proration_behavior === "none"
+  && portal.features.subscription_update.enabled && portal.features.subscription_update.default_allowed_updates.length === 1
+  && portal.features.subscription_update.default_allowed_updates[0] === "price"
+  && portal.features.subscription_update.proration_behavior === "create_prorations"
+  && !portal.features.customer_update.enabled && portal.features.invoice_history.enabled
+  && portal.features.payment_method_update.enabled && !portal.login_page.enabled;
 
 try {
-  const env = parseEnv(readFileSync(".vercel/.env.stripe-sandbox.local", "utf8"));
+  // Do not silently prefer a cached env file over current Vercel configuration.
+  // The caller supplies freshly inspected TEST variables in the process only.
+  const env = process.env;
+  ensure(env.SAJDA_STRIPE_SANDBOX_SETUP === "1", "explicit_setup_opt_in_required");
+  ensure(env.STRIPE_MODE === "test", "test_mode_required");
   ensure(/^sk_test_[A-Za-z0-9]{12,}$/u.test(env.STRIPE_SECRET_KEY ?? ""), "test_secret_key_required");
   ensure(/^pk_test_[A-Za-z0-9]{12,}$/u.test(env.STRIPE_PUBLISHABLE_KEY ?? ""), "test_publishable_key_required");
   const stripe = new Stripe(env.STRIPE_SECRET_KEY, { apiVersion: "2026-08-26.dahlia", timeout: 10000, maxNetworkRetries: 0 });
@@ -87,6 +98,17 @@ try {
   const matchingPortals = portals.data.filter(item => item.metadata.sajda_portal === portalKey);
   ensure(matchingPortals.length <= 1, "ambiguous_existing_portal");
   let portal = matchingPortals[0];
+  if (repairPortalId) {
+    ensure(portal && portal.id === repairPortalId && portal.id === env.STRIPE_PORTAL_CONFIGURATION_ID
+      && portal.metadata.sajda_environment === "test", "portal_repair_identity_mismatch");
+    portal = await stripe.billingPortal.configurations.retrieve(portal.id);
+    ensure(portal.metadata.sajda_portal === portalKey && portal.metadata.sajda_environment === "test"
+      && (exactPortal(portal) || exactLegacyPortal(portal)), "portal_repair_requires_review");
+    if (!exactPortal(portal)) portal = await stripe.billingPortal.configurations.update(portal.id,
+      { features: { subscription_update: { enabled: false } } },
+      { idempotencyKey: `sajda-sandbox-cancel-only-${expectedAccount}-${portal.id}-v1` });
+    ensure(exactPortal(portal), "portal_repair_readback_failed");
+  }
   if (portal && catalog.length === PAID_PLAN_ORDER.length) ensure(exactPortal(portal), "existing_portal_requires_review");
   if (!portal && apply) {
     ensure(catalog.length === PAID_PLAN_ORDER.length, "catalog_incomplete");
@@ -95,8 +117,7 @@ try {
       features: {
         customer_update: { enabled: false }, invoice_history: { enabled: true }, payment_method_update: { enabled: true },
         subscription_cancel: { enabled: true, mode: "at_period_end", proration_behavior: "none" },
-        subscription_update: { enabled: true, default_allowed_updates: ["price"], proration_behavior: "create_prorations",
-          products: catalog.map(item => ({ product: item.product.id, prices: [item.price.id] })) },
+        subscription_update: { enabled: false },
       },
       login_page: { enabled: false }, metadata: { sajda_portal: portalKey, sajda_environment: "test" },
     }, { idempotencyKey: `sajda-sandbox-portal-${expectedAccount}-${portalKey}` });
@@ -109,7 +130,7 @@ try {
   emit({ check: "catalog", mode: "test", apply, complete: catalog.length === PAID_PLAN_ORDER.length && Boolean(portal),
     plans: Object.fromEntries(catalog.map(item => [item.plan, { productId: item.product.id, priceId: item.price.id,
       currency: PLANS[item.plan].currency, amount: PLANS[item.plan].unitAmount, interval: "month" }])),
-    portalConfigurationId: portal?.id ?? null, portalProductAllowlistReadback: "not_exposed_by_provider",
+    portalConfigurationId: portal?.id ?? null, planChangesEnabled: false, portalRepaired: Boolean(repairPortalId),
     checkoutConfigurationChanged: false,
     webhookConfigurationChanged: false, paymentSubmitted: false });
 } catch (error) {

@@ -1,5 +1,75 @@
 # Sajda transactional email and contact
 
+## Current provider inspection, 2026-10-08
+
+This section supersedes the older infrastructure observations below. It is not
+a production email or inbox-delivery sign-off.
+
+- The existing, authorized Resend account is reachable through the fresh
+  Development credential. Read-only domain-list and domain-detail calls returned
+  HTTP 200. No key value was printed, committed or returned by the checker.
+- Fresh Vercel metadata shows `RESEND_API_KEY` as a Secret scoped to Production,
+  Preview and Development. Fresh Production export correctly omits that Secret.
+  Production's sender is already `Sajda <noreply@mail.sajda.com>`; the fresh
+  Development sender is `Sajda <noreply@hypbit.com>`.
+- The current Development domain `hypbit.com` is provider-verified, with sending
+  enabled, open/click tracking disabled and region `eu-west-1`. This does **not**
+  verify the approved Production sender or application email flows.
+- The complete provider list contains ten domains and does not contain
+  `mail.sajda.com`. Creating only that approved domain returned HTTP 403
+  `validation_error`: the provider reports a domain-capacity/plan restriction.
+  A subsequent read confirmed no domain was created; one bounded same-target
+  retry returned the same restriction. No provider DNS records for the Sajda
+  subdomain are available yet and none are invented here.
+- No unrelated sending domain was deleted, no plan was upgraded, no DNS or
+  Production configuration was changed, and no test message was sent. The
+  connected Gmail mailbox is not the operator's `dev@hypbit.com` mailbox; a
+  narrow search for recent Sajda messages addressed to that operator returned
+  no matching evidence. Absence in that mailbox is not proof of non-delivery.
+- A final read-only provider-list check at `2026-10-08T11:53:57.673Z` confirmed
+  that `mail.hypbit.com` is also absent. The existing `hypbit.com` root sender
+  is shared infrastructure, not an identified Sajda-only slot that may be
+  removed safely.
+
+The next external step is to provide an authorized Resend domain slot: either
+the operator explicitly selects an unused domain to remove after impact review,
+or approves additional domain capacity. Then create/verify `mail.sajda.com`
+using the exact provider-generated records, keeping inbound root MX intact.
+Only after verification may a labeled test message and controlled account
+verification/reset tests establish actual delivery and link behavior.
+
+### Repeatable, read-only provider check
+
+`scripts/check-email-readiness.mjs` checks the approved sender's configuration,
+bounded provider pagination, exact domain identity, verified status, enabled
+sending and disabled authentication-email tracking. It uses GET requests only,
+does not send mail or modify configuration, and emits issue codes rather than
+provider bodies, credentials or authentication links. A sending-only key may
+correctly report `provider_read_permission_denied`; use an authorized operator
+credential for this one-off check, not broader permissions in application code.
+
+After configuring a suitable local or Development operator environment:
+
+```powershell
+node --env-file=.vercel/.env.launch-email.development.local scripts/check-email-readiness.mjs
+```
+
+The current Development sender intentionally produces
+`email_sender_domain_mismatch` under the default approved-domain check. A
+successful result is `provider_configuration_verified`, with
+`delivery: "not_tested"` and `emailsSent: 0`. It is not a release-gate substitute
+for actual received verification/reset/contact/deletion messages and a deployed
+one-use recovery test. Ten synthetic checker tests cover fail-closed behavior,
+pagination, unknown settings, permission/provider failures and secret-safe output.
+The actual read-only checker returned `provider_configuration_verified` for
+the current Development `hypbit.com` diagnostic, and
+`sender_domain_not_registered` for the approved Production sender checked with
+the authorized Development operator credential. The Production Secret was not
+retrieved. The default CLI check using fresh Development configuration correctly
+exited 1 with `email_sender_domain_mismatch` before any provider request.
+The checker tests and 43 existing contact/account-email/deletion-mail tests
+passed; no synthetic test sent real email.
+
 ## Delivery contract
 
 - `/contact` submits to the same-origin Vercel Function `/api/contact`.

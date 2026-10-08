@@ -56,7 +56,10 @@ test("sandbox setup reads every paid plan from the shared catalog and only creat
   assert.match(setup, /if \(!price && apply\)/);
   assert.match(setup, /if \(!product && apply\)/);
   assert.match(setup, /if \(!portal && apply\)/);
-  assert.match(setup, /portalProductAllowlistReadback: "not_exposed_by_provider"/);
+  assert.match(setup, /planChangesEnabled: false/);
+  assert.match(setup, /subscription_update: \{ enabled: false \}/);
+  assert.match(setup, /portal_repair_identity_mismatch/);
+  assert.doesNotMatch(setup, /readFileSync|parseEnv|\.env\.stripe-sandbox\.local/);
   assert.match(setup, /checkoutConfigurationChanged: false/);
   assert.match(setup, /webhookConfigurationChanged: false/);
   assert.match(setup, /paymentSubmitted: false/);

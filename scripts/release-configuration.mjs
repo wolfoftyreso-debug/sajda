@@ -72,6 +72,32 @@ export function productionConfigurationIssues(env = process.env, deployment = {}
       issues.push("production_indexnow_submit_secret_required");
     }
   }
+  if (env.SAJDA_BRAND_CHECKS_ENABLED === "true" && env.SAJDA_BRAND_REPORTS_ENABLED !== "true") {
+    issues.push("production_brand_checks_require_reports");
+  }
+  if (env.SAJDA_BRAND_MONITORS_ENABLED === "true"
+    && (env.SAJDA_BRAND_REPORTS_ENABLED !== "true" || env.SAJDA_BRAND_CHECKS_ENABLED !== "true")) {
+    issues.push("production_brand_monitors_require_reports_and_checks");
+  }
+  if (env.SAJDA_BRAND_MONITORS_CRON_ENABLED === "true") {
+    if (env.SAJDA_BRAND_REPORTS_ENABLED !== "true" || env.SAJDA_BRAND_CHECKS_ENABLED !== "true"
+      || env.SAJDA_BRAND_MONITORS_ENABLED !== "true") {
+      issues.push("production_brand_monitor_cron_requires_monitors");
+    }
+    if (typeof env.CRON_SECRET !== "string" || !/^[\x21-\x7E]{32,256}$/u.test(env.CRON_SECRET)
+      || env.CRON_SECRET === env.BETTER_AUTH_SECRET) {
+      issues.push("production_brand_monitor_cron_secret_required");
+    }
+    // Daily observations are drained by short ticks, not by one unbounded job.
+    const schedules = Array.isArray(deployment.crons)
+      ? deployment.crons.filter(entry => entry?.path === "/api/cron/brand-monitors") : [];
+    if (schedules.length !== 1 || !/^(?:\*|\*\/[1-5]) \* \* \* \*$/u.test(schedules[0]?.schedule ?? "")) {
+      issues.push("production_brand_monitor_worker_schedule_required");
+    }
+    if (deployment.functions?.["api/cron/brand-monitors.ts"]?.maxDuration !== 180) {
+      issues.push("production_brand_monitor_worker_duration_invalid");
+    }
+  }
   if (env.SAJDA_LOST_DOMAINS_CRON_ENABLED === "true") {
     if (env.SAJDA_LOST_DOMAINS_ENABLED !== "true") issues.push("production_cron_requires_engine");
     if (typeof env.CRON_SECRET !== "string" || !/^[\x21-\x7E]{32,256}$/u.test(env.CRON_SECRET)

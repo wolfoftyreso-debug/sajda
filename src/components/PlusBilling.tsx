@@ -91,6 +91,7 @@ export default function PlusBilling({ accountId, language, fallback, disabled = 
         {busy === "checkout" ? copy.opening : snapshot.mode === "test" ? copy.testCheckout : copy.checkout}<ArrowUpRight className="h-4 w-4 shrink-0" aria-hidden="true" /></Button>}
       {snapshot?.canManage && <Button variant="outline" className={`${button} mt-3`} disabled={Boolean(busy) || disabled} onClick={() => void open("portal")}>
         {busy === "portal" ? copy.openingPortal : copy.portal}<ArrowUpRight className="h-4 w-4 shrink-0" aria-hidden="true" /></Button>}
+      {snapshot?.canManage && <div className="mt-3 space-y-2 text-xs leading-5 text-muted-foreground"><p>{copy.planChangePolicy}</p><Link to="/contact" className="inline-flex min-h-11 items-center text-primary underline underline-offset-4">{fallback.contact}</Link></div>}
       <Button variant="ghost" className={`${button} mt-2 text-xs`} disabled={Boolean(busy) || disabled} onClick={() => void load()}><RefreshCw className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />{copy.refresh}</Button>
       {error && ["unauthenticated", "account_changed", "email_verification_required"].includes(error.code) && <Button asChild variant="outline" className={`${button} mt-2`}><Link to="/auth?next=%2Fplus">{fallback.signIn}</Link></Button>}
     </div>}

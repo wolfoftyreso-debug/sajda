@@ -105,9 +105,28 @@ const identity = (v: unknown) =>
  * handler: untrusted payloads must not acquire permissive object coercion.
  */
 export function stripeSdkPayload(
-  value: Stripe.Price | Stripe.Checkout.Session | Stripe.ApiList<Stripe.Subscription>,
+  value: Stripe.Price | Stripe.Checkout.Session | Stripe.ApiList<Stripe.Subscription> | Stripe.BillingPortal.Configuration,
 ): unknown {
   return JSON.parse(JSON.stringify(value)) as unknown;
+}
+
+/** The launch portal manages an existing subscription, but cannot replace its
+ * Price mid-period. The entitlement reader accepts full paid monthly periods,
+ * not unpaid/prorated plan changes. Never offer an unsafe provider-side switch.
+ */
+export function validateCommercePortalConfiguration(
+  value: unknown,
+  config: Pick<CommerceConfig, "mode" | "portalConfigurationId">,
+): void {
+  const portal = obj(value), features = obj(portal.features), cancel = obj(features.subscription_cancel);
+  if (portal.id !== config.portalConfigurationId || portal.object !== "billing_portal.configuration"
+    || portal.active !== true || portal.livemode !== (config.mode === "live")
+    || cancel.enabled !== true || cancel.mode !== "at_period_end" || cancel.proration_behavior !== "none"
+    || obj(features.subscription_update).enabled !== false || obj(features.customer_update).enabled !== false
+    || obj(features.invoice_history).enabled !== true || obj(features.payment_method_update).enabled !== true
+    || obj(portal.login_page).enabled !== false) {
+    throw new CommerceError("billing_portal_unavailable");
+  }
 }
 
 /** Validate provider evidence against the approved commercial contract.
@@ -352,12 +371,20 @@ export function createCommerceProvider(
     maxNetworkRetries: 0,
   });
   const mode = config.mode === "live";
+  // Coalesce the three independent catalog-price reads within this provider
+  // instance only. Every new service request creates a new provider and reads
+  // the actual portal again; there is no persistent stale readiness cache.
+  let portalVerification: Promise<void> | undefined;
+  const verifyPortal = () => portalVerification ??= stripe.billingPortal.configurations
+    .retrieve(config.portalConfigurationId)
+    .then(value => validateCommercePortalConfiguration(stripeSdkPayload(value), config));
   const ownerHash = (ownerId: string) =>
     createHash("sha256").update(`${config.namespace}:${ownerId}`).digest("hex");
   const checkoutResult = (session: Stripe.Checkout.Session, customerId: string, plan: PaidPlanId) =>
     validateCommerceCheckout(stripeSdkPayload(session), customerId, config, plan);
   return {
     async price(plan = "trading") {
+      await verifyPortal();
       const price = await stripe.prices.retrieve(commercePriceId(config, plan));
       return validateCommercePrice(stripeSdkPayload(price), config, plan);
     },
@@ -503,6 +530,7 @@ export function createCommerceProvider(
       );
     },
     async portal(customerId, origin, requestKey) {
+      await verifyPortal();
       const session = await stripe.billingPortal.sessions.create(
         {
           customer: customerId,
