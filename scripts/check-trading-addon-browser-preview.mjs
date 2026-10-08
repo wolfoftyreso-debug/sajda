@@ -67,16 +67,43 @@ function checkFixtures() {
 
 let phase = "configuration", browser, server, context, page, artifactPath, finalResult;
 const results = [], layouts = [], posts = [], intercepted = [], blocked = [], errors = [], screenshots = [], focusReceipts = [];
-let realReads = [], token, origin;
+const routingJobs = new Set();
+let realReads = [], token, origin, contextCloseStarted = false, injectedAssetFailure = false;
+async function drainRouting() {
+  // Do not unroute: the API/external/write guards must remain installed until
+  // the old context is closed. A lazy route must render before we leave it.
+  if (page && !page.isClosed()) await page.waitForLoadState("networkidle", { timeout: 15_000 });
+  const deadline = Date.now() + 15_000;
+  while (routingJobs.size) {
+    const remaining = deadline - Date.now();
+    check(remaining > 0);
+    let timer;
+    try {
+      await Promise.race([Promise.all([...routingJobs]), new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("Routing did not drain within its bounded deadline.")), remaining);
+      })]);
+    } finally { clearTimeout(timer); }
+  }
+  check(routingJobs.size === 0);
+}
+function safeTransportMessage(error) {
+  return String(error?.message ?? "Unknown transport failure").split("\n")[0]
+    .replaceAll(token || "__no_private_token__", "[redacted]")
+    .replace(/https?:\/\/[^\s]+/gu, "[redacted-url]").slice(0, 200);
+}
 async function json(route, value, status = 200) {
   await route.fulfill({ status, contentType: "application/json", headers: { "cache-control": "no-store" }, body: JSON.stringify(value) });
 }
 async function newFixtureContext(state) {
-  if (context) await context.close();
+  if (context) {
+    await drainRouting(); contextCloseStarted = true;
+    await context.close();
+  }
+  contextCloseStarted = false;
   context = await browser.newContext({ locale: "en-US", viewport: { width: 390, height: 900 }, reducedMotion: "reduce", serviceWorkers: "block" });
   context.setDefaultTimeout(20_000); context.setDefaultNavigationTimeout(45_000);
   await context.addInitScript(() => localStorage.setItem("name-quest.language.v2", "en"));
-  await context.route("**/*", async route => {
+  const handleRoute = async route => {
     const request = route.request(), url = new URL(request.url()), method = request.method();
     try {
       if (url.origin !== origin.origin) { blocked.push({ kind: "external", method, path: url.pathname }); await route.abort("blockedbyclient"); return; }
@@ -124,16 +151,25 @@ async function newFixtureContext(state) {
         await route.abort("blockedbyclient"); return;
       }
       if (!["GET", "HEAD"].includes(method)) { blocked.push({ kind: "write", method, path: url.pathname }); await route.abort("blockedbyclient"); return; }
+      if (process.env.SAJDA_QA_INJECT_STATIC_ASSET_FAILURE === "1" && !token && !injectedAssetFailure && url.pathname === "/sajda-logo.svg") {
+        injectedAssetFailure = true;
+        throw new Error("Deliberate SYNTHETIC static asset transport failure for negative harness verification.");
+      }
       if (token) {
         const response = await route.fetch({ headers: { ...request.headers(), "x-vercel-trusted-oidc-idp-token": token }, maxRedirects: 0, maxRetries: 0, timeout: 60_000 });
         check(response.status() < 300 || response.status() >= 400);
         await route.fulfill({ response }); return;
       }
       await route.continue();
-    } catch {
-      errors.push({ kind: "transport_fixture_contract", method, path: url.pathname });
+    } catch (error) {
+      errors.push({ kind: "transport_fixture_contract", method, path: url.pathname, errorName: error?.name ?? "unknown",
+        message: safeTransportMessage(error), explicitContextCloseStartedBeforeCatch: contextCloseStarted, pageClosedAtCatch: page?.isClosed() ?? false });
       await route.abort("failed").catch(() => {});
     }
+  };
+  await context.route("**/*", route => {
+    const job = handleRoute(route); routingJobs.add(job);
+    return job.finally(() => { routingJobs.delete(job); });
   });
   page = await context.newPage();
   page.on("pageerror", () => errors.push({ kind: "browser_runtime_exception" }));
@@ -217,7 +253,9 @@ async function runBrowser() {
   await screenshot("guest-pricing-390.png");
   await auth.click();
   check(new URL(page.url()).pathname === "/auth" && new URL(page.url()).searchParams.get("next") === "/pricing#trading-addon");
-  check(await page.getByRole("heading", { level: 1 }).count() === 1);
+  await page.locator("#auth-heading").waitFor({ state: "visible" });
+  check(await page.locator("#auth-heading").count() === 1);
+  await page.waitForLoadState("networkidle", { timeout: 15_000 });
   results.push({ scenario: phase, syntheticTransport: true, pass: true });
 
   phase = "pro_add_dialog_focus_escape";
@@ -323,6 +361,7 @@ async function runBrowser() {
     if (state.billing.tradingAddon?.pending) check((await region.innerText()).includes(addonCopy.processingChange));
     results.push({ scenario: phase, syntheticTransport: true, pass: true });
   }
+  await drainRouting();
   check(blocked.length === 0 && errors.length === 0 && focusReceipts.every(row => row.restoredAfterEscape));
 }
 
@@ -331,7 +370,7 @@ async function main() {
   check(process.env.SAJDA_TRADING_ADDON_BROWSER_TEST === "1" && !process.env.VERCEL);
   const args = process.argv.slice(2), local = args.length === 1 && args[0] === "--local";
   let expectedCommit = null;
-  artifactPath = path.resolve(".vercel", local ? "trading-addon-browser-local" : "trading-addon-browser-preview");
+  artifactPath = path.resolve(".vercel", local ? process.env.SAJDA_QA_INJECT_STATIC_ASSET_FAILURE === "1" ? "trading-addon-browser-negative" : "trading-addon-browser-local" : "trading-addon-browser-preview");
   await mkdir(artifactPath, { recursive: true });
   try {
     if (local) {
@@ -384,16 +423,33 @@ async function main() {
     }
     finalResult = { event: "trading_addon_compiled_browser_failed", phase, failureKind: error?.name ?? "unknown",
       failureSourceLines: [...String(error?.stack ?? "").matchAll(/check-trading-addon-browser-preview\.mjs:\d+:\d+/gu)].slice(0, 3).map(row => row[0]),
-      origin: origin?.origin ?? null, realReads, results, layouts, focusReceipts, syntheticPosts: posts, errors, blocked, ui, screenshots, databaseWrites: 0, providerWrites: 0 };
+      origin: origin?.origin ?? null, expectedCommit, realReads, results, layouts, focusReceipts, syntheticPosts: posts, errors, blocked, ui, screenshots, databaseWrites: 0, providerWrites: 0 };
     process.exitCode = 1;
   } finally {
-    await context?.close().catch(() => {});
-    await browser?.close().catch(() => {});
-    await server?.close().catch(() => {});
+    contextCloseStarted = true;
+    const contextClosed = context ? await context.close().then(() => true).catch(() => false) : true;
+    let routingDrained = false, routingDrainFailure = null;
+    try { await drainRouting(); routingDrained = true; }
+    catch (error) { routingDrainFailure = { errorName: error?.name ?? "unknown", message: safeTransportMessage(error) }; }
+    const browserClosed = browser ? await browser.close().then(() => true).catch(() => false) : true;
+    const serverClosed = server ? await server.close().then(() => true).catch(() => false) : true;
     if (finalResult) {
-      finalResult.ownedBrowserAndServerClosed = true;
+      finalResult.ownedBrowserAndServerClosed = contextClosed && browserClosed && serverClosed;
+      finalResult.ownedRoutingDrained = routingDrained;
+      if (routingDrainFailure) finalResult.cleanupRoutingDrainFailure = routingDrainFailure;
+      finalResult.staticAssetFailureInjected = injectedAssetFailure;
+      finalResult.runtimeExceptions = errors.filter(row => row.kind === "browser_runtime_exception").length;
+      finalResult.transportFailures = errors.filter(row => row.kind === "transport_fixture_contract").length;
+      finalResult.blockedUnexpectedRequests = blocked.length;
+      // Recheck after closing: a late routing failure must never leave a PASS.
+      if (!finalResult.ownedBrowserAndServerClosed || !routingDrained || errors.length || blocked.length) {
+        finalResult.event = "trading_addon_compiled_browser_failed";
+        finalResult.phase ??= "owned_context_teardown";
+        finalResult.errors = errors; finalResult.blocked = blocked;
+        process.exitCode = 1;
+      }
       await writeFile(path.join(artifactPath, "result.json"), JSON.stringify(finalResult, null, 2) + "\n");
-      console.info(JSON.stringify({ event: finalResult.event, phase: finalResult.phase ?? "complete", scenariosPassed: results.length, layouts: layouts.length,
+      console.info(JSON.stringify({ event: finalResult.event, phase: finalResult.phase ?? "complete", scenariosPassed: results.filter(row => row.pass).length, layouts: layouts.length,
         realAnonymousReads: realReads.length, syntheticPosts: posts.length, databaseWrites: 0, providerWrites: 0, resultFile: path.join(artifactPath, "result.json") }));
     }
   }
