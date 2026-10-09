@@ -44,6 +44,7 @@ test("real workspace probe allows only two explicit two-domain checks, never gen
 
 test("workspace probe keeps credentials in memory, fresh exact Preview fences, no mocks and bounded cleanup", () => {
   const source = readFileSync(new URL("../scripts/check-name-workspace-preview.mjs", import.meta.url), "utf8");
+  const cleanup = readFileSync(new URL("../scripts/name-workspace-cleanup.mjs", import.meta.url), "utf8");
   assert.match(source, /SAJDA_NAME_WORKSPACE_PREVIEW_TEST/u);
   assert.match(source, /authLifecycleConfiguration/u);
   assert.match(source, /reviewedDatabaseTarget/u);
@@ -53,7 +54,9 @@ test("workspace probe keeps credentials in memory, fresh exact Preview fences, n
   assert.match(source, /maxRedirects: 0, maxRetries: 0/u);
   assert.doesNotMatch(source, /--header|--data-binary|\.unroute\(|unrouteAll|\.screenshot\(|tracing\./u);
   assert.match(source, /WHERE email=ANY\(\$1::text\[\]\)/u);
-  assert.match(source, /WHERE id=\$1 AND email=\$2 RETURNING id/u);
-  assert.match(source, /scope='name-projects' AND subject_hash=\$1/u);
+  assert.match(source, /await cleanupNameWorkspaceFixtures\(pool, \{ runId, users, testIp \}\)/u);
+  assert.match(cleanup, /WHERE id=\$1 AND email=\$2 RETURNING id/u);
+  assert.match(cleanup, /scope='name-projects' AND subject_hash=\$1/u);
+  assert.equal((source.match(/event: "name_workspace_preview_failed", runId/gu) ?? []).length, 3);
   assert.match(source, /routeMocks: false/u);
 });

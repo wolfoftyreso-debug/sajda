@@ -24,6 +24,7 @@ const files = [
   "scripts/auth-lifecycle-policy.mjs",
   "scripts/check-auth-lifecycle-preview.mjs",
   "scripts/name-workspace-policy.mjs",
+  "scripts/name-workspace-cleanup.mjs",
   "scripts/check-name-workspace-preview.mjs",
   "scripts/check-launch-evidence.mjs",
   "scripts/check-release-ready.mjs",

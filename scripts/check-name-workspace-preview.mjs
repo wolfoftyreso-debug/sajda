@@ -4,7 +4,7 @@
  * At most two explicit two-domain public checks. No AI, payment or social calls.
  * Credentials/OIDC stay in memory, never argv, traces, screenshots or receipts.
  */
-import { randomBytes, randomUUID, createHash } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify, parseEnv } from "node:util";
 import { readFile, realpath, mkdir, writeFile } from "node:fs/promises";
@@ -13,6 +13,7 @@ import { chromium, request as playwrightRequest } from "playwright";
 import { createAccountAuth, createAccountPool } from "../api/_shared/account-server.ts";
 import { authLifecycleConfiguration } from "./auth-lifecycle-policy.mjs";
 import { workspaceSearchAllowed, workspaceRegistryEvidence } from "./name-workspace-policy.mjs";
+import { cleanupNameWorkspaceFixtures } from "./name-workspace-cleanup.mjs";
 import { renewalDatabaseTarget as reviewedDatabaseTarget } from "./stripe-renewal-policy.mjs";
 import { nameProjectSchema, nameProjectInputSchema } from "../shared/name-projects.ts";
 
@@ -200,7 +201,7 @@ async function context() {
 }
 
 try { await main(); }
-catch (error) { failure = { event: "name_workspace_preview_failed", phase, checkpoints,
+catch (error) { failure = { event: "name_workspace_preview_failed", runId, phase, checkpoints,
   ...(error instanceof WorkspaceProbeError ? { code: error.message } : {}), rawPrivateDetailsSuppressed: true }; process.exitCode = 1; }
 finally {
   closing = true;
@@ -211,27 +212,10 @@ finally {
     try {
       if (setupAttempted) {
         await reconcileTarget();
-        // Reconcile lost signup ACK using only the two UUID-bound fixture emails.
-        const allocated = (await pool.query("SELECT id,email FROM public.sajda_auth_user WHERE email=ANY($1::text[])", [emails])).rows;
-        check(allocated.length <= 2 && allocated.every(row => emails.includes(row.email) && typeof row.id === "string"), "cleanup_owner_binding_failed");
-        for (const row of allocated) {
-          check(!users.some(value => value.email === row.email && value.id !== row.id), "fixture_owner_changed");
-          await pool.query("DELETE FROM public.sajda_auth_verification WHERE value=$1", [row.id]);
-          check((await pool.query("DELETE FROM public.sajda_auth_user WHERE id=$1 AND email=$2 RETURNING id", [row.id, row.email])).rows.length === 1, "fixture_user_not_removed");
-          for (const table of ["sajda.name_projects", "sajda.name_project_domains"]) check((await pool.query(`SELECT count(*)::integer AS count FROM ${table} WHERE owner_id=$1`, [row.id])).rows[0].count === 0, "fixture_project_remains");
-          for (const table of ["sajda_auth_account", "sajda_auth_session"]) check((await pool.query(`SELECT count(*)::integer AS count FROM public.${table} WHERE "userId"=$1`, [row.id])).rows[0].count === 0, "fixture_auth_child_remains");
-          const subjectHash = createHash("sha256").update(`name-projects:preview:${row.id}`).digest("hex");
-          await pool.query("DELETE FROM sajda.function_rate_limits WHERE scope='name-projects' AND subject_hash=$1", [subjectHash]);
-          check((await pool.query("SELECT count(*)::integer AS count FROM sajda.function_rate_limits WHERE scope='name-projects' AND subject_hash=$1", [subjectHash])).rows[0].count === 0, "fixture_rate_remains");
-          const savedSubject = createHash("sha256").update(`saved-domains:${row.id}`).digest("hex");
-          await pool.query("DELETE FROM sajda.function_rate_limits WHERE scope='saved-domains' AND subject_hash=$1", [savedSubject]);
-          check((await pool.query("SELECT count(*)::integer AS count FROM sajda.function_rate_limits WHERE scope='saved-domains' AND subject_hash=$1", [savedSubject])).rows[0].count === 0, "fixture_saved_read_rate_remains");
-        }
-        check((await pool.query("SELECT count(*)::integer AS count FROM public.sajda_auth_user WHERE email=ANY($1::text[])", [emails])).rows[0].count === 0, "fixture_users_remain");
-        await pool.query("DELETE FROM public.sajda_auth_rate_limit WHERE key=ANY($1::text[])", [["/sign-up/email", "/verify-email"].map(route => `${testIp}|${route}`)]);
+        await cleanupNameWorkspaceFixtures(pool, { runId, users, testIp });
       }
       cleanupVerified = true;
-    } catch { failure = { ...(failure ?? { event: "name_workspace_preview_failed", phase: "fixture_cleanup" }), cleanupUnconfirmed: true, rawPrivateDetailsSuppressed: true }; process.exitCode = 1; }
+    } catch { failure = { ...(failure ?? { event: "name_workspace_preview_failed", runId, phase: "fixture_cleanup" }), cleanupUnconfirmed: true, rawPrivateDetailsSuppressed: true }; process.exitCode = 1; }
     await pool.end().catch(() => { cleanupVerified = false; process.exitCode = 1; });
   }
   captured = []; protectionToken = undefined;
@@ -241,4 +225,4 @@ if (!failure && cleanupVerified && transportFailures === 0 && activeRoutes.size 
     activeRoutesAfterClose: 0, sharedIpAuthRateLimitsModified: false };
   const output = path.resolve(".vercel/name-workspace-preview"); await mkdir(output, { recursive: true });
   await writeFile(path.join(output, "result.json"), JSON.stringify(receipt, null, 2)); console.info(JSON.stringify(receipt));
-} else { console.error(JSON.stringify({ ...(failure ?? { event: "name_workspace_preview_failed", phase: "teardown" }), cleanupVerified, setupAttempted, transportFailures, violations, runtimeErrors })); process.exitCode = 1; }
+} else { console.error(JSON.stringify({ ...(failure ?? { event: "name_workspace_preview_failed", runId, phase: "teardown" }), cleanupVerified, setupAttempted, transportFailures, violations, runtimeErrors })); process.exitCode = 1; }
