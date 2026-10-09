@@ -12,7 +12,7 @@ import path from "node:path";
 import { chromium, request as playwrightRequest } from "playwright";
 import { createAccountAuth, createAccountPool } from "../api/_shared/account-server.ts";
 import { authLifecycleConfiguration } from "./auth-lifecycle-policy.mjs";
-import { workspaceSearchAllowed } from "./name-workspace-policy.mjs";
+import { workspaceSearchAllowed, workspaceRegistryEvidence } from "./name-workspace-policy.mjs";
 import { renewalDatabaseTarget as reviewedDatabaseTarget } from "./stripe-renewal-policy.mjs";
 import { nameProjectSchema, nameProjectInputSchema } from "../shared/name-projects.ts";
 
@@ -139,7 +139,7 @@ async function main() {
   check(await pageA.locator("#package-theme").inputValue() === label && searches === 1, "reopen_did_not_preserve_explicit_configuration");
   check(!new URL(pageA.url()).search.includes(label), "private_configuration_leaked_to_url");
   await exactSearch(pageA); check(searches === 2, "explicit_recheck_not_executed");
-  checks.push("compiled_reopen_prefills_private_saved_configuration_no_auto_check_explicit_live_recheck");
+  checks.push("compiled_reopen_prefills_private_saved_configuration_no_auto_check_explicit_recheck_preserves_observation_dates");
   result = { event: "name_workspace_preview_verified", runId, origin: protectedOrigin, expectedCommit: args.get("--expected-commit"), checks,
     registryObservations: observations, publicExactSearchRequests: searches, maximumRequestedDomainObservations: 4,
     routeMocks: false, realResponseProtectionProxy: true, actualBrowserLogin: true, actualNeonPersistence: true,
@@ -159,10 +159,10 @@ async function exactSearch(page) {
   await page.locator('#package-search-form button[type="submit"]').click(); const response = await reply;
   checkpoints.push({ phase, path: "/api/domain-search", method: "POST", status: response.status() });
   check(response.status() === 200, "actual_exact_search_failed"); const payload = await response.json();
-  check(Array.isArray(payload.results) && payload.results.length === 2 && payload.results.every(value => [`${label}.com`, `${label}.ai`].includes(value.domain)), "actual_exact_observations_missing");
-  check(payload.results.some(value => value.authoritative === true && ["available", "taken"].includes(value.status) && Number.isFinite(Date.parse(value.checkedAt))), "no_fresh_registry_evidence");
+  const evidence = workspaceRegistryEvidence(payload, label);
+  check(evidence, "exact_pair_with_fresh_registry_evidence_required");
   await page.locator("#package-results-title").waitFor(); await page.locator("[data-candidate-brand-index]").first().waitFor();
-  return payload.results.map(({ tld, status, authoritative, checkMethod, checkedAt }) => ({ tld, status, authoritative, checkMethod, observedAtPresent: Number.isFinite(Date.parse(checkedAt)) }));
+  return evidence;
 }
 async function remote(client, route, options = {}) {
   check(["/api/health", "/api/account/name-projects"].includes(route), "remote_path_not_allowed");

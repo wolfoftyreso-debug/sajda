@@ -1,11 +1,34 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { workspaceSearchAllowed } from "../scripts/name-workspace-policy.mjs";
+import { workspaceSearchAllowed, workspaceRegistryEvidence } from "../scripts/name-workspace-policy.mjs";
 
 const label = "sajdaqa123456abcdef";
 const search = () => ({ tlds: ["com", "ai"], count: 2, theme: label, locale: "en", advanced: false,
   domains: [`${label}.com`, `${label}.ai`], swipe: false, creativeMode: "medium" });
+
+test("workspace registry proof requires the exact pair and a fresh authoritative observation, not the envelope date", () => {
+  const now = Date.parse("2026-10-09T01:00:00Z");
+  const row = tld => ({ domain: `${label}.${tld}`, tld, status: "available", authoritative: true,
+    checkMethod: "rdap", source: tld === "com" ? "verisign-rdap" : "identity-digital-rdap", checkedAt: new Date(now - 30_000).toISOString() });
+  const payload = () => ({ results: [row("com"), row("ai")], checkedAt: new Date(now).toISOString() });
+  assert.equal(workspaceRegistryEvidence(payload(), label, now).length, 2);
+  for (const checkedAt of [undefined, "not a timestamp", new Date(now + 1).toISOString(), new Date(now - 300_001).toISOString()]) {
+    const value = payload(); value.results.forEach(result => { result.checkedAt = checkedAt; });
+    assert.equal(workspaceRegistryEvidence(value, label, now), null);
+  }
+  for (const override of [{ domain: "unrelated.com" }, { tld: "net" }, { checkMethod: "none" },
+    { source: "invented-registry" }, { status: "unknown" }]) {
+    const value = payload(); Object.assign(value.results[0], override);
+    assert.equal(workspaceRegistryEvidence(value, label, now), null);
+  }
+  assert.equal(workspaceRegistryEvidence({ results: [row("com"), row("com")] }, label, now), null);
+  assert.equal(workspaceRegistryEvidence({ results: [row("com")] }, label, now), null);
+  const partial = payload(); Object.assign(partial.results[1], { status: "unknown", authoritative: false, checkMethod: "none" });
+  const evidence = workspaceRegistryEvidence(partial, label, now);
+  assert.equal(evidence.length, 2); assert.equal(evidence[1].freshAuthoritative, false);
+  assert.equal(workspaceRegistryEvidence({}, label, now), null);
+});
 
 test("real workspace probe allows only two explicit two-domain checks, never generated or AI requests", () => {
   assert.equal(workspaceSearchAllowed(search(), label, 0), true);
