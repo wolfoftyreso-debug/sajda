@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type MouseEvent as ReactMouseEvent } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
@@ -459,6 +459,8 @@ const Swipe = () => {
   const lastUndoRef = useRef<SwipeUndoToken | null>(null);
   const undoControllerRef = useRef<AbortController | null>(null);
   const undoButtonRef = useRef<HTMLButtonElement | null>(null);
+  const settingsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const settingsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const savedRef = useRef(saved);
   const positionRef = useRef(deckIndex);
   const ownerRef = useRef(user?.id ?? null);
@@ -822,8 +824,9 @@ const Swipe = () => {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isSettingsOpen, isWishlistOpen, isPremiumDialogOpen, loadDeck, makeDecision]);
 
-  const openSettings = () => {
+  const openSettings = (event: ReactMouseEvent<HTMLButtonElement>) => {
     if (undoControllerRef.current || decisionTimerRef.current !== null) return;
+    settingsTriggerRef.current = event.currentTarget;
     setDraftTlds(selectedTlds);
     setIsSettingsOpen(true);
   };
@@ -943,6 +946,7 @@ const Swipe = () => {
               <RefreshCw className={cn("h-4 w-4", (isLoading || isPrefetching) && "animate-spin")} aria-hidden="true" />
             </Button>
             <Button
+              ref={settingsButtonRef}
               type="button"
               variant="outline"
               onClick={openSettings}
@@ -1170,6 +1174,12 @@ const Swipe = () => {
 
       <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
         <DialogContent
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            const trigger = settingsTriggerRef.current?.isConnected ? settingsTriggerRef.current : settingsButtonRef.current;
+            if (trigger?.isConnected) trigger.focus();
+            settingsTriggerRef.current = null;
+          }}
           className="fixed bottom-0 left-0 top-auto grid max-h-[82dvh] w-full max-w-none translate-x-0 translate-y-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden rounded-t-[1.75rem] border-border bg-card p-0 shadow-[0_-18px_56px_hsl(221_39%_12%/0.16)] data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom sm:left-1/2 sm:max-w-2xl sm:-translate-x-1/2 sm:rounded-t-[1.75rem]"
         >
           <DialogHeader className="border-b border-border px-5 py-5 text-left sm:px-7">

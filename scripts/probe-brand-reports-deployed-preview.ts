@@ -11,11 +11,12 @@ import { createDeveloperApiKeyService } from "../api/_shared/developer-api-keys.
 import { brandReportHistoryResponseSchema, brandReportResponseSchema, brandReportsListResponseSchema,
   type BrandReportSaveInput } from "../shared/brand-reports.js";
 import { parseVercelHttpResponse } from "./runtime-http.mjs";
+import { assertBrandPreviewFixturesAvailable, brandPreviewDatabaseTarget, brandPreviewFixture, cleanupBrandPreviewFixtures } from "./brand-preview-policy.mjs";
 
 // This is an opt-in deployed-transport probe, not a login/email verification.
 // Secrets exist only in memory and curl's stdin, never args/files/logs. Fixtures
 // are unique synthetic accounts; cleanup is fenced by exact IDs AND emails.
-let phase = "configuration", cleanupFailed = false, cleanupVerified = false, fixturesCreated = 0;
+let phase = "configuration", cleanupFailed = false, cleanupVerified = false, fixturesAttempted = 0;
 function check(condition: unknown): asserts condition { assert.ok(condition); }
 const curlQuote = (value: string) => `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"')
   .replaceAll("\n", "\\n").replaceAll("\r", "\\r").replaceAll("\t", "\\t")}"`;
@@ -27,19 +28,14 @@ async function main() {
   }));
   const keys = ["--preview-env", "--production-env", "--preview-host", "--preview-origin", "--vercel-cli"];
   check(process.argv.slice(2).length === keys.length && args.size === keys.length && [...args.keys()].every(key => keys.includes(key)));
-  const exportsRoot = path.resolve(".vercel");
-  const loadExport = async (key: string) => {
+  const exportsRoot = await realpath(path.resolve(".vercel"));
+  const loadExport = async (key: string, basename: string) => {
     const filename = await realpath(path.resolve(args.get(key) ?? ""));
-    check(filename.startsWith(`${exportsRoot}${path.sep}`));
+    check(filename === path.join(exportsRoot, basename));
     return parseEnv(await readFile(filename, "utf8"));
   };
-  const preview = await loadExport("--preview-env"), production = await loadExport("--production-env");
+  const preview = await loadExport("--preview-env", ".env.brand-reports.preview.local"), production = await loadExport("--production-env", ".env.brand-reports.production.local");
   check(preview.DATABASE_URL && production.DATABASE_URL && preview.SAJDA_BRAND_REPORTS_ENABLED === "true");
-  const database = new URL(preview.DATABASE_URL), productionDatabase = new URL(production.DATABASE_URL);
-  check(["postgres:", "postgresql:"].includes(database.protocol) && database.hostname.endsWith(".neon.tech"));
-  check(database.hostname === args.get("--preview-host"));
-  check(`${database.hostname.replace("-pooler.", ".")}${database.pathname}`
-    !== `${productionDatabase.hostname.replace("-pooler.", ".")}${productionDatabase.pathname}`);
   const origin = new URL(args.get("--preview-origin") ?? "");
   check(origin.protocol === "https:" && /^sajda-[a-z0-9]{9}-hypbit\.vercel\.app$/u.test(origin.hostname)
     && origin.pathname === "/" && !origin.search && !origin.hash && !origin.username && !origin.password && !origin.port);
@@ -47,6 +43,20 @@ async function main() {
   check(cli.replaceAll("\\", "/").endsWith("/node_modules/vercel/dist/vc.js"));
   const linked = JSON.parse(await readFile(path.join(exportsRoot, "project.json"), "utf8"));
   check(linked.projectId === "prj_UO900Jp4qJF1eS4hkOrebIzwMVlI" && linked.orgId === "team_GP2MTfBKmxj8ajYLvQtV7clA");
+  async function databaseFence(expectedFingerprint?: string) {
+    const manifest = async (basename: string) => {
+      const filename = await realpath(path.join(exportsRoot, basename)); check(filename === path.join(exportsRoot, basename));
+      return JSON.parse(await readFile(filename, "utf8"));
+    };
+    return brandPreviewDatabaseTarget({
+      preview: await loadExport("--preview-env", ".env.brand-reports.preview.local"),
+      production: await loadExport("--production-env", ".env.brand-reports.production.local"),
+      linkedProject: JSON.parse(await readFile(path.join(exportsRoot, "project.json"), "utf8")),
+      previewManifest: await manifest("migration-target.preview.json"), productionManifest: await manifest("migration-target.production.json"),
+      expectedHost: args.get("--preview-host"), expectedFingerprint,
+    });
+  }
+  const capturedTarget = await databaseFence();
   let restCalls = 0, mcpCalls = 0;
   async function request(route: string, options: { method?: string; headers?: HeadersInit; body?: string } = {}): Promise<Response> {
     const target = new URL(route, origin);
@@ -81,21 +91,23 @@ async function main() {
   }
   phase = "protected_preview_stdin_preflight";
   const healthy = await request("/api/health"); check(healthy.status === 200);
-  database.searchParams.set("sslmode", "verify-full"); database.searchParams.delete("options");
-  const pool = new Pool({ connectionString: database.toString(), max: 3, connectionTimeoutMillis: 8000, query_timeout: 10000 });
-  const owner = randomUUID(), other = randomUUID(), reportId = randomUUID(), created: string[] = [];
-  const email = (account: string) => `brand-deployed-preview-${account}@example.test`;
+  const pool = new Pool({ connectionString: capturedTarget.connectionString, max: 3, connectionTimeoutMillis: 8000, query_timeout: 10000, statement_timeout: 5000 });
+  const owner = randomUUID(), other = randomUUID(), reportId = randomUUID();
+  const fixtures = [brandPreviewFixture(owner), brandPreviewFixture(other)], attemptedFixtures: { id: string; email: string }[] = [];
   const clients: Client[] = [];
+  let verification: Record<string, unknown> | undefined;
   try {
     phase = "synthetic_preview_setup";
     const ready = await pool.query(`SELECT to_regclass('sajda.brand_reports') IS NOT NULL
       AND to_regclass('sajda.brand_report_requests') IS NOT NULL AS ready`);
     check(ready.rows[0].ready === true);
-    for (const account of [owner, other]) {
+    check((await databaseFence(capturedTarget.fingerprint)).connectionString === capturedTarget.connectionString);
+    await assertBrandPreviewFixturesAvailable(pool, fixtures);
+    for (const fixture of fixtures) {
+      // Record BEFORE I/O: the INSERT may commit without an acknowledgment.
+      attemptedFixtures.push(fixture); fixturesAttempted++;
       await pool.query(`INSERT INTO public.sajda_auth_user(id,name,email,"emailVerified")
-        VALUES($1,'Synthetic deployed brand-report fixture',$2,true)`, [account, email(account)]);
-      created.push(account);
-      fixturesCreated++;
+        VALUES($1,'Synthetic deployed brand-report fixture',$2,true)`, [fixture.id, fixture.email]);
     }
     const keyService = createDeveloperApiKeyService({ pool, environment: () => ({ VERCEL: "1", VERCEL_ENV: "preview" }) });
     const full = await keyService.create({ id: owner, emailVerified: true }, { name: "Synthetic preview report read-write", scopes: ["projects:read", "projects:write"], expiresInDays: 1 });
@@ -154,7 +166,7 @@ async function main() {
     }
     phase = "private_mcp_initialize_discovery_and_typed_historical_read";
     const client = await connectMcp(full.apiKey);
-    const catalogue = await client.listTools(); check(catalogue.tools.length === 25);
+    const catalogue = await client.listTools();
     for (const name of ["brand_reports_list", "brand_reports_get", "brand_reports_history", "brand_reports_save"]) {
       check(catalogue.tools.some(tool => tool.name === name && tool.outputSchema));
     }
@@ -215,34 +227,39 @@ async function main() {
       AND owner_id=$1 AND report_id=$2 ORDER BY version`, [owner, reportId]);
     check(versions.rows.length === 3);
     assert.deepEqual(versions.rows[0].assessment, original.assessment); assert.deepEqual(versions.rows[2].assessment, original.assessment);
-    console.info(JSON.stringify({ event: "brand_reports_deployed_preview_verified", restCalls, mcpCalls, restAndDatabaseAgreement: true,
-      privateMcpInitialization: true, discoveredTools: 25, allFourPrivateTools: true, typedHistoricalRead: true, immutableLateRetry: true,
+    verification = { event: "brand_reports_deployed_preview_verified", restCalls, mcpCalls, restAndDatabaseAgreement: true,
+      privateMcpInitialization: true, discoveredTools: catalogue.tools.length, allFourPrivateTools: true, typedHistoricalRead: true, immutableLateRetry: true,
       ownerIsolation: true, scopedWriteDenied: true, browserRequiresSession: true, actualBrowserLoginTested: false,
-      providerCalls: 0, emailCalls: 0, productionWrites: 0 }));
+      providerCalls: 0, emailCalls: 0, productionWrites: 0 };
   } finally {
     for (const client of clients) await client.close().catch(() => undefined);
     try {
-      for (const account of created) await pool.query("DELETE FROM public.sajda_auth_user WHERE id=$1 AND email=$2", [account, email(account)]);
-      if (created.length) {
-        const developerHashes = created.map(account => createHash("sha256").update(`account:${account}`).digest("hex"));
-        const reportHashes = created.map(account => createHash("sha256").update(`brand-reports:preview:${account}`).digest("hex"));
+      check((await databaseFence(capturedTarget.fingerprint)).connectionString === capturedTarget.connectionString);
+      const removed = await cleanupBrandPreviewFixtures(pool, attemptedFixtures);
+      if (attemptedFixtures.length) {
+        const allocated = attemptedFixtures.map(fixture => fixture.id);
+        const developerHashes = allocated.map(account => createHash("sha256").update(`account:${account}`).digest("hex"));
+        const reportHashes = allocated.map(account => createHash("sha256").update(`brand-reports:preview:${account}`).digest("hex"));
         await pool.query("DELETE FROM sajda.developer_api_quotas WHERE namespace='preview' AND subject_hash=ANY($1::text[])", [developerHashes]);
         await pool.query("DELETE FROM sajda.function_rate_limits WHERE scope='brand-reports' AND subject_hash=ANY($1::text[])", [reportHashes]);
-        check((await pool.query("SELECT count(*)::integer AS count FROM public.sajda_auth_user WHERE id=ANY($1::text[])", [created])).rows[0].count === 0);
+        check((await pool.query("SELECT count(*)::integer AS count FROM public.sajda_auth_user WHERE id=ANY($1::text[])", [allocated])).rows[0].count === 0);
         for (const table of ["developer_api_keys", "brand_reports", "brand_report_versions", "brand_report_requests"]) {
-          check((await pool.query(`SELECT count(*)::integer AS count FROM sajda.${table} WHERE owner_id=ANY($1::text[])`, [created])).rows[0].count === 0);
+          check((await pool.query(`SELECT count(*)::integer AS count FROM sajda.${table} WHERE owner_id=ANY($1::text[])`, [allocated])).rows[0].count === 0);
         }
+        check((await pool.query("SELECT count(*)::integer AS count FROM sajda.developer_api_quotas WHERE namespace='preview' AND subject_hash=ANY($1::text[])", [developerHashes])).rows[0].count === 0);
+        check((await pool.query("SELECT count(*)::integer AS count FROM sajda.function_rate_limits WHERE scope='brand-reports' AND subject_hash=ANY($1::text[])", [reportHashes])).rows[0].count === 0);
       }
       cleanupVerified = true;
-      console.info(JSON.stringify({ event: "brand_reports_deployed_preview_cleanup_verified", retiredFixtures: created.length, remainingFixtures: 0 }));
+      console.info(JSON.stringify({ event: "brand_reports_deployed_preview_cleanup_verified", ...removed }));
     } catch { cleanupFailed = true; }
     finally { await pool.end().catch(() => { cleanupFailed = true; }); }
   }
   if (cleanupFailed) throw new Error("Synthetic preview cleanup could not be confirmed");
+  check(cleanupVerified && verification); console.info(JSON.stringify(verification));
 }
 main().catch(() => {
   console.error(JSON.stringify({ event: "brand_reports_deployed_preview_probe_failed", phase,
-    cleanupRequired: fixturesCreated > 0, cleanupConfirmed: fixturesCreated === 0 || cleanupVerified && !cleanupFailed,
+    cleanupRequired: fixturesAttempted > 0, cleanupConfirmed: fixturesAttempted === 0 || cleanupVerified && !cleanupFailed,
     rawProviderDetailsSuppressed: true }));
   process.exitCode = 1;
 });

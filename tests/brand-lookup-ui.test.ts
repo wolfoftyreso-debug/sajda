@@ -40,7 +40,11 @@ test("mounted brand lookup is search-first, explicit, cancellable and never inde
     await t.test("blank form explains the external lookup and does not request or auto-select anything", async () => {
       await mount(); assert.equal(requests.length, 0); assert.equal(root().findAllByType("input").length, 1); assert.ok(text(root()).includes(c.disclosure));
       await submit(); assert.ok(text(root().findByProps({ role: "alert" })).includes(c.invalid)); assert.equal(requests.length, 0);
+      assert.equal(root().findByProps({ role: "alert" }).props.id, "brand-lookup-error");
+      assert.equal(root().findByProps({ id: "brand-lookup-query" }).props["aria-invalid"], true);
+      assert.equal(root().findByProps({ id: "brand-lookup-query" }).props["aria-describedby"], "brand-lookup-disclosure brand-lookup-error");
       await change("ExampleBrand"); response(syntheticBrandMatches()); await submit();
+      assert.equal(root().findByProps({ id: "brand-lookup-query" }).props["aria-describedby"], "brand-lookup-disclosure");
       assert.equal(requests.length, 1); assert.equal(root().findAllByType("article").length, 5); assert.equal(root().findAllByProps({ "data-brand-lookup-profile": "Q901" }).length, 0);
       assert.equal(root().findAllByType("a").filter(node => node.props.href === "/brand-index/assessment").length, 1);
     });
@@ -73,6 +77,8 @@ test("mounted brand lookup is search-first, explicit, cancellable and never inde
       assert.ok(text(root()).includes(c.noMatches)); assert.ok(!text(root()).includes(c.unavailable));
       await change("Failure"); response({ error: "source_unavailable" }, 503); await submit();
       assert.ok(text(root().findByProps({ role: "alert" })).includes(c.unavailable)); assert.ok(!text(root()).includes(c.noMatches));
+      assert.equal(root().findByProps({ id: "brand-lookup-query" }).props["aria-invalid"], false);
+      assert.equal(root().findByProps({ id: "brand-lookup-query" }).props["aria-describedby"], "brand-lookup-disclosure", "Source failure is not an input validation error");
       response(syntheticBrandMatches("Failure")); await click(c.retry); assert.equal(root().findAllByType("article").length, 5);
     });
     await t.test("query edits abort and stale responses cannot overwrite a later search", async () => {

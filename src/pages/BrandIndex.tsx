@@ -64,7 +64,7 @@ export default function BrandIndex() {
   function search(event: FormEvent) {
     event.preventDefault();
     const parsed = brandLookupInputSchema.safeParse({ operation: "search", query, locale: language });
-    if (!parsed.success) { stop(); setError("invalid"); return; }
+    if (!parsed.success) { stop(); setError("invalid"); inputRef.current?.focus(); return; }
     void run(parsed.data);
   }
   const sourceTime = profile?.retrieved_at ?? matches?.retrieved_at;
@@ -75,13 +75,13 @@ export default function BrandIndex() {
     <BrandWorkspaceEntry compact />
     <form onSubmit={search} noValidate className="my-7 rounded-2xl border border-border bg-card p-5 sm:p-6" aria-describedby="brand-lookup-disclosure">
       <label htmlFor="brand-lookup-query" className="block text-sm font-semibold">{c.label}</label>
-      <input ref={inputRef} id="brand-lookup-query" value={query} onChange={event => edit(event.target.value)} maxLength={100} required autoComplete="off" className="mt-2 min-h-12 w-full min-w-0 rounded-xl border border-input bg-background px-3 py-3 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-invalid={error === "invalid"} />
+      <input ref={inputRef} id="brand-lookup-query" value={query} onChange={event => edit(event.target.value)} maxLength={100} required autoComplete="off" className="mt-2 min-h-12 w-full min-w-0 rounded-xl border border-input bg-background px-3 py-3 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-invalid={error === "invalid"} aria-describedby={error === "invalid" ? "brand-lookup-disclosure brand-lookup-error" : "brand-lookup-disclosure"} />
       <p id="brand-lookup-disclosure" className="mt-3 text-sm leading-6 text-muted-foreground">{c.disclosure}</p>
       <div className="mt-4 flex flex-wrap gap-3"><Button type="submit" className={action} disabled={pending === "search"}><Search aria-hidden="true" className="h-4 w-4 shrink-0" />{pending === "search" ? c.searching : c.search}</Button>{pending && <Button type="button" variant="outline" className={action} onClick={() => { stop(); setCancelled(true); inputRef.current?.focus(); }}>{c.cancel}</Button>}</div>
     </form>
     {pending && <p role="status" className="mb-5 text-sm leading-6">{pending === "profile" ? c.loadingProfile : c.searching}</p>}
     {cancelled && <p role="status" className="mb-5 text-sm leading-6">{c.cancelled}</p>}
-    {error && <section role="alert" className="mb-6 rounded-2xl border border-border bg-card p-5"><h2 className="font-semibold">{error === "invalid" ? c.invalid : c.unavailable}</h2>{error === "unavailable" && <><p className="mt-2 text-sm leading-6 text-muted-foreground">{c.unavailableHelp}</p>{retryRef.current && <Button type="button" variant="outline" className={`${action} mt-3`} onClick={() => { if (retryRef.current) void run({ ...retryRef.current, locale: language }); }}>{c.retry}</Button>}</>}</section>}
+    {error && <section id="brand-lookup-error" role="alert" className="mb-6 rounded-2xl border border-border bg-card p-5"><h2 className="font-semibold">{error === "invalid" ? c.invalid : c.unavailable}</h2>{error === "unavailable" && <><p className="mt-2 text-sm leading-6 text-muted-foreground">{c.unavailableHelp}</p>{retryRef.current && <Button type="button" variant="outline" className={`${action} mt-3`} onClick={() => { if (retryRef.current) void run({ ...retryRef.current, locale: language }); }}>{c.retry}</Button>}</>}</section>}
     {!profile && matches && <section aria-labelledby="brand-lookup-results-title" data-brand-lookup-matches>
       <h2 ref={resultRef} tabIndex={-1} id="brand-lookup-results-title" className="scroll-mt-6 text-xl font-semibold">{matches.status === "no_matches" ? c.noMatches : c.matches}</h2><p className="mt-2 text-sm leading-6 text-muted-foreground">{matches.status === "no_matches" ? c.noMatchesHelp : c.matchesHelp}</p>
       {matches.has_more && <p className="mt-2 text-sm leading-6 text-muted-foreground">{detail.more}</p>}

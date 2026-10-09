@@ -101,8 +101,8 @@ const definitions: ToolDefinition[] = [
       .refine(values => new Set(values).size === values.length, "Use unique domains."), locale, providers }).strict(),
     readOnly: true, idempotent: true, openWorld: true },
   { name: "domains_search", title: "Search domain names", scope: "domains:search",
-    description: "Generate and check names using Sajda's non-AI search engine. This tool does not send input to third-party AI or accept advanced briefs/AI consent. Registry and registrar checks use external services. Availability may be unknown; standard suffix prices are distinct from exact domain offers. Uses the shared search quota.",
-    schema: z.object({ query: z.string().trim().min(1).max(100),
+    description: "Generate and check names using Sajda's non-AI search engine. Use ordinary words in query, not full domain names, domain lists or URLs (including reference sites); use domains_check for exact names. count and tlds bound the requested results and endings. This tool does not send input to third-party AI or accept advanced briefs/AI consent. Registry and registrar checks use external services. Availability may be unknown; standard suffix prices are distinct from exact domain offers. Uses the shared search quota.",
+    schema: z.object({ query: z.string().trim().min(1).max(100).describe("Naming direction in ordinary words, without full domain names, domain lists or URLs. Use domains_check for exact names."),
       tlds: z.array(z.enum(NAMES_API_TLDS)).min(1).max(NAMES_API_TLDS.length)
         .refine(values => new Set(values).size === values.length, "Use unique TLDs."),
       count: z.number().int().min(1).max(10).optional(), locale, providers,

@@ -23,6 +23,8 @@ const files = [
   "scripts/check-trading-addon-browser-preview.mjs",
   "scripts/auth-lifecycle-policy.mjs",
   "scripts/check-auth-lifecycle-preview.mjs",
+  "scripts/name-workspace-policy.mjs",
+  "scripts/check-name-workspace-preview.mjs",
   "scripts/check-launch-evidence.mjs",
   "scripts/check-release-ready.mjs",
   "scripts/check-vercel-types.mjs",

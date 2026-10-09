@@ -3,6 +3,8 @@
  * SAJDA_RESPONSIVE_ROUTES and SAJDA_RESPONSIVE_WIDTHS can narrow a regression pass.
  * SAJDA_RESPONSIVE_CASES accepts an array of {route,language,width} for a focused mixed regression.
  * SAJDA_RESPONSIVE_SURFACE=native renders the real app shell with browser-only, disconnected service boundaries.
+ * SAJDA_RESPONSIVE_INTERACTIONS=true also checks local synthetic user flows;
+ * run that opt-in mode with node --import tsx for the typed source fixtures.
  */
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
@@ -15,6 +17,11 @@ import { setTimeout as delay } from "node:timers/promises";
 const project = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(process.env.SAJDA_PLAYWRIGHT_ROOT ? resolve(process.env.SAJDA_PLAYWRIGHT_ROOT, "__sajda_responsive.cjs") : import.meta.url);
 const { chromium } = require("playwright");
+const interactions = process.env.SAJDA_RESPONSIVE_INTERACTIONS === "true";
+const brandFixtures = interactions ? await import("../tests/fixtures/brand-lookup.ts") : null;
+const brandCopy = interactions ? (await import("../src/i18n/brandLookupCopy.ts")).brandLookupCopy : null;
+const premiumCopy = interactions ? (await import("../src/i18n/swipePremiumCopy.ts")).swipePremiumCopy : null;
+const { CONNECTOR_HOSTS } = await import("../shared/connector-catalogue.mjs");
 const origin = "http://127.0.0.1:8195";
 const output = resolve(project, "tmp/responsive-browser", process.env.SAJDA_RESPONSIVE_LABEL || "current");
 await mkdir(output, { recursive: true });
@@ -25,7 +32,8 @@ const server = spawn(process.execPath, [resolve(project, "node_modules/vite/bin/
   cwd: project, windowsHide: true, stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, NO_COLOR: "1" },
 });
 let log = "", browser;
-const errors = [], blockedRequests = [], measurements = [], screenshots = [], routeFailures = [];
+const errors = [], blockedRequests = [], measurements = [], screenshots = [], routeFailures = [], flowResults = [], fixtureApiCalls = [];
+const failedLookupQueries = new Set();
 for (const stream of [server.stdout, server.stderr]) stream.on("data", data => { log = (log + data).slice(-24000); });
 try {
   let ready = false;
@@ -50,6 +58,18 @@ try {
   }, { origin });
   await context.route("**/*", route => {
     const request = route.request(), url = new URL(request.url());
+    if (interactions && url.origin === origin && url.pathname === "/api/v1/public/brand-lookup" && request.method() === "POST") {
+      assert.equal(url.search, "", "Public lookup must not leak a name into its URL");
+      assert.equal(request.headers().authorization, undefined); assert.equal(request.headers().cookie, undefined);
+      const body = request.postDataJSON(); fixtureApiCalls.push(body);
+      assert.ok(["search", "profile"].includes(body.operation)); assert.ok(["en", "sv"].includes(body.locale));
+      if (body.operation === "search" && body.query === "UnavailableSynthetic" && !failedLookupQueries.has(body.locale)) {
+        failedLookupQueries.add(body.locale); return route.fulfill({ status: 503, json: { error: "synthetic_source_unavailable" } });
+      }
+      return route.fulfill({ status: 200, json: body.operation === "search"
+        ? brandFixtures.syntheticBrandMatches(body.query, body.locale, body.query === "UnlistedSynthetic")
+        : brandFixtures.syntheticBrandProfile(body.entity_id, body.locale) });
+    }
     if (url.origin !== origin || url.pathname.startsWith("/api/") || request.method() !== "GET") {
       blockedRequests.push({ origin: url.origin, path: url.pathname, method: request.method() }); return route.abort("blockedbyclient");
     }
@@ -64,12 +84,24 @@ try {
     routes.flatMap(route => languages.flatMap(language => widths.filter(width => process.env.SAJDA_RESPONSIVE_WIDTHS || language === "en" || [360, 768, 1024].includes(width)).map(width => ({ route, language, width }))));
   const capture = async (route, state, language, width) => {
     await page.evaluate(() => scrollTo(0, 0));
+    // Measure settled geometry, not the temporary transform of a finite entry
+    // animation. Never wait on decorative/infinite animations or indefinitely.
+    await page.evaluate(async () => {
+      const animations = document.getAnimations().filter(animation => {
+        const end = animation.effect?.getComputedTiming().endTime;
+        return animation.playState === "running" && Number.isFinite(end) && end <= 1500;
+      });
+      await Promise.race([
+        Promise.all(animations.map(animation => animation.finished.catch(() => undefined))),
+        new Promise(resolve => setTimeout(resolve, 1500)),
+      ]);
+    });
     const data = await page.evaluate(() => {
       const viewport = innerWidth;
       const brief = element => ({ tag: element.tagName.toLowerCase(), id: element.id || undefined,
         className: typeof element.className === "string" ? element.className.slice(0, 200) : "", text: element.textContent?.trim().replace(/\s+/g, " ").slice(0, 100),
         rect: Object.fromEntries(["x", "y", "width", "height", "right", "bottom"].map(key => [key, Math.round(element.getBoundingClientRect()[key] * 10) / 10])) });
-      const elements = [...document.querySelectorAll("h1,h2,h3,h4,p,span,a,button,label,input,textarea,select,pre,td,th,[role=dialog],[role=tab],article")].filter(element => {
+      const elements = [...document.querySelectorAll("h1,h2,h3,h4,p,span,a,button,summary,label,input,textarea,select,pre,td,th,[role=dialog],[role=tab],article")].filter(element => {
         const box = element.getBoundingClientRect(), style = getComputedStyle(element);
         const closedDetails = element.closest("details:not([open])");
         return box.width > 0 && box.height > 0 && (!closedDetails || element.closest("summary"))
@@ -114,6 +146,108 @@ try {
       await page.screenshot({ path, fullPage: true }); screenshots.push(path);
     }
   };
+  const checkInteractions = async (route, language, width) => {
+    const at = async state => capture(route, state, language, width);
+    if (route === "/brand-index") {
+      const c = brandCopy[language], query = page.locator("#brand-lookup-query"), initialCalls = fixtureApiCalls.length;
+      failedLookupQueries.delete(language);
+      const search = page.getByRole("button", { name: c.search, exact: true });
+      await search.focus(); await page.keyboard.press("Enter");
+      const alert = page.getByRole("alert"); await alert.waitFor();
+      assert.equal(fixtureApiCalls.length, initialCalls, "An invalid lookup must not request even a synthetic source");
+      assert.equal(await query.getAttribute("aria-invalid"), "true");
+      assert.ok(await query.evaluate(element => (element.getAttribute("aria-describedby") || "").split(/\s+/u)
+        .some(id => document.getElementById(id)?.matches('[role="alert"]'))), "Invalid Brand Index input must be associated with its displayed error");
+      assert.ok(await query.evaluate(element => element === document.activeElement), "Invalid lookup should focus its field for recovery");
+      await at("invalid-associated");
+      await query.fill("ExampleBrand"); await query.press("Enter");
+      await page.locator('[data-brand-match="Q902"]').waitFor();
+      assert.equal(await page.evaluate(() => document.activeElement?.id), "brand-lookup-results-title");
+      await at("matches");
+      await page.locator('[data-brand-match="Q902"]').getByRole("button", { name: c.choose, exact: true }).focus(); await page.keyboard.press("Enter");
+      await page.locator('[data-brand-lookup-profile="Q902"]').waitFor();
+      assert.equal(await page.evaluate(() => document.activeElement?.id), "brand-lookup-profile-title");
+      assert.equal(await page.locator("[data-brand-lookup-index]").getAttribute("data-brand-lookup-index"), "unavailable");
+      await at("profile-unverified");
+      const back = page.getByRole("button", { name: c.change, exact: true }); await back.focus(); await page.keyboard.press("Enter");
+      await page.locator('[data-brand-match="Q902"]').waitFor();
+      assert.equal(await page.evaluate(() => document.activeElement?.id), "brand-lookup-results-title");
+      await query.fill("UnlistedSynthetic"); await query.press("Enter");
+      await page.getByRole("heading", { name: c.noMatches, exact: true }).waitFor(); await at("no-matches");
+      await query.fill("UnavailableSynthetic"); await query.press("Enter");
+      await page.getByRole("alert").filter({ hasText: c.unavailable }).waitFor();
+      assert.equal(await query.inputValue(), "UnavailableSynthetic", "A source failure preserves the request for a deliberate retry");
+      assert.notEqual(await query.getAttribute("aria-invalid"), "true", "A source failure must not blame valid input");
+      await at("source-unavailable");
+      const retry = page.getByRole("button", { name: c.retry, exact: true }); await retry.focus(); await page.keyboard.press("Enter");
+      await page.locator('[data-brand-match="Q901"]').waitFor(); await at("retry-recovered");
+      assert.ok(!page.url().includes("ExampleBrand") && !page.url().includes("UnavailableSynthetic"));
+      flowResults.push({ route, language, width, invalidAssociated: true, keyboardSubmit: true, transitionFocus: true,
+        matchesProfileBack: true, unknownScorePreserved: true, noMatchesDistinctFromFailure: true, retryPreservesInput: true });
+    } else if (route === "/swipe") {
+      const sv = language === "sv", settings = page.getByRole("button", { name: sv ? "Inställningar för kortleken" : "Deck settings", exact: true });
+      const dialog = page.getByRole("dialog"); await settings.focus(); await page.keyboard.press("Enter"); await dialog.waitFor();
+      assert.ok(await dialog.evaluate(element => element.contains(document.activeElement)));
+      for (let count = 0; count < 8; count++) { await page.keyboard.press("Tab"); assert.ok(await dialog.evaluate(element => element.contains(document.activeElement)), "Settings must trap keyboard focus"); }
+      const focusable = dialog.locator("button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled])");
+      await focusable.last().focus(); await page.keyboard.press("Tab");
+      assert.ok(await focusable.first().evaluate(element => element === document.activeElement), "Tab at the last settings control wraps to the first");
+      await focusable.first().focus(); await page.keyboard.press("Shift+Tab");
+      assert.ok(await focusable.last().evaluate(element => element === document.activeElement), "Shift+Tab at the first settings control wraps to the last");
+      await at("settings-keyboard");
+      await page.keyboard.press("Escape"); await dialog.waitFor({ state: "hidden" });
+      assert.ok(await settings.evaluate(element => element === document.activeElement), "Settings dismiss restores its trigger");
+      await page.evaluate(() => { window.__sajdaResponsiveFixture.swipeMode = "results"; });
+      await settings.click(); await dialog.waitFor();
+      await dialog.getByRole("button", { name: sv ? "Börja swajpa" : "Start swiping", exact: true }).click(); await dialog.waitFor({ state: "hidden" });
+      const keep = page.getByRole("button", { name: sv ? /^Behåll /u : /^Keep /u }); await keep.waitFor();
+      const currentName = await page.locator("main h2").first().innerText();
+      await page.keyboard.press("ArrowRight");
+      const undo = page.getByRole("button", { name: new RegExp(premiumCopy[language].undo) }); await undo.waitFor();
+      await undo.waitFor({ state: "visible" }); await page.waitForFunction(() => ![...document.querySelectorAll("button")].find(button => button.getAttribute("aria-describedby") === "swipe-undo-hint")?.disabled);
+      assert.notEqual(await page.locator("main h2").first().innerText(), currentName, "Keyboard Keep advances one card");
+      await undo.focus(); await page.keyboard.press("Enter"); await dialog.waitFor();
+      await page.getByRole("heading", { name: premiumCopy[language].title, exact: true }).waitFor();
+      await page.getByText(premiumCopy[language].firstMonth, { exact: true }).waitFor();
+      await page.getByText(premiumCopy[language].renewal, { exact: true }).waitFor();
+      await at("pro-intro-dialog");
+      await page.keyboard.press("Escape"); await dialog.waitFor({ state: "hidden" });
+      assert.ok(await undo.evaluate(element => element === document.activeElement));
+      await page.evaluate(() => { window.__sajdaResponsiveFixture.swipeMode = "empty"; });
+      const shuffle = page.getByRole("button", { name: sv ? "Blanda en ny kortlek" : "Shuffle a new deck", exact: true });
+      // The first action legitimately consumes the already-prefetched deck.
+      // Only the next explicit action requests a fresh round in this fixture.
+      await shuffle.click();
+      await page.waitForFunction(() => window.__sajdaResponsiveFixture.swipeCalls.some(call => call.mode === "empty"));
+      await shuffle.click();
+      await page.getByRole("status").filter({ hasText: sv ? "Inga registerverifierade" : "No registry-verified" }).waitFor();
+      assert.ok(await keep.isVisible(), "An empty refresh preserves the existing usable deck"); await at("empty-refresh-preserves-deck");
+      await page.evaluate(() => { window.__sajdaResponsiveFixture.swipeMode = "failure"; });
+      await page.keyboard.press("r");
+      await page.getByRole("status").filter({ hasText: "Synthetic deck unavailable" }).waitFor();
+      assert.ok(await keep.isVisible(), "A failed refresh preserves the existing usable deck"); await at("failed-refresh-preserves-deck");
+      flowResults.push({ route, language, width, settingsKeyboard: true, focusTrap: true, escapeRestoresFocus: true,
+        arrowKeepsOne: true, introductoryOfferExplained: true, emptyRefreshPreservesDeck: true, failedRefreshPreservesDeck: true, paidAccessVerified: false });
+    } else if (route === "/pricing") {
+      const signIn = page.locator('[data-plan-action="premium"] a'); await signIn.focus(); await page.keyboard.press("Enter");
+      await page.waitForURL(url => url.pathname === "/auth");
+      assert.equal(new URL(page.url()).searchParams.get("next"), "/pricing", "A pricing entry retains its return destination");
+      await page.goBack({ waitUntil: "domcontentloaded" }); await page.locator('[data-plan="premium"]').waitFor();
+      flowResults.push({ route, language, width, keyboardSignIn: true, pricingReturnTarget: true, browserBack: true, actualLoginVerified: false });
+    } else if (route === "/connector-hub") {
+      const images = page.locator("#setup img"); assert.equal(await images.count(), CONNECTOR_HOSTS.length);
+      await images.evaluateAll(items => Promise.all(items.map(image => image.decode())));
+      assert.ok(await images.evaluateAll(items => items.every(image => image.complete && image.naturalWidth > 0 && image.naturalHeight > 0)), "All real connector logos must load locally");
+      const steps = page.locator("#host-claude summary"); await steps.focus(); await page.keyboard.press("Enter");
+      assert.ok(await steps.evaluate(element => element.parentElement.open)); await at("setup-expanded-keyboard");
+      await page.getByRole("link", { name: "Connect your Sajda account", exact: true }).focus(); await page.keyboard.press("Enter");
+      assert.equal(new URL(page.url()).hash, "#account");
+      await page.goBack({ waitUntil: "domcontentloaded" });
+      assert.equal(new URL(page.url()).hash, "");
+      flowResults.push({ route, language, width, actualDocumentLanguage: await page.locator("html").getAttribute("lang"),
+        logos: await images.count(), keyboardDisclosure: true, localAnchorBack: true, externalSetupFollowed: false, clientInstallVerified: false });
+    }
+  };
   // One Edge process and one page, serially; live services are disconnected above and at Vite boundaries.
   const failedRoutes = new Set();
   for (const { route, language, width, states: requestedStates } of cases) {
@@ -130,7 +264,8 @@ try {
           try { await page.goto(`${origin}${route}?${params}`, { waitUntil: "domcontentloaded" }); break; }
           catch (error) { if (attempt === 1 || !error.message.includes("Timeout")) throw error; }
         }
-        await page.locator(`[data-responsive-fixture-language="${language}"] main`).first().waitFor();
+        if (route === "/connector-hub") await page.locator("#setup").waitFor();
+        else await page.locator(`[data-responsive-fixture-language="${language}"] main`).first().waitFor();
         if (process.env.SAJDA_RESPONSIVE_SURFACE === "native") {
           const navigation = page.locator(".sajda-native-navigation");
           assert.equal(await navigation.locator("a").count(), 5, "Native shell retains five destinations");
@@ -187,13 +322,14 @@ try {
           await page.keyboard.press("Escape"); await dialog.waitFor({ state: "hidden" });
           assert.ok(await trigger.evaluate(element => element === document.activeElement), "Escape should restore trigger focus");
         }
+        if (interactions && state === "empty") await checkInteractions(route, language, width);
       } catch (error) { routeFailures.push({ route, state, language, width, message: error.message }); failedRoutes.add(`${route}:${language}`); console.log(JSON.stringify({ event: "route_failure", ...routeFailures.at(-1) })); break; }
     }
   }
-  const result = { event: "responsive_browser_measured", browser: "installed-msedge", surface: process.env.SAJDA_RESPONSIVE_SURFACE === "native" ? "native-shell-browser" : "web", syntheticFixturesOnly: true, measurements, screenshots, errors, blockedRequests, routeFailures };
+  const result = { event: "responsive_browser_measured", browser: "installed-msedge", surface: process.env.SAJDA_RESPONSIVE_SURFACE === "native" ? "native-shell-browser" : "web", syntheticFixturesOnly: true, measurements, screenshots, errors, blockedRequests, routeFailures, flowResults, fixtureApiCalls };
   await writeFile(resolve(output, "result.json"), JSON.stringify(result, null, 2));
   console.log(JSON.stringify({ ...result, measurements: measurements.length, screenshots: screenshots.length, output }));
-  assert.deepEqual(errors, [], "Page runtime exceptions"); assert.deepEqual(blockedRequests, [], "No live service requests should be attempted"); assert.deepEqual(routeFailures, [], "All fixture routes should render");
+  assert.deepEqual(errors, [], "Page runtime exceptions"); assert.deepEqual(blockedRequests, [], "No live service requests should be attempted"); assert.deepEqual(routeFailures, [], "All fixture routes and requested interactions should pass");
   assert.deepEqual(measurements.filter(item => item.scrollWidth > item.width || item.outside.length || item.clipped.length || item.tightText.length || item.overlappingControls.length)
     .map(({ route, state, language, width }) => ({ route, state, language, width })), [], "Responsive layouts must not overflow, clip content, or overlap header controls");
 } catch (error) {

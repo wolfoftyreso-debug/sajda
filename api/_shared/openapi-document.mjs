@@ -759,7 +759,7 @@ export const openApiDocument = {
         additionalProperties: false,
         required: ["tlds"],
         properties: {
-          query: { type: "string", maxLength: 100, description: "Optional domain direction. An empty query asks for broader domain directions." },
+          query: { type: "string", maxLength: 100, description: "Optional naming direction in ordinary words, without full domain names, domain lists or URLs (including reference sites). Use domains for exact names and select their endings in tlds. An empty query asks for broader naming directions; it never overrides count or selected endings." },
           domains: {
             type: "array",
             minItems: 1,
