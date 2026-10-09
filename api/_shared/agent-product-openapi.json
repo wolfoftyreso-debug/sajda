@@ -40,7 +40,7 @@
     {
       "name": "domains_search",
       "title": "Search domain names",
-      "description": "Generate and check names using Sajda's non-AI search engine. This tool does not send input to third-party AI or accept advanced briefs/AI consent. Registry and registrar checks use external services. Availability may be unknown; standard suffix prices are distinct from exact domain offers. Uses the shared search quota.",
+      "description": "Generate and check names using Sajda's non-AI search engine. Use ordinary words in query, not full domain names, domain lists or URLs (including reference sites); use domains_check for exact names. count and tlds bound the requested results and endings. This tool does not send input to third-party AI or accept advanced briefs/AI consent. Registry and registrar checks use external services. Availability may be unknown; standard suffix prices are distinct from exact domain offers. Uses the shared search quota.",
       "scope": "domains:search",
       "readOnly": true,
       "idempotent": false,
@@ -612,6 +612,7 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "query": {
+          "description": "Naming direction in ordinary words, without full domain names, domain lists or URLs. Use domains_check for exact names.",
           "type": "string",
           "minLength": 1,
           "maxLength": 100
@@ -2579,6 +2580,7 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "query": {
+          "description": "Naming direction in ordinary words, without full domain names, domain lists or URLs. Use domains_check for exact names.",
           "type": "string",
           "minLength": 1,
           "maxLength": 100
