@@ -32,7 +32,15 @@ export function createAccountAuth(options: {
   const secureCookies = new URL(options.origin).protocol === "https:";
   return betterAuth({
     appName: "Sajda", baseURL: options.origin, basePath: "/api/auth", secret: options.secret,
-    database: options.pool, trustedOrigins: [options.origin],
+    database: options.pool,
+    // Apple returns by cross-site form POST with the signed state cookie.
+    // Trust its origin only on that exact callback; OAuth state still binds
+    // the return to the initiating browser and is consumed only once.
+    trustedOrigins: (request) => request?.method === "POST" && new URL(request.url).pathname === "/api/auth/callback/apple"
+      ? [options.origin, "https://appleid.apple.com"] : [options.origin],
+    // Lost or expired state cannot recover a per-flow destination. Return to
+    // the app's retry screen rather than the unexposed SDK error endpoint.
+    onAPIError: { errorURL: `${options.origin}/auth?oauth=failed` },
     user: { modelName: "sajda_auth_user" },
     account: {
       modelName: "sajda_auth_account", encryptOAuthTokens: true,
@@ -70,6 +78,7 @@ export function createAccountAuth(options: {
     advanced: {
       cookiePrefix: "sajda", useSecureCookies: secureCookies,
       defaultCookieAttributes: { httpOnly: true, sameSite: "lax", path: "/" },
+      disableOriginCheck: false,
       // Apple returns authorization by cross-site form POST. Only the short-lived,
       // signed OAuth state cookie needs SameSite=None; the session remains Lax.
       ...(secureCookies ? { cookies: { state: { attributes: { httpOnly: true, secure: true, sameSite: "none", path: "/", maxAge: 300 } } } } : {}),
