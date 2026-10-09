@@ -1,4 +1,6 @@
 /** Pure spend fence for the opt-in real Preview workspace browser probe. */
+export const workspaceProjectSaveBody = project => ({ action: "save", project });
+
 export function workspaceSearchAllowed(body, label, priorSearches) {
   if (!body || typeof body !== "object" || Array.isArray(body) || !/^sajdaqa[a-f0-9]{12}$/u.test(label)
     || !Number.isInteger(priorSearches) || priorSearches < 0 || priorSearches >= 2) return false;

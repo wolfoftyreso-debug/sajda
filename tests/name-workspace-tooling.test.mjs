@@ -1,11 +1,20 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { workspaceSearchAllowed, workspaceRegistryEvidence } from "../scripts/name-workspace-policy.mjs";
+import { workspaceSearchAllowed, workspaceRegistryEvidence, workspaceProjectSaveBody } from "../scripts/name-workspace-policy.mjs";
 
 const label = "sajdaqa123456abcdef";
 const search = () => ({ tlds: ["com", "ai"], count: 2, theme: label, locale: "en", advanced: false,
   domains: [`${label}.com`, `${label}.ai`], swipe: false, creativeMode: "medium" });
+
+test("workspace retry uses the existing save action/project transport envelope without changing the input", () => {
+  const project = Object.freeze({ id: "10000000-0000-4000-8000-000000000001", expectedVersion: 0, title: "Fixture" });
+  assert.deepEqual(workspaceProjectSaveBody(project), { action: "save", project });
+  assert.equal(workspaceProjectSaveBody(project).project, project);
+  const source = readFileSync(new URL("../scripts/check-name-workspace-preview.mjs", import.meta.url), "utf8");
+  assert.match(source, /body: workspaceProjectSaveBody\(input\)/u);
+  assert.match(source, /body: workspaceProjectSaveBody\(\{ \.\.\.input, title: "Stale edit must not overwrite" \}\)/u);
+});
 
 test("workspace registry proof requires the exact pair and a fresh authoritative observation, not the envelope date", () => {
   const now = Date.parse("2026-10-09T01:00:00Z");
