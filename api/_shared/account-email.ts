@@ -122,7 +122,7 @@ export async function sendAccountEmail(message: AccountEmailMessage): Promise<vo
   const idempotencyKey = `sajda-${message.kind}-${createHash("sha256").update(JSON.stringify([message.kind, message.to, content])).digest("hex")}`;
   await sendProviderEmail(configuration, {
     to: [message.to], reply_to: CONTACT_RECIPIENT, ...content,
-  }, idempotencyKey);
+  }, idempotencyKey, message.kind);
 }
 
 /** Contact messages go only to support; recovery tokens are never copied there. */
@@ -146,15 +146,60 @@ export async function sendContactEmail(message: ContactEmailMessage): Promise<vo
   const idempotencyKey = `sajda-contact-${createHash("sha256").update(JSON.stringify([id, name, email, subject, body])).digest("hex")}`;
   await sendProviderEmail(configuration, {
     to: [CONTACT_RECIPIENT], reply_to: email, subject: `Sajda kontakt: ${subject}`, text, html,
-  }, idempotencyKey);
+  }, idempotencyKey, "contact");
+}
+
+type EmailKind = AccountEmailMessage["kind"] | "contact" | "delete";
+type ProviderFailure = "provider_unavailable" | "provider_rejected" | "provider_response_unconfirmed" | "provider_timeout";
+const MAX_PROVIDER_RESPONSE_BYTES = 16_384;
+const PROVIDER_MESSAGE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+
+/** Read an acceptance receipt only, never an unbounded provider error body. */
+async function readProviderReceipt(response: Response, signal: AbortSignal): Promise<unknown> {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("Missing provider receipt");
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      signal.throwIfAborted();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > MAX_PROVIDER_RESPONSE_BYTES) throw new Error("Provider receipt too large");
+      chunks.push(value);
+    }
+    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  } catch (error) {
+    // Cancel an oversized/failed receipt stream without retaining its contents.
+    await reader.cancel().catch(() => undefined);
+    throw error;
+  } finally { reader.releaseLock(); }
+}
+
+/** Allowlisted diagnostics are operational evidence of acceptance, not delivery.
+ * No recipient, subject, content, recovery URL, credential or raw error reaches
+ * logs. A logging failure must not turn accepted mail into a retryable failure. */
+function recordProviderResult(record: {
+  kind: EmailKind; emailRequestId: string; outcome: "accepted" | "unconfirmed";
+  providerStatus?: number; providerMessageId?: string; failure?: ProviderFailure;
+}): void {
+  try { console.info(JSON.stringify({ event: "account_email_provider", ...record })); }
+  catch { /* Provider acceptance remains authoritative if the log sink fails. */ }
 }
 
 async function sendProviderEmail(
   configuration: { apiKey: string; from: string },
   content: { to: string[]; reply_to: string; subject: string; text: string; html: string },
   idempotencyKey: string,
+  kind: EmailKind,
 ): Promise<void> {
   const signal = AbortSignal.timeout(10_000);
+  // This one-way correlation identifier is stable for an unchanged retry.
+  // The private immutable payload itself remains only in the provider request.
+  const emailRequestId = createHash("sha256").update(idempotencyKey).digest("hex");
+  let providerStatus: number | undefined;
+  let failure: ProviderFailure = "provider_unavailable";
   try {
     const response = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -167,15 +212,24 @@ async function sendProviderEmail(
       signal,
       redirect: "error",
     });
-    if (!response.ok) throw new Error("Provider rejected message");
-    const result: unknown = await response.json();
+    providerStatus = response.status;
+    if (!response.ok) {
+      void response.body?.cancel().catch(() => undefined);
+      failure = "provider_rejected";
+      throw new Error("Provider rejected message");
+    }
+    failure = "provider_response_unconfirmed";
+    const result = await readProviderReceipt(response, signal);
     signal.throwIfAborted();
     if (!result || typeof result !== "object" || !("id" in result)
-      || typeof result.id !== "string" || !/^[A-Za-z0-9_-]{1,200}$/u.test(result.id)
+      || typeof result.id !== "string" || !PROVIDER_MESSAGE_ID.test(result.id)
       || "error" in result) throw new Error("Provider acceptance missing");
+    recordProviderResult({ kind, emailRequestId, outcome: "accepted", providerStatus, providerMessageId: result.id.toLowerCase() });
   } catch {
     // Provider bodies and thrown messages can contain credentials/recipient/link.
     // Deliberately replace them, do not preserve a raw cause or write them to logs.
+    recordProviderResult({ kind, emailRequestId, outcome: "unconfirmed", providerStatus,
+      failure: signal.aborted ? "provider_timeout" : failure });
     throw new AccountEmailError("email_delivery_failed", 503, "Mejlet kunde inte skickas just nu. Vänta en stund och begär en ny länk.");
   }
 }
@@ -202,5 +256,5 @@ export async function sendAccountDeletionEmail(message: {
   const text = `Sajda\n\n${copy[1]}\n\n${message.code}\n\n${copy[2]}\n\n${copy[3]}`;
   const html = `<!doctype html><html lang="${message.language === "zh" ? "zh-Hans" : emailLanguage(message.language)}"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="font-family:Arial,Helvetica,sans-serif;background:#f4f7fb;color:#172033;padding:24px"><main style="max-width:520px;margin:auto;background:white;padding:28px;border-radius:12px"><p>Sajda</p><h1 style="font-size:24px">${escapeHtml(copy[1])}</h1><p style="font-size:16px;line-height:1.6">${escapeHtml(copy[2])}</p><p style="font-size:32px;font-weight:bold;letter-spacing:4px">${message.code}</p><p style="font-size:14px;line-height:1.6">${escapeHtml(copy[3])}</p></main></body></html>`;
   const digest = createHash("sha256").update(JSON.stringify([message.to, message.requestId, text])).digest("hex");
-  await sendProviderEmail(configuration, { to: [message.to], reply_to: CONTACT_RECIPIENT, subject: copy[0], text, html }, `sajda-delete-${digest}`);
+  await sendProviderEmail(configuration, { to: [message.to], reply_to: CONTACT_RECIPIENT, subject: copy[0], text, html }, `sajda-delete-${digest}`, "delete");
 }

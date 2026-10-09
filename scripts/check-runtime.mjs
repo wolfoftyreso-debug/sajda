@@ -5,7 +5,7 @@ import { SEO_PAGES } from "./seo-routes.mjs";
 import { runtimeFetch as fetch } from "./runtime-http.mjs";
 
 const origin = process.env.SAJDA_TEST_ORIGIN || "http://127.0.0.1:8095";
-const pages = ["/", "/plus", "/pricing", "/auth", "/contact", "/story", "/how-it-works", "/developers", "/brand-index", "/name-packages", "/legal", "/security", "/status", "/marketplace", "/swipe",
+const pages = ["/", "/plus", "/pricing", "/auth", "/contact", "/story", "/how-it-works", "/developers", "/brand-index", "/brand-index/assessment", "/name-packages", "/legal", "/security", "/status", "/marketplace", "/swipe",
   "/watchlist", "/projects", "/my-domains", "/history", "/account", "/install", "/top-10-today", "/admin", ...SEO_PAGES.map((page) => page.path)];
 let checks = 0;
 // Authenticated CLI startup is local process overhead, not server latency.
@@ -33,7 +33,16 @@ for (const path of ["/sajda-qa-page-does-not-exist", "/api/sajda-qa-does-not-exi
 }
 const schema = await fetch(new URL("/api/openapi", origin));
 assert.equal(schema.status, 200);
-assert.equal((await schema.json()).openapi, "3.1.0"); checks++;
+const schemaBody = await schema.json();
+assert.equal(schemaBody.openapi, "3.1.0");
+assert.ok(schemaBody.components.schemas.BrandReportResponse);
+assert.ok(schemaBody.components.schemas.BrandReportsSaveRequest); checks++;
+assert.ok(schemaBody.components.schemas.BrandCheckResponse);
+assert.ok(schemaBody.components.schemas.BrandChecksHistoryResponse);
+assert.ok(schemaBody.components.schemas.BrandChecksStartRequest); checks++;
+assert.ok(schemaBody.components.schemas.BrandMonitorsMutationRequest);
+assert.ok(schemaBody.components.schemas.BrandMonitorsResponse);
+assert.ok(schemaBody.components.schemas.BrandMonitorMutationResponse); checks++;
 const publicMcp = await fetch(new URL("/api/mcp/public", origin), { method: "POST", signal: AbortSignal.timeout(transportTimeout),
   headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
   body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "sajda-runtime-check", version: "1.0.0" } } }),
@@ -54,6 +63,31 @@ for (const path of ["/api/v1/domains", "/api/account/saved-domains", "/api/accou
   assert.equal(response.status, 401, path);
   assert.equal(response.headers.get("access-control-allow-origin"), null, path);
   assert.ok((await response.json()).code); checks++;
+}
+// This feature is preview-only until its separate production gate is closed.
+// Anonymous requests may see its disabled boundary (404), never account data.
+for (const [path, flag] of [["/api/account/brand-reports", "SAJDA_REQUIRE_BRAND_REPORTS"], ["/api/account/brand-checks", "SAJDA_REQUIRE_BRAND_CHECKS"], ["/api/account/brand-monitors", "SAJDA_REQUIRE_BRAND_MONITORS"]]) for (const method of ["GET", "POST"]) {
+  const response = await fetch(new URL(path, origin), { method,
+    headers: { "content-type": "application/json", "x-sajda-account": "runtime-qa-forged-owner" },
+    ...(method === "POST" ? { body: "{}" } : {}) });
+  if (process.env[flag] === "true") assert.equal(response.status, 401);
+  else assert.ok([401, 404].includes(response.status));
+  assert.match(response.headers.get("cache-control") || "", /no-store/u);
+  assert.match(response.headers.get("x-robots-tag") || "", /noindex/u);
+  const failure = await response.json(); assert.ok(failure.code); assert.ok(failure.requestId);
+  assert.equal("reports" in failure, false); assert.equal("report" in failure, false); checks++;
+}
+for (const path of ["/api/v1/account?resource=brand-reports", "/api/v1/account?resource=brand-checks", "/api/v1/account?resource=brand-monitors", "/api/mcp"]) {
+  const response = await fetch(new URL(path, origin), { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+  assert.equal(response.status, 401, path);
+  assert.match(response.headers.get("cache-control") || "", /no-store/u);
+  const failure = await response.json();
+  if (path === "/api/mcp") {
+    assert.equal(failure.jsonrpc, "2.0");
+    assert.equal(failure.error?.data?.code, "invalid_api_key");
+    assert.ok(failure.error?.data?.requestId);
+  } else assert.equal(failure.code, "invalid_api_key");
+  checks++;
 }
 // Anonymous journal submissions must fail at the account boundary, even with
 // a forged owner header. No scenario, quota or commercial state may be written.
@@ -77,6 +111,9 @@ assert.ok((await quote.json()).code); checks++;
 const scheduler = await fetch(new URL("/api/cron/lost-domains", origin));
 assert.equal(scheduler.status, 401, "scheduler cannot run without its private secret");
 assert.equal((await scheduler.json()).code, "authentication_required"); checks++;
+const brandScheduler = await fetch(new URL("/api/cron/brand-monitors", origin));
+assert.equal(brandScheduler.status, 401, "brand scheduler rejects an unauthenticated tick");
+assert.equal((await brandScheduler.json()).code, "authentication_required"); checks++;
 for (const [path, method, expected, body] of [
   ["/api/account/deletion", "POST", 401, {}],
   ["/api/native/account", "GET", 405],

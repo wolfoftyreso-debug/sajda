@@ -4,6 +4,7 @@ import type { Language } from "@/i18n/LanguageProvider";
 import { brandWorkspaceCopy } from "@/i18n/brandWorkspaceCopy";
 import { namePackagesCopy } from "@/i18n/namePackagesCopy";
 import { packageDomainStatus } from "@/lib/namePackageExport";
+import { BrandEvidencePanel } from "@/components/BrandEvidencePanel";
 
 export function BrandIndexSummary({ pkg, language, now }: { pkg: NamePackage; language: Language; now?: number }) {
   const c = brandWorkspaceCopy[language], index = getNamePackageBrandIndex(pkg, now);
@@ -12,9 +13,9 @@ export function BrandIndexSummary({ pkg, language, now }: { pkg: NamePackage; la
       <p className="text-3xl font-semibold tabular-nums">{index.score}<span className="text-sm font-normal text-muted-foreground"> / 100</span></p></div>
     <p className="mt-3 text-sm font-medium">{index.status === "conflicts_found" ? c.conflicts : index.status === "domains_ready" ? c.ready : c.incomplete}</p>
     <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">{(["fit", "domains", "socials", "company", "trademark"] as const).map(key =>
-      <div key={key} className="min-w-0"><dt className="text-xs leading-5 text-muted-foreground">{c[key]}</dt><dd className="text-sm font-semibold tabular-nums">{index.dimensions[key].score} / {index.dimensions[key].max}</dd></div>)}
-      <div><dt className="text-xs leading-5 text-muted-foreground">{c.coverage}</dt><dd className="text-sm font-semibold">{index.evidenceCoverage}%</dd></div></dl>
+      <div key={key} className="min-w-0"><dt className="text-xs leading-5 text-muted-foreground">{c[key]}</dt><dd className="text-sm font-semibold tabular-nums">{index.dimensions[key].score} / {index.dimensions[key].max}</dd></div>)}</dl>
     <p className="mt-4 text-xs leading-5 text-muted-foreground">{c.ceiling}</p>
+    <BrandEvidencePanel report={index.evidence_report} language={language} compact headingLevel="h5" />
   </section>;
 }
 

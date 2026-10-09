@@ -6,7 +6,7 @@ import { accountEmailConfigured } from "./_shared/account-email.js";
 import { createRequestId } from "./_shared/public-api.js";
 
 type AuthRequest = Pick<IncomingMessage, "method" | "url" | "headers"> & {
-  body?: unknown; query?: Record<string, unknown>; [Symbol.asyncIterator]?: IncomingMessage[typeof Symbol.asyncIterator];
+  body?: unknown; [Symbol.asyncIterator]?: IncomingMessage[typeof Symbol.asyncIterator];
 };
 interface AuthResponse {
   setHeader(name: string, value: string | string[] | number): void;
@@ -22,8 +22,10 @@ const oauthCallback = /^callback\/(?:google|twitter|github|apple)$/u;
 
 export function authAction(request: AuthRequest): { action: string; search: URLSearchParams } {
   const url = new URL(request.url ?? "/api/auth", "https://routing.invalid");
-  // Vercel's explicit rewrite preserves the action; local QA uses the original path.
-  const rewritten = request.query?.authAction ?? url.searchParams.get("authAction");
+  // Vercel's rewrite preserves the action in the URL. Reading the legacy
+  // request.query getter makes the platform invoke Node's deprecated url.parse().
+  const rewrittenActions = url.searchParams.getAll("authAction");
+  const rewritten = rewrittenActions.length === 1 ? rewrittenActions[0] : null;
   const action = url.pathname.startsWith("/api/auth/") ? url.pathname.slice(10) : rewritten;
   if (typeof action !== "string" || action.length > 512 || !/^[a-zA-Z0-9_/-]+$/u.test(action)) {
     throw new AccountAccessError("not_found", 404, "Account endpoint not found.");

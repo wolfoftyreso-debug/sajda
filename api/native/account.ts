@@ -10,6 +10,9 @@ import saved from "../account/saved-domains.js";
 import trading from "../account/lost-domains.js";
 import tradingScenarios from "../account/trading-scenarios.js";
 import nameProjects from "../account/name-projects.js";
+import brandReports from "../account/brand-reports.js";
+import brandChecks from "../account/brand-checks.js";
+import brandMonitors from "../account/brand-monitors.js";
 import namePackageSocial from "../account/name-package-social.js";
 import capabilities from "../account/capabilities.js";
 import developerKeys from "../developer/api-keys.js";
@@ -21,14 +24,15 @@ const input = z.object({
   path: z.string().max(1000), method: z.enum(["GET","POST","DELETE"]),
   accountId: z.string().min(1).max(200), body: z.unknown().optional(),
 }).strict();
-/** The project body keeps its own 32 KB limit. Only its exact native envelope
- * gets 2 KB of additional routing overhead; all other routes retain 16 KB. */
+/** Project/report handlers retain their own 32/64 KiB limits. Only their exact
+ * POST envelopes get 2 KiB routing overhead; other routes retain 16 KiB. */
 export function nativeAccountJson(request: NativeRequest) {
   return nativeJson(request, {
-    maxBytes: 34_816,
+    maxBytes: 67_584,
     parsedMaxBytes: value => value && typeof value === "object" && !Array.isArray(value)
-      && "path" in value && value.path === "/api/account/name-projects"
-      && "method" in value && value.method === "POST" ? 34_816 : 16_384,
+      && "path" in value && "method" in value && value.method === "POST"
+      ? value.path === "/api/account/brand-reports" ? 67_584
+        : value.path === "/api/account/name-projects" ? 34_816 : 16_384 : 16_384,
   });
 }
 export function nativeAccountRoute(path: string, method: string, body?: unknown) {
@@ -43,6 +47,32 @@ export function nativeAccountRoute(path: string, method: string, body?: unknown)
     throw new AccountAccessError("invalid_request",400,"Use a canonical app API path.");
   }
   const url = new URL(path, "https://sajda.invalid");
+  if (url.pathname === "/api/account/brand-monitors" && ["GET", "POST"].includes(method)) {
+    const keys = [...url.searchParams.keys()];
+    if (url.origin !== "https://sajda.invalid" || url.hash || keys.some(key => !["reportId", "alertOffset", "alertLimit"].includes(key))
+      || new Set(keys).size !== keys.length || method === "POST" && url.search) {
+      throw new AccountAccessError("invalid_request", 400, "Use a documented brand-monitor route.");
+    }
+    return { handler: brandMonitors, scope: method === "GET" ? "saved:read" : "saved:write", query: Object.fromEntries(url.searchParams) };
+  }
+  if (url.pathname === "/api/account/brand-checks" && ["GET", "POST"].includes(method)) {
+    const keys = [...url.searchParams.keys()];
+    if (url.origin !== "https://sajda.invalid" || url.hash || keys.some(key => !["reportId", "version", "offset", "limit"].includes(key))
+      || new Set(keys).size !== keys.length || method === "POST" && url.search) {
+      throw new AccountAccessError("invalid_request", 400, "Use a documented brand-check route.");
+    }
+    return { handler: brandChecks, scope: method === "GET" ? "saved:read" : "saved:write", query: Object.fromEntries(url.searchParams) };
+  }
+  if (url.pathname === "/api/account/brand-reports" && ["GET", "POST"].includes(method)) {
+    const keys = [...url.searchParams.keys()];
+    if (url.origin !== "https://sajda.invalid" || url.hash
+      || keys.some(key => !["id", "version", "history"].includes(key))
+      || new Set(keys).size !== keys.length || method === "POST" && url.search) {
+      throw new AccountAccessError("invalid_request", 400, "Use a documented brand-report route.");
+    }
+    return { handler: brandReports, scope: method === "GET" ? "saved:read" : "saved:write",
+      query: Object.fromEntries(url.searchParams) };
+  }
   if (url.origin !== "https://sajda.invalid" || url.hash || !path.startsWith("/api/account/")
     || [...url.searchParams.keys()].some(key => key !== "cursor") || url.searchParams.getAll("cursor").length > 1) {
     throw new AccountAccessError("invalid_request",400,"Invalid app API route.");

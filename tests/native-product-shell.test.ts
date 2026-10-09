@@ -8,6 +8,7 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from "rea
 import { createServer } from "vite";
 import { nativeCopy } from "../src/app/nativeCopy";
 import { accountAccessCopy } from "../src/i18n/accountAccessCopy";
+import { tradingAddonCopy } from "../src/i18n/tradingAddonCopy";
 
 const label = (node: ReactTestInstance): string => node.children.map(child => typeof child === "string" ? child : label(child)).join("");
 
@@ -37,7 +38,6 @@ test("native product routes, navigation, sign-in and payment boundaries", async 
         if (name.endsWith("/src/lib/appSurface.ts")) return "export const isNativeApp=true;";
         if (name.endsWith("/src/lib/nativeTransport.ts")) return "export let nativeAvailable=false; export const setAvailable=(value)=>{nativeAvailable=value;};";
         if (name.endsWith("/src/lib/anonymousSearchMode.ts")) return "export const isAnonymousSearchMode=()=>true;";
-        if (name.endsWith("/src/integrations/supabase/client.ts")) return "export const hasSupabaseBrowserConfig=false;";
         if (name.endsWith("/src/lib/plusBilling.ts")) return `export class PlusBillingError extends Error{}; export const getPlusBilling=async()=>{globalThis.${key}.reads++;throw new Error('Unexpected billing fetch');}; export const openPlusBilling=async()=>{globalThis.${key}.payments++;throw new Error('Unexpected payment');};`;
         // Route tests verify the real guards and routing while isolating costly
         // page engines. Navigation must never start a search or Trading job.
@@ -66,7 +66,7 @@ test("native product routes, navigation, sign-in and payment boundaries", async 
       fixture.user = null;
       await mount(h(Navigation), "/swipe");
       const links = renderer!.root.findAllByType("a");
-      assert.deepEqual(links.map(link => link.props.href), ["/", "/swipe", "/watchlist", "/plus", "/account"]);
+      assert.deepEqual(links.map(link => link.props.href), ["/", "/swipe", "/watchlist", "/account#trading", "/account"]);
       assert.deepEqual(links.map(label), ["Sök", "Swipe", "Sparat", "Trading", "Konto"]);
       assert.equal(links[2].props["aria-label"], "Sparade domäner");
       assert.equal(links[1].props["aria-current"], "page");
@@ -101,11 +101,11 @@ test("native product routes, navigation, sign-in and payment boundaries", async 
       fixture.language = "sv";
     });
 
-    await t.test("shared routes preserve pages and honestly gate unavailable account storage", async () => {
+    await t.test("shared routes preserve pages and retire legacy storage URLs into maintained Neon flows", async () => {
       fixture.user = { id: "native-account" };
       const routes = h(Suspense, { fallback: h("p", null, "Loading") }, h(ProductRoutes, { authElement: h("main", { "data-product-page": "NativeAuth" }) },
         h(Route, { path: "/pricing", element: h("main", { "data-product-page": "NativeMembership" }) })));
-      for (const [route, expected] of Object.entries({ "/": "Index", "/swipe": "Swipe", "/watchlist": "Watchlist", "/plus": "LostDomains", "/account": "Account", "/developers": "Developers", "/marketplace": "Marketplace", "/marketplace/a-domain": "MarketplaceListing", "/legal": "Legal", "/security": "Security", "/status": "Status", "/contact": "Contact", "/admin": "Admin", "/pricing": "NativeMembership", "/auth": "NativeAuth", "/my-domains": "AccountFeatureUnavailable", "/history": "AccountFeatureUnavailable", "/top-10-today": "AccountFeatureUnavailable", "/se/sok-doman": "NotFound", "/story": "NotFound", "/install": "NotFound" })) {
+      for (const [route, expected] of Object.entries({ "/": "Index", "/swipe": "Swipe", "/watchlist": "Watchlist", "/plus": "LostDomains", "/account": "Account", "/developers": "Developers", "/marketplace": "Marketplace", "/marketplace/a-domain": "MarketplaceListing", "/legal": "Legal", "/security": "Security", "/status": "Status", "/contact": "Contact", "/admin": "Admin", "/pricing": "NativeMembership", "/auth": "NativeAuth", "/my-domains": "Watchlist", "/history": "Watchlist", "/top-10-today": "LostDomains", "/se/sok-doman": "NotFound", "/story": "NotFound", "/install": "NotFound" })) {
         await mount(routes, route);
         for (let attempt = 0; attempt < 100 && !renderer!.root.findAllByType("main").length; attempt++) await act(async () => { await new Promise(resolve => setTimeout(resolve, 5)); });
         assert.equal(renderer!.root.findByType("main").props["data-product-page"], expected, route);
@@ -118,7 +118,8 @@ test("native product routes, navigation, sign-in and payment boundaries", async 
     await t.test("Trading shows confirmed membership but cannot read or open web billing", async () => {
       fixture.user = { id: "native-account" };
       await mount(h(PlusBilling, { accountId: fixture.user.id, language: "sv", fallback: getLostDomainsCopy("sv") }), "/plus?billing=success");
-      assert.equal(renderer!.root.findByProps({ "data-current-plan": "trading" }).children[0], "Trading");
+      assert.equal(renderer!.root.findByProps({ "data-current-plan": "premium" }).children[0], "Pro");
+      assert.ok(label(renderer!.root.findByProps({ "data-trading-addon": "active" })).includes(tradingAddonCopy.sv.active));
       assert.ok(label(renderer!.root).includes(nativeCopy.sv.checkoutTitle));
       assert.equal(fixture.reads, 0);
       assert.equal(fixture.payments, 0);

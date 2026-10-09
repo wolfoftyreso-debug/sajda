@@ -32,13 +32,20 @@ test("brand OpenAPI schemas match runtime validators and explicitly prohibit cal
   assert.equal(document["x-sajda-public-mcp"].requestBodyLimitBytes, 16384);
 });
 
-test("brand page is a private noindex SPA route and the REST adapter retains its own stream bound", async () => {
+test("brand landing is a public SPA route and the REST adapter retains its own stream bound", async () => {
   const config = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
   assert.ok(config.rewrites.some((route: { source: string; destination: string }) => route.source === "/brand-index" && route.destination === "/"));
   const page = config.headers.find((entry: { source: string }) => entry.source === "/brand-index");
   assert.ok(page);
   const headers = Object.fromEntries(page.headers.map((header: { key: string; value: string }) => [header.key, header.value]));
-  assert.equal(headers["X-Robots-Tag"], "noindex, nofollow"); assert.equal(headers["Cache-Control"], "private, no-store");
+  assert.equal(headers["X-Robots-Tag"], undefined, "brand landing X-Robots-Tag is owned by the SEO policy middleware");
+  assert.equal(headers["Cache-Control"], "no-store");
+  const assessment = Object.fromEntries(
+    (config.headers.find((entry: { source: string }) => entry.source === "/brand-index/assessment")?.headers ?? [])
+      .map((header: { key: string; value: string }) => [header.key, header.value]),
+  );
+  assert.equal(assessment["X-Robots-Tag"], "noindex, nofollow");
+  assert.equal(assessment["Cache-Control"], "private, no-store");
   assert.equal(config.functions["api/v1/public/brand-index.ts"].maxDuration, 10);
   const adapter = await readFile(new URL("../scripts/serve-vercel-local.ts", import.meta.url), "utf8");
   assert.match(adapter, /\["\/api\/v1\/public\/brand-index", publicBrandIndex\]/u);

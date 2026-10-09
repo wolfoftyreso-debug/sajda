@@ -1,4 +1,9 @@
 import type { Language } from "./languagePreference";
+import { getPricingCopy } from "./pricingCopy";
+import { getMembershipCopy } from "./membershipCopy";
+import { hasPlanLevel } from "../../shared/account-membership";
+import type { PaidPlanId } from "../../shared/plans";
+import { TRADING_CAPACITY } from "../../shared/trading-capacity";
 const en = {
   title:"App Store subscriptions", intro:"One Sajda account across the app and website. Apple handles subscriptions bought in the app.",
   loading:"Checking App Store plans…", unavailable:"In-app subscriptions are not available yet. Existing account access is unchanged.",
@@ -10,6 +15,16 @@ const en = {
   account:"Restore using the same Apple Account and Sajda account used for the purchase.",
   paused:"New purchases are currently unavailable. You can still restore or manage an existing Apple subscription.",
   no_active:"Apple purchases checked. No active App Store subscription was found for this Sajda account.",
+  releasedFeatures:"Included now",
+  basePlans:"Choose your plan", tradingAddon:"Trading add-on for Pro", tradingBundle:"Pro + Trading",
+  tradingEligibility:"Trading is optional and requires Pro on the same Sajda account.",
+  tradingBundleScope:"In the app, Pro and Trading are purchased together as one Apple subscription. If you already have Pro, review your existing subscription with Manage Apple subscription before choosing this bundle. Apple confirms the final price and when the change takes effect.",
+  tradingBundlePrice:"Total for Pro + Trading", tradingSubscribe:"Choose Pro + Trading",
+  basicScope:"Basic currently has the same released features as Free. Higher plan-based search limits are not active.",
+  research:"Lost Domains research workspace with sources, check history and risk-assessed candidates",
+  researchCapacity:"Each new research run checks up to {sources} source pages and {candidates} candidates, with up to {results} report entries.",
+  researchLimit:"These are capacity limits, not a promised number of opportunities. Research does not guarantee availability, value or returns.",
+  standardLimits:"Automatic monitoring is not included. Searches depend on provider availability and shared usage limits; subscribing does not currently increase those limits. Domain purchases are separate.",
   privacy:"Privacy policy",legal:"Terms of use",
 };
 type Copy={ [K in keyof typeof en]: string };
@@ -24,7 +39,17 @@ const messages:Record<Language,Copy>={
     terms:"Abonnemang förnyas automatiskt tills de sägs upp i Apples abonnemangsinställningar. Apple visar slutpriset innan du bekräftar.",
     account:"Återställ med samma Apple-konto och Sajda-konto som användes vid köpet.",
     paused:"Nya köp är inte tillgängliga just nu. Du kan fortfarande återställa eller hantera ett befintligt Apple-abonnemang.",
-    no_active:"Apple-köpen har kontrollerats. Inget aktivt App Store-abonnemang hittades för detta Sajda-konto.",privacy:"Integritetspolicy",legal:"Användarvillkor"},
+    no_active:"Apple-köpen har kontrollerats. Inget aktivt App Store-abonnemang hittades för detta Sajda-konto.",
+    releasedFeatures:"Det här ingår nu",basicScope:"Bas har för närvarande samma lanserade funktioner som Gratis. Högre sökgränser per paket är inte aktiva.",
+    basePlans:"Välj ditt paket",tradingAddon:"Trading-tillägg för Pro",tradingBundle:"Pro + Trading",
+    tradingEligibility:"Trading är valfritt och kräver Pro på samma Sajda-konto.",
+    tradingBundleScope:"I appen köps Pro och Trading tillsammans som ett Apple-abonnemang. Om du redan har Pro, granska ditt befintliga abonnemang via Hantera Apple-abonnemang innan du väljer detta paket. Apple bekräftar slutpriset och när ändringen börjar gälla.",
+    tradingBundlePrice:"Totalt för Pro + Trading",tradingSubscribe:"Välj Pro + Trading",
+    research:"Lost Domains-arbetsyta med källor, kontrollhistorik och riskbedömda kandidater",
+    researchCapacity:"Varje ny granskning kontrollerar upp till {sources} källsidor och {candidates} kandidater, med upp till {results} poster i rapporten.",
+    researchLimit:"Detta är kapacitetsgränser, inte ett utlovat antal möjligheter. Granskningen garanterar inte tillgänglighet, värde eller avkastning.",
+    standardLimits:"Automatisk bevakning ingår inte. Sökningar beror på leverantörernas tillgänglighet och gemensamma användningsgränser; ett abonnemang höjer inte dessa gränser idag. Domänköp betalas separat.",
+    privacy:"Integritetspolicy",legal:"Användarvillkor"},
   es:{title:"Suscripciones de App Store",intro:"Una sola cuenta de Sajda para la app y la web. Apple gestiona las suscripciones compradas en la app.",
     loading:"Consultando los planes de App Store…",unavailable:"Las suscripciones en la app aún no están disponibles. Tu acceso actual no cambia.",
     retry:"Volver a comprobar",buy:"Suscribirse",month:"al mes",restore:"Restaurar compras",manage:"Gestionar suscripción de Apple",
@@ -34,7 +59,17 @@ const messages:Record<Language,Copy>={
     terms:"Las suscripciones se renuevan automáticamente hasta que las canceles en los ajustes de Apple. Apple muestra el precio final antes de confirmar.",
     account:"Restaura con la misma cuenta de Apple y de Sajda que utilizaste al comprar.",
     paused:"Las compras nuevas no están disponibles por ahora. Aún puedes restaurar o gestionar una suscripción de Apple existente.",
-    no_active:"Compras de Apple comprobadas. No se encontró una suscripción activa de App Store para esta cuenta de Sajda.",privacy:"Política de privacidad",legal:"Condiciones de uso"},
+    no_active:"Compras de Apple comprobadas. No se encontró una suscripción activa de App Store para esta cuenta de Sajda.",
+    releasedFeatures:"Incluido ahora",basicScope:"Básico ofrece actualmente las mismas funciones disponibles que Gratis. Los límites de búsqueda más altos por plan aún no están activos.",
+    basePlans:"Elige tu plan",tradingAddon:"Complemento Trading para Pro",tradingBundle:"Pro + Trading",
+    tradingEligibility:"Trading es opcional y requiere Pro en la misma cuenta de Sajda.",
+    tradingBundleScope:"En la app, Pro y Trading se compran juntos como una sola suscripción de Apple. Si ya tienes Pro, revisa tu suscripción actual con Gestionar suscripción de Apple antes de elegir este paquete. Apple confirma el precio final y cuándo entra en vigor el cambio.",
+    tradingBundlePrice:"Total de Pro + Trading",tradingSubscribe:"Elegir Pro + Trading",
+    research:"Espacio Lost Domains con fuentes, historial de comprobaciones y candidatos con análisis de riesgos",
+    researchCapacity:"Cada nueva investigación consulta hasta {sources} páginas fuente y {candidates} candidatos, con hasta {results} entradas en el informe.",
+    researchLimit:"Son límites de capacidad, no un número garantizado de oportunidades. La investigación no garantiza disponibilidad, valor ni rentabilidad.",
+    standardLimits:"No se incluye seguimiento automático. Las búsquedas dependen de la disponibilidad de los proveedores y de límites de uso compartidos; la suscripción no aumenta actualmente esos límites. Los dominios se compran por separado.",
+    privacy:"Política de privacidad",legal:"Condiciones de uso"},
   fr:{title:"Abonnements App Store",intro:"Un seul compte Sajda pour l’app et le site. Apple gère les abonnements achetés dans l’app.",
     loading:"Vérification des offres App Store…",unavailable:"Les abonnements dans l’app ne sont pas encore disponibles. Votre accès actuel reste inchangé.",
     retry:"Vérifier à nouveau",buy:"S’abonner",month:"par mois",restore:"Restaurer les achats",manage:"Gérer l’abonnement Apple",
@@ -44,7 +79,17 @@ const messages:Record<Language,Copy>={
     terms:"Les abonnements sont renouvelés automatiquement jusqu’à leur résiliation dans les réglages Apple. Apple affiche le prix final avant confirmation.",
     account:"Restaurez avec les mêmes comptes Apple et Sajda que lors de l’achat.",
     paused:"Les nouveaux achats sont indisponibles pour le moment. Vous pouvez toujours restaurer ou gérer un abonnement Apple existant.",
-    no_active:"Achats Apple vérifiés. Aucun abonnement App Store actif n’a été trouvé pour ce compte Sajda.",privacy:"Politique de confidentialité",legal:"Conditions d’utilisation"},
+    no_active:"Achats Apple vérifiés. Aucun abonnement App Store actif n’a été trouvé pour ce compte Sajda.",
+    releasedFeatures:"Inclus aujourd’hui",basicScope:"Basique propose actuellement les mêmes fonctions disponibles que Gratuit. Les limites de recherche supérieures par offre ne sont pas actives.",
+    basePlans:"Choisissez votre offre",tradingAddon:"Option Trading pour Pro",tradingBundle:"Pro + Trading",
+    tradingEligibility:"Trading est facultatif et nécessite Pro sur le même compte Sajda.",
+    tradingBundleScope:"Dans l’app, Pro et Trading s’achètent ensemble dans un seul abonnement Apple. Si vous avez déjà Pro, vérifiez votre abonnement actuel avec Gérer l’abonnement Apple avant de choisir cette formule. Apple confirme le prix final et la date d’effet du changement.",
+    tradingBundlePrice:"Total pour Pro + Trading",tradingSubscribe:"Choisir Pro + Trading",
+    research:"Espace Lost Domains avec sources, historique des vérifications et candidats accompagnés d’une analyse des risques",
+    researchCapacity:"Chaque nouvelle analyse vérifie jusqu’à {sources} pages sources et {candidates} candidats, avec jusqu’à {results} entrées dans le rapport.",
+    researchLimit:"Ce sont des limites de capacité, pas un nombre d’opportunités garanti. L’analyse ne garantit ni disponibilité, ni valeur, ni rendement.",
+    standardLimits:"La surveillance automatique n’est pas incluse. Les recherches dépendent de la disponibilité des fournisseurs et de limites d’utilisation partagées ; l’abonnement n’augmente pas ces limites actuellement. Les domaines s’achètent séparément.",
+    privacy:"Politique de confidentialité",legal:"Conditions d’utilisation"},
   zh:{title:"App Store 订阅",intro:"App 和网站使用同一个 Sajda 账户。通过 App 购买的订阅由 Apple 管理。",
     loading:"正在检查 App Store 订阅…",unavailable:"App 内订阅尚未开放。现有账户权限不受影响。",
     retry:"重新检查",buy:"订阅",month:"每月",restore:"恢复购买",manage:"管理 Apple 订阅",
@@ -54,6 +99,37 @@ const messages:Record<Language,Copy>={
     terms:"订阅会自动续订，直到您在 Apple 订阅设置中取消。Apple 会在确认前显示最终价格。",
     account:"请使用购买时所用的 Apple 账户和 Sajda 账户恢复购买。",
     paused:"暂时无法进行新购买。您仍可恢复或管理现有 Apple 订阅。",
-    no_active:"已检查 Apple 购买记录。未找到属于此 Sajda 账户的有效 App Store 订阅。",privacy:"隐私政策",legal:"使用条款"},
+    no_active:"已检查 Apple 购买记录。未找到属于此 Sajda 账户的有效 App Store 订阅。",
+    releasedFeatures:"目前包含的功能",basicScope:"基础方案目前与免费方案提供相同的已上线功能。按方案提高的搜索限额尚未启用。",
+    basePlans:"选择你的方案",tradingAddon:"Pro 的 Trading 附加功能",tradingBundle:"Pro + Trading",
+    tradingEligibility:"Trading 是可选附加功能，需要同一 Sajda 账户拥有 Pro。",
+    tradingBundleScope:"在 App 内，Pro 和 Trading 作为一个 Apple 订阅一起购买。如果你已有 Pro，请先通过“管理 Apple 订阅”查看现有订阅，再选择此组合。Apple 会确认最终价格及变更生效时间。",
+    tradingBundlePrice:"Pro + Trading 总价",tradingSubscribe:"选择 Pro + Trading",
+    research:"Lost Domains 研究工作区，提供来源、检查历史和附带风险分析的候选域名",
+    researchCapacity:"每次新研究最多检查 {sources} 个来源页面和 {candidates} 个候选域名，报告最多包含 {results} 条记录。",
+    researchLimit:"这些是处理容量上限，不代表保证找到相应数量的机会。研究不保证可注册性、价值或回报。",
+    standardLimits:"不包含自动监控。搜索取决于服务商可用性和共享使用限额；订阅目前不会提高这些限额。购买域名需另行付费。",
+    privacy:"隐私政策",legal:"使用条款"},
 };
 export const nativeCommerceCopy=(language:Language):Copy=>messages[language]??en;
+
+/** Public names are independent of legacy App Store product metadata. */
+export function nativePlanName(plan:PaidPlanId,language:Language):string{
+  if(plan==="premium")return "Pro";
+  if(plan==="trading")return nativeCommerceCopy(language).tradingBundle;
+  return getPricingCopy(language).plans[plan].name;
+}
+
+/** Describe shipped features only; planned web-plan benefits are not a purchase promise. */
+export function nativePlanFeatures(plan:PaidPlanId,language:Language):string[]{
+  const features=[...getPricingCopy(language).plans.free.points];
+  if(hasPlanLevel(plan,"premium"))features.push(getMembershipCopy(language).undo);
+  if(hasPlanLevel(plan,"trading")){
+    const copy=nativeCommerceCopy(language);
+    features.push(copy.research,copy.researchCapacity
+      .replace("{sources}",String(TRADING_CAPACITY.sourceLimit))
+      .replace("{candidates}",String(TRADING_CAPACITY.candidateLimit))
+      .replace("{results}",String(TRADING_CAPACITY.reportLimit)));
+  }
+  return features;
+}

@@ -1,7 +1,8 @@
 {
   "schemaVersion": "sajda.agent-product-catalogue.v1",
-  "privateMcpVersion": "1.5.0",
-  "publicMcpVersion": "1.6.0",
+  "privateMcpVersion": "1.10.0",
+  "publicMcpVersion": "1.7.0",
+  "sdkVersion": "1.32.1",
   "scopes": [
     "domains:search",
     "account:read",
@@ -39,7 +40,7 @@
     {
       "name": "domains_search",
       "title": "Search domain names",
-      "description": "Generate and check names using Sajda's non-AI search engine. This tool does not send input to third-party AI or accept advanced briefs/AI consent. Registry and registrar checks use external services. Availability may be unknown; standard suffix prices are distinct from exact domain offers. Uses the shared search quota.",
+      "description": "Generate and check names using Sajda's non-AI search engine. Use ordinary words in query, not full domain names, domain lists or URLs (including reference sites); use domains_check for exact names. count and tlds bound the requested results and endings. This tool does not send input to third-party AI or accept advanced briefs/AI consent. Registry and registrar checks use external services. Availability may be unknown; standard suffix prices are distinct from exact domain offers. Uses the shared search quota.",
       "scope": "domains:search",
       "readOnly": true,
       "idempotent": false,
@@ -79,7 +80,7 @@
     {
       "name": "account_membership",
       "title": "Read account membership",
-      "description": "Read the authenticated account's current server-verified plan, capabilities and expiry. Does not change membership or billing.",
+      "description": "Read the authenticated account's current server-verified basePlan, add-ons, capabilities and expiry. Pro is the premium base plan; legacy plan=trading represents Pro with its Trading add-on, not a separate account or fourth base plan. Does not change membership or billing.",
       "scope": "account:read",
       "readOnly": true,
       "idempotent": true,
@@ -107,6 +108,112 @@
       "destructive": false
     },
     {
+      "name": "brand_reports_list",
+      "title": "List saved brand assessments",
+      "description": "List the authenticated account's saved brand self-assessments. Never reads another account or starts checks. Requires the brand-report feature and a verified account. Reports are user declarations, not verified ownership or continuous monitoring.",
+      "scope": "projects:read",
+      "readOnly": true,
+      "idempotent": true,
+      "openWorld": false,
+      "destructive": false
+    },
+    {
+      "name": "brand_reports_get",
+      "title": "Read a saved brand assessment",
+      "description": "Read one account-owned assessment by UUID, optionally selecting an immutable version. Freshness is recalculated without changing original reported_at dates. verified_score remains null. Historical storage is not fresh registry evidence. No external checks run.",
+      "scope": "projects:read",
+      "readOnly": true,
+      "idempotent": true,
+      "openWorld": false,
+      "destructive": false
+    },
+    {
+      "name": "brand_reports_history",
+      "title": "Read brand assessment version history",
+      "description": "List the versions of one saved assessment owned by this account. Saving never refreshes user-reported evidence or proves ownership. Up to 100 immutable versions per report; no automatic monitoring.",
+      "scope": "projects:read",
+      "readOnly": true,
+      "idempotent": true,
+      "openWorld": false,
+      "destructive": false
+    },
+    {
+      "name": "brand_reports_save",
+      "title": "Save a brand assessment version",
+      "description": "Explicitly save only USER_SUPPLIED scope and reports to this account. Returns only the affected version. Use a stable report UUID, expectedVersion 0 for creation and a new requestKey UUID per intentional save. Reuse the identical request after an uncertain failure: it returns the original saved version, even after later updates. A reused key with different content or a stale version conflicts. Caller-supplied verified evidence, scores and ownership proof are rejected. Original reported_at dates are preserved. Registry checks displayed in the browser are not persisted. No checks, purchases or monitoring run. Private MCP requests retain their 16 KiB transport limit.",
+      "scope": "projects:write",
+      "readOnly": false,
+      "idempotent": true,
+      "openWorld": false,
+      "destructive": false
+    },
+    {
+      "name": "brand_checks_history",
+      "title": "Read saved registry-check history",
+      "description": "Read paginated source observations for this account's saved brand report, optionally filtering its immutable version. Does not fetch sources or renew observation times. Pending, failed and unsupported checks remain explicit. Registration is not ownership, trademark clearance or continuous monitoring. Preserve original observed_at and independently calculate freshness when presenting a historical observation.",
+      "scope": "projects:read",
+      "readOnly": true,
+      "idempotent": true,
+      "openWorld": false,
+      "destructive": false
+    },
+    {
+      "name": "brand_checks_start",
+      "title": "Check and archive a saved brand report's domains",
+      "description": "Explicitly check the latest saved report's domain scope through audited HTTPS RDAP sources and archive the server observations. Requires projects:write and domains:search. Submit only reportId, expectedVersion and a new requestKey UUID; never caller-supplied observations, source URLs or scores. Repeat the identical requestKey after an uncertain result: no second provider check runs. Limits: 20 domains/run, 10 new runs/account/day, 100 runs/report. Pending or failed runs are not successful checks. Unsupported suffixes stay unknown. Never proves ownership, grants legal clearance, starts continuous monitoring or buys anything.",
+      "scope": "projects:write",
+      "readOnly": false,
+      "idempotent": true,
+      "openWorld": true,
+      "destructive": false,
+      "additionalScopes": [
+        "domains:search"
+      ]
+    },
+    {
+      "name": "brand_monitors_get",
+      "title": "Read a brand report's registry monitor and alerts",
+      "description": "Read the account-owned daily domain registry monitor, its pinned saved report version, actual plan capacity and paginated in-app change alerts. No read executes a registry check or renews evidence. cronScheduled describes scheduling in this environment, not an uptime or delivery guarantee. Unknown and failed checks never mean available. This is not social, company, trademark, price or ownership monitoring; scores remain separate. Requires the report, check and monitoring features. Preserve original source dates, statuses and explicit pauses.",
+      "scope": "projects:read",
+      "readOnly": true,
+      "idempotent": true,
+      "openWorld": false,
+      "destructive": false
+    },
+    {
+      "name": "brand_monitors_configure",
+      "title": "Enable or resume daily registry monitoring",
+      "description": "Only on an explicit user request: enable, resume or rebind a daily registry monitor for an account-owned saved brand report. Requires projects:write AND domains:search and live paid capacity: Basic1, Pro5, Pro with Trading add-on10 active monitors; Free0. Enabling records consent to future bounded registry checks but does not run a provider in this request. The scope is pinned to a saved version; rebind explicitly accepts the latest scope and resets the comparison baseline. Use a new requestKey UUID per intentional action, retry identical content after an uncertain result, and preserve monitor/report version conflicts. First observations are baseline only; alerts compare a newer definitive observation with an earlier baseline from the same audited source. No purchases, emails, legal clearance or ownership verification.",
+      "scope": "projects:write",
+      "readOnly": false,
+      "idempotent": true,
+      "openWorld": true,
+      "destructive": false,
+      "additionalScopes": [
+        "domains:search"
+      ]
+    },
+    {
+      "name": "brand_monitors_pause",
+      "title": "Pause a registry monitor",
+      "description": "Explicitly pause this account's saved report registry monitor without deleting source history or alerts. Requires projects:write, not a paid plan or domains:search. Submit action=pause, current expectedMonitorVersion and one requestKey UUID; retry the identical payload after an uncertain outcome. Pausing does not undo an observation already being fetched, but prevents its superseded monitor generation from creating new alerts. Does not cancel registrar services or delete domains.",
+      "scope": "projects:write",
+      "readOnly": false,
+      "idempotent": true,
+      "openWorld": false,
+      "destructive": false
+    },
+    {
+      "name": "brand_monitor_alerts_acknowledge",
+      "title": "Mark one registry change alert as read",
+      "description": "Explicitly acknowledge one account-owned alert without deleting or changing its dated source evidence. Submit action=ack, reportId, alertId and requestKey. Retry identical content after an uncertain result. Requires projects:write only; remains available after plan downgrade. Not a confirmation of domain ownership, availability today, a purchase or legal clearance.",
+      "scope": "projects:write",
+      "readOnly": false,
+      "idempotent": true,
+      "openWorld": false,
+      "destructive": false
+    },
+    {
       "name": "social_profiles_check",
       "title": "Check public GitHub profiles",
       "description": "Check up to five distinct GitHub handles through the existing bounded GitHub API observer. This currently supports GitHub only, not all social networks. A found profile does not prove ownership; an absent profile is not proof the username can be registered. Preserve observation status, evidence source and timestamp. Uses the same account and provider quota as the website, with no arbitrary URLs, credentials or third-party AI.",
@@ -119,7 +226,7 @@
     {
       "name": "trading_scenarios_list",
       "title": "List Trading scenarios",
-      "description": "Read the authenticated account's scenario journal. Active Trading entitlement is required by the shared account handler. These are user-authored what-if assumptions, not market forecasts, live prices or investment recommendations. Does not start research or spend a quote budget.",
+      "description": "Read the authenticated account's scenario journal. Verified Pro with the Trading add-on is required by the shared account handler; an API-key scope alone never grants access. These are user-authored what-if assumptions, not market forecasts, live prices or investment recommendations. Does not start research or spend a quote budget.",
       "scope": "trading:read",
       "readOnly": true,
       "idempotent": true,
@@ -129,7 +236,7 @@
     {
       "name": "trading_scenarios_save",
       "title": "Save a Trading scenario",
-      "description": "Save an explicit user-authored Trading scenario and assumptions. Returns only the affected scenario, not the whole journal. Requires active Trading entitlement. Use a stable UUID id and expectedVersion 0 for a new scenario, then the current returned version for updates; retry the identical request after an ambiguous failure. Rejects stale versions rather than overwriting another edit. All financial inputs and sale probabilities remain user assumptions, not observed prices or forecasts. Does not initiate research, quote refresh, trade or purchase.",
+      "description": "Save an explicit user-authored Trading scenario and assumptions. Returns only the affected scenario, not the whole journal. Requires verified Pro with the Trading add-on. Use a stable UUID id and expectedVersion 0 for a new scenario, then the current returned version for updates; retry the identical request after an ambiguous failure. Rejects stale versions rather than overwriting another edit. All financial inputs and sale probabilities remain user assumptions, not observed prices or forecasts. Does not initiate research, quote refresh, trade or purchase.",
       "scope": "trading:write",
       "readOnly": false,
       "idempotent": true,
@@ -179,7 +286,7 @@
     {
       "name": "trading_report",
       "title": "Read Trading report",
-      "description": "Read a page of the authenticated account's existing Trading report, including dated evidence and safety diagnostics. This is a snapshot; it does not start research or refresh prices. Offsets may change after a report update.",
+      "description": "Read a page of the authenticated account's existing Trading report, including dated evidence and safety diagnostics. Requires verified Pro with the Trading add-on; an API-key scope alone never grants access. This is a snapshot; it does not start research or refresh prices. Offsets may change after a report update.",
       "scope": "trading:read",
       "readOnly": true,
       "idempotent": true,
@@ -189,7 +296,7 @@
     {
       "name": "trading_start",
       "title": "Start Trading research",
-      "description": "Explicitly start a new Trading research run for this account. Requires active Trading membership and consumes its shared research budget. Supply a fresh UUID requestKey per intended run and reuse the SAME key after timeout or retry. Read status to observe progress; use trading_advance only when explicitly continuing work.",
+      "description": "Explicitly start a new Trading research run for this account. Requires verified Pro with the Trading add-on and consumes its shared research budget. Supply a fresh UUID requestKey per intended run and reuse the SAME key after timeout or retry. Read status to observe progress; use trading_advance only when explicitly continuing work.",
       "scope": "trading:run",
       "readOnly": false,
       "idempotent": true,
@@ -199,7 +306,7 @@
     {
       "name": "trading_advance",
       "title": "Advance Trading research",
-      "description": "Explicitly perform the next bounded work batch for an existing run. Requires Trading access and may call research providers. Each call may advance more work; this is not an idempotent status poll. Never starts a new run.",
+      "description": "Explicitly perform the next bounded work batch for an existing run. Requires verified Pro with the Trading add-on and may call research providers. Each call may advance more work; this is not an idempotent status poll. Never starts a new run.",
       "scope": "trading:run",
       "readOnly": false,
       "idempotent": false,
@@ -219,7 +326,7 @@
     {
       "name": "trading_refresh_quote",
       "title": "Refresh a Trading quote",
-      "description": "Explicitly request a fresh registrar price observation for one server-approved candidate in this account's report. Requires Trading membership, connected provider and remaining quote budget. Supply a fresh UUID requestKey and reuse it for retries of the same run/domain. This cannot reserve, register or purchase a domain.",
+      "description": "Explicitly request a fresh registrar price observation for one server-approved candidate in this account's report. Requires verified Pro with the Trading add-on, a connected provider and remaining quote budget. Supply a fresh UUID requestKey and reuse it for retries of the same run/domain. This cannot reserve, register or purchase a domain.",
       "scope": "trading:quote",
       "readOnly": false,
       "idempotent": true,
@@ -229,8 +336,8 @@
   ],
   "inputs": {
     "business_names_recommend": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "businessDescription": {
           "description": "Describe what the business does, its audience and desired tone. The complete description is considered by a bounded, deterministic naming heuristic, not an AI or legal assessment.",
@@ -441,8 +548,8 @@
       "additionalProperties": false
     },
     "domains_check": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "domains": {
           "minItems": 1,
@@ -501,10 +608,11 @@
       "additionalProperties": false
     },
     "domains_search": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "query": {
+          "description": "Naming direction in ordinary words, without full domain names, domain lists or URLs. Use domains_check for exact names.",
           "type": "string",
           "minLength": 1,
           "maxLength": 100
@@ -592,8 +700,8 @@
       "additionalProperties": false
     },
     "name_packages_search": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "query": {
           "type": "string",
@@ -1065,14 +1173,14 @@
       ]
     },
     "account_membership": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "additionalProperties": false
     },
     "name_projects_list": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "additionalProperties": false
     },
@@ -1315,6 +1423,571 @@
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
     },
+    "brand_reports_list": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "brand_reports_get": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "brand_reports_history": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "brand_reports_save": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "report": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "requestKey": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "expectedVersion": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "assessment": {
+              "type": "object",
+              "properties": {
+                "brand_name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "identity_label": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 63,
+                  "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$"
+                },
+                "primary_domain": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 253
+                },
+                "domains": {
+                  "minItems": 1,
+                  "maxItems": 20,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 253
+                  }
+                },
+                "socials": {
+                  "minItems": 1,
+                  "maxItems": 6,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "platform": {
+                        "type": "string",
+                        "enum": [
+                          "instagram",
+                          "tiktok",
+                          "youtube",
+                          "github",
+                          "x",
+                          "linkedin"
+                        ]
+                      },
+                      "handle": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      }
+                    },
+                    "required": [
+                      "platform",
+                      "handle"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "markets": {
+                  "minItems": 1,
+                  "maxItems": 38,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "US",
+                      "AT",
+                      "BE",
+                      "BG",
+                      "HR",
+                      "CY",
+                      "CZ",
+                      "DK",
+                      "EE",
+                      "FI",
+                      "FR",
+                      "DE",
+                      "GR",
+                      "HU",
+                      "IE",
+                      "IT",
+                      "LV",
+                      "LT",
+                      "LU",
+                      "MT",
+                      "NL",
+                      "PL",
+                      "PT",
+                      "RO",
+                      "SK",
+                      "SI",
+                      "ES",
+                      "SE",
+                      "IS",
+                      "LI",
+                      "NO",
+                      "GB",
+                      "CH",
+                      "CA",
+                      "AU",
+                      "NZ",
+                      "SG",
+                      "JP"
+                    ]
+                  }
+                },
+                "observations": {
+                  "default": [],
+                  "maxItems": 64,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "target_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "reported_owned",
+                          "reported_authorized",
+                          "matching_name_only",
+                          "reported_conflict",
+                          "unknown"
+                        ]
+                      },
+                      "source_url": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 512,
+                            "format": "uri"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "reported_at": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "target_id",
+                      "status"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "brand_name",
+                "identity_label",
+                "primary_domain",
+                "domains",
+                "socials",
+                "markets"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "id",
+            "requestKey",
+            "expectedVersion",
+            "title",
+            "assessment"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "report"
+      ],
+      "additionalProperties": false
+    },
+    "brand_checks_history": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "offset": {
+          "default": 0,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 99
+        },
+        "limit": {
+          "default": 10,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        }
+      },
+      "required": [
+        "reportId"
+      ],
+      "additionalProperties": false
+    },
+    "brand_checks_start": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        }
+      },
+      "required": [
+        "reportId",
+        "expectedVersion",
+        "requestKey"
+      ],
+      "additionalProperties": false
+    },
+    "brand_monitors_get": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "alertOffset": {
+          "default": 0,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1999
+        },
+        "alertLimit": {
+          "default": 10,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        }
+      },
+      "required": [
+        "reportId"
+      ],
+      "additionalProperties": false
+    },
+    "brand_monitors_configure": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "action": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "enable"
+            },
+            {
+              "type": "string",
+              "const": "resume"
+            },
+            {
+              "type": "string",
+              "const": "rebind"
+            }
+          ]
+        },
+        "expectedReportVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "expectedMonitorVersion": {
+          "anyOf": [
+            {
+              "type": "number",
+              "const": 0
+            },
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            }
+          ]
+        }
+      },
+      "oneOf": [
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "reportId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "requestKey": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "action": {
+              "type": "string",
+              "const": "enable"
+            },
+            "expectedReportVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "expectedMonitorVersion": {
+              "type": "number",
+              "const": 0
+            }
+          },
+          "required": [
+            "reportId",
+            "requestKey",
+            "action",
+            "expectedReportVersion",
+            "expectedMonitorVersion"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "reportId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "requestKey": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "action": {
+              "type": "string",
+              "const": "resume"
+            },
+            "expectedMonitorVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            }
+          },
+          "required": [
+            "reportId",
+            "requestKey",
+            "action",
+            "expectedMonitorVersion"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "reportId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "requestKey": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "action": {
+              "type": "string",
+              "const": "rebind"
+            },
+            "expectedReportVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "expectedMonitorVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            }
+          },
+          "required": [
+            "reportId",
+            "requestKey",
+            "action",
+            "expectedReportVersion",
+            "expectedMonitorVersion"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "brand_monitors_pause": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "action": {
+          "type": "string",
+          "const": "pause"
+        },
+        "expectedMonitorVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        }
+      },
+      "required": [
+        "reportId",
+        "requestKey",
+        "action",
+        "expectedMonitorVersion"
+      ],
+      "additionalProperties": false
+    },
+    "brand_monitor_alerts_acknowledge": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "action": {
+          "type": "string",
+          "const": "ack"
+        },
+        "alertId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        }
+      },
+      "required": [
+        "reportId",
+        "requestKey",
+        "action",
+        "alertId"
+      ],
+      "additionalProperties": false
+    },
     "social_profiles_check": {
       "type": "object",
       "properties": {
@@ -1335,8 +2008,8 @@
       "$schema": "http://json-schema.org/draft-07/schema#"
     },
     "trading_scenarios_list": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "additionalProperties": false
     },
@@ -1477,8 +2150,8 @@
       "$schema": "http://json-schema.org/draft-07/schema#"
     },
     "saved_domains_list": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "cursor": {
           "type": "string",
@@ -1488,8 +2161,8 @@
       "additionalProperties": false
     },
     "saved_domains_save": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "domain": {
           "type": "string",
@@ -1522,8 +2195,8 @@
       "additionalProperties": false
     },
     "saved_domains_remove": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "domain": {
           "type": "string",
@@ -1537,14 +2210,14 @@
       "additionalProperties": false
     },
     "trading_status": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "additionalProperties": false
     },
     "trading_report": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "offset": {
           "type": "integer",
@@ -1560,8 +2233,8 @@
       "additionalProperties": false
     },
     "trading_start": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "requestKey": {
           "description": "Client-generated UUID. Reuse for retries of this exact start request.",
@@ -1575,8 +2248,8 @@
       "additionalProperties": false
     },
     "trading_advance": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "runId": {
           "type": "string",
@@ -1589,8 +2262,8 @@
       "additionalProperties": false
     },
     "trading_stop": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "runId": {
           "type": "string",
@@ -1603,8 +2276,8 @@
       "additionalProperties": false
     },
     "trading_refresh_quote": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "runId": {
           "type": "string",
@@ -1631,8 +2304,8 @@
   },
   "schemas": {
     "AgentInput_business_names_recommend": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "businessDescription": {
           "description": "Describe what the business does, its audience and desired tone. The complete description is considered by a bounded, deterministic naming heuristic, not an AI or legal assessment.",
@@ -1843,8 +2516,8 @@
       "additionalProperties": false
     },
     "AgentInput_domains_check": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "domains": {
           "minItems": 1,
@@ -1903,10 +2576,11 @@
       "additionalProperties": false
     },
     "AgentInput_domains_search": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "query": {
+          "description": "Naming direction in ordinary words, without full domain names, domain lists or URLs. Use domains_check for exact names.",
           "type": "string",
           "minLength": 1,
           "maxLength": 100
@@ -1994,8 +2668,8 @@
       "additionalProperties": false
     },
     "AgentInput_name_packages_search": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "query": {
           "type": "string",
@@ -2467,14 +3141,14 @@
       ]
     },
     "AgentInput_account_membership": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "additionalProperties": false
     },
     "AgentInput_name_projects_list": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "additionalProperties": false
     },
@@ -2717,6 +3391,571 @@
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
     },
+    "AgentInput_brand_reports_list": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {},
+      "additionalProperties": false
+    },
+    "AgentInput_brand_reports_get": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "AgentInput_brand_reports_history": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    },
+    "AgentInput_brand_reports_save": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "report": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "requestKey": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "expectedVersion": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "assessment": {
+              "type": "object",
+              "properties": {
+                "brand_name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "identity_label": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 63,
+                  "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$"
+                },
+                "primary_domain": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 253
+                },
+                "domains": {
+                  "minItems": 1,
+                  "maxItems": 20,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 253
+                  }
+                },
+                "socials": {
+                  "minItems": 1,
+                  "maxItems": 6,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "platform": {
+                        "type": "string",
+                        "enum": [
+                          "instagram",
+                          "tiktok",
+                          "youtube",
+                          "github",
+                          "x",
+                          "linkedin"
+                        ]
+                      },
+                      "handle": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      }
+                    },
+                    "required": [
+                      "platform",
+                      "handle"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "markets": {
+                  "minItems": 1,
+                  "maxItems": 38,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "US",
+                      "AT",
+                      "BE",
+                      "BG",
+                      "HR",
+                      "CY",
+                      "CZ",
+                      "DK",
+                      "EE",
+                      "FI",
+                      "FR",
+                      "DE",
+                      "GR",
+                      "HU",
+                      "IE",
+                      "IT",
+                      "LV",
+                      "LT",
+                      "LU",
+                      "MT",
+                      "NL",
+                      "PL",
+                      "PT",
+                      "RO",
+                      "SK",
+                      "SI",
+                      "ES",
+                      "SE",
+                      "IS",
+                      "LI",
+                      "NO",
+                      "GB",
+                      "CH",
+                      "CA",
+                      "AU",
+                      "NZ",
+                      "SG",
+                      "JP"
+                    ]
+                  }
+                },
+                "observations": {
+                  "default": [],
+                  "maxItems": 64,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "target_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "reported_owned",
+                          "reported_authorized",
+                          "matching_name_only",
+                          "reported_conflict",
+                          "unknown"
+                        ]
+                      },
+                      "source_url": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 512,
+                            "format": "uri"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "reported_at": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "target_id",
+                      "status"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "brand_name",
+                "identity_label",
+                "primary_domain",
+                "domains",
+                "socials",
+                "markets"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "id",
+            "requestKey",
+            "expectedVersion",
+            "title",
+            "assessment"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "report"
+      ],
+      "additionalProperties": false
+    },
+    "AgentInput_brand_checks_history": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "offset": {
+          "default": 0,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 99
+        },
+        "limit": {
+          "default": 10,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        }
+      },
+      "required": [
+        "reportId"
+      ],
+      "additionalProperties": false
+    },
+    "AgentInput_brand_checks_start": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        }
+      },
+      "required": [
+        "reportId",
+        "expectedVersion",
+        "requestKey"
+      ],
+      "additionalProperties": false
+    },
+    "AgentInput_brand_monitors_get": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "alertOffset": {
+          "default": 0,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1999
+        },
+        "alertLimit": {
+          "default": 10,
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        }
+      },
+      "required": [
+        "reportId"
+      ],
+      "additionalProperties": false
+    },
+    "AgentInput_brand_monitors_configure": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "action": {
+          "anyOf": [
+            {
+              "type": "string",
+              "const": "enable"
+            },
+            {
+              "type": "string",
+              "const": "resume"
+            },
+            {
+              "type": "string",
+              "const": "rebind"
+            }
+          ]
+        },
+        "expectedReportVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "expectedMonitorVersion": {
+          "anyOf": [
+            {
+              "type": "number",
+              "const": 0
+            },
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            }
+          ]
+        }
+      },
+      "oneOf": [
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "reportId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "requestKey": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "action": {
+              "type": "string",
+              "const": "enable"
+            },
+            "expectedReportVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "expectedMonitorVersion": {
+              "type": "number",
+              "const": 0
+            }
+          },
+          "required": [
+            "reportId",
+            "requestKey",
+            "action",
+            "expectedReportVersion",
+            "expectedMonitorVersion"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "reportId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "requestKey": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "action": {
+              "type": "string",
+              "const": "resume"
+            },
+            "expectedMonitorVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            }
+          },
+          "required": [
+            "reportId",
+            "requestKey",
+            "action",
+            "expectedMonitorVersion"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "properties": {
+            "reportId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "requestKey": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "action": {
+              "type": "string",
+              "const": "rebind"
+            },
+            "expectedReportVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "expectedMonitorVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            }
+          },
+          "required": [
+            "reportId",
+            "requestKey",
+            "action",
+            "expectedReportVersion",
+            "expectedMonitorVersion"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "AgentInput_brand_monitors_pause": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "action": {
+          "type": "string",
+          "const": "pause"
+        },
+        "expectedMonitorVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        }
+      },
+      "required": [
+        "reportId",
+        "requestKey",
+        "action",
+        "expectedMonitorVersion"
+      ],
+      "additionalProperties": false
+    },
+    "AgentInput_brand_monitor_alerts_acknowledge": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "action": {
+          "type": "string",
+          "const": "ack"
+        },
+        "alertId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        }
+      },
+      "required": [
+        "reportId",
+        "requestKey",
+        "action",
+        "alertId"
+      ],
+      "additionalProperties": false
+    },
     "AgentInput_social_profiles_check": {
       "type": "object",
       "properties": {
@@ -2737,8 +3976,8 @@
       "$schema": "http://json-schema.org/draft-07/schema#"
     },
     "AgentInput_trading_scenarios_list": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "additionalProperties": false
     },
@@ -2879,8 +4118,8 @@
       "$schema": "http://json-schema.org/draft-07/schema#"
     },
     "AgentInput_saved_domains_list": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "cursor": {
           "type": "string",
@@ -2890,8 +4129,8 @@
       "additionalProperties": false
     },
     "AgentInput_saved_domains_save": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "domain": {
           "type": "string",
@@ -2924,8 +4163,8 @@
       "additionalProperties": false
     },
     "AgentInput_saved_domains_remove": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "domain": {
           "type": "string",
@@ -2939,14 +4178,14 @@
       "additionalProperties": false
     },
     "AgentInput_trading_status": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "additionalProperties": false
     },
     "AgentInput_trading_report": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "offset": {
           "type": "integer",
@@ -2962,8 +4201,8 @@
       "additionalProperties": false
     },
     "AgentInput_trading_start": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "requestKey": {
           "description": "Client-generated UUID. Reuse for retries of this exact start request.",
@@ -2977,8 +4216,8 @@
       "additionalProperties": false
     },
     "AgentInput_trading_advance": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "runId": {
           "type": "string",
@@ -2991,8 +4230,8 @@
       "additionalProperties": false
     },
     "AgentInput_trading_stop": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "runId": {
           "type": "string",
@@ -3005,8 +4244,8 @@
       "additionalProperties": false
     },
     "AgentInput_trading_refresh_quote": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "runId": {
           "type": "string",
@@ -3031,8 +4270,8 @@
       "additionalProperties": false
     },
     "BusinessNamesRequest": {
-      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "businessDescription": {
           "description": "Describe what the business does, its audience and desired tone. The complete description is considered by a bounded, deterministic naming heuristic, not an AI or legal assessment.",
@@ -4026,6 +5265,12 @@
                         "type": "string",
                         "const": "sajda-brand-index-candidate-1.0.0"
                       },
+                      "identityLabel": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 63,
+                        "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$"
+                      },
                       "mode": {
                         "type": "string",
                         "const": "candidate"
@@ -4279,11 +5524,211 @@
                       "legalClearance": {
                         "type": "boolean",
                         "const": false
+                      },
+                      "evidence_report": {
+                        "type": "object",
+                        "properties": {
+                          "schema_version": {
+                            "type": "string",
+                            "const": "sajda.brand-evidence.v1"
+                          },
+                          "generated_at": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                          },
+                          "entries": {
+                            "maxItems": 200,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 400
+                                },
+                                "target": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 1400
+                                },
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "domain",
+                                    "social",
+                                    "company",
+                                    "trademark",
+                                    "market",
+                                    "ownership",
+                                    "monitoring"
+                                  ]
+                                },
+                                "state": {
+                                  "type": "string",
+                                  "enum": [
+                                    "checked",
+                                    "reported",
+                                    "listed",
+                                    "unknown"
+                                  ]
+                                },
+                                "freshness": {
+                                  "type": "string",
+                                  "enum": [
+                                    "current",
+                                    "stale",
+                                    "future",
+                                    "unknown"
+                                  ]
+                                },
+                                "source_url": {
+                                  "description": "Public source reference only; its existence is not verification or ownership proof.",
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "maxLength": 2000,
+                                      "format": "uri"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "observed_at": {
+                                  "description": "Original provider observation, user-report or source-retrieval time. Report generation never renews it.",
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "format": "date-time",
+                                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "statement": {
+                                  "type": "string",
+                                  "enum": [
+                                    "domain_available",
+                                    "domain_registered",
+                                    "domain_check_unavailable",
+                                    "social_profile_found",
+                                    "social_profile_not_found",
+                                    "social_check_unknown",
+                                    "company_not_checked",
+                                    "trademark_not_checked",
+                                    "reported_owned",
+                                    "reported_authorized",
+                                    "reported_conflict",
+                                    "reported_matching_name_only",
+                                    "report_unknown",
+                                    "source_lists_website",
+                                    "source_lists_social",
+                                    "ownership_not_verified",
+                                    "continuous_monitoring_not_active"
+                                  ]
+                                },
+                                "origin": {
+                                  "type": "string",
+                                  "enum": [
+                                    "provider_observation",
+                                    "user_report",
+                                    "source_assertion",
+                                    "none"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "target",
+                                "kind",
+                                "state",
+                                "freshness",
+                                "source_url",
+                                "observed_at",
+                                "statement",
+                                "origin"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "summary": {
+                            "type": "object",
+                            "properties": {
+                              "total": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 200
+                              },
+                              "checked": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 200
+                              },
+                              "reported": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 200
+                              },
+                              "listed": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 200
+                              },
+                              "unknown": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 200
+                              },
+                              "checked_coverage_percent": {
+                                "description": "Current checked signal items divided by all scoped signal items, not verified ownership or legal coverage.",
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 100
+                              }
+                            },
+                            "required": [
+                              "total",
+                              "checked",
+                              "reported",
+                              "listed",
+                              "unknown",
+                              "checked_coverage_percent"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "ownership_verified": {
+                            "type": "boolean",
+                            "const": false
+                          },
+                          "legal_clearance": {
+                            "type": "boolean",
+                            "const": false
+                          },
+                          "continuous_monitoring": {
+                            "type": "boolean",
+                            "const": false
+                          }
+                        },
+                        "required": [
+                          "schema_version",
+                          "generated_at",
+                          "entries",
+                          "summary",
+                          "ownership_verified",
+                          "legal_clearance",
+                          "continuous_monitoring"
+                        ],
+                        "additionalProperties": false
                       }
                     },
                     "required": [
                       "schemaVersion",
                       "methodologyVersion",
+                      "identityLabel",
                       "mode",
                       "score",
                       "maximum",
@@ -4296,7 +5741,8 @@
                       "missingChecks",
                       "nextActions",
                       "ownershipVerified",
-                      "legalClearance"
+                      "legalClearance",
+                      "evidence_report"
                     ],
                     "additionalProperties": false
                   },
@@ -5309,6 +6755,7 @@
               "additionalProperties": false
             },
             "returned_count": {
+              "description": "Exactly the number of returned unique packages; never greater than requested_count.",
               "type": "integer",
               "minimum": 0,
               "maximum": 10
@@ -5535,6 +6982,12 @@
                       "methodologyVersion": {
                         "type": "string",
                         "const": "sajda-brand-index-candidate-1.0.0"
+                      },
+                      "identityLabel": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 63,
+                        "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$"
                       },
                       "mode": {
                         "type": "string",
@@ -5789,11 +7242,211 @@
                       "legalClearance": {
                         "type": "boolean",
                         "const": false
+                      },
+                      "evidence_report": {
+                        "type": "object",
+                        "properties": {
+                          "schema_version": {
+                            "type": "string",
+                            "const": "sajda.brand-evidence.v1"
+                          },
+                          "generated_at": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                          },
+                          "entries": {
+                            "maxItems": 200,
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 400
+                                },
+                                "target": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 1400
+                                },
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "domain",
+                                    "social",
+                                    "company",
+                                    "trademark",
+                                    "market",
+                                    "ownership",
+                                    "monitoring"
+                                  ]
+                                },
+                                "state": {
+                                  "type": "string",
+                                  "enum": [
+                                    "checked",
+                                    "reported",
+                                    "listed",
+                                    "unknown"
+                                  ]
+                                },
+                                "freshness": {
+                                  "type": "string",
+                                  "enum": [
+                                    "current",
+                                    "stale",
+                                    "future",
+                                    "unknown"
+                                  ]
+                                },
+                                "source_url": {
+                                  "description": "Public source reference only; its existence is not verification or ownership proof.",
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "maxLength": 2000,
+                                      "format": "uri"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "observed_at": {
+                                  "description": "Original provider observation, user-report or source-retrieval time. Report generation never renews it.",
+                                  "anyOf": [
+                                    {
+                                      "type": "string",
+                                      "format": "date-time",
+                                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                                    },
+                                    {
+                                      "type": "null"
+                                    }
+                                  ]
+                                },
+                                "statement": {
+                                  "type": "string",
+                                  "enum": [
+                                    "domain_available",
+                                    "domain_registered",
+                                    "domain_check_unavailable",
+                                    "social_profile_found",
+                                    "social_profile_not_found",
+                                    "social_check_unknown",
+                                    "company_not_checked",
+                                    "trademark_not_checked",
+                                    "reported_owned",
+                                    "reported_authorized",
+                                    "reported_conflict",
+                                    "reported_matching_name_only",
+                                    "report_unknown",
+                                    "source_lists_website",
+                                    "source_lists_social",
+                                    "ownership_not_verified",
+                                    "continuous_monitoring_not_active"
+                                  ]
+                                },
+                                "origin": {
+                                  "type": "string",
+                                  "enum": [
+                                    "provider_observation",
+                                    "user_report",
+                                    "source_assertion",
+                                    "none"
+                                  ]
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "target",
+                                "kind",
+                                "state",
+                                "freshness",
+                                "source_url",
+                                "observed_at",
+                                "statement",
+                                "origin"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "summary": {
+                            "type": "object",
+                            "properties": {
+                              "total": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 200
+                              },
+                              "checked": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 200
+                              },
+                              "reported": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 200
+                              },
+                              "listed": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 200
+                              },
+                              "unknown": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 200
+                              },
+                              "checked_coverage_percent": {
+                                "description": "Current checked signal items divided by all scoped signal items, not verified ownership or legal coverage.",
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 100
+                              }
+                            },
+                            "required": [
+                              "total",
+                              "checked",
+                              "reported",
+                              "listed",
+                              "unknown",
+                              "checked_coverage_percent"
+                            ],
+                            "additionalProperties": false
+                          },
+                          "ownership_verified": {
+                            "type": "boolean",
+                            "const": false
+                          },
+                          "legal_clearance": {
+                            "type": "boolean",
+                            "const": false
+                          },
+                          "continuous_monitoring": {
+                            "type": "boolean",
+                            "const": false
+                          }
+                        },
+                        "required": [
+                          "schema_version",
+                          "generated_at",
+                          "entries",
+                          "summary",
+                          "ownership_verified",
+                          "legal_clearance",
+                          "continuous_monitoring"
+                        ],
+                        "additionalProperties": false
                       }
                     },
                     "required": [
                       "schemaVersion",
                       "methodologyVersion",
+                      "identityLabel",
                       "mode",
                       "score",
                       "maximum",
@@ -5806,7 +7459,8 @@
                       "missingChecks",
                       "nextActions",
                       "ownershipVerified",
-                      "legalClearance"
+                      "legalClearance",
+                      "evidence_report"
                     ],
                     "additionalProperties": false
                   },
@@ -7031,6 +8685,2866 @@
       ],
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "BrandReportsSaveRequest": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "report": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "requestKey": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "expectedVersion": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "assessment": {
+              "type": "object",
+              "properties": {
+                "brand_name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "identity_label": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 63,
+                  "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$"
+                },
+                "primary_domain": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 253
+                },
+                "domains": {
+                  "minItems": 1,
+                  "maxItems": 20,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 253
+                  }
+                },
+                "socials": {
+                  "minItems": 1,
+                  "maxItems": 6,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "platform": {
+                        "type": "string",
+                        "enum": [
+                          "instagram",
+                          "tiktok",
+                          "youtube",
+                          "github",
+                          "x",
+                          "linkedin"
+                        ]
+                      },
+                      "handle": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      }
+                    },
+                    "required": [
+                      "platform",
+                      "handle"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "markets": {
+                  "minItems": 1,
+                  "maxItems": 38,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "US",
+                      "AT",
+                      "BE",
+                      "BG",
+                      "HR",
+                      "CY",
+                      "CZ",
+                      "DK",
+                      "EE",
+                      "FI",
+                      "FR",
+                      "DE",
+                      "GR",
+                      "HU",
+                      "IE",
+                      "IT",
+                      "LV",
+                      "LT",
+                      "LU",
+                      "MT",
+                      "NL",
+                      "PL",
+                      "PT",
+                      "RO",
+                      "SK",
+                      "SI",
+                      "ES",
+                      "SE",
+                      "IS",
+                      "LI",
+                      "NO",
+                      "GB",
+                      "CH",
+                      "CA",
+                      "AU",
+                      "NZ",
+                      "SG",
+                      "JP"
+                    ]
+                  }
+                },
+                "observations": {
+                  "default": [],
+                  "maxItems": 64,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "target_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "reported_owned",
+                          "reported_authorized",
+                          "matching_name_only",
+                          "reported_conflict",
+                          "unknown"
+                        ]
+                      },
+                      "source_url": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 512,
+                            "format": "uri"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "reported_at": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "target_id",
+                      "status"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "brand_name",
+                "identity_label",
+                "primary_domain",
+                "domains",
+                "socials",
+                "markets"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "id",
+            "requestKey",
+            "expectedVersion",
+            "title",
+            "assessment"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "report"
+      ],
+      "additionalProperties": false
+    },
+    "BrandChecksStartRequest": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "reportId": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        },
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+        }
+      },
+      "required": [
+        "reportId",
+        "expectedVersion",
+        "requestKey"
+      ],
+      "additionalProperties": false
+    },
+    "BrandMonitorsMutationRequest": {
+      "type": "object",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "reportId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "requestKey": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "action": {
+              "type": "string",
+              "const": "enable"
+            },
+            "expectedReportVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "expectedMonitorVersion": {
+              "type": "number",
+              "const": 0
+            }
+          },
+          "required": [
+            "reportId",
+            "requestKey",
+            "action",
+            "expectedReportVersion",
+            "expectedMonitorVersion"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "reportId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "requestKey": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "action": {
+              "type": "string",
+              "const": "pause"
+            },
+            "expectedMonitorVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            }
+          },
+          "required": [
+            "reportId",
+            "requestKey",
+            "action",
+            "expectedMonitorVersion"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "reportId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "requestKey": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "action": {
+              "type": "string",
+              "const": "resume"
+            },
+            "expectedMonitorVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            }
+          },
+          "required": [
+            "reportId",
+            "requestKey",
+            "action",
+            "expectedMonitorVersion"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "reportId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "requestKey": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "action": {
+              "type": "string",
+              "const": "rebind"
+            },
+            "expectedReportVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "expectedMonitorVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            }
+          },
+          "required": [
+            "reportId",
+            "requestKey",
+            "action",
+            "expectedReportVersion",
+            "expectedMonitorVersion"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "reportId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "requestKey": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            },
+            "action": {
+              "type": "string",
+              "const": "ack"
+            },
+            "alertId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+            }
+          },
+          "required": [
+            "reportId",
+            "requestKey",
+            "action",
+            "alertId"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "BrandMonitorsResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "monitor": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "reportId": {
+                  "type": "string",
+                  "allOf": [
+                    {
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                    },
+                    {
+                      "pattern": "^[a-f0-9-]+$"
+                    }
+                  ]
+                },
+                "reportVersion": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100
+                },
+                "version": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 10000
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "active",
+                    "paused"
+                  ]
+                },
+                "pauseReason": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "user",
+                        "report_changed",
+                        "plan_limit",
+                        "history_full"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "targets": {
+                  "minItems": 1,
+                  "maxItems": 20,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 253
+                  }
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                },
+                "nextDueAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "lastAttemptAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "lastRunId": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "allOf": [
+                        {
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                        },
+                        {
+                          "pattern": "^[a-f0-9-]+$"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "lastRunStatus": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "pending",
+                        "completed",
+                        "failed"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "lastFailureCode": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "provider_unavailable",
+                        "invalid_evidence",
+                        "check_interrupted"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "lastRunCoverage": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 20
+                        },
+                        "checked": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 20
+                        },
+                        "unknown": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 20
+                        }
+                      },
+                      "required": [
+                        "total",
+                        "checked",
+                        "unknown"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "lastSuccessfulAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "baselineCount": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 20
+                },
+                "methodologyVersion": {
+                  "type": "string",
+                  "const": "sajda.registry-monitor.v1"
+                }
+              },
+              "required": [
+                "reportId",
+                "reportVersion",
+                "version",
+                "status",
+                "pauseReason",
+                "targets",
+                "createdAt",
+                "updatedAt",
+                "nextDueAt",
+                "lastAttemptAt",
+                "lastRunId",
+                "lastRunStatus",
+                "lastFailureCode",
+                "lastRunCoverage",
+                "lastSuccessfulAt",
+                "baselineCount",
+                "methodologyVersion"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "currentPlan": {
+          "type": "string",
+          "enum": [
+            "free",
+            "basic",
+            "premium",
+            "trading"
+          ]
+        },
+        "capacity": {
+          "type": "object",
+          "properties": {
+            "active": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 50
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10
+            }
+          },
+          "required": [
+            "active",
+            "limit"
+          ],
+          "additionalProperties": false
+        },
+        "intervalHours": {
+          "type": "number",
+          "const": 24
+        },
+        "cronScheduled": {
+          "type": "boolean"
+        },
+        "alerts": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "allOf": [
+                  {
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                  },
+                  {
+                    "pattern": "^[a-f0-9-]+$"
+                  }
+                ]
+              },
+              "reportId": {
+                "type": "string",
+                "allOf": [
+                  {
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                  },
+                  {
+                    "pattern": "^[a-f0-9-]+$"
+                  }
+                ]
+              },
+              "reportVersion": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "monitorVersion": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10000
+              },
+              "runId": {
+                "type": "string",
+                "allOf": [
+                  {
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                  },
+                  {
+                    "pattern": "^[a-f0-9-]+$"
+                  }
+                ]
+              },
+              "target": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 253
+              },
+              "kind": {
+                "type": "string",
+                "const": "registration_changed"
+              },
+              "previous": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "available",
+                      "registered"
+                    ]
+                  },
+                  "observedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                  },
+                  "sourceUrl": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "format": "uri"
+                  }
+                },
+                "required": [
+                  "status",
+                  "observedAt",
+                  "sourceUrl"
+                ],
+                "additionalProperties": false
+              },
+              "current": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "available",
+                      "registered"
+                    ]
+                  },
+                  "observedAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                  },
+                  "sourceUrl": {
+                    "type": "string",
+                    "maxLength": 2000,
+                    "format": "uri"
+                  }
+                },
+                "required": [
+                  "status",
+                  "observedAt",
+                  "sourceUrl"
+                ],
+                "additionalProperties": false
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+              },
+              "acknowledgedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "methodologyVersion": {
+                "type": "string",
+                "const": "sajda.registry-monitor.v1"
+              }
+            },
+            "required": [
+              "id",
+              "reportId",
+              "reportVersion",
+              "monitorVersion",
+              "runId",
+              "target",
+              "kind",
+              "previous",
+              "current",
+              "createdAt",
+              "acknowledgedAt",
+              "methodologyVersion"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2000
+        },
+        "alertOffset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1999
+        },
+        "alertLimit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "hasMore": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "accountId",
+        "requestId",
+        "monitor",
+        "currentPlan",
+        "capacity",
+        "intervalHours",
+        "cronScheduled",
+        "alerts",
+        "total",
+        "alertOffset",
+        "alertLimit",
+        "hasMore"
+      ],
+      "additionalProperties": false
+    },
+    "BrandMonitorMutationResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "monitor": {
+          "type": "object",
+          "properties": {
+            "reportId": {
+              "type": "string",
+              "allOf": [
+                {
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                },
+                {
+                  "pattern": "^[a-f0-9-]+$"
+                }
+              ]
+            },
+            "reportVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "version": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "active",
+                "paused"
+              ]
+            },
+            "pauseReason": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "user",
+                    "report_changed",
+                    "plan_limit",
+                    "history_full"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "targets": {
+              "minItems": 1,
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 253
+              }
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+            },
+            "updatedAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+            },
+            "nextDueAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "lastAttemptAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "lastRunId": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "allOf": [
+                    {
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                    },
+                    {
+                      "pattern": "^[a-f0-9-]+$"
+                    }
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "lastRunStatus": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "pending",
+                    "completed",
+                    "failed"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "lastFailureCode": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "provider_unavailable",
+                    "invalid_evidence",
+                    "check_interrupted"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "lastRunCoverage": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "total": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 20
+                    },
+                    "checked": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 20
+                    },
+                    "unknown": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 20
+                    }
+                  },
+                  "required": [
+                    "total",
+                    "checked",
+                    "unknown"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "lastSuccessfulAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "baselineCount": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 20
+            },
+            "methodologyVersion": {
+              "type": "string",
+              "const": "sajda.registry-monitor.v1"
+            }
+          },
+          "required": [
+            "reportId",
+            "reportVersion",
+            "version",
+            "status",
+            "pauseReason",
+            "targets",
+            "createdAt",
+            "updatedAt",
+            "nextDueAt",
+            "lastAttemptAt",
+            "lastRunId",
+            "lastRunStatus",
+            "lastFailureCode",
+            "lastRunCoverage",
+            "lastSuccessfulAt",
+            "baselineCount",
+            "methodologyVersion"
+          ],
+          "additionalProperties": false
+        },
+        "acknowledgedAlert": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "allOf": [
+                    {
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                    },
+                    {
+                      "pattern": "^[a-f0-9-]+$"
+                    }
+                  ]
+                },
+                "reportId": {
+                  "type": "string",
+                  "allOf": [
+                    {
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                    },
+                    {
+                      "pattern": "^[a-f0-9-]+$"
+                    }
+                  ]
+                },
+                "reportVersion": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100
+                },
+                "monitorVersion": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 10000
+                },
+                "runId": {
+                  "type": "string",
+                  "allOf": [
+                    {
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                    },
+                    {
+                      "pattern": "^[a-f0-9-]+$"
+                    }
+                  ]
+                },
+                "target": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 253
+                },
+                "kind": {
+                  "type": "string",
+                  "const": "registration_changed"
+                },
+                "previous": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "available",
+                        "registered"
+                      ]
+                    },
+                    "observedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                    },
+                    "sourceUrl": {
+                      "type": "string",
+                      "maxLength": 2000,
+                      "format": "uri"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "observedAt",
+                    "sourceUrl"
+                  ],
+                  "additionalProperties": false
+                },
+                "current": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "available",
+                        "registered"
+                      ]
+                    },
+                    "observedAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                    },
+                    "sourceUrl": {
+                      "type": "string",
+                      "maxLength": 2000,
+                      "format": "uri"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "observedAt",
+                    "sourceUrl"
+                  ],
+                  "additionalProperties": false
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                },
+                "acknowledgedAt": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "methodologyVersion": {
+                  "type": "string",
+                  "const": "sajda.registry-monitor.v1"
+                }
+              },
+              "required": [
+                "id",
+                "reportId",
+                "reportVersion",
+                "monitorVersion",
+                "runId",
+                "target",
+                "kind",
+                "previous",
+                "current",
+                "createdAt",
+                "acknowledgedAt",
+                "methodologyVersion"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "accountId",
+        "requestId",
+        "monitor",
+        "acknowledgedAlert"
+      ],
+      "additionalProperties": false
+    },
+    "BrandCheckResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "run": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "allOf": [
+                {
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                },
+                {
+                  "pattern": "^[a-f0-9-]+$"
+                }
+              ]
+            },
+            "reportId": {
+              "type": "string",
+              "allOf": [
+                {
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                },
+                {
+                  "pattern": "^[a-f0-9-]+$"
+                }
+              ]
+            },
+            "reportVersion": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "pending",
+                "completed",
+                "failed"
+              ]
+            },
+            "requestedAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+            },
+            "completedAt": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "methodologyVersion": {
+              "type": "string",
+              "const": "sajda.registry-observation.v1"
+            },
+            "entries": {
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 400
+                  },
+                  "target": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1400
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "domain",
+                      "social",
+                      "company",
+                      "trademark",
+                      "market",
+                      "ownership",
+                      "monitoring"
+                    ]
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "checked",
+                      "reported",
+                      "listed",
+                      "unknown"
+                    ]
+                  },
+                  "freshness": {
+                    "type": "string",
+                    "enum": [
+                      "current",
+                      "stale",
+                      "future",
+                      "unknown"
+                    ]
+                  },
+                  "source_url": {
+                    "description": "Public source reference only; its existence is not verification or ownership proof.",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 2000,
+                        "format": "uri"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "observed_at": {
+                    "description": "Original provider observation, user-report or source-retrieval time. Report generation never renews it.",
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time",
+                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "statement": {
+                    "type": "string",
+                    "enum": [
+                      "domain_available",
+                      "domain_registered",
+                      "domain_check_unavailable",
+                      "social_profile_found",
+                      "social_profile_not_found",
+                      "social_check_unknown",
+                      "company_not_checked",
+                      "trademark_not_checked",
+                      "reported_owned",
+                      "reported_authorized",
+                      "reported_conflict",
+                      "reported_matching_name_only",
+                      "report_unknown",
+                      "source_lists_website",
+                      "source_lists_social",
+                      "ownership_not_verified",
+                      "continuous_monitoring_not_active"
+                    ]
+                  },
+                  "origin": {
+                    "type": "string",
+                    "enum": [
+                      "provider_observation",
+                      "user_report",
+                      "source_assertion",
+                      "none"
+                    ]
+                  }
+                },
+                "required": [
+                  "id",
+                  "target",
+                  "kind",
+                  "state",
+                  "freshness",
+                  "source_url",
+                  "observed_at",
+                  "statement",
+                  "origin"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "failureCode": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "provider_unavailable",
+                    "invalid_evidence",
+                    "check_interrupted"
+                  ]
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "reportId",
+            "reportVersion",
+            "status",
+            "requestedAt",
+            "completedAt",
+            "methodologyVersion",
+            "entries",
+            "failureCode"
+          ],
+          "additionalProperties": false
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "accountId",
+        "run",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "BrandChecksHistoryResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "runs": {
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "allOf": [
+                  {
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                  },
+                  {
+                    "pattern": "^[a-f0-9-]+$"
+                  }
+                ]
+              },
+              "reportId": {
+                "type": "string",
+                "allOf": [
+                  {
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                  },
+                  {
+                    "pattern": "^[a-f0-9-]+$"
+                  }
+                ]
+              },
+              "reportVersion": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "completed",
+                  "failed"
+                ]
+              },
+              "requestedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+              },
+              "completedAt": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "methodologyVersion": {
+                "type": "string",
+                "const": "sajda.registry-observation.v1"
+              },
+              "entries": {
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 400
+                    },
+                    "target": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1400
+                    },
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "domain",
+                        "social",
+                        "company",
+                        "trademark",
+                        "market",
+                        "ownership",
+                        "monitoring"
+                      ]
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "checked",
+                        "reported",
+                        "listed",
+                        "unknown"
+                      ]
+                    },
+                    "freshness": {
+                      "type": "string",
+                      "enum": [
+                        "current",
+                        "stale",
+                        "future",
+                        "unknown"
+                      ]
+                    },
+                    "source_url": {
+                      "description": "Public source reference only; its existence is not verification or ownership proof.",
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 2000,
+                          "format": "uri"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "observed_at": {
+                      "description": "Original provider observation, user-report or source-retrieval time. Report generation never renews it.",
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "statement": {
+                      "type": "string",
+                      "enum": [
+                        "domain_available",
+                        "domain_registered",
+                        "domain_check_unavailable",
+                        "social_profile_found",
+                        "social_profile_not_found",
+                        "social_check_unknown",
+                        "company_not_checked",
+                        "trademark_not_checked",
+                        "reported_owned",
+                        "reported_authorized",
+                        "reported_conflict",
+                        "reported_matching_name_only",
+                        "report_unknown",
+                        "source_lists_website",
+                        "source_lists_social",
+                        "ownership_not_verified",
+                        "continuous_monitoring_not_active"
+                      ]
+                    },
+                    "origin": {
+                      "type": "string",
+                      "enum": [
+                        "provider_observation",
+                        "user_report",
+                        "source_assertion",
+                        "none"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "target",
+                    "kind",
+                    "state",
+                    "freshness",
+                    "source_url",
+                    "observed_at",
+                    "statement",
+                    "origin"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "failureCode": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "enum": [
+                      "provider_unavailable",
+                      "invalid_evidence",
+                      "check_interrupted"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "reportId",
+              "reportVersion",
+              "status",
+              "requestedAt",
+              "completedAt",
+              "methodologyVersion",
+              "entries",
+              "failureCode"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 99
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "hasMore": {
+          "type": "boolean"
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "accountId",
+        "runs",
+        "total",
+        "offset",
+        "limit",
+        "hasMore",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "BrandReportsListResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "reports": {
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "allOf": [
+                  {
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                  },
+                  {
+                    "pattern": "^[a-f0-9-]+$"
+                  }
+                ]
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+              },
+              "updatedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "version",
+              "createdAt",
+              "updatedAt"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "accountId",
+        "reports",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "BrandReportResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "report": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "allOf": [
+                {
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                },
+                {
+                  "pattern": "^[a-f0-9-]+$"
+                }
+              ]
+            },
+            "title": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "version": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "savedAt": {
+              "type": "string",
+              "format": "date-time",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+            },
+            "assessment": {
+              "type": "object",
+              "properties": {
+                "brand_name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100
+                },
+                "identity_label": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 63,
+                  "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$"
+                },
+                "primary_domain": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 253
+                },
+                "domains": {
+                  "minItems": 1,
+                  "maxItems": 20,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 3,
+                    "maxLength": 253
+                  }
+                },
+                "socials": {
+                  "minItems": 1,
+                  "maxItems": 6,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "platform": {
+                        "type": "string",
+                        "enum": [
+                          "instagram",
+                          "tiktok",
+                          "youtube",
+                          "github",
+                          "x",
+                          "linkedin"
+                        ]
+                      },
+                      "handle": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      }
+                    },
+                    "required": [
+                      "platform",
+                      "handle"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "markets": {
+                  "minItems": 1,
+                  "maxItems": 38,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "US",
+                      "AT",
+                      "BE",
+                      "BG",
+                      "HR",
+                      "CY",
+                      "CZ",
+                      "DK",
+                      "EE",
+                      "FI",
+                      "FR",
+                      "DE",
+                      "GR",
+                      "HU",
+                      "IE",
+                      "IT",
+                      "LV",
+                      "LT",
+                      "LU",
+                      "MT",
+                      "NL",
+                      "PL",
+                      "PT",
+                      "RO",
+                      "SK",
+                      "SI",
+                      "ES",
+                      "SE",
+                      "IS",
+                      "LI",
+                      "NO",
+                      "GB",
+                      "CH",
+                      "CA",
+                      "AU",
+                      "NZ",
+                      "SG",
+                      "JP"
+                    ]
+                  }
+                },
+                "observations": {
+                  "default": [],
+                  "maxItems": 64,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "target_id": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 300
+                      },
+                      "status": {
+                        "type": "string",
+                        "enum": [
+                          "reported_owned",
+                          "reported_authorized",
+                          "matching_name_only",
+                          "reported_conflict",
+                          "unknown"
+                        ]
+                      },
+                      "source_url": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 512,
+                            "format": "uri"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "reported_at": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "target_id",
+                      "status"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "brand_name",
+                "identity_label",
+                "primary_domain",
+                "domains",
+                "socials",
+                "markets"
+              ],
+              "additionalProperties": false
+            },
+            "result": {
+              "type": "object",
+              "properties": {
+                "schema_version": {
+                  "type": "string",
+                  "const": "sajda.brand-presence-index.v1"
+                },
+                "methodology_version": {
+                  "type": "string",
+                  "const": "brand-presence-1.0.0"
+                },
+                "generated_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                },
+                "brand": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    "identity_label": {
+                      "type": "string",
+                      "maxLength": 63
+                    },
+                    "primary_domain": {
+                      "type": "string",
+                      "minLength": 3,
+                      "maxLength": 253
+                    },
+                    "classification": {
+                      "type": "string",
+                      "const": "USER_SUPPLIED"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "identity_label",
+                    "primary_domain",
+                    "classification"
+                  ],
+                  "additionalProperties": false
+                },
+                "scope": {
+                  "type": "object",
+                  "properties": {
+                    "domains": {
+                      "minItems": 1,
+                      "maxItems": 20,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "minLength": 3,
+                        "maxLength": 253
+                      }
+                    },
+                    "socials": {
+                      "minItems": 1,
+                      "maxItems": 6,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "platform": {
+                            "type": "string",
+                            "enum": [
+                              "instagram",
+                              "tiktok",
+                              "youtube",
+                              "github",
+                              "x",
+                              "linkedin"
+                            ]
+                          },
+                          "handle": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 100
+                          }
+                        },
+                        "required": [
+                          "platform",
+                          "handle"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "markets": {
+                      "minItems": 1,
+                      "maxItems": 38,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "US",
+                          "AT",
+                          "BE",
+                          "BG",
+                          "HR",
+                          "CY",
+                          "CZ",
+                          "DK",
+                          "EE",
+                          "FI",
+                          "FR",
+                          "DE",
+                          "GR",
+                          "HU",
+                          "IE",
+                          "IT",
+                          "LV",
+                          "LT",
+                          "LU",
+                          "MT",
+                          "NL",
+                          "PL",
+                          "PT",
+                          "RO",
+                          "SK",
+                          "SI",
+                          "ES",
+                          "SE",
+                          "IS",
+                          "LI",
+                          "NO",
+                          "GB",
+                          "CH",
+                          "CA",
+                          "AU",
+                          "NZ",
+                          "SG",
+                          "JP"
+                        ]
+                      }
+                    },
+                    "target_count": {
+                      "type": "integer",
+                      "minimum": 3,
+                      "maximum": 64
+                    },
+                    "comparison_key": {
+                      "type": "string",
+                      "maxLength": 10000
+                    },
+                    "is_global_score": {
+                      "type": "boolean",
+                      "const": false
+                    }
+                  },
+                  "required": [
+                    "domains",
+                    "socials",
+                    "markets",
+                    "target_count",
+                    "comparison_key",
+                    "is_global_score"
+                  ],
+                  "additionalProperties": false
+                },
+                "index": {
+                  "type": "object",
+                  "properties": {
+                    "reported_score": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "verified_score": {
+                      "type": "null"
+                    },
+                    "maximum": {
+                      "type": "number",
+                      "const": 100
+                    },
+                    "classification": {
+                      "type": "string",
+                      "const": "SELF_ASSESSMENT"
+                    },
+                    "reported_coverage_percent": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    "verified_coverage_percent": {
+                      "type": "number",
+                      "const": 0
+                    },
+                    "confidence": {
+                      "type": "null"
+                    },
+                    "minimum_reported_coverage_percent": {
+                      "type": "number",
+                      "const": 60
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "needs_reports",
+                        "ready"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "reported_score",
+                    "verified_score",
+                    "maximum",
+                    "classification",
+                    "reported_coverage_percent",
+                    "verified_coverage_percent",
+                    "confidence",
+                    "minimum_reported_coverage_percent",
+                    "status"
+                  ],
+                  "additionalProperties": false
+                },
+                "subscores": {
+                  "type": "object",
+                  "properties": {
+                    "domains": {
+                      "type": "object",
+                      "properties": {
+                        "score": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 35
+                        },
+                        "max": {
+                          "type": "number",
+                          "const": 35
+                        }
+                      },
+                      "required": [
+                        "score",
+                        "max"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "socials": {
+                      "type": "object",
+                      "properties": {
+                        "score": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 25
+                        },
+                        "max": {
+                          "type": "number",
+                          "const": 25
+                        }
+                      },
+                      "required": [
+                        "score",
+                        "max"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "markets": {
+                      "type": "object",
+                      "properties": {
+                        "score": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 25
+                        },
+                        "max": {
+                          "type": "number",
+                          "const": 25
+                        }
+                      },
+                      "required": [
+                        "score",
+                        "max"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "consistency": {
+                      "type": "object",
+                      "properties": {
+                        "score": {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 15
+                        },
+                        "max": {
+                          "type": "number",
+                          "const": 15
+                        }
+                      },
+                      "required": [
+                        "score",
+                        "max"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "domains",
+                    "socials",
+                    "markets",
+                    "consistency"
+                  ],
+                  "additionalProperties": false
+                },
+                "counts": {
+                  "type": "object",
+                  "properties": {
+                    "requested": {
+                      "type": "integer",
+                      "minimum": 3,
+                      "maximum": 64
+                    },
+                    "assessed": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 64
+                    },
+                    "unassessed": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 64
+                    },
+                    "owned": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 64
+                    },
+                    "authorized": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 64
+                    },
+                    "conflicts": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 64
+                    },
+                    "matching_only": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 64
+                    },
+                    "stale": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 64
+                    }
+                  },
+                  "required": [
+                    "requested",
+                    "assessed",
+                    "unassessed",
+                    "owned",
+                    "authorized",
+                    "conflicts",
+                    "matching_only",
+                    "stale"
+                  ],
+                  "additionalProperties": false
+                },
+                "targets": {
+                  "minItems": 3,
+                  "maxItems": 64,
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "maxLength": 300
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "domain",
+                          "social",
+                          "market"
+                        ]
+                      },
+                      "identifier": {
+                        "type": "string",
+                        "maxLength": 253
+                      },
+                      "market": {
+                        "type": "string",
+                        "enum": [
+                          "US",
+                          "AT",
+                          "BE",
+                          "BG",
+                          "HR",
+                          "CY",
+                          "CZ",
+                          "DK",
+                          "EE",
+                          "FI",
+                          "FR",
+                          "DE",
+                          "GR",
+                          "HU",
+                          "IE",
+                          "IT",
+                          "LV",
+                          "LT",
+                          "LU",
+                          "MT",
+                          "NL",
+                          "PL",
+                          "PT",
+                          "RO",
+                          "SK",
+                          "SI",
+                          "ES",
+                          "SE",
+                          "IS",
+                          "LI",
+                          "NO",
+                          "GB",
+                          "CH",
+                          "CA",
+                          "AU",
+                          "NZ",
+                          "SG",
+                          "JP"
+                        ]
+                      },
+                      "platform": {
+                        "type": "string",
+                        "enum": [
+                          "instagram",
+                          "tiktok",
+                          "youtube",
+                          "github",
+                          "x",
+                          "linkedin"
+                        ]
+                      },
+                      "reported_status": {
+                        "type": "string",
+                        "enum": [
+                          "reported_owned",
+                          "reported_authorized",
+                          "matching_name_only",
+                          "reported_conflict",
+                          "unknown"
+                        ]
+                      },
+                      "status_freshness": {
+                        "type": "string",
+                        "enum": [
+                          "current",
+                          "stale",
+                          "future",
+                          "unknown"
+                        ]
+                      },
+                      "classification": {
+                        "type": "string",
+                        "const": "USER_SUPPLIED"
+                      },
+                      "source_url": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "maxLength": 512,
+                            "format": "uri"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "reported_at": {
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "kind",
+                      "identifier",
+                      "reported_status",
+                      "status_freshness",
+                      "classification",
+                      "source_url",
+                      "reported_at"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "evidence_report": {
+                  "type": "object",
+                  "properties": {
+                    "schema_version": {
+                      "type": "string",
+                      "const": "sajda.brand-evidence.v1"
+                    },
+                    "generated_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                    },
+                    "entries": {
+                      "maxItems": 200,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 400
+                          },
+                          "target": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 1400
+                          },
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "domain",
+                              "social",
+                              "company",
+                              "trademark",
+                              "market",
+                              "ownership",
+                              "monitoring"
+                            ]
+                          },
+                          "state": {
+                            "type": "string",
+                            "enum": [
+                              "checked",
+                              "reported",
+                              "listed",
+                              "unknown"
+                            ]
+                          },
+                          "freshness": {
+                            "type": "string",
+                            "enum": [
+                              "current",
+                              "stale",
+                              "future",
+                              "unknown"
+                            ]
+                          },
+                          "source_url": {
+                            "description": "Public source reference only; its existence is not verification or ownership proof.",
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 2000,
+                                "format": "uri"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "observed_at": {
+                            "description": "Original provider observation, user-report or source-retrieval time. Report generation never renews it.",
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "statement": {
+                            "type": "string",
+                            "enum": [
+                              "domain_available",
+                              "domain_registered",
+                              "domain_check_unavailable",
+                              "social_profile_found",
+                              "social_profile_not_found",
+                              "social_check_unknown",
+                              "company_not_checked",
+                              "trademark_not_checked",
+                              "reported_owned",
+                              "reported_authorized",
+                              "reported_conflict",
+                              "reported_matching_name_only",
+                              "report_unknown",
+                              "source_lists_website",
+                              "source_lists_social",
+                              "ownership_not_verified",
+                              "continuous_monitoring_not_active"
+                            ]
+                          },
+                          "origin": {
+                            "type": "string",
+                            "enum": [
+                              "provider_observation",
+                              "user_report",
+                              "source_assertion",
+                              "none"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "target",
+                          "kind",
+                          "state",
+                          "freshness",
+                          "source_url",
+                          "observed_at",
+                          "statement",
+                          "origin"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "summary": {
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 200
+                        },
+                        "checked": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 200
+                        },
+                        "reported": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 200
+                        },
+                        "listed": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 200
+                        },
+                        "unknown": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 200
+                        },
+                        "checked_coverage_percent": {
+                          "description": "Current checked signal items divided by all scoped signal items, not verified ownership or legal coverage.",
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 100
+                        }
+                      },
+                      "required": [
+                        "total",
+                        "checked",
+                        "reported",
+                        "listed",
+                        "unknown",
+                        "checked_coverage_percent"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "ownership_verified": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "legal_clearance": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "continuous_monitoring": {
+                      "type": "boolean",
+                      "const": false
+                    }
+                  },
+                  "required": [
+                    "schema_version",
+                    "generated_at",
+                    "entries",
+                    "summary",
+                    "ownership_verified",
+                    "legal_clearance",
+                    "continuous_monitoring"
+                  ],
+                  "additionalProperties": false
+                },
+                "limitations": {
+                  "minItems": 9,
+                  "maxItems": 9,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "self_assessment_not_independently_verified",
+                      "selected_scope_not_global_rank",
+                      "unknown_not_absent_or_uncontrolled",
+                      "registration_or_name_match_not_control",
+                      "authorized_use_not_direct_ownership",
+                      "market_reports_not_legal_clearance",
+                      "timestamps_describe_user_reports_not_source_verification",
+                      "no_external_lookups_performed",
+                      "not_brand_value_or_investment_advice"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "schema_version",
+                "methodology_version",
+                "generated_at",
+                "brand",
+                "scope",
+                "index",
+                "subscores",
+                "counts",
+                "targets",
+                "evidence_report",
+                "limitations"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "id",
+            "title",
+            "version",
+            "savedAt",
+            "assessment",
+            "result"
+          ],
+          "additionalProperties": false
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "accountId",
+        "report",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "BrandReportHistoryResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "type": "object",
+      "properties": {
+        "accountId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "versions": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "allOf": [
+                  {
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000)$"
+                  },
+                  {
+                    "pattern": "^[a-f0-9-]+$"
+                  }
+                ]
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              },
+              "savedAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "version",
+              "savedAt"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      },
+      "required": [
+        "accountId",
+        "versions",
+        "requestId"
+      ],
+      "additionalProperties": false
     },
     "TradingScenariosSaveRequest": {
       "type": "object",

@@ -2,8 +2,11 @@
  * No login, ownership assertion, database writes or commercial actions. */
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { promisify } from "node:util";
 const origin = process.env.SAJDA_TEST_ORIGIN, cli = process.env.SAJDA_VERCEL_CLI;
+const publicMcpVersion = JSON.parse(readFileSync(new URL("../api/_shared/agent-product-openapi.json", import.meta.url), "utf8")).publicMcpVersion;
+assert.match(publicMcpVersion, /^\d+\.\d+\.\d+$/u, "The checked-in public MCP contract must expose a semantic version");
 if (!cli || !/^https:\/\/sajda-[a-z0-9]+-hypbit\.vercel\.app$/u.test(origin ?? "")) throw new Error("Select the Sajda preview and CLI explicitly.");
 const execute = promisify(execFile);
 async function request(path, body) {
@@ -40,6 +43,18 @@ const profile = await request("/api/v1/public/brand-lookup", { operation: "profi
 assert.equal(profile.status, 200); assert.equal(profile.data.entity.entity_id, "Q54078");
 assert.ok(profile.data.assertions.length > 0); assert.equal(profile.data.index.score, null); assert.equal(profile.data.index.verified_assertions, 0);
 assert.ok(profile.data.assertions.every(row => row.classification === "DATABASE_ASSERTION" && row.relationship === "not_verified"));
+function assertEvidence(value) {
+  const evidence = value.evidence_report;
+  assert.equal(evidence.schema_version, "sajda.brand-evidence.v1");
+  assert.equal(evidence.ownership_verified, false); assert.equal(evidence.legal_clearance, false);
+  assert.equal(evidence.continuous_monitoring, false);
+  assert.deepEqual(evidence.summary, { total: value.assertions.length + 4, checked: 0, reported: 0,
+    listed: value.assertions.length, unknown: 4, checked_coverage_percent: 0 });
+  assert.ok(evidence.entries.filter(entry => entry.state === "listed").every(entry =>
+    entry.origin === "source_assertion" && entry.source_url.startsWith("https://www.wikidata.org/")
+      && entry.observed_at === value.retrieved_at));
+}
+assertEvidence(profile.data);
 console.log(JSON.stringify({ entity: profile.data.entity.entity_id, revision: profile.data.entity.revision_id,
   source_modified_at: profile.data.entity.source_modified_at, retrieved_at: profile.data.retrieved_at,
   assertions: profile.data.assertions.length, verified_index: profile.data.index.score }));
@@ -47,12 +62,16 @@ const invalid = await request("/api/v1/public/brand-lookup", { ...query, verifie
 assert.equal(invalid.status, 400); assert.equal(invalid.data.code, "invalid_request");
 const init = await request("/api/mcp/public", { jsonrpc: "2.0", id: 1, method: "initialize",
   params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "sajda-brand-lookup-smoke", version: "1.0.0" } } });
-assert.equal(init.status, 200); assert.equal(init.data.result.serverInfo.version, "1.5.1");
+assert.equal(init.status, 200); assert.equal(init.data.result.serverInfo.version, publicMcpVersion);
 const discovery = await request("/api/mcp/public", { jsonrpc: "2.0", id: 2, method: "tools/list" });
 assert.equal(discovery.status, 200); const tool = discovery.data.result.tools.find(tool => tool.name === "brand_lookup");
 assert.ok(tool); assert.equal(tool.annotations.readOnlyHint, true); assert.equal(tool.annotations.openWorldHint, true);
 const call = await request("/api/mcp/public", { jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "brand_lookup", arguments: query } });
 assert.equal(call.status, 200); assert.equal(call.data.result.structuredContent.ok, true);
 assert.equal(call.data.result.structuredContent.data.operation, "search"); assert.equal(call.data.result.structuredContent.data.verified_index, null);
+const mcpProfile = await request("/api/mcp/public", { jsonrpc: "2.0", id: 4, method: "tools/call",
+  params: { name: "brand_lookup", arguments: { operation: "profile", entity_id: "Q54078", locale: "en" } } });
+assert.equal(mcpProfile.status, 200); assert.equal(mcpProfile.data.result.structuredContent.ok, true);
+assertEvidence(mcpProfile.data.result.structuredContent.data);
 console.log(JSON.stringify({ verdict: "PASS", origin, real_public_source: "Wikidata", rest: true, mcp: true,
   independent_ownership_verification: false, global_brand_coverage: false, writes: false }));

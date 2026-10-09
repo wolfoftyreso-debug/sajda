@@ -685,6 +685,205 @@
           "additionalProperties": false
         }
       },
+      "evidence_report": {
+        "type": "object",
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "sajda.brand-evidence.v1"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+          },
+          "entries": {
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 400
+                },
+                "target": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1400
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "domain",
+                    "social",
+                    "company",
+                    "trademark",
+                    "market",
+                    "ownership",
+                    "monitoring"
+                  ]
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "checked",
+                    "reported",
+                    "listed",
+                    "unknown"
+                  ]
+                },
+                "freshness": {
+                  "type": "string",
+                  "enum": [
+                    "current",
+                    "stale",
+                    "future",
+                    "unknown"
+                  ]
+                },
+                "source_url": {
+                  "description": "Public source reference only; its existence is not verification or ownership proof.",
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 2000,
+                      "format": "uri"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "observed_at": {
+                  "description": "Original provider observation, user-report or source-retrieval time. Report generation never renews it.",
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-]\\d{2}:\\d{2})))$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "statement": {
+                  "type": "string",
+                  "enum": [
+                    "domain_available",
+                    "domain_registered",
+                    "domain_check_unavailable",
+                    "social_profile_found",
+                    "social_profile_not_found",
+                    "social_check_unknown",
+                    "company_not_checked",
+                    "trademark_not_checked",
+                    "reported_owned",
+                    "reported_authorized",
+                    "reported_conflict",
+                    "reported_matching_name_only",
+                    "report_unknown",
+                    "source_lists_website",
+                    "source_lists_social",
+                    "ownership_not_verified",
+                    "continuous_monitoring_not_active"
+                  ]
+                },
+                "origin": {
+                  "type": "string",
+                  "enum": [
+                    "provider_observation",
+                    "user_report",
+                    "source_assertion",
+                    "none"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "target",
+                "kind",
+                "state",
+                "freshness",
+                "source_url",
+                "observed_at",
+                "statement",
+                "origin"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 200
+              },
+              "checked": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 200
+              },
+              "reported": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 200
+              },
+              "listed": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 200
+              },
+              "unknown": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 200
+              },
+              "checked_coverage_percent": {
+                "description": "Current checked signal items divided by all scoped signal items, not verified ownership or legal coverage.",
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100
+              }
+            },
+            "required": [
+              "total",
+              "checked",
+              "reported",
+              "listed",
+              "unknown",
+              "checked_coverage_percent"
+            ],
+            "additionalProperties": false
+          },
+          "ownership_verified": {
+            "type": "boolean",
+            "const": false
+          },
+          "legal_clearance": {
+            "type": "boolean",
+            "const": false
+          },
+          "continuous_monitoring": {
+            "type": "boolean",
+            "const": false
+          }
+        },
+        "required": [
+          "schema_version",
+          "generated_at",
+          "entries",
+          "summary",
+          "ownership_verified",
+          "legal_clearance",
+          "continuous_monitoring"
+        ],
+        "additionalProperties": false
+      },
       "limitations": {
         "minItems": 9,
         "maxItems": 9,
@@ -715,6 +914,7 @@
       "subscores",
       "counts",
       "targets",
+      "evidence_report",
       "limitations"
     ],
     "additionalProperties": false

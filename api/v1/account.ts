@@ -2,13 +2,15 @@ import { AccountAccessError } from "../_shared/account-error.js";
 import { accountRequestOrigin } from "../_shared/account-origin.js";
 import { assertApiKeyScopes, consumeApiKeyQuota, requireApiKey } from "../_shared/developer-api-keys.js";
 import { executeMcpProduct } from "../_shared/mcp-product.js";
-import { parseProductOperationInput, productOperationScope, type McpOperation, type McpProductExecutor } from "../_shared/mcp-tools.js";
+import { parseProductOperationInput, productOperationScopes, type McpOperation, type McpProductExecutor } from "../_shared/mcp-tools.js";
 import { createRequestId } from "../_shared/public-api.js";
+import { readRequestQuery } from "../_shared/request-query.js";
 
 interface RequestLike {
   method?: string;
   headers: Record<string, string | string[] | undefined>;
   query?: Record<string, unknown>;
+  url?: string;
   body?: unknown;
 }
 interface ResponseLike {
@@ -85,19 +87,22 @@ export function createAccountApiHandler(dependencies: {
         throw new AccountAccessError("invalid_origin", 403, "This request origin is not allowed.");
       }
       const principal = await (dependencies.authorize ?? requireApiKey)(request.headers);
-      const query = request.query ?? {};
+      const query = readRequestQuery(request);
       const resource = query.resource;
-      if (typeof resource !== "string" || !["membership", "saved-domains", "trading", "trading-status", "name-projects", "social-profiles", "trading-scenarios"].includes(resource)) {
-        throw new AccountAccessError("invalid_resource", 400, "Choose a documented account resource: membership, saved-domains, name-projects, social-profiles, trading, trading-status or trading-scenarios.");
+      if (typeof resource !== "string" || !["membership", "saved-domains", "trading", "trading-status", "name-projects", "brand-reports", "brand-checks", "brand-monitors", "social-profiles", "trading-scenarios"].includes(resource)) {
+        throw new AccountAccessError("invalid_resource", 400, "Choose a documented account resource: membership, saved-domains, name-projects, brand-reports, brand-checks, brand-monitors, social-profiles, trading, trading-status or trading-scenarios.");
       }
       const allowedMethods = resource === "saved-domains" ? ["GET", "POST", "DELETE"]
-        : ["trading", "name-projects", "trading-scenarios"].includes(resource) ? ["GET", "POST"]
+        : ["trading", "name-projects", "brand-reports", "brand-checks", "brand-monitors", "trading-scenarios"].includes(resource) ? ["GET", "POST"]
         : resource === "social-profiles" ? ["POST"] : ["GET"];
       if (!request.method || !allowedMethods.includes(request.method)) {
         response.setHeader("Allow", allowedMethods.join(", "));
         throw new AccountAccessError("method_not_allowed", 405, "Use a supported method for this resource.");
       }
       const allowedQuery = request.method === "GET" && resource === "saved-domains" ? ["resource", "cursor"]
+        : request.method === "GET" && resource === "brand-reports" ? ["resource", "id", "version", "history"]
+        : request.method === "GET" && resource === "brand-checks" ? ["resource", "reportId", "version", "offset", "limit"]
+        : request.method === "GET" && resource === "brand-monitors" ? ["resource", "reportId", "alertOffset", "alertLimit"]
         : request.method === "GET" && resource === "trading" ? ["resource", "offset", "limit"] : ["resource"];
       if (Object.keys(query).some(key => !allowedQuery.includes(key))) {
         throw new AccountAccessError("invalid_request", 400, "Use only documented query parameters for this resource.");
@@ -109,6 +114,38 @@ export function createAccountApiHandler(dependencies: {
       else if (resource === "name-projects") {
         operation = request.method === "GET" ? "name_projects_list" : "name_projects_save";
         args = request.method === "GET" ? {} : await readBody(request, 32768);
+      } else if (resource === "brand-reports") {
+        if (request.method === "POST") {
+          operation = "brand_reports_save";
+          args = await readBody(request, 65536);
+        } else if (query.id === undefined) {
+          if (query.version !== undefined || query.history !== undefined) throw new AccountAccessError("invalid_request", 400, "Select a report id before choosing a version or history.");
+          operation = "brand_reports_list";
+        } else if (query.history !== undefined) {
+          if (query.history !== "true" || query.version !== undefined) throw new AccountAccessError("invalid_request", 400, "Use history=true without a version.");
+          operation = "brand_reports_history"; args = { id: query.id };
+        } else {
+          operation = "brand_reports_get";
+          const version = queryNumber(query.version);
+          args = { id: query.id, ...(version === undefined ? {} : { version }) };
+        }
+      } else if (resource === "brand-checks") {
+        operation = request.method === "GET" ? "brand_checks_history" : "brand_checks_start";
+        args = request.method === "GET" ? { reportId: query.reportId,
+          ...(query.version === undefined ? {} : { version: queryNumber(query.version) }),
+          ...(query.offset === undefined ? {} : { offset: queryNumber(query.offset) }),
+          ...(query.limit === undefined ? {} : { limit: queryNumber(query.limit) }) } : await readBody(request, 4096);
+      } else if (resource === "brand-monitors") {
+        if (request.method === "GET") {
+          operation = "brand_monitors_get";
+          args = { reportId: query.reportId,
+            ...(query.alertOffset === undefined ? {} : { alertOffset: queryNumber(query.alertOffset) }),
+            ...(query.alertLimit === undefined ? {} : { alertLimit: queryNumber(query.alertLimit) }) };
+        } else {
+          args = await readBody(request, 4096);
+          operation = args.action === "pause" ? "brand_monitors_pause"
+            : args.action === "ack" ? "brand_monitor_alerts_acknowledge" : "brand_monitors_configure";
+        }
       } else if (resource === "trading-scenarios") {
         operation = request.method === "GET" ? "trading_scenarios_list" : "trading_scenarios_save";
         args = request.method === "GET" ? {} : await readBody(request, 16384);
@@ -133,7 +170,7 @@ export function createAccountApiHandler(dependencies: {
         args = input;
       }
       const parsed = parseProductOperationInput(operation, args);
-      assertApiKeyScopes(principal, [productOperationScope(operation)]);
+      assertApiKeyScopes(principal, productOperationScopes(operation));
       const quota = await (dependencies.quota ?? consumeApiKeyQuota)(principal, "requests");
       if (!quota.allowed) {
         response.setHeader("Retry-After", Math.max(1, Math.ceil((quota.resetAt - Date.now()) / 1000)));

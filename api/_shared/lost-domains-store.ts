@@ -721,17 +721,26 @@ export function createLostDomainsStore(deps: { pool?: LostStorePool; environment
       },true);
     },
     async scheduleDailyRuns():Promise<{started:number;reused:number;skipped:number}> {
-      const eligible=await query(async(client,namespace)=>client.query(`/* lost:daily-owners */ SELECT a.owner_id,to_char(clock_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD') AS day
+      const eligible=await query(async(client,namespace)=>client.query(`/* lost:daily-owners */ SELECT DISTINCT a.owner_id,to_char(clock_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD') AS day
         FROM sajda.lost_domain_effective_access a JOIN public.sajda_auth_user u ON u.id=a.owner_id
         WHERE a.namespace=$1 AND a.daily_refresh AND a.revoked_at IS NULL AND a.valid_from<=clock_timestamp() AND a.expires_at>clock_timestamp()
           AND u."emailVerified"=true AND NOT EXISTS(SELECT 1 FROM sajda.lost_domain_runs r WHERE r.owner_id=a.owner_id AND r.namespace=$1
             AND r.created_at>=date_trunc('day',clock_timestamp() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC')
+          AND NOT EXISTS(SELECT 1 FROM sajda.lost_domain_runs active WHERE active.owner_id=a.owner_id AND active.namespace=$1
+            AND active.status IN ('queued','running'))
           ORDER BY a.owner_id LIMIT 10`,[namespace]));
       let started=0,reused=0,skipped=0;
       for(const row of eligible.rows) {
         if(started>=1) break;
         try { const value=await store.startRun(String(row.owner_id),`daily:${String(row.day)}`); if(value.reused) reused++;else started++; }
-        catch(error) { if(!(error instanceof LostDomainsStoreError)) throw error; skipped++; }
+        catch(error) {
+          // Entitlements or another starter can change after the read-only
+          // selection. Only those expected deferrals count as skipped work;
+          // storage failures must reach the cron's failure response and logs.
+          if(!(error instanceof LostDomainsStoreError)
+            || !['plus_required','run_in_progress','sources_unavailable','daily_limit','refresh_cooldown'].includes(error.code)) throw error;
+          skipped++;
+        }
       }
       return {started,reused,skipped};
     },

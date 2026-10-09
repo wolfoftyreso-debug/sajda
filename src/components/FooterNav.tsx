@@ -1,8 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { History, FolderOpen, Heart, User, Layers, House } from "lucide-react";
+import { FolderOpen, Heart, User, Layers, House } from "lucide-react";
 import { nameProjectsEnabled } from "@/lib/nameProjectsFeature";
 import { projectEntryCopy } from "@/i18n/projectEntryCopy";
-import { hasSupabaseBrowserConfig } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage, type Language } from "@/i18n/LanguageProvider";
@@ -89,18 +88,7 @@ const FooterNav = () => {
     ...(nameProjectsEnabled ? [
       { label: "Swipe", icon: Layers, path: "/swipe", requiresAuth: false },
       { label: projectEntryCopy[language].short, icon: FolderOpen, path: "/projects", requiresAuth: true },
-    ] : hasSupabaseBrowserConfig ? [{
-      label: copy.history,
-      icon: History,
-      path: "/history",
-      requiresAuth: true,
-    },
-    {
-      label: copy.domains,
-      icon: FolderOpen,
-      path: "/my-domains",
-      requiresAuth: true,
-    }] : []),
+    ] : [{ label: "Swipe", icon: Layers, path: "/swipe", requiresAuth: false }]),
   ];
 
   const handleNavigation = (path: string, requiresAuth: boolean) => {

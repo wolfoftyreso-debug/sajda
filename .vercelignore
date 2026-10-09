@@ -1,4 +1,6 @@
 # Never upload local credentials or generated artifacts for a direct CLI deploy.
+.vercel
+.git
 .env
 .env.local
 .env.*.local

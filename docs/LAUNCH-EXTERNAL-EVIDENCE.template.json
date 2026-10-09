@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "repository": "https://github.com/wolfoftyreso-debug/sajda.git",
+  "release_branch": "codex/launch-hardening",
+  "release_commit": null,
+  "recorded_at": null,
+  "recorded_by": null,
+  "verdict": "no_go",
+  "rules": {
+    "contains_secrets": false,
+    "contains_personal_data": false,
+    "live_charge_performed": false,
+    "legal_approval_inferred": false
+  },
+  "gates": [
+    {
+      "id": "baseline",
+      "status": "not_started",
+      "environment": "local_ci",
+      "evidence": [],
+      "remaining_blocker": null
+    },
+    {
+      "id": "final_origin",
+      "status": "not_started",
+      "environment": "production_configuration",
+      "evidence": [],
+      "remaining_blocker": null
+    },
+    {
+      "id": "transactional_email",
+      "status": "not_started",
+      "environment": "preview_then_production",
+      "evidence": [],
+      "remaining_blocker": null
+    },
+    {
+      "id": "social_auth",
+      "status": "not_started",
+      "environment": "preview_then_production",
+      "evidence": [],
+      "remaining_blocker": null
+    },
+    {
+      "id": "stripe_sandbox",
+      "status": "not_started",
+      "environment": "preview_test_mode",
+      "evidence": [],
+      "remaining_blocker": null
+    },
+    {
+      "id": "legal_and_operations",
+      "status": "not_started",
+      "environment": "operator_review",
+      "evidence": [],
+      "remaining_blocker": null
+    },
+    {
+      "id": "deployed_golden_paths",
+      "status": "not_started",
+      "environment": "release_preview",
+      "evidence": [],
+      "remaining_blocker": null
+    },
+    {
+      "id": "production_and_indexing",
+      "status": "not_started",
+      "environment": "production",
+      "evidence": [],
+      "remaining_blocker": null
+    },
+    {
+      "id": "app_store",
+      "status": "not_started",
+      "environment": "apple_sandbox_and_testflight",
+      "evidence": [],
+      "remaining_blocker": "Apple Developer enrollment not yet completed"
+    }
+  ]
+}

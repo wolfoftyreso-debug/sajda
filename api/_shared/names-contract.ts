@@ -30,6 +30,18 @@ const creativeModes = new Set<NamesApiCreativeMode>(["light", "medium", "heavy",
 const allowedBodyKeys = new Set(["query", "domains", "tlds", "count", "locale", "providers", "creativeMode"]);
 const domainPattern = /^([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\.(com|net|org|app|dev|ai|xyz|info|biz|se|nu)$/u;
 
+/** Machine briefs must not enter the UI engine's broader auto-exact mode,
+ * which replaces count and selected endings with names found in the theme.
+ * Keep URLs and domain lists explicit in the separately bounded domains field.
+ * Ordinary sentence punctuation and a standalone preferred ending remain prose. */
+export function containsDomainReference(value: string): boolean {
+  return /(?:[a-z][a-z\d+.-]*:\/\/|\b(?:https?|ftp|file|mailto|data|javascript):|(?:^|[\s([{])\/\/)/iu.test(value)
+    || /[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?(?:\.[\p{L}][\p{L}\p{N}-]{1,62})+/iu.test(value)
+    // Chinese full stops are normal prose; ASCII labels on both sides make
+    // their alternate URL separators an unambiguous domain reference.
+    || /[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?[\u3002\uff0e\uff61][a-z]{2,63}/iu.test(value);
+}
+
 export type NamesApiRequest = {
   theme: string;
   tlds: string[];
@@ -107,6 +119,9 @@ export function parseNamesApiRequest(body: Record<string, unknown>): NamesApiReq
   }
 
   const query = body.query === undefined ? "" : requireString(body.query, "query", NAMES_API_MAX_QUERY_CHARS);
+  if (containsDomainReference(query)) {
+    throw new Error("Use ordinary words in query. Use the domains field for exact domain names, without URLs, and select their endings in tlds.");
+  }
   const domains = parseDomains(body.domains);
   const tlds = parseTlds(body.tlds);
   if (domains?.some((domain) => !tlds.includes(domain.split(".").at(-1)!))) {

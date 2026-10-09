@@ -32,6 +32,7 @@ export const storageReadinessSql = `SELECT
       'sajda.lost_domain_runs', 'sajda.lost_domain_work_items', 'sajda.lost_domain_assessments',
       'sajda.lost_domain_attempts', 'sajda.lost_domain_effective_access', 'sajda.lost_domain_provider_backoff',
       'sajda.commerce_events', 'sajda.commerce_customers', 'sajda.commerce_checkouts', 'sajda.commerce_access',
+      'sajda.commerce_addon_changes',
       'sajda.lost_domain_quote_requests', 'sajda.lost_domain_quote_observations',
       'sajda.trading_scenarios', 'sajda.developer_api_keys', 'sajda.developer_api_quotas',
       'sajda.native_authorization_codes', 'sajda.native_sessions', 'sajda.account_deletion_challenges',
@@ -44,7 +45,15 @@ export const storageReadinessSql = `SELECT
       ('lost_domain_quote_requests','request_key'), ('lost_domain_quote_requests','assessment_id'),
       ('lost_domain_quote_observations','evidence'),
       ('trading_scenarios','namespace'), ('trading_scenarios','owner_id'),
-      ('trading_scenarios','payload'), ('trading_scenarios','version'), ('trading_scenarios','last_input_hash')
+      ('trading_scenarios','payload'), ('trading_scenarios','version'), ('trading_scenarios','last_input_hash'),
+      ('commerce_addon_changes','id'), ('commerce_addon_changes','namespace'), ('commerce_addon_changes','owner_id'),
+      ('commerce_addon_changes','request_key'), ('commerce_addon_changes','cancel_request_key'),
+      ('commerce_addon_changes','subscription_id'), ('commerce_addon_changes','schedule_id'),
+      ('commerce_addon_changes','from_plan'), ('commerce_addon_changes','target_plan'),
+      ('commerce_addon_changes','from_price_id'), ('commerce_addon_changes','target_price_id'),
+      ('commerce_addon_changes','period_start'), ('commerce_addon_changes','effective_at'),
+      ('commerce_addon_changes','request_body'), ('commerce_addon_changes','state'),
+      ('commerce_addon_changes','created_at'), ('commerce_addon_changes','updated_at')
     ) AS required(table_name,column_name)
     WHERE NOT EXISTS (SELECT 1 FROM information_schema.columns actual
       WHERE actual.table_schema='sajda' AND actual.table_name=required.table_name
@@ -75,12 +84,66 @@ export const storageReadinessSql = `SELECT
         WHERE actual.table_schema='sajda' AND actual.table_name=required.table_name
           AND actual.column_name=required.column_name)
     )
+  ))
+  AND (NOT $3::boolean OR (
+    (SELECT bool_and(to_regclass(name) IS NOT NULL)
+      FROM unnest(ARRAY['sajda.brand_reports', 'sajda.brand_report_versions', 'sajda.brand_report_requests']) AS required(name))
+    AND NOT EXISTS (
+      SELECT 1 FROM (VALUES
+        ('brand_reports','namespace'), ('brand_reports','owner_id'), ('brand_reports','id'),
+        ('brand_reports','title'), ('brand_reports','version'), ('brand_reports','created_at'), ('brand_reports','updated_at'),
+        ('brand_report_versions','namespace'), ('brand_report_versions','owner_id'), ('brand_report_versions','report_id'),
+        ('brand_report_versions','version'), ('brand_report_versions','title'), ('brand_report_versions','assessment'), ('brand_report_versions','saved_at'),
+        ('brand_report_requests','namespace'), ('brand_report_requests','owner_id'), ('brand_report_requests','request_key'),
+        ('brand_report_requests','report_id'), ('brand_report_requests','version'), ('brand_report_requests','input_hash')
+      ) AS required(table_name,column_name)
+      WHERE NOT EXISTS (SELECT 1 FROM information_schema.columns actual
+        WHERE actual.table_schema='sajda' AND actual.table_name=required.table_name
+          AND actual.column_name=required.column_name)
+    )
+  ))
+  AND (NOT $4::boolean OR (
+    to_regclass('sajda.brand_check_runs') IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM unnest(ARRAY['namespace','owner_id','id','report_id','report_version','input_hash','targets',
+        'status','requested_at','lease_expires_at','completed_at','methodology_version','entries','failure_code']) AS required(column_name)
+      WHERE NOT EXISTS (SELECT 1 FROM information_schema.columns actual WHERE actual.table_schema='sajda'
+        AND actual.table_name='brand_check_runs' AND actual.column_name=required.column_name)
+    )
+  ))
+  AND (NOT $5::boolean OR (
+    (SELECT bool_and(to_regclass(name) IS NOT NULL)
+      FROM unnest(ARRAY['sajda.brand_monitors','sajda.brand_monitor_alerts',
+        'sajda.brand_monitor_requests','sajda.brand_monitor_worker_leases']) AS required(name))
+    AND NOT EXISTS (
+      SELECT 1 FROM (VALUES
+        ('brand_monitors','namespace'), ('brand_monitors','owner_id'), ('brand_monitors','report_id'),
+        ('brand_monitors','report_version'), ('brand_monitors','version'), ('brand_monitors','status'),
+        ('brand_monitors','pause_reason'), ('brand_monitors','targets'), ('brand_monitors','baseline'),
+        ('brand_monitors','created_at'), ('brand_monitors','updated_at'), ('brand_monitors','next_due_at'),
+        ('brand_monitors','claim_version'), ('brand_monitors','lease_expires_at'), ('brand_monitors','last_attempt_at'),
+        ('brand_monitors','last_run_id'), ('brand_monitors','last_run_status'), ('brand_monitors','last_failure_code'),
+        ('brand_monitors','last_coverage'), ('brand_monitors','last_successful_at'), ('brand_monitors','methodology_version'),
+        ('brand_monitor_alerts','namespace'), ('brand_monitor_alerts','owner_id'), ('brand_monitor_alerts','id'),
+        ('brand_monitor_alerts','report_id'), ('brand_monitor_alerts','report_version'), ('brand_monitor_alerts','monitor_version'),
+        ('brand_monitor_alerts','run_id'), ('brand_monitor_alerts','target'), ('brand_monitor_alerts','previous_observation'),
+        ('brand_monitor_alerts','current_observation'), ('brand_monitor_alerts','created_at'), ('brand_monitor_alerts','acknowledged_at'),
+        ('brand_monitor_requests','namespace'), ('brand_monitor_requests','owner_id'), ('brand_monitor_requests','request_key'),
+        ('brand_monitor_requests','report_id'), ('brand_monitor_requests','input_hash'), ('brand_monitor_requests','result'),
+        ('brand_monitor_requests','created_at'), ('brand_monitor_worker_leases','namespace'),
+        ('brand_monitor_worker_leases','token'), ('brand_monitor_worker_leases','expires_at')
+      ) AS required(table_name,column_name)
+      WHERE NOT EXISTS (SELECT 1 FROM information_schema.columns actual WHERE actual.table_schema='sajda'
+        AND actual.table_name=required.table_name AND actual.column_name=required.column_name)
+    )
   )) AS ready`;
 
-export function storageReadinessParameters(env: NodeJS.ProcessEnv = process.env): [boolean, string[]] {
+export function storageReadinessParameters(env: NodeJS.ProcessEnv = process.env): [boolean, string[], boolean, boolean, boolean] {
   // Match the feature route's exact opt-in. Disabling an optional feature must
   // not accidentally require its schema or turn it on through the health probe.
-  return [env.SAJDA_NAME_PROJECTS_ENABLED === "true", [...DEVELOPER_API_SCOPES]];
+  return [env.SAJDA_NAME_PROJECTS_ENABLED === "true", [...DEVELOPER_API_SCOPES], env.SAJDA_BRAND_REPORTS_ENABLED === "true",
+    env.SAJDA_BRAND_REPORTS_ENABLED === "true" && env.SAJDA_BRAND_CHECKS_ENABLED === "true",
+    env.SAJDA_BRAND_REPORTS_ENABLED === "true" && env.SAJDA_BRAND_CHECKS_ENABLED === "true" && env.SAJDA_BRAND_MONITORS_ENABLED === "true"];
 }
 
 function setHealthHeaders(response: VercelResponseLike, requestId: string): void {

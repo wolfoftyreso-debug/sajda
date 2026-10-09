@@ -42,7 +42,9 @@ const module = async name => {
   return read(`/assets/${filename}`);
 };
 const index = await module("Index");
-assert.ok(index.includes("sajda-search-title") && index.includes("xl:grid-cols-[auto_auto_minmax(0,1fr)]"), "Responsive search navigation is deployed");
+assert.ok(index.includes("sajda-search-title")
+  && index.includes("sm:grid-cols-[minmax(0,1fr)_auto]")
+  && index.includes("sm:min-w-[13.5rem]"), "Responsive search form is deployed");
 const swipe = await module("Swipe");
 assert.ok(swipe.includes("flex shrink-0 flex-wrap") && swipe.includes("h-11 w-11 shrink-0"), "Swipe controls wrap without shrinking");
 assert.ok(swipe.includes("max-h-none") && swipe.includes("overscroll-contain"), "Full-height scrollable wishlist is deployed");

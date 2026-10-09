@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
-import { PLANS, PLAN_ORDER, formatPlanMonthlyPrice } from "../shared/plans";
+import { BASE_PLAN_ORDER, PLANS, PLAN_ORDER, TRADING_ADDON, basePlanFor, formatPlanMonthlyPrice, formatTradingAddonMonthlyPrice, formatTradingBundleMonthlyPrice } from "../shared/plans";
 import { PLUS_PLAN, formatPlusMonthlyPrice } from "../shared/plus-plan";
 
-test("four distinct approved tiers have fixed monthly USD prices", () => {
+test("three base plans and the compatible Pro+Trading bundle have fixed monthly USD prices", () => {
+  assert.deepEqual(BASE_PLAN_ORDER, ["free", "basic", "premium"]);
   assert.deepEqual(PLAN_ORDER, ["free", "basic", "premium", "trading"]);
   assert.deepEqual(PLAN_ORDER.map(id => PLANS[id].unitAmount), [0, 900, 1900, 4900]);
   for (const id of PLAN_ORDER) {
@@ -17,6 +18,20 @@ test("four distinct approved tiers have fixed monthly USD prices", () => {
   }
   assert.ok(Object.isFrozen(PLANS));
   assert.ok(Object.isFrozen(PLAN_ORDER));
+});
+
+test("Trading is a Pro add-on, not a fourth base plan or an independent subscription price", () => {
+  assert.equal(PLANS.premium.name, "Pro");
+  assert.equal(PLANS.trading.name, "Pro + Trading");
+  assert.equal(basePlanFor("trading"), "premium");
+  assert.equal(basePlanFor("premium"), "premium");
+  assert.equal(TRADING_ADDON.basePlan, "premium");
+  assert.equal(TRADING_ADDON.unitAmount + PLANS.premium.unitAmount, PLANS.trading.unitAmount);
+  assert.equal(TRADING_ADDON.totalUnitAmount, PLANS.trading.unitAmount);
+  assert.ok(Object.isFrozen(TRADING_ADDON));
+  assert.equal(formatTradingAddonMonthlyPrice("en"), "USD 30 / month");
+  assert.equal(formatTradingAddonMonthlyPrice("sv"), "30 USD / månad");
+  assert.equal(formatTradingBundleMonthlyPrice("en"), "USD 49 / month");
 });
 
 test("displayed prices and legacy Trading commerce use one source of truth", () => {
@@ -32,24 +47,36 @@ test("displayed prices and legacy Trading commerce use one source of truth", () 
   assert.ok(PLANS.premium.unitAmount !== Number(PLUS_PLAN.unitAmount));
 });
 
-test("pricing route is reachable, linked and noindex until commercial activation", async () => {
+test("pricing route is reachable, linked and indexable under the shared SEO policy", async () => {
   const root = new URL("../", import.meta.url);
   const config = JSON.parse(await readFile(new URL("vercel.json", root), "utf8"));
   assert.equal(config.rewrites.find((row: {source: string}) => row.source === "/pricing")?.destination, "/");
-  assert.ok(config.headers.find((row: {source: string}) => row.source === "/pricing")?.headers.some((header: {key: string; value: string}) => header.key === "X-Robots-Tag" && /noindex/.test(header.value)));
+  assert.equal(
+    config.headers.find((row: {source: string}) => row.source === "/pricing")?.headers.some((header: {key: string; value: string}) => header.key === "X-Robots-Tag"),
+    false,
+    "pricing X-Robots-Tag is owned by the SEO policy middleware",
+  );
   assert.match(await readFile(new URL("src/App.tsx", root), "utf8"), /path="\/pricing" element=\{<Pricing \/>\}/);
   assert.match(await readFile(new URL("src/components/SajdaFooter.tsx", root), "utf8"), /to="\/pricing"/);
   assert.match(await readFile(new URL("src/pages/Index.tsx", root), "utf8"), /href="\/pricing"/);
 });
 
-test("sandbox setup reads the same catalog and versions only its immutable Price", async () => {
+test("sandbox setup reads every paid plan from the shared catalog and only creates immutable test objects", async () => {
   const setup = await readFile(new URL("../scripts/setup-stripe-sandbox.mjs", import.meta.url), "utf8");
-  assert.match(setup, /import \{ PLUS_PLAN \} from "\.\.\/shared\/plus-plan\.ts"/);
-  assert.match(setup, /unit_amount: PLUS_PLAN\.unitAmount/);
-  assert.match(setup, /const catalogKey = `sajda_trading_\$\{PLUS_PLAN\.currency\}_\$\{PLUS_PLAN\.unitAmount\}_cents_monthly_test_v2`/);
-  assert.match(setup, /idempotencyKey: `sajda-sandbox-price-\$\{expectedAccount\}-\$\{catalogKey\}`/);
+  assert.match(setup, /import \{ PAID_PLAN_ORDER, PLANS \} from "\.\.\/shared\/plans\.ts"/);
+  assert.match(setup, /for \(const plan of PAID_PLAN_ORDER\)/);
+  assert.match(setup, /unit_amount: PLANS\[plan\]\.unitAmount/);
+  assert.match(setup, /const catalogKey = plan => `sajda_\$\{plan\}_\$\{PLANS\[plan\]\.currency\}_\$\{PLANS\[plan\]\.unitAmount\}_cents_monthly_test_v1`/);
+  assert.match(setup, /idempotencyKey: `sajda-sandbox-price-\$\{expectedAccount\}-\$\{key\}`/);
   assert.match(setup, /if \(!price && apply\)/);
   assert.match(setup, /if \(!product && apply\)/);
   assert.match(setup, /if \(!portal && apply\)/);
-  assert.doesNotMatch(setup, /188000|188_000|1880_monthly|\.subscriptions\.(?:create|update)|\.prices\.update|\.checkout\./);
+  assert.match(setup, /planChangesEnabled: false/);
+  assert.match(setup, /subscription_update: \{ enabled: false \}/);
+  assert.match(setup, /portal_repair_identity_mismatch/);
+  assert.doesNotMatch(setup, /readFileSync|parseEnv|\.env\.stripe-sandbox\.local/);
+  assert.match(setup, /checkoutConfigurationChanged: false/);
+  assert.match(setup, /webhookConfigurationChanged: false/);
+  assert.match(setup, /paymentSubmitted: false/);
+  assert.doesNotMatch(setup, /188000|188_000|1880_monthly|\.subscriptions\.(?:create|update)|\.prices\.update|\.checkout\.|\.paymentIntents\./);
 });

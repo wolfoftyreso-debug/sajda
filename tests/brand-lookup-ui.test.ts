@@ -10,11 +10,14 @@ import { syntheticBrandMatches, syntheticBrandProfile } from "./fixtures/brand-l
 const text = (node: ReactTestInstance): string => node.children.map(child => typeof child === "string" ? child : text(child)).join("");
 
 test("mounted brand lookup is search-first, explicit, cancellable and never independent verification", async t => {
-  const key = "__SAJDA_BRAND_LOOKUP_TEST__", originalFetch = globalThis.fetch;
-  const originals = new Map([key, "window"].map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
+  const key = "__SAJDA_BRAND_LOOKUP_TEST__", originalFetch = globalThis.fetch, originalNow = Date.now;
+  let clock = Date.parse("2026-09-12T12:00:00.000Z"); Date.now = () => clock;
+  const originals = new Map([key, "window", "document"].map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
+  const events = new Map<string, () => void>(), intervals = new Map<number, () => void>();
   const fixture = { language: "en" }, requests: Array<{ body: Record<string, string>; signal: AbortSignal }> = [], replies: Array<() => Promise<Response>> = [];
   Object.defineProperty(globalThis, key, { configurable: true, value: fixture });
-  Object.defineProperty(globalThis, "window", { configurable: true, value: { setTimeout, clearTimeout } });
+  Object.defineProperty(globalThis, "window", { configurable: true, value: { setTimeout, clearTimeout, setInterval: (callback: () => void, duration: number) => { assert.equal(duration, 30_000); intervals.set(1, callback); return 1; }, clearInterval: (id: number) => intervals.delete(id), addEventListener: (name: string, callback: () => void) => events.set(name, callback), removeEventListener: (name: string) => events.delete(name) } });
+  Object.defineProperty(globalThis, "document", { configurable: true, value: { visibilityState: "visible", addEventListener: (name: string, callback: () => void) => events.set(name, callback), removeEventListener: (name: string) => events.delete(name) } });
   globalThis.fetch = async (_url, init) => { requests.push({ body: JSON.parse(String(init?.body)), signal: init?.signal as AbortSignal }); const reply = replies.shift(); assert.ok(reply, "Unexpected network request"); return reply(); };
   const vite = await createServer({ configFile: false, appType: "custom", server: { middlewareMode: true, watch: null, hmr: false, ws: false }, resolve: { alias: { "@": path.resolve("src") } }, optimizeDeps: { noDiscovery: true, include: [] }, esbuild: { jsx: "automatic" },
     plugins: [{ name: "brand-lookup-presentation", enforce: "pre", load(id) { const file = id.replaceAll("\\", "/");
@@ -32,12 +35,16 @@ test("mounted brand lookup is search-first, explicit, cancellable and never inde
     const click = async (label: string) => { const button = root().findAllByType("button").find(node => text(node) === label); assert.ok(button, label); await act(async () => button.props.onClick()); };
     const choose = async (id: string) => { const candidate = root().findByProps({ "data-brand-match": id }); await act(async () => candidate.findByType("button").props.onClick()); };
     const response = (value: unknown, status = 200) => replies.push(async () => Response.json(value, { status }));
-    const mount = async () => { if (renderer) await act(async () => renderer!.unmount()); requests.length = 0; replies.length = 0; fixture.language = "en"; await act(async () => { renderer = create(tree()); }); };
+    const mount = async () => { if (renderer) await act(async () => renderer!.unmount()); clock = Date.parse("2026-09-12T12:00:00.000Z"); requests.length = 0; replies.length = 0; fixture.language = "en"; await act(async () => { renderer = create(tree()); }); };
 
     await t.test("blank form explains the external lookup and does not request or auto-select anything", async () => {
       await mount(); assert.equal(requests.length, 0); assert.equal(root().findAllByType("input").length, 1); assert.ok(text(root()).includes(c.disclosure));
       await submit(); assert.ok(text(root().findByProps({ role: "alert" })).includes(c.invalid)); assert.equal(requests.length, 0);
+      assert.equal(root().findByProps({ role: "alert" }).props.id, "brand-lookup-error");
+      assert.equal(root().findByProps({ id: "brand-lookup-query" }).props["aria-invalid"], true);
+      assert.equal(root().findByProps({ id: "brand-lookup-query" }).props["aria-describedby"], "brand-lookup-disclosure brand-lookup-error");
       await change("ExampleBrand"); response(syntheticBrandMatches()); await submit();
+      assert.equal(root().findByProps({ id: "brand-lookup-query" }).props["aria-describedby"], "brand-lookup-disclosure");
       assert.equal(requests.length, 1); assert.equal(root().findAllByType("article").length, 5); assert.equal(root().findAllByProps({ "data-brand-lookup-profile": "Q901" }).length, 0);
       assert.equal(root().findAllByType("a").filter(node => node.props.href === "/brand-index/assessment").length, 1);
     });
@@ -53,11 +60,25 @@ test("mounted brand lookup is search-first, explicit, cancellable and never inde
       assert.ok(!root().findAllByType("a").some(node => String(node.props.href).startsWith("javascript:")));
       await change("Another name"); assert.equal(root().findAllByProps({ "data-brand-lookup-profile": "Q902" }).length, 0); assert.equal(requests.length, 2);
     });
+    await t.test("lookup evidence ages on a bounded timer and tab return without refetching or changing its source dates", async () => {
+      await mount(); await change("ExampleBrand"); response(syntheticBrandMatches()); await submit(); response(syntheticBrandProfile()); await choose("Q901");
+      const count = (state: string) => text(root().findByProps({ "data-evidence-count": state }).findByType("dd"));
+      assert.equal(count("listed"), "2"); assert.equal(count("checked"), "0"); assert.equal(intervals.size, 1);
+      const observed = root().findAllByProps({ "data-evidence-entry": "listed:Q901$synthetic-web" })[0].findByType("time").props.dateTime;
+      clock += 29 * 60_000; await act(async () => intervals.get(1)?.()); assert.equal(count("listed"), "2");
+      clock += 2 * 60_000; await act(async () => events.get("focus")?.());
+      assert.equal(count("listed"), "0"); assert.equal(count("unknown"), "6"); assert.equal(requests.length, 2, "Aging never makes an automatic provider request");
+      assert.equal(root().findAllByProps({ "data-evidence-entry": "listed:Q901$synthetic-web" })[0].findByType("time").props.dateTime, observed);
+      await act(async () => events.get("visibilitychange")?.()); assert.equal(count("listed"), "0");
+      await click(c.change); assert.equal(intervals.size, 0); assert.equal(events.size, 0);
+    });
     await t.test("no matches and source unavailable remain distinct and retry recovers", async () => {
       await mount(); await change("ExampleBrand"); response(syntheticBrandMatches("ExampleBrand", "en", true)); await submit();
       assert.ok(text(root()).includes(c.noMatches)); assert.ok(!text(root()).includes(c.unavailable));
       await change("Failure"); response({ error: "source_unavailable" }, 503); await submit();
       assert.ok(text(root().findByProps({ role: "alert" })).includes(c.unavailable)); assert.ok(!text(root()).includes(c.noMatches));
+      assert.equal(root().findByProps({ id: "brand-lookup-query" }).props["aria-invalid"], false);
+      assert.equal(root().findByProps({ id: "brand-lookup-query" }).props["aria-describedby"], "brand-lookup-disclosure", "Source failure is not an input validation error");
       response(syntheticBrandMatches("Failure")); await click(c.retry); assert.equal(root().findAllByType("article").length, 5);
     });
     await t.test("query edits abort and stale responses cannot overwrite a later search", async () => {
@@ -86,7 +107,7 @@ test("mounted brand lookup is search-first, explicit, cancellable and never inde
       assert.equal(requests.length, 0);
     });
   } finally {
-    if (renderer) await act(async () => renderer!.unmount()); await vite.close(); globalThis.fetch = originalFetch;
+    if (renderer) await act(async () => renderer!.unmount()); await vite.close(); globalThis.fetch = originalFetch; Date.now = originalNow;
     for (const [name, descriptor] of originals) { if (descriptor) Object.defineProperty(globalThis, name, descriptor); else Reflect.deleteProperty(globalThis, name); }
   }
 });

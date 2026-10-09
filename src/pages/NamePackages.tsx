@@ -23,6 +23,8 @@ import { BrandIndexSummary, BrandPackageComparison } from "@/components/BrandInd
 import { SaveBrandPackageButton } from "@/components/SaveBrandPackageButton";
 import { brandWorkspaceCopy } from "@/i18n/brandWorkspaceCopy";
 import { nameLanguageCopy } from "@/i18n/nameLanguageCopy";
+import { projectNamingLanguageCopy } from "@/i18n/projectNamingLanguageCopy";
+import { projectNamingLanguage } from "@/lib/projectNamingLanguage";
 import { BRAND_NAME_LANGUAGES, type BrandNameLanguage } from "../../shared/name-languages";
 import { buildNamePackageDomainCheckPlan } from "../../shared/brand-candidate-index";
 import type { PackageDomainInput } from "../../shared/name-packages";
@@ -51,6 +53,7 @@ function Workspace({ accountId, verified, language }: { accountId: string | null
   const resultCopy = namePackageResultCopy[language];
   const w = brandWorkspaceCopy[language];
   const languageCopy = nameLanguageCopy[language];
+  const projectLanguageCopy = projectNamingLanguageCopy[language];
   const scan = useScan();
   const location = useLocation(), navigate = useNavigate();
   const initial = nameProjectSearchEntry(location.state, verified ? accountId : null);
@@ -63,6 +66,12 @@ function Workspace({ accountId, verified, language }: { accountId: string | null
   const [criteria, setCriteria] = useState(initial?.criteria);
   const initialNameLanguage = savedEntry?.entry.nameLanguage ?? (initial?.project.languages.length === 1 ? initial.project.languages[0] : initial?.criteria.nameLanguage);
   const [nameLanguage, setNameLanguage] = useState<BrandNameLanguage>(() => BRAND_NAME_LANGUAGES.find(value => value === initialNameLanguage) ?? "en");
+  const [projectLanguages, setProjectLanguages] = useState(!savedEntry && initial ? [...initial.project.languages] : null);
+  const [projectLanguageConfirmed, setProjectLanguageConfirmed] = useState(() => !projectNamingLanguage(!savedEntry && initial ? initial.project.languages : null).requiresChoice);
+  const [projectLanguageInvalid, setProjectLanguageInvalid] = useState(false);
+  const projectPreference = projectNamingLanguage(projectLanguages);
+  const needsProjectLanguageChoice = projectPreference.requiresChoice && !projectLanguageConfirmed;
+  const projectLanguageLabel = projectLanguages?.map(value => value === "zh" ? projectLanguageCopy.chinese : languageCopy.names[value]).join(", ");
   const [savedLanguage, setSavedLanguage] = useState<{ label: string; nameLanguage: BrandNameLanguage } | null>(savedEntry?.entry.nameLanguage ? { label: savedEntry.entry.label, nameLanguage: savedEntry.entry.nameLanguage } : null);
   // Language describes the response's request, never the currently edited form.
   // A saved preference applies only after checking that exact saved label.
@@ -85,6 +94,7 @@ function Workspace({ accountId, verified, language }: { accountId: string | null
   const consumedProject = useRef<string | null>(null);
   const resultHeading = useRef<HTMLHeadingElement | null>(null), focusAfterSearch = useRef(false);
   const searchInput = useRef<HTMLInputElement | null>(null), focusSearchEditor = useRef(false);
+  const nameLanguageSelector = useRef<HTMLSelectElement | null>(null);
 
   useEffect(() => {
     if (!editingSearch || !focusSearchEditor.current || !searchInput.current) return;
@@ -117,9 +127,9 @@ function Workspace({ accountId, verified, language }: { accountId: string | null
     const entryKey = `${location.key}:${accountId}`;
     if (consumedProject.current === entryKey || !location.state?.nameProject && !location.state?.brandPackageSeed) return;
     consumedProject.current = entryKey;
-    if (savedEntry) { setTheme(savedEntry.entry.label); setTlds(savedEntry.entry.requiredTlds); setPlatforms(savedEntry.entry.platforms); setMarkets(savedEntry.entry.markets); setNameLanguage(savedEntry.entry.nameLanguage ?? "en"); setSavedLanguage(savedEntry.entry.nameLanguage ? { label: savedEntry.entry.label, nameLanguage: savedEntry.entry.nameLanguage } : null); setMode("exact"); setProjectId(savedEntry.project.id); setEditingSearch(true); }
-    else if (seed) { setTheme(seed); setMode("exact"); setEditingSearch(true); }
-    else if (initial) { setTheme(initial.project.title); setBrief(initial.brief); setCriteria(initial.criteria); setNameLanguage(BRAND_NAME_LANGUAGES.find(value => value === (initial.project.languages.length === 1 ? initial.project.languages[0] : initial.criteria.nameLanguage)) ?? "en"); setProjectId(initial.project.id); setEditingSearch(true); }
+    if (savedEntry) { setTheme(savedEntry.entry.label); setTlds(savedEntry.entry.requiredTlds); setPlatforms(savedEntry.entry.platforms); setMarkets(savedEntry.entry.markets); setNameLanguage(savedEntry.entry.nameLanguage ?? "en"); setSavedLanguage(savedEntry.entry.nameLanguage ? { label: savedEntry.entry.label, nameLanguage: savedEntry.entry.nameLanguage } : null); setProjectLanguages(null); setProjectLanguageConfirmed(true); setProjectLanguageInvalid(false); setMode("exact"); setProjectId(savedEntry.project.id); setEditingSearch(true); }
+    else if (seed) { setTheme(seed); setProjectLanguages(null); setProjectLanguageConfirmed(true); setProjectLanguageInvalid(false); setMode("exact"); setEditingSearch(true); }
+    else if (initial) { const preference = projectNamingLanguage(initial.project.languages); setTheme(initial.project.title); setBrief(initial.brief); setCriteria(initial.criteria); setNameLanguage(preference.initialLanguage); setProjectLanguages([...initial.project.languages]); setProjectLanguageConfirmed(!preference.requiresChoice); setProjectLanguageInvalid(false); setProjectId(initial.project.id); setEditingSearch(true); }
     navigate({ pathname: location.pathname, search: location.search, hash: location.hash }, { replace: true, state: null });
   }, [initial, savedEntry, seed, accountId, location.key, location.state, location.pathname, location.search, location.hash, navigate]);
   useEffect(() => {
@@ -152,6 +162,7 @@ function Workspace({ accountId, verified, language }: { accountId: string | null
     if (!theme.trim() || !tlds.length) { setNotice("invalid"); return; }
     const exactLabel = mode === "exact" ? brandPackageLabel(theme) : null;
     if (mode === "exact" && !exactLabel) { setCheckNotice("exactInvalid"); return; }
+    if (mode === "idea" && needsProjectLanguageChoice) { setProjectLanguageInvalid(true); nameLanguageSelector.current?.focus(); return; }
     setCheckNotice(null);
     request.current?.abort(); request.current = null; setSocialBusy(false); setObservations([]); setNotice(null);
     focusAfterSearch.current = false;
@@ -231,9 +242,17 @@ function Workspace({ accountId, verified, language }: { accountId: string | null
         <div className="grid grid-cols-1 gap-2 rounded-xl bg-muted/50 p-2 sm:grid-cols-2" aria-label={w.title}>{(["idea", "exact"] as const).map(value => <Button key={value} type="button" variant={mode === value ? "default" : "ghost"} aria-pressed={mode === value} className={action} onClick={() => { setMode(value); setCheckNotice(null); }}>{value === "idea" ? w.create : w.exact}</Button>)}</div>
         <label htmlFor="package-theme" className="block text-base font-semibold">{mode === "idea" ? c.theme : w.exactLabel}<input ref={searchInput} id="package-theme" name="theme" value={theme} maxLength={180} required autoComplete="off" className={field} aria-describedby="package-theme-hint" aria-invalid={notice === "invalid" && !theme.trim() || checkNotice === "exactInvalid"} onChange={event => { setTheme(event.target.value); setNotice(null); setCheckNotice(null); }} /><span id="package-theme-hint" className="mt-2 block text-sm font-normal leading-6 text-muted-foreground">{mode === "idea" ? c.themeHint : w.exactHint}</span></label>
         {mode === "idea" && <label htmlFor="package-brief" className="block text-sm font-semibold">{c.brief}<textarea id="package-brief" name="brief" value={brief} maxLength={4000} rows={3} className={field} aria-describedby="package-brief-hint" onChange={event => { setBrief(event.target.value); setCriteria(undefined); }} /><span id="package-brief-hint" className="mt-2 block text-sm font-normal leading-6 text-muted-foreground">{c.briefHint}</span></label>}
-        {mode === "idea" && <label htmlFor="package-name-language" className="block text-sm font-semibold">{languageCopy.label}<select id="package-name-language" name="nameLanguage" value={nameLanguage} className={field + " sm:max-w-sm"} aria-describedby="package-name-language-hint" onChange={event => { const selected = BRAND_NAME_LANGUAGES.find(value => value === event.target.value); if (selected) setNameLanguage(selected); }}>
+        {mode === "idea" && projectPreference.requiresChoice && <section className="rounded-xl border border-primary/25 bg-primary/5 p-4" aria-labelledby="package-project-language-title" data-project-name-languages={projectLanguages?.join(",")}>
+          <h2 id="package-project-language-title" className="text-base font-semibold">{projectLanguageCopy.title}</h2>
+          <p className="mt-2 text-sm leading-6">{projectLanguageCopy.requested.replace("{languages}", projectLanguageLabel ?? "")}</p>
+          <p id="package-project-language-help" className="mt-2 text-sm leading-6 text-muted-foreground">{projectPreference.unsupported ? projectLanguageCopy.unsupported : projectLanguageCopy.multiple}</p>
+          {projectLanguageConfirmed && <p className="mt-2 text-sm leading-6 text-muted-foreground">{projectLanguageCopy.selected.replace("{language}", languageCopy.names[nameLanguage])}</p>}
+        </section>}
+        {mode === "idea" && <label htmlFor="package-name-language" className="block text-sm font-semibold">{languageCopy.label}<select ref={nameLanguageSelector} id="package-name-language" name="nameLanguage" value={needsProjectLanguageChoice ? "" : nameLanguage} className={field + " sm:max-w-sm"} aria-invalid={projectLanguageInvalid} aria-describedby={["package-name-language-hint", projectPreference.requiresChoice ? "package-project-language-help" : null, projectLanguageInvalid ? "package-project-language-error" : null].filter(Boolean).join(" ")} onChange={event => { const selected = BRAND_NAME_LANGUAGES.find(value => value === event.target.value); if (selected) { setNameLanguage(selected); setProjectLanguageConfirmed(true); setProjectLanguageInvalid(false); } }}>
+          {needsProjectLanguageChoice && <option value="" disabled>{projectLanguageCopy.choose}</option>}
           {BRAND_NAME_LANGUAGES.map(value => <option key={value} value={value}>{languageCopy.names[value]}</option>)}
         </select><span id="package-name-language-hint" className="mt-2 block max-w-2xl text-sm font-normal leading-6 text-muted-foreground">{languageCopy.hint}</span></label>}
+        {mode === "idea" && projectLanguageInvalid && <p id="package-project-language-error" className="text-sm leading-6 text-destructive" role="alert">{projectLanguageCopy.required}</p>}
         <details className="rounded-xl border border-border p-4"><summary className="min-h-11 cursor-pointer text-sm font-semibold">{w.configure}<span className="mt-2 block text-xs font-normal text-muted-foreground">{tlds.map(tld => "." + tld).join(" · ")} · {marketCountText(namePackageMarketsCopy[language].selected, markets.length)}</span></summary>
         <div className="mt-4 space-y-5">
         <TLDSelector selectedTLDs={tlds} onToggleTLD={tld => setTlds(previous => previous.includes(tld) ? previous.filter(value => value !== tld) : [...previous, tld])} disabled={scan.isScanning} />

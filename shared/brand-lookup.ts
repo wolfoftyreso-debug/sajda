@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { brandEvidenceReportSchema, buildLookupBrandEvidenceReport } from "./brand-evidence.js";
 
 export const BRAND_LOOKUP_SCHEMA_VERSION = "sajda.brand-lookup.v1" as const;
 export const brandLookupLocaleSchema = z.enum(["en", "sv", "es", "fr", "zh"]);
@@ -35,9 +36,20 @@ export const brandLookupResultSchema = z.discriminatedUnion("operation", [
   z.object({ ...base, operation: z.literal("profile"), requested_entity_id: entityId,
     entity: candidate.extend({ revision_id: z.number().int().positive().nullable(), source_modified_at: timestamp.nullable() }).strict(),
     assertions: z.array(assertion).max(20), truncated: z.boolean(),
+    evidence_report: brandEvidenceReportSchema,
     index: z.object({ score: z.null(), status: z.literal("insufficient_verified_evidence"), verified_assertions: z.literal(0) }).strict(),
     limitations: z.array(z.enum(["single_source", "ownership_not_verified", "availability_not_checked", "not_legal_clearance", "no_global_coverage"])).length(5),
-  }).strict(),
+  }).strict().superRefine((profile, context) => {
+    if (profile.entity.source_url !== `https://www.wikidata.org/wiki/${profile.entity.entity_id}`
+      || profile.assertions.some(assertion => !assertion.statement_id.startsWith(`${profile.entity.entity_id}$`)
+        || assertion.source_url !== `https://www.wikidata.org/wiki/${profile.entity.entity_id}#${assertion.property_id}`)) {
+      context.addIssue({ code: "custom", message: "Source assertions must belong to the selected canonical record.", path: ["assertions"] });
+    }
+    const expected = buildLookupBrandEvidenceReport(profile, Date.parse(profile.retrieved_at));
+    if (JSON.stringify(profile.evidence_report) !== JSON.stringify(expected)) {
+      context.addIssue({ code: "custom", message: "The evidence report must describe this source profile, not independent provider checks.", path: ["evidence_report"] });
+    }
+  }),
 ]);
 export type BrandLookupResult = z.infer<typeof brandLookupResultSchema>;
 export type BrandLookupSearch = Extract<BrandLookupResult, { operation: "search" }>;

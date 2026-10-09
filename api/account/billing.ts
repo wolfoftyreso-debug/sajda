@@ -11,7 +11,7 @@ import {
   type BillingResponse,
 } from "../_shared/commerce-http.js";
 
-export const config = { maxDuration: 30 };
+export const config = { maxDuration: 60 };
 export function createBillingHandler(
   deps: {
     authorize?: typeof requireAccount;
@@ -50,11 +50,16 @@ export function createBillingHandler(
       }
       const action = await billingAction(request),
         origin = (deps.origin ?? accountRequestOrigin)(request.headers);
-      const url = await service[action.action](
-        account.id,
-        action.requestKey,
-        origin,
-      );
+      if (action.action === "trading-addon" || action.action === "cancel-trading-addon-change") {
+        const result = action.action === "trading-addon"
+          ? await service.changeTradingAddon(account.id, action.requestKey, action.enabled!)
+          : await service.cancelTradingAddonChange(account.id, action.requestKey);
+        response.status(200).json({ ...result, accountId: account.id, requestId });
+        return;
+      }
+      const url = action.action === "checkout"
+        ? await service.checkout(account.id, action.requestKey, origin, action.plan ?? "trading", { offer: action.offer, returnTo: action.returnTo })
+        : await service.portal(account.id, action.requestKey, origin);
       response.status(200).json({ url, accountId: account.id, requestId });
     } catch (error) {
       billingFailure(error, response, requestId);

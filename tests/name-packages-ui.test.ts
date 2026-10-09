@@ -11,7 +11,9 @@ import { buildNamePackages, type PackageDomainInput, type SocialObservation } fr
 import { DEFAULT_NAME_PACKAGE_MARKETS, NAME_PACKAGE_MARKET_CODES } from "../shared/name-package-markets";
 import { namePackageMarketsCopy } from "../src/i18n/namePackageMarketsCopy";
 import { brandWorkspaceCopy } from "../src/i18n/brandWorkspaceCopy";
+import { brandEvidenceCopy } from "../src/i18n/brandEvidenceCopy";
 import { nameLanguageCopy } from "../src/i18n/nameLanguageCopy";
+import { projectNamingLanguageCopy } from "../src/i18n/projectNamingLanguageCopy";
 import { namePackageResultCopy } from "../src/i18n/namePackageResultCopy";
 import { BRAND_NAME_LANGUAGES } from "../shared/name-languages";
 import type { AnonymousSearchResponse, AnonymousSearchResult } from "../src/lib/localTestSearch";
@@ -53,7 +55,7 @@ test("mounted name packages preserve consent, owner boundaries and honest availa
   const exacts: { domains: string[]; signal: AbortSignal }[] = [];
   const events = new Map<string, () => void>();
   const fixture = {
-    owner: "account-a" as string | null, verified: true, language: "en", stopped: 0, focused: 0, scrolled: 0,
+    owner: "account-a" as string | null, verified: true, language: "en", stopped: 0, focused: 0, scrolled: 0, languageFocused: 0,
     accessAllowed: true, reservations: 0, completed: 0, released: 0,
     scan: { domains: [domain("nomera.com"), domain("nomera.se"), domain("tavora.com")], isScanning: false, restoredResults: false, resultsCheckedAt: new Date().toISOString() as string | null, lastSearchOptions: { theme: "Original search" } as StartScanOptions },
     start: async (options: StartScanOptions) => { scans.push(options); fixture.scan.lastSearchOptions = options; return true; },
@@ -102,15 +104,17 @@ test("mounted name packages preserve consent, owner boundaries and honest availa
     const healthy = fixture.check, healthyExact = fixture.exact, healthyStart = fixture.start;
     const mount = async (state: unknown = null) => {
       await act(async () => { renderer?.unmount(); }); requests.length = 0; scans.length = 0; exacts.length = 0;
-      fixture.owner = "account-a"; fixture.verified = true; fixture.language = "en"; fixture.check = healthy; fixture.focused = 0; fixture.scrolled = 0;
+      fixture.owner = "account-a"; fixture.verified = true; fixture.language = "en"; fixture.check = healthy; fixture.focused = 0; fixture.scrolled = 0; fixture.languageFocused = 0;
       fixture.exact = healthyExact; fixture.start = healthyStart; fixture.accessAllowed = true; fixture.reservations = 0; fixture.completed = 0; fixture.released = 0;
       fixture.scan = { domains: [domain("nomera.com"), domain("nomera.se"), domain("tavora.com")], isScanning: false, restoredResults: false, resultsCheckedAt: new Date().toISOString(), lastSearchOptions: { theme: "Original search" } };
-      await act(async () => { renderer = create(tree(state), { createNodeMock: element => element.props.id === "package-results-title" ? { focus: () => fixture.focused++, scrollIntoView: () => fixture.scrolled++ } : null }); await pause(); });
+      await act(async () => { renderer = create(tree(state), { createNodeMock: element => element.props.id === "package-results-title" ? { focus: () => fixture.focused++, scrollIntoView: () => fixture.scrolled++ } : element.props.id === "package-name-language" ? { focus: () => fixture.languageFocused++ } : null }); await pause(); });
     };
     await t.test("opening and editing never sends a search or social request", async () => {
       await mount(); assert.equal(requests.length, 0); assert.equal(scans.length, 0);
       assert.ok(text().includes(c.available)); assert.ok(text().includes(c.notChecked)); assert.ok(text().includes(c.manual));
-      assert.ok(text().includes(w.ceiling)); assert.ok(text().includes(w.coverage));
+      assert.ok(text().includes(w.ceiling)); assert.ok(!text().includes(w.coverage), "Legacy coverage must not compete with the evidence ledger");
+      for (const evidenceLabel of [brandEvidenceCopy.en.title, brandEvidenceCopy.en.checked, brandEvidenceCopy.en.reported,
+        brandEvidenceCopy.en.listed, brandEvidenceCopy.en.unknown]) assert.ok(text().includes(evidenceLabel));
       assert.equal(root().findAllByType("h1").length, 1);
       await change("theme", "Private founder idea"); await change("brief", "Exact private customer description");
       assert.equal(requests.length, 0); assert.equal(scans.length, 0);
@@ -395,6 +399,58 @@ test("mounted name packages preserve consent, owner boundaries and honest availa
       assert.equal(input("theme").props.value, "Private project"); assert.ok(input("brief").props.value.includes("Private project description"));
       assert.equal(scans.length, 0); assert.equal(requests.length, 0); assert.ok(root().findByType("output").children.join("").includes('"state":null'));
       await mount({ nameProject: project, nameProjectAccountId: "account-b" }); await openSearch(); assert.equal(input("theme").props.value, ""); assert.equal(input("brief").props.value, ""); assert.ok(root().findByType("output").children.join("").includes('"state":null'));
+    });
+    await t.test("unsupported or multilingual project handoffs require explicit primary language without rewriting saved requirements", async () => {
+      const at = new Date().toISOString();
+      const base = { id: "00000000-0000-4000-8000-000000000001", title: "Private language project", description: "Project language requirements", audience: "Founders", desiredStyle: "Short", budget: { currency: "USD", maxFirstYearCents: null, maxAnnualRenewalCents: null }, archived: false, shortlistDomains: [], version: 1, createdAt: at, updatedAt: at };
+      for (const languages of [["zh"], ["fr", "de"]]) {
+        const project = { ...base, languages };
+        await mount({ nameProject: project, nameProjectAccountId: "account-a" });
+        const selector = () => root().findByProps({ id: "package-name-language" });
+        assert.equal(selector().props.value, "");
+        assert.ok(root().findByProps({ "data-project-name-languages": languages.join(",") }));
+        assert.ok(text().includes(languages.includes("zh") ? projectNamingLanguageCopy.en.unsupported : projectNamingLanguageCopy.en.multiple));
+        assert.equal(scans.length, 0); assert.equal(requests.length, 0); assert.equal(exacts.length, 0);
+        await submit(true);
+        assert.equal(scans.length, 0, "No generation or quota is spent before the choice");
+        assert.equal(selector().props["aria-invalid"], true); assert.equal(fixture.languageFocused, 2);
+        assert.ok(selector().props["aria-describedby"].includes("package-project-language-error"));
+        for (const locale of ["sv", "es", "fr", "zh"] as const) {
+          fixture.language = locale; await act(async () => renderer!.update(tree()));
+          assert.equal(selector().props.value, "", "Interface language cannot make the primary-language choice");
+          assert.ok(text().includes(projectNamingLanguageCopy[locale].required));
+        }
+        fixture.language = "en"; await act(async () => renderer!.update(tree()));
+        await act(async () => selector().props.onChange({ target: { value: "fr" } }));
+        assert.equal(selector().props.value, "fr"); assert.equal(selector().props["aria-invalid"], false);
+        assert.equal(scans.length, 0, "Selecting the language never auto-searches");
+        assert.ok(text().includes(projectNamingLanguageCopy.en.selected.replace("{language}", "French")));
+        await submit();
+        const request = scans[0] as StartScanOptions;
+        assert.equal(request.nameLanguage, "fr");
+        assert.ok(request.brief?.includes(languages.includes("zh") ? "Languages: Chinese" : "Languages: French, German"));
+        assert.deepEqual(project.languages, languages);
+        fixture.owner = "account-b"; await act(async () => renderer!.update(tree())); await openSearch();
+        assert.equal(selector().props.value, "en");
+        assert.equal(root().findAll(node => Boolean(node.props["data-project-name-languages"])).length, 0, "Account changes discard the previous owner's requirements and choice");
+      }
+    });
+    await t.test("supported single language stays prefilled and exact checks bypass an unresolved generation language", async () => {
+      const at = new Date().toISOString();
+      const base = { id: "00000000-0000-4000-8000-000000000001", title: "Private language project", description: "Project language requirements", audience: "Founders", desiredStyle: "Short", budget: { currency: "USD", maxFirstYearCents: null, maxAnnualRenewalCents: null }, archived: false, shortlistDomains: [], version: 1, createdAt: at, updatedAt: at };
+      await mount({ nameProject: { ...base, languages: ["fr"] }, nameProjectAccountId: "account-a" });
+      assert.equal(root().findByProps({ id: "package-name-language" }).props.value, "fr");
+      assert.equal(root().findAll(node => Boolean(node.props["data-project-name-languages"])).length, 0);
+      assert.equal(scans.length, 0); await submit(); assert.equal((scans[0] as StartScanOptions).nameLanguage, "fr");
+      await mount({ nameProject: { ...base, languages: ["zh"] }, nameProjectAccountId: "account-a" });
+      await submit(); assert.equal(scans.length, 0);
+      await click(w.exact); await change("theme", "atelier"); await submit();
+      const exact = scans[0] as StartScanOptions;
+      assert.deepEqual(exact.domains, ["atelier.com", "atelier.ai"]); assert.equal(exact.nameLanguage, undefined);
+      assert.equal(exact.criteria, undefined); assert.equal(scans.length, 1);
+      await openSearch(); await click(w.create);
+      assert.equal(root().findByProps({ id: "package-name-language" }).props.value, "", "An exact check does not implicitly approve English generation");
+      await submit(); assert.equal(scans.length, 1);
     });
     await t.test("saved naming language applies only to that exact package, not old or unrelated results", async () => {
       const at = new Date().toISOString();

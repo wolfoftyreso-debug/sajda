@@ -29,6 +29,29 @@ test("machine name-package contract is a strict Zod v4 JSON schema", () => {
   assert.equal(json.type, "object"); assert.equal(json.additionalProperties, false);
 });
 
+test("strict package responses reject contradictory counts, duplicate identities and non-contiguous ranks", () => {
+  const one = projection(), two = projection([row("nomera.com"), row("clarivo.com")]);
+  for (const value of [
+    { ...one, returned_count: 10 }, { ...one, returned_count: 0 },
+    { ...two, requested_count: 1 },
+    { ...two, packages: [two.packages[0], { ...two.packages[0], rank: 2 }] },
+    { ...two, packages: [two.packages[1], two.packages[0]] },
+    { ...two, packages: [two.packages[0], { ...two.packages[1], rank: 3 }] },
+  ]) assert.equal(namePackageIntelligenceSchema.safeParse(value).success, false);
+  assert.equal(namePackageIntelligenceSchema.safeParse(one).success, true);
+  assert.equal(namePackageIntelligenceSchema.safeParse(two).success, true);
+  const empty = projectNamePackageIntelligence({ results: [] }, settings);
+  assert.equal(empty.returned_count, 0); assert.equal(namePackageIntelligenceSchema.safeParse(empty).success, true);
+});
+
+test("package report generation matches its envelope without renewing the original provider observation", () => {
+  const response = projection();
+  assert.equal(response.packages[0].brand_index.evidence_report.generated_at, response.generated_at);
+  assert.equal(response.packages[0].evidence.domains[0].observed_at, at);
+  assert.notEqual(response.generated_at, at);
+  assert.equal(namePackageIntelligenceSchema.safeParse({ ...response, generated_at: new Date(now + 1).toISOString() }).success, false);
+});
+
 test("entity IDs represent only stable lexical candidates, never companies or durable records", () => {
   const item = projection().packages[0];
   assert.equal(item.entity_id, "name-package:nomera"); assert.equal(item.canonical_name, "nomera");

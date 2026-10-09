@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { User, Mail, LogOut, Settings, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -88,6 +88,8 @@ const Account = () => {
   const { refresh: refreshMembership } = useMembership();
   const { clearResults } = useScan();
   const navigate = useNavigate();
+  const { hash } = useLocation();
+  const accountReturnPath = hash === "#trading" ? "/account#trading" : "/account";
   const { toast } = useToast();
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -111,9 +113,9 @@ const Account = () => {
 
   useEffect(() => {
     if (!loading && !user) {
-      navigate("/auth?next=%2Faccount", { replace: true });
+      navigate(`/auth?next=${encodeURIComponent(accountReturnPath)}`, { replace: true });
     }
-  }, [user, loading, navigate]);
+  }, [user, loading, navigate, accountReturnPath]);
 
   const handleSignOut = async () => {
     if (isSigningOut) return;

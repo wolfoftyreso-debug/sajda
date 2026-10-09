@@ -7,7 +7,17 @@ import { assertPublicBrowserBundle } from "../scripts/check-neon-build.mjs";
 
 const appRoutes = ["/auth", "/connect/native", "/contact", "/plus", "/pricing", "/story", "/how-it-works", "/developers", "/legal", "/security", "/status", "/marketplace", "/marketplace/:listingId", "/swipe", "/watchlist", "/projects", "/name-packages", "/brand-index", "/brand-index/assessment", "/my-domains", "/history", "/account", "/install", "/top-10-today", "/admin"];
 
-test("Plus is private/noindex and bounded worker functions do not activate a crawl schedule", async () => {
+test("private and app-shell routes stay noindex while /se headers stay config-driven", async () => {
+  const config = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
+  const headerFor = source => config.headers.find(entry => entry.source === source)?.headers ?? [];
+  for (const path of ["/", "/account", "/auth", "/api/(.*)", "/plus", "/projects"]) {
+    assert.ok(headerFor(path).some(header => header.key === "X-Robots-Tag" && header.value === "noindex, nofollow"), path);
+  }
+  assert.equal(headerFor("/se").some(header => header.key === "X-Robots-Tag"), false, "/se X-Robots-Tag is owned by the SEO policy middleware");
+  assert.equal(headerFor("/se/(.*)").some(header => header.key === "X-Robots-Tag"), false);
+});
+
+test("Plus stays private/noindex and both bounded workers have explicit five-minute schedules", async () => {
   const config = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
   const headers = config.headers.find(entry => entry.source === "/plus").headers;
   assert.ok(headers.some(header => header.key === "X-Robots-Tag" && header.value === "noindex, nofollow"));
@@ -18,7 +28,12 @@ test("Plus is private/noindex and bounded worker functions do not activate a cra
     assert.match(handler, /export const config = \{ maxDuration: 60 \}/u, `${path} matches its Vercel duration`);
   }
   assert.equal(config.functions["api/cron/lost-domains.ts"].maxDuration, 60);
-  assert.equal(config.crons, undefined, "Source review and scheduling activation remain explicit pilot gates");
+  assert.equal(config.functions["api/account/brand-monitors.ts"].maxDuration, 20);
+  assert.equal(config.functions["api/cron/brand-monitors.ts"].maxDuration, 180);
+  assert.deepEqual(config.crons, [
+    { path: "/api/cron/lost-domains", schedule: "*/5 * * * *" },
+    { path: "/api/cron/brand-monitors", schedule: "*/5 * * * *" },
+  ]);
 });
 
 test("clean-URL application rewrites target the served root, not an excluded .html URL", async () => {
@@ -33,26 +48,26 @@ test("clean-URL application rewrites target the served root, not an excluded .ht
   const productRoutes = await readFile(new URL("../src/app/ProductRoutes.tsx", import.meta.url), "utf8");
   for (const path of ["/brand-index", "/brand-index/assessment"]) {
     assert.ok(productRoutes.includes(`path="${path}"`), `${path} must have an actual application route`);
-    const headers = config.headers.find(entry => entry.source === path)?.headers ?? [];
-    assert.ok(headers.some(header => header.key === "X-Robots-Tag" && header.value === "noindex, nofollow"), `${path} is not an indexable SEO entry`);
-    assert.ok(headers.some(header => header.key === "Cache-Control" && header.value === "private, no-store"), `${path} keeps assessment state private`);
-    assert.ok(headers.some(header => header.key === "Referrer-Policy" && header.value === "no-referrer"), `${path} does not disclose assessment URLs through referrers`);
   }
+  const landing = config.headers.find(entry => entry.source === "/brand-index")?.headers ?? [];
+  assert.equal(landing.some(header => header.key === "X-Robots-Tag"), false, "/brand-index X-Robots-Tag is owned by the SEO policy middleware");
+  assert.ok(landing.some(header => header.key === "Cache-Control" && header.value === "no-store"));
+  const assessment = config.headers.find(entry => entry.source === "/brand-index/assessment")?.headers ?? [];
+  assert.ok(assessment.some(header => header.key === "X-Robots-Tag" && header.value === "noindex, nofollow"), "/brand-index/assessment stays noindex");
+  assert.ok(assessment.some(header => header.key === "Cache-Control" && header.value === "private, no-store"), "/brand-index/assessment keeps assessment state private");
+  assert.ok(assessment.some(header => header.key === "Referrer-Policy" && header.value === "no-referrer"), "/brand-index/assessment does not disclose assessment URLs through referrers");
 });
 
 test("nested auth routes reach one same-origin Vercel function, never the SPA shell", async () => {
   const config = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
   const apiRewrites = config.rewrites.filter(route => route.source.startsWith("/api/"));
-  assert.deepEqual(apiRewrites, [{ source: "/api/auth/:authAction*", destination: "/api/auth?authAction=:authAction*" }]);
+  assert.deepEqual(apiRewrites, [{ source: "/api/auth/:authAction*", destination: "/api/auth" }]);
   assert.equal(config.rewrites[0], apiRewrites[0], "Auth is explicitly routed before application pages");
   assert.equal(config.functions["api/auth.ts"].maxDuration, 30);
-  // Vercel's documented :path* substitution works inside destination queries.
-  // This guards the configured mapping, not a claim of deployed-router testing.
-  for (const action of ["get-session", "sign-in/email", "sign-up/email", "reset-password", "verify-email"]) {
-    const target = new URL(apiRewrites[0].destination.replace(":authAction*", action), "https://sajda.example.test");
-    assert.equal(target.pathname, "/api/auth");
-    assert.equal(target.searchParams.get("authAction"), action);
-  }
+  // Named rewrite parameters are forwarded as destination query parameters by
+  // Vercel. Keeping the destination path-only avoids reparsing a standalone
+  // `:authAction*` token while preserving the handler's authAction contract.
+  assert.equal(apiRewrites[0].destination.includes("?"), false);
   assert.ok(!config.rewrites.some(route => ["/:path*", "/(.*)", "/api/:path*"].includes(route.source)), "Unknown app/API paths must not become a soft 404");
 });
 
@@ -71,6 +86,18 @@ test("browser CSP permits same-origin Vercel auth but no direct Neon connection"
   );
 });
 
+test("Grok framing is limited to public product surfaces", async () => {
+  const config = JSON.parse(await readFile(new URL("../vercel.json", import.meta.url), "utf8"));
+  const sensitive = config.headers.find(entry => entry.source.startsWith("/:sensitive("));
+  assert.ok(sensitive, "sensitive application routes need a dedicated anti-framing policy");
+  const csp = sensitive.headers.find(header => header.key === "Content-Security-Policy")?.value ?? "";
+  assert.equal(csp.split(";").map(value => value.trim()).find(value => value.startsWith("frame-ancestors")), "frame-ancestors 'none'");
+  assert.ok(sensitive.headers.some(header => header.key === "X-Frame-Options" && header.value === "DENY"));
+  for (const route of ["auth", "account", "watchlist", "projects", "my-domains", "history", "plus", "admin", "top-10-today", "pricing", "connect", "name-packages", "brand-index"]) {
+    assert.ok(sensitive.source.includes(route), `${route} must not render inside a third-party frame`);
+  }
+});
+
 test("Vercel derives account auth from both server requirements, never stale public flags", () => {
   const stale = { VITE_ACCOUNT_AUTH_ENABLED: "true", VITE_NEON_AUTH_URL: "https://old-auth.example.neon.tech", VITE_SUPABASE_URL: "https://old.supabase.co" };
   for (const environment of [
@@ -86,12 +113,13 @@ test("Vercel derives account auth from both server requirements, never stale pub
     VITE_DATABASE_URL: "must-not-ship", VITE_DATABASE_URL_UNPOOLED: "must-not-ship",
     VITE_BETTER_AUTH_SECRET: "must-not-ship", VITE_RESEND_API_KEY: "must-not-ship",
     VITE_PORKBUN_API_KEY: "must-not-ship", VITE_PORKBUN_SECRET_API_KEY: "must-not-ship", VITE_CRON_SECRET: "must-not-ship",
+    VITE_SAJDA_INDEXNOW_SUBMIT_SECRET: "must-not-ship",
   });
   assert.equal(configured.VITE_ACCOUNT_AUTH_ENABLED, "true");
   assert.equal(configured.VITE_LOCAL_TEST_MODE, "false");
   assert.equal(configured.VITE_PUBLIC_SEARCH_MODE, "true");
   assert.equal(configured.DATABASE_URL, "postgresql://server-only-fixture", "Server environment remains available to Vercel tooling");
-  for (const key of ["VITE_NEON_AUTH_URL", "VITE_SUPABASE_URL", "VITE_DATABASE_URL", "VITE_DATABASE_URL_UNPOOLED", "VITE_BETTER_AUTH_SECRET", "VITE_RESEND_API_KEY", "VITE_PORKBUN_API_KEY", "VITE_PORKBUN_SECRET_API_KEY", "VITE_CRON_SECRET"]) assert.equal(configured[key], "");
+  for (const key of ["VITE_NEON_AUTH_URL", "VITE_SUPABASE_URL", "VITE_DATABASE_URL", "VITE_DATABASE_URL_UNPOOLED", "VITE_BETTER_AUTH_SECRET", "VITE_RESEND_API_KEY", "VITE_PORKBUN_API_KEY", "VITE_PORKBUN_SECRET_API_KEY", "VITE_CRON_SECRET", "VITE_SAJDA_INDEXNOW_SUBMIT_SECRET"]) assert.equal(configured[key], "");
 });
 
 test("build environment retains matching canonicals and rejects configuration drift", () => {
@@ -118,7 +146,7 @@ test("public bundle policy rejects external auth, JWT requests and exposed secre
     'fetch("https://tenant.aws.neon.tech/get-session")', 'client.token()',
     'fetch("/api/auth/token")', 'VITE_NEON_AUTH_URL', 'VITE_BETTER_AUTH_SECRET',
     'VITE_DATABASE_URL', 'postgresql://secret-user:secret-password@db.example/test',
-    'VITE_PORKBUN_API_KEY', 'VITE_PORKBUN_SECRET_API_KEY', 'VITE_CRON_SECRET',
+    'VITE_PORKBUN_API_KEY', 'VITE_PORKBUN_SECRET_API_KEY', 'VITE_CRON_SECRET', 'VITE_SAJDA_INDEXNOW_SUBMIT_SECRET',
     'pk1_' + 'a'.repeat(32), 'sk1_' + 'b'.repeat(32),
   ]) assert.throws(() => assertPublicBrowserBundle(forbidden), error => error instanceof Error && !error.message.includes(forbidden));
 });

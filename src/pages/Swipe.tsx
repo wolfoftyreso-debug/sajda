@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { Link } from "react-router-dom";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type MouseEvent as ReactMouseEvent } from "react";
+import { Link, useLocation } from "react-router-dom";
 import {
   ArrowLeft,
   Check,
@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import AccountLink from "@/components/AccountLink";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SwipeWishlistPanel } from "@/components/SwipeWishlistPanel";
+import SwipePremiumOffer from "@/components/SwipePremiumOffer";
 import { cn } from "@/lib/utils";
 import { getSwipeTlds, isAnonymousSearchMode, isPublicSearchMode } from "@/lib/anonymousSearchMode";
 import { runAnonymousSearch, type AnonymousSearchResult } from "@/lib/localTestSearch";
@@ -46,6 +47,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { canUndoSwipe, consumeSwipeUndo, createSwipeUndo, type SwipeUndoToken } from "@/lib/swipeUndo";
 import { authorizeSwipeUndo, SwipePremiumError } from "@/lib/swipePremium";
 import { swipePremiumCopy } from "@/i18n/swipePremiumCopy";
+import { saveSwipeCheckoutCheckpoint, consumeSwipeCheckoutCheckpoint } from "@/lib/swipeCheckoutCheckpoint";
 import { SWIPE_DECK_SIZE as DECK_SIZE, SWIPE_MIN_LENGTH as MIN_LABEL_LENGTH, SWIPE_MAX_LENGTH as MAX_LABEL_LENGTH, toVerifiedSwipeDeck } from "@/lib/swipeDeck";
 
 type SwipeDirection = "skip" | "keep";
@@ -67,6 +69,7 @@ const swipeMessages = {
     selectedExtensions: "Selected: {count}",
     updateDeck: "Update deck",
     startDeck: "Start swiping",
+    checkingAccount: "Checking your account…",
     deckComplete: "You’ve reached the end of this deck",
     deckCompleteDescription: "Your saved picks are still here. Choose endings to check a new deck.",
     chooseFirst: "Choose your domain endings",
@@ -126,6 +129,7 @@ const swipeMessages = {
     selectedExtensions: "Valda: {count}",
     updateDeck: "Uppdatera kortleken",
     startDeck: "Börja swajpa",
+    checkingAccount: "Kontrollerar ditt konto…",
     deckComplete: "Du har gått igenom kortleken",
     deckCompleteDescription: "Dina sparade val finns kvar. Välj ändelser för att kontrollera en ny kortlek.",
     chooseFirst: "Välj dina domänändelser",
@@ -185,6 +189,7 @@ const swipeMessages = {
     selectedExtensions: "Seleccionadas: {count}",
     updateDeck: "Actualizar baraja",
     startDeck: "Empezar a deslizar",
+    checkingAccount: "Comprobando tu cuenta…",
     deckComplete: "Has terminado esta baraja",
     deckCompleteDescription: "Tus selecciones guardadas siguen aquí. Elige extensiones para comprobar otra baraja.",
     chooseFirst: "Elige tus extensiones de dominio",
@@ -244,6 +249,7 @@ const swipeMessages = {
     selectedExtensions: "Sélectionnées : {count}",
     updateDeck: "Mettre le jeu à jour",
     startDeck: "Commencer à parcourir",
+    checkingAccount: "Vérification de votre compte…",
     deckComplete: "Vous avez parcouru tout le jeu",
     deckCompleteDescription: "Vos sélections enregistrées sont conservées. Choisissez des extensions pour vérifier un nouveau jeu.",
     chooseFirst: "Choisissez vos extensions de domaine",
@@ -303,6 +309,7 @@ const swipeMessages = {
     selectedExtensions: "已选 {count} 个",
     updateDeck: "更新卡组",
     startDeck: "开始滑选",
+    checkingAccount: "正在检查你的账户…",
     deckComplete: "你已浏览完这组卡片",
     deckCompleteDescription: "你保存的选择仍然保留。选择后缀以核验一组新卡片。",
     chooseFirst: "选择域名后缀",
@@ -410,6 +417,7 @@ function swipeAssessment(domain: string, language: SwipeLanguage): string {
 }
 
 const Swipe = () => {
+  const location = useLocation();
   const anonymousMode = isAnonymousSearchMode();
   const availableTlds = useMemo(() => [...getSwipeTlds()], []);
   const defaultTlds = availableTlds;
@@ -421,6 +429,7 @@ const Swipe = () => {
   const [deck, setDeck] = useState<AnonymousSearchResult[]>([]);
   const [nextDeck, setNextDeck] = useState<AnonymousSearchResult[]>([]);
   const [deckIndex, setDeckIndex] = useState(0);
+  const [restoredDeck, setRestoredDeck] = useState(false);
   const [saved, setSaved] = useState<SwipeWishlistEntry[]>(() => readSwipeWishlist());
   const [isRefreshingSaved, setIsRefreshingSaved] = useState(false);
   const [isWishlistOpen, setIsWishlistOpen] = useState(false);
@@ -450,6 +459,8 @@ const Swipe = () => {
   const lastUndoRef = useRef<SwipeUndoToken | null>(null);
   const undoControllerRef = useRef<AbortController | null>(null);
   const undoButtonRef = useRef<HTMLButtonElement | null>(null);
+  const settingsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const settingsTriggerRef = useRef<HTMLButtonElement | null>(null);
   const savedRef = useRef(saved);
   const positionRef = useRef(deckIndex);
   const ownerRef = useRef(user?.id ?? null);
@@ -462,6 +473,7 @@ const Swipe = () => {
   const deckControllerRef = useRef<AbortController | null>(null);
   const savedControllerRef = useRef<AbortController | null>(null);
   const pendingAccessRef = useRef(new Set<NonNullable<ReturnType<typeof requestAnonymousSearchAccess>>>());
+  const restoredCheckpointRef = useRef(false);
 
   const current = deck[deckIndex];
   const allExtensionsSelected = draftTlds.length === availableTlds.length;
@@ -490,7 +502,32 @@ const Swipe = () => {
     setIsPremiumDialogOpen(false);
   }, [user?.id]);
 
+  useLayoutEffect(() => {
+    if (authLoading || restoredCheckpointRef.current) return;
+    restoredCheckpointRef.current = true;
+    const restored = consumeSwipeCheckoutCheckpoint({ ownerId: user?.id ?? null, pathname: location.pathname, search: location.search });
+    if (!restored) return;
+    deckGenerationRef.current = restored.generation;
+    lastUndoRef.current = restored.undo;
+    positionRef.current = restored.deckIndex;
+    setDeck(restored.deck); setDeckIndex(restored.deckIndex); setLastUndo(restored.undo);
+    setSelectedTlds(restored.selectedTlds); setDraftTlds(restored.selectedTlds);
+    setHasRequestedDeck(true); setIsSettingsOpen(false); setRestoredDeck(true);
+    const params = new URLSearchParams(location.search);
+    if (params.get("premium") === "offer") setIsPremiumDialogOpen(true);
+    else setNotice(params.get("billing") === "success" ? premiumCopy.returnPending : premiumCopy.cancelled);
+    // Restoring UI state is never a payment receipt. Undo still authorizes
+    // against the current account on every click, including a forged return URL.
+  }, [authLoading, location.pathname, location.search, premiumCopy.cancelled, premiumCopy.returnPending, user?.id]);
+
+  const preparePremiumReturn = useCallback(() => {
+    if (decisionTimerRef.current !== null || !canUndoSwipe(lastUndoRef.current, { generation: deckGenerationRef.current, deckIndex: positionRef.current })) return false;
+    return saveSwipeCheckoutCheckpoint({ ownerId: ownerRef.current, deck, deckIndex: positionRef.current,
+      generation: deckGenerationRef.current, undo: lastUndoRef.current, selectedTlds });
+  }, [deck, selectedTlds]);
+
   const commitNewDeck = useCallback((cards: AnonymousSearchResult[]) => {
+    setRestoredDeck(false);
     deckGenerationRef.current++;
     lastUndoRef.current = null;
     positionRef.current = 0;
@@ -787,8 +824,9 @@ const Swipe = () => {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isSettingsOpen, isWishlistOpen, isPremiumDialogOpen, loadDeck, makeDecision]);
 
-  const openSettings = () => {
+  const openSettings = (event: ReactMouseEvent<HTMLButtonElement>) => {
     if (undoControllerRef.current || decisionTimerRef.current !== null) return;
+    settingsTriggerRef.current = event.currentTarget;
     setDraftTlds(selectedTlds);
     setIsSettingsOpen(true);
   };
@@ -800,7 +838,9 @@ const Swipe = () => {
   };
 
   const applySettings = () => {
-    if (draftTlds.length === 0 || undoControllerRef.current) return;
+    // Do not dismiss the user's selection before the session check permits a
+    // search. Otherwise loadDeck's readiness guard silently discards the start.
+    if (!anonymousSearchAccessReady || draftTlds.length === 0 || undoControllerRef.current) return;
     const changed = draftTlds.length !== selectedTlds.length
       || draftTlds.some((tld) => !selectedTlds.includes(tld));
     setIsSettingsOpen(false);
@@ -906,6 +946,7 @@ const Swipe = () => {
               <RefreshCw className={cn("h-4 w-4", (isLoading || isPrefetching) && "animate-spin")} aria-hidden="true" />
             </Button>
             <Button
+              ref={settingsButtonRef}
               type="button"
               variant="outline"
               onClick={openSettings}
@@ -985,7 +1026,7 @@ const Swipe = () => {
                   <div className="flex items-center justify-between gap-4">
                     <span className="rounded-full bg-success/10 px-3 py-1.5 text-xs font-semibold text-success">
                       <Check className="mr-1 inline h-3.5 w-3.5" aria-hidden="true" />
-                      {copy.available}
+                      {restoredDeck ? premiumCopy.previousCheck : copy.available}
                     </span>
                     <span className="text-xs font-medium text-muted-foreground">
                       {withValue(copy.cardNumber, deckIndex + 1)}
@@ -1109,7 +1150,7 @@ const Swipe = () => {
                 aria-describedby="swipe-undo-hint" className="h-auto min-h-11 max-w-full flex-wrap gap-x-2 gap-y-1 px-3 py-2 text-sm">
                 <Undo2 className={cn("h-4 w-4", isUndoPending && "animate-pulse")} aria-hidden="true" />
                 <span>{isUndoPending ? premiumCopy.pending : premiumCopy.undo}</span>
-                <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-[10px] font-semibold text-primary">Premium</span>
+                <span className="rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-[10px] font-semibold text-primary">Pro</span>
               </Button>
               <p id="swipe-undo-hint" className="text-xs text-muted-foreground">{premiumCopy.hint}</p>
             </div>
@@ -1126,13 +1167,19 @@ const Swipe = () => {
             <DialogTitle className="pr-6 leading-7">{premiumCopy.title}</DialogTitle>
             <DialogDescription className="pt-2 leading-6">{premiumCopy.description}</DialogDescription>
           </DialogHeader>
-          <p className="rounded-xl border border-border bg-secondary/50 p-3 text-sm leading-6 text-muted-foreground">{premiumCopy.availability}</p>
-          <DialogFooter><Button className="h-auto min-h-11 whitespace-normal" onClick={() => setIsPremiumDialogOpen(false)}>{premiumCopy.close}</Button></DialogFooter>
+          {isPremiumDialogOpen && <SwipePremiumOffer accountId={user?.id ?? null} authLoading={authLoading} language={swipeLanguage}
+            prepareReturn={preparePremiumReturn} onClose={() => setIsPremiumDialogOpen(false)} />}
         </DialogContent>
       </Dialog>
 
       <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
         <DialogContent
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            const trigger = settingsTriggerRef.current?.isConnected ? settingsTriggerRef.current : settingsButtonRef.current;
+            if (trigger?.isConnected) trigger.focus();
+            settingsTriggerRef.current = null;
+          }}
           className="fixed bottom-0 left-0 top-auto grid max-h-[82dvh] w-full max-w-none translate-x-0 translate-y-0 grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden rounded-t-[1.75rem] border-border bg-card p-0 shadow-[0_-18px_56px_hsl(221_39%_12%/0.16)] data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom sm:left-1/2 sm:max-w-2xl sm:-translate-x-1/2 sm:rounded-t-[1.75rem]"
         >
           <DialogHeader className="border-b border-border px-5 py-5 text-left sm:px-7">
@@ -1140,6 +1187,11 @@ const Swipe = () => {
             <DialogDescription className="mt-1 max-w-xl leading-6">
               {copy.deckControlsDescription}
             </DialogDescription>
+            {!anonymousSearchAccessReady && (
+              <p id="swipe-account-check" role="status" className="mt-3 text-sm font-medium text-muted-foreground">
+                {copy.checkingAccount}
+              </p>
+            )}
           </DialogHeader>
 
           <div className="min-h-0 overflow-y-auto px-5 py-5 sm:px-7">
@@ -1200,7 +1252,9 @@ const Swipe = () => {
             <Button type="button" variant="ghost" onClick={() => setIsSettingsOpen(false)}>
               {copy.closeSettings}
             </Button>
-            <Button type="button" onClick={applySettings} disabled={draftTlds.length === 0 || isLoading || isPrefetching || isUndoPending}>
+            <Button type="button" onClick={applySettings}
+              aria-describedby={!anonymousSearchAccessReady ? "swipe-account-check" : undefined}
+              disabled={!anonymousSearchAccessReady || draftTlds.length === 0 || isLoading || isPrefetching || isUndoPending}>
               <RefreshCw className="h-4 w-4" aria-hidden="true" />
               {deck.length > 0 ? copy.updateDeck : copy.startDeck}
             </Button>

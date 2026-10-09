@@ -75,7 +75,7 @@ function harness() {
     authorizeSwipeUndo: scope => new Promise((resolve, reject) => requests.push({ scope, resolve, reject })),
   });
   for (const field of ["Deck", "DeckIndex", "Saved", "LastUndo", "UndoFeedback", "ExitDirection", "DragOffset",
-    "Notice", "IsDragging", "IsUndoPending", "IsPremiumDialogOpen", "IsSettingsOpen", "DraftTlds"]) {
+    "Notice", "IsDragging", "IsUndoPending", "IsPremiumDialogOpen", "IsSettingsOpen", "DraftTlds", "RestoredDeck"]) {
     const key = field[0].toLowerCase() + field.slice(1);
     context[`set${field}`] = value => { state[key] = typeof value === "function" ? value(state[key]) : value; };
   }

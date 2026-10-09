@@ -2,7 +2,7 @@ import { AccountAccessError } from "../../_shared/account-error.js";
 import { executeBrandLookup } from "../../_shared/brand-lookup.js";
 import { executeBrandLookupRequest, parseBrandLookupRequest } from "../../_shared/brand-lookup-contract.js";
 import { readBrandLookupBody, readBrandLookupHeader, type BrandLookupHttpRequest, type BrandLookupHttpResponse } from "../../_shared/brand-lookup-http.js";
-import { createRequestId, setPublicApiHeaders } from "../../_shared/public-api.js";
+import { createRequestId, hasRequestQueryParameters, setPublicApiHeaders } from "../../_shared/public-api.js";
 
 export const config = { maxDuration: 15 };
 const REQUESTS_PER_MINUTE = 12;
@@ -24,8 +24,8 @@ export function createPublicBrandLookupHandler(dependencies: { execute?: typeof 
       if (Object.keys(request.headers).some(key => key.toLowerCase() === "authorization")) {
         throw new AccountAccessError("authorization_not_supported", 400, "This public lookup does not accept Authorization. Connect without credentials.");
       }
-      let hasQuery = Boolean(request.query && Object.keys(request.query).length);
-      try { hasQuery ||= Boolean(request.url && new URL(request.url, "https://sajda.invalid").searchParams.size); }
+      let hasQuery = false;
+      try { hasQuery = hasRequestQueryParameters(request); }
       catch { throw new AccountAccessError("invalid_request", 400, "Use the published brand-lookup endpoint without URL query parameters."); }
       if (hasQuery) throw new AccountAccessError("invalid_request", 400, "Brand lookups do not accept URL query parameters.");
       if (request.method === "OPTIONS") { response.status(204).end(); return; }

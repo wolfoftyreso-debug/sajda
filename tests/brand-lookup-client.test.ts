@@ -33,7 +33,7 @@ test("anonymous brand lookup validates transport and strict response corresponde
     await t.test("profile matches the requested ID; canonical entity redirects remain explicit", async () => {
       const request = { operation: "profile" as const, entity_id: "Q901", locale: "en" as const }, options = { signal: new AbortController().signal };
       globalThis.fetch = async () => Response.json(syntheticBrandProfile("Q902")); await assert.rejects(lookupBrand(request, options));
-      const redirected = syntheticBrandProfile("Q901"); redirected.entity.entity_id = "Q902"; redirected.entity.source_url = "https://www.wikidata.org/wiki/Q902";
+      const redirected = syntheticBrandProfile("Q902"); redirected.requested_entity_id = "Q901";
       globalThis.fetch = async () => Response.json(redirected); const response = await lookupBrand(request, options);
       assert.equal(response.operation, "profile"); if (response.operation === "profile") { assert.equal(response.requested_entity_id, "Q901"); assert.equal(response.index.score, null); }
     });

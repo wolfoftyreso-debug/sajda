@@ -195,7 +195,10 @@ test("native project envelopes have a byte-bounded exception without enlarging o
   await assert.rejects(() => nativeAccountJson({ headers, body: padded + " " }), isAccessError("request_too_large", 413));
   const streamed = { headers, async *[Symbol.asyncIterator]() { yield Buffer.from(exact.slice(0, 20_000)); yield Buffer.from(exact.slice(20_000)); } };
   assert.deepEqual(await nativeAccountJson(streamed), JSON.parse(exact));
-  const oversizedStream = { headers, async *[Symbol.asyncIterator]() { yield Buffer.alloc(20_000); yield Buffer.alloc(20_000); } };
+  // The raw transport now also admits the explicitly routed 64 KiB report
+  // envelope. Project parsing still rejects >34,816 above; an undecodable
+  // stream must exceed the largest transport fence to prove early size denial.
+  const oversizedStream = { headers, async *[Symbol.asyncIterator]() { yield Buffer.alloc(40_000); yield Buffer.alloc(40_000); } };
   await assert.rejects(() => nativeAccountJson(oversizedStream), isAccessError("request_too_large", 413));
 });
 

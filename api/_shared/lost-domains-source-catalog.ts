@@ -118,10 +118,13 @@ export async function applySourceManifest(value: unknown, action: "register" | "
     for (const source of manifest.sources) {
       const rows = await client.query("SELECT * FROM sajda.lost_domain_sources WHERE id=$1::uuid OR url=$2 FOR UPDATE", [source.id, source.url]);
       const old = rows.rows[0];
-      if (old && (rows.rows.length !== 1 || String(old.id) !== source.id || old.url !== source.url || old.host !== source.host
-        || old.name !== source.name || old.robots_url !== new URL("/robots.txt", source.url).href
-        || storedDate(old.policy_reviewed_at) !== source.review.reviewedAt
-        || storedDate(old.policy_expires_at) !== source.review.expiresAt || !sameReview(old.review_reference, source))) return stop("existing_source_conflict");
+      const identityConflict = old && (rows.rows.length !== 1 || String(old.id) !== source.id || old.url !== source.url
+        || old.host !== source.host || old.name !== source.name || old.robots_url !== new URL("/robots.txt", source.url).href
+        || !sameReview(old.review_reference, source));
+      const datedReviewConflict = old && action === "register"
+        && (storedDate(old.policy_reviewed_at) !== source.review.reviewedAt
+          || storedDate(old.policy_expires_at) !== source.review.expiresAt);
+      if (identityConflict || datedReviewConflict) return stop("existing_source_conflict");
       if (action === "register") {
         if (!old) await client.query(`INSERT INTO sajda.lost_domain_sources
           (id,name,url,host,robots_url,enabled,robots_policy,policy_reviewed_at,policy_expires_at,review_reference)
@@ -133,7 +136,13 @@ export async function applySourceManifest(value: unknown, action: "register" | "
         if (!old || old.robots_policy !== "allowed") return stop("source_not_registered");
         const probe = probes.find(row => row.id === source.id)!;
         if (Date.parse(probe.observedAt) < now() - 60_000) return stop("probe_expired");
-        await client.query("UPDATE sajda.lost_domain_sources SET enabled=true,review_reference=$2 WHERE id=$1::uuid", [source.id, reviewReference(source, probe)]);
+        // A time-bounded policy review must be renewable. Identity, URL,
+        // rights basis and reviewer remain immutable above; only fresh dates
+        // and evidence from this in-process robots/HTML probe are advanced.
+        await client.query(`UPDATE sajda.lost_domain_sources
+          SET enabled=true,review_reference=$2,policy_reviewed_at=$3::timestamptz,
+              policy_expires_at=$4::timestamptz
+          WHERE id=$1::uuid`, [source.id, reviewReference(source, probe), source.review.reviewedAt, source.review.expiresAt]);
         changes.push({ id: source.id, enabled: true, changed: old.enabled !== true });
       }
     }

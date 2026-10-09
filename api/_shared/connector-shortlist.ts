@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { NAMES_API_PROVIDERS, NAMES_API_TLDS } from "./names-contract.js";
+import { containsDomainReference, NAMES_API_PROVIDERS, NAMES_API_TLDS } from "./names-contract.js";
 import { normaliseReferenceFx, type ReferenceFx } from "../../shared/reference-fx.js";
 
 const currencies = ["USD", "EUR", "GBP", "SEK"] as const;
@@ -13,19 +13,6 @@ const unsafeCharacter = (character: string): boolean => {
   const point = character.codePointAt(0)!;
   return point <= 31 || point === 127 || point >= 0xd800 && point <= 0xdfff;
 };
-function containsDomainReference(value: string): boolean {
-  // The underlying product search auto-detects exact names anywhere in a
-  // theme, then replaces count with the exact-list length. A suggestion brief
-  // must never enter that mode. This intentionally broader boundary also
-  // rejects reference URLs/IDNs rather than pretending they are ordinary text.
-  // The engine's exact parser is private; importing its HTTP handler or the
-  // browser parser here would couple this pure input contract to runtime code.
-  return /(?:[a-z][a-z\d+.-]*:\/\/|\b(?:https?|ftp|file|mailto|data|javascript):|(?:^|[\s([{])\/\/)/iu.test(value)
-    || /[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?(?:\.[\p{L}][\p{L}\p{N}-]{1,62})+/iu.test(value)
-    // Chinese full stops are normal prose punctuation. Only ASCII domain-like
-    // labels on both sides make their alternate URL separators unambiguous.
-    || /[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?[\u3002\uff0e\uff61][a-z]{2,63}/iu.test(value);
-}
 export const connectorShortlistInputSchema = {
   type: "object", additionalProperties: false, required: ["query", "budget"],
   properties: {

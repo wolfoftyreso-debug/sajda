@@ -108,6 +108,76 @@ test('storage errors are sanitized and the transaction rolls back before connect
   assert.equal(mocked.calls.at(-1)?.sql,'ROLLBACK');assert.equal(mocked.releases,1);
 });
 
+function scheduledRun() {
+  const timestamp='2026-10-07T00:00:00.000Z';
+  return {id:randomUUID(),status:'queued' as const,createdAt:timestamp,updatedAt:timestamp,finishedAt:null,
+    totalWork:1,completedWork:0,failedWork:0,assessmentCount:0,sourceCount:1,candidateCount:0,
+    completedCount:0,failedCount:0,qualifiedCount:0 as const,failureCode:null};
+}
+
+test('daily selection keeps older active owners and duplicate grants out of the bounded batch',async()=>{
+  const waitingOwners=Array.from({length:10},(_,index)=>`owner-${String(index).padStart(2,'0')}`);
+  const availableOwner='owner-10';
+  const mocked=mockedStore((sql,params)=>{
+    if(!sql.includes('/* lost:daily-owners */'))return [];
+    assert.deepEqual(params,['preview']);
+    assert.match(sql,/SELECT DISTINCT a\.owner_id/u,'Multiple active grants must not occupy multiple slots');
+    assert.match(sql,/NOT EXISTS\(SELECT 1 FROM sajda\.lost_domain_runs active WHERE active\.owner_id=a\.owner_id AND active\.namespace=\$1\s+AND active\.status IN \('queued','running'\)\)/u,
+      'A run from yesterday must be excluded before LIMIT 10, not rejected after consuming a batch slot');
+    assert.match(sql,/ORDER BY a\.owner_id LIMIT 10/u,'Keep the scheduler batch bounded');
+    // Model the selected result: the first ten entitled owners have older
+    // multi-day runs, while this next owner has no active run or run today.
+    return [{owner_id:availableOwner,day:'2026-10-07'}];
+  },{VERCEL:'1',VERCEL_ENV:'preview'});
+  const attempts:string[]=[];
+  mocked.store.startRun=async(ownerId,key)=>{
+    attempts.push(ownerId);
+    assert.equal(waitingOwners.includes(ownerId),false);
+    assert.equal(key,'daily:2026-10-07');
+    return {run:scheduledRun(),reused:false};
+  };
+  assert.deepEqual(await mocked.store.scheduleDailyRuns(),{started:1,reused:0,skipped:0});
+  assert.deepEqual(attempts,[availableOwner]);
+  assert.ok(mocked.calls.some(call=>call.sql==='BEGIN READ ONLY'));
+});
+
+test('daily scheduling tolerates eligibility races but starts at most one new run per tick',async()=>{
+  const mocked=mockedStore(sql=>sql.includes('/* lost:daily-owners */')
+    ? ['owner-a','owner-b','owner-c','owner-d'].map(owner_id=>({owner_id,day:'2026-10-07'})):[]);
+  const attempts:string[]=[];
+  mocked.store.startRun=async(ownerId)=>{
+    attempts.push(ownerId);
+    if(ownerId==='owner-a')throw new LostDomainsStoreError('run_in_progress',409);
+    return {run:scheduledRun(),reused:ownerId==='owner-b'};
+  };
+  assert.deepEqual(await mocked.store.scheduleDailyRuns(),{started:1,reused:1,skipped:1});
+  assert.deepEqual(attempts,['owner-a','owner-b','owner-c']);
+});
+
+test('daily scheduling propagates storage and unexpected failures instead of reporting them as skipped',async()=>{
+  for(const failure of [new LostDomainsStoreError('lost_domains_unavailable',503),
+    new LostDomainsStoreError('request_expired',409),new Error('synthetic connection failure')]) {
+    const mocked=mockedStore(sql=>sql.includes('/* lost:daily-owners */')
+      ? [{owner_id:'owner-a',day:'2026-10-07'},{owner_id:'owner-b',day:'2026-10-07'}]:[]);
+    const attempts:string[]=[];
+    mocked.store.startRun=async(ownerId)=>{attempts.push(ownerId);throw failure;};
+    await assert.rejects(()=>mocked.store.scheduleDailyRuns(),error=>error===failure);
+    assert.deepEqual(attempts,['owner-a'],'Do not continue creating work after uncertain storage failure');
+  }
+});
+
+test('daily scheduling counts only recognized entitlement, catalog and quota deferrals as skipped',async()=>{
+  const failures=[['plus_required',403],['run_in_progress',409],['sources_unavailable',503],
+    ['daily_limit',429],['refresh_cooldown',429]] as const;
+  const mocked=mockedStore(sql=>sql.includes('/* lost:daily-owners */')
+    ? failures.map(([owner_id])=>({owner_id,day:'2026-10-07'})):[]);
+  mocked.store.startRun=async(ownerId)=>{
+    const [,status]=failures.find(([code])=>code===ownerId)!;
+    throw new LostDomainsStoreError(ownerId,status);
+  };
+  assert.deepEqual(await mocked.store.scheduleDailyRuns(),{started:0,reused:0,skipped:5});
+});
+
 test('provider retry time is validated and bounded by the durable run deadline',async()=>{
   const mocked=mockedStore();
   const lease={ownerId:'owner-a',runId:randomUUID(),workId:randomUUID(),token:randomUUID(),fence:1,

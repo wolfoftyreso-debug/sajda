@@ -13,9 +13,16 @@ import { readDelegatedAccount } from "../api/_shared/delegated-account.js";
 import { createMcpProductExecutor } from "../api/_shared/mcp-product.js";
 import type { McpProductExecutor } from "../api/_shared/mcp-tools.js";
 import { createAccountMembershipHandler } from "../api/account/membership.js";
+import { createBrandReportsHandler } from "../api/account/brand-reports.js";
+import { createBrandChecksHandler } from "../api/account/brand-checks.js";
+import { brandCheckResponseSchema, brandChecksHistoryResponseSchema, BRAND_CHECK_METHODOLOGY_VERSION, type BrandCheckRun } from "../shared/brand-checks.js";
+import type { brandChecksStore } from "../api/_shared/brand-checks-store.js";
 import { createLostDomainsHandler } from "../api/account/lost-domains.js";
+import type { brandReportsStore } from "../api/_shared/brand-reports-store.js";
 import type { lostDomainsService } from "../api/_shared/lost-domains-service.js";
-import { brandIndexResultSchema } from "../shared/brand-presence-index.js";
+import { assessBrandPresence, brandIndexResultSchema } from "../shared/brand-presence-index.js";
+import { brandReportSnapshotSchema, brandReportsListResponseSchema, brandReportResponseSchema,
+  brandReportHistoryResponseSchema, type BrandReportSnapshot } from "../shared/brand-reports.js";
 
 const environment = process.env.VERCEL_ENV || "development";
 assert.ok(environment === "development" || environment === "preview" || environment === "production");
@@ -24,6 +31,52 @@ const accountB: ApiKeyPrincipal = { ...accountA, userId: "mcp-owner-b", keyId: r
 const requestQuota = async () => ({ allowed: true, remaining: 100, resetAt: Date.now() + 60_000 });
 const initialize = (protocolVersion = "2025-11-25") => ({ jsonrpc: "2.0", id: 1, method: "initialize",
   params: { protocolVersion, capabilities: {}, clientInfo: { name: "sajda-conformance-test", version: "1.0.0" } } });
+
+test("real SDK source-history tools expose closed outputs and enforce both start permissions", async t => {
+  const id = randomUUID(), key = randomUUID(), now = new Date().toISOString();
+  const run: BrandCheckRun = { id: key, reportId: id, reportVersion: 1, status: "completed", requestedAt: now, completedAt: now,
+    methodologyVersion: BRAND_CHECK_METHODOLOGY_VERSION, failureCode: null,
+    entries: [{ id: "check:domain:example.co.uk", target: "example.co.uk", kind: "domain", statement: "domain_check_unavailable",
+      state: "unknown", freshness: "unknown", observed_at: null, source_url: null, origin: "none" }] };
+  let starts = 0, historyCalls = 0;
+  const store = { limit: async () => undefined, start: async (owner: string) => {
+    assert.equal(owner, accountA.userId); starts++; return run;
+  }, history: async (owner: string, selector: { reportId: string; offset: number; limit: number }) => {
+    historyCalls++; if (owner !== accountA.userId) throw new AccountAccessError("report_not_found", 404, "Not found.");
+    assert.equal(selector.reportId, id); return { runs: [run], total: 1, offset: 0, limit: selector.limit, hasMore: false };
+  } } as typeof brandChecksStore;
+  const authorize: typeof requireAccount = async (headers, options) => {
+    const principal = readDelegatedAccount(headers!, options?.method);
+    assert.ok(principal); return { id: principal.userId, emailVerified: true };
+  };
+  const keys = new Map([["test-a", accountA], ["test-b", accountB],
+    ["only-write", { ...accountA, scopes: ["projects:write"] as ApiKeyPrincipal["scopes"] }],
+    ["only-search", { ...accountA, scopes: ["domains:search"] as ApiKeyPrincipal["scopes"] }],
+    ["only-read", { ...accountA, scopes: ["projects:read"] as ApiKeyPrincipal["scopes"] }]]);
+  const fixture = await serve(t, { keys, execute: createMcpProductExecutor({ brandChecks: createBrandChecksHandler({ authorize, store, enabled: () => true }) }) });
+  const { client } = await fixture.client();
+  const catalogue = await client.listTools();
+  const startTool = catalogue.tools.find(tool => tool.name === "brand_checks_start")!;
+  assert.deepEqual(startTool._meta?.["sajda/requiredScopes"], ["projects:write", "domains:search"]);
+  assert.equal(startTool.annotations?.readOnlyHint, false); assert.equal(startTool.annotations?.idempotentHint, true);
+  assert.equal(startTool.annotations?.openWorldHint, true); assert.equal(startTool.inputSchema.additionalProperties, false);
+  const input = { reportId: id, expectedVersion: 1, requestKey: key };
+  const started = await client.callTool({ name: "brand_checks_start", arguments: input });
+  assert.equal(started.isError, undefined); const startedValue = started.structuredContent as { data: unknown };
+  assert.equal(brandCheckResponseSchema.parse(startedValue.data).run.entries[0].state, "unknown");
+  const read = await client.callTool({ name: "brand_checks_history", arguments: { reportId: id, version: 1 } });
+  assert.equal(brandChecksHistoryResponseSchema.parse((read.structuredContent as { data: unknown }).data).total, 1);
+  for (const token of ["only-write", "only-search", "only-read"]) {
+    const denied = await (await fixture.client(token)).client.callTool({ name: "brand_checks_start", arguments: input });
+    assert.equal(denied.isError, true); assert.equal((denied.structuredContent as { error: { code: string } }).error.code, "insufficient_scope");
+  }
+  assert.equal(starts, 1, "permission failures never invoke a check");
+  await assert.rejects(client.callTool({ name: "brand_checks_start", arguments: { ...input, entries: run.entries } }), error => error instanceof McpError && error.code === ErrorCode.InvalidParams);
+  assert.equal(starts, 1, "caller observations rejected before handler");
+  const foreign = await (await fixture.client("test-b")).client.callTool({ name: "brand_checks_history", arguments: { reportId: id } });
+  assert.equal(foreign.isError, true); assert.equal((foreign.structuredContent as { error: { code: string } }).error.code, "report_not_found");
+  assert.equal(historyCalls, 2);
+});
 
 async function serve(t: TestContext, options: { execute?: McpProductExecutor; authorize?: typeof requireApiKey;
   quota?: typeof requestQuota; keys?: Map<string, ApiKeyPrincipal>; vercelBody?: boolean } = {}) {
@@ -82,7 +135,7 @@ test("real SDK client initializes, discovers strict schemas and calls tools over
   assert.equal(transport.sessionId, undefined);
   assert.equal(transport.protocolVersion, "2025-11-25");
   const catalogue = await client.listTools();
-  assert.equal(catalogue.tools.length, 21);
+  assert.equal(catalogue.tools.length, 31);
   assert.deepEqual(fixture.calls, [], "Initialize and discovery cannot execute product work.");
   for (const tool of catalogue.tools) {
     assert.equal(tool.inputSchema.type, "object");
@@ -130,7 +183,7 @@ test("initialization negotiates compatible dated versions and unsupported protoc
 test("Vercel's parsed-body getter supports the SDK transport and malformed JSON remains a protocol error", async t => {
   const fixture = await serve(t, { vercelBody: true });
   const { client } = await fixture.client();
-  assert.equal((await client.listTools()).tools.length, 21);
+  assert.equal((await client.listTools()).tools.length, 31);
   const malformed = await fixture.post("{");
   assert.equal(malformed.status, 400);
   assert.equal((await malformed.json()).error.code, ErrorCode.ParseError);
@@ -335,6 +388,168 @@ test("SDK tools share real product handlers, isolate accounts and never start wo
   const denied = await a.callTool({ name: "trading_start", arguments: { requestKey: randomUUID() } });
   assert.equal(denied.structuredContent?.status, 403);
   assert.equal(products.calls.filter(call => call[0] === "start").length, 1);
+});
+
+test("all four saved-brand tools accept strict SDK outputs through the real handler and preserve owner/evidence boundaries", async t => {
+  // Only persistence is an in-memory fixture. SDK schema validation, HTTP,
+  // scope enforcement, trusted delegation and the account handler are real.
+  const calls: unknown[][] = [];
+  const reports = new Map<string, Map<string, BrandReportSnapshot[]>>();
+  const receipts = new Map<string, BrandReportSnapshot>();
+  const now = Date.parse("2026-10-07T12:00:00.000Z");
+  const declaredAt = "2026-08-01T10:00:00.000Z";
+  function owned(owner: string) {
+    let value = reports.get(owner);
+    if (!value) { value = new Map(); reports.set(owner, value); }
+    return value;
+  }
+  function versions(owner: string, id: string) {
+    const value = owned(owner).get(id);
+    if (!value) throw new AccountAccessError("report_not_found", 404, "This report is not available in your account.");
+    return value;
+  }
+  const authorize: typeof requireAccount = async (headers = {}, options = {}) => {
+    assert.equal(headers.authorization, undefined);
+    assert.equal(headers.cookie, undefined);
+    assert.equal(headers.origin, undefined);
+    const principal = readDelegatedAccount(headers, options.method);
+    assert.ok(principal, "A caller-supplied bearer/header cannot become a delegated account.");
+    assert.equal(options.verifiedEmail, true);
+    calls.push(["authorize", principal.userId, options.method]);
+    return { id: principal.userId, emailVerified: true };
+  };
+  const store: typeof brandReportsStore = {
+    async limit(owner) { calls.push(["limit", owner]); },
+    async list(owner) {
+      calls.push(["list", owner]);
+      return [...owned(owner).values()].map(history => {
+        const first = history[0], latest = history.at(-1)!;
+        return { id: latest.id, title: latest.title, version: latest.version, createdAt: first.savedAt, updatedAt: latest.savedAt };
+      });
+    },
+    async get(owner, selector) {
+      calls.push(["get", owner, selector]);
+      const history = versions(owner, selector.id);
+      const value = selector.version === undefined ? history.at(-1) : history.find(item => item.version === selector.version);
+      if (!value) throw new AccountAccessError("report_not_found", 404, "This report is not available in your account.");
+      return structuredClone(value);
+    },
+    async history(owner, id) {
+      calls.push(["history", owner, id]);
+      return [...versions(owner, id)].reverse().map(({ id, title, version, savedAt }) => ({ id, title, version, savedAt }));
+    },
+    async save(owner, input) {
+      calls.push(["save", owner, input.id, input.requestKey]);
+      const receipt = receipts.get(`${owner}:${input.requestKey}`);
+      if (receipt) return structuredClone(receipt);
+      const history = owned(owner).get(input.id) ?? [];
+      if (input.expectedVersion !== (history.at(-1)?.version ?? 0)) {
+        throw new AccountAccessError("report_conflict", 409, "Reload the latest version before saving again.");
+      }
+      const snapshot = brandReportSnapshotSchema.parse({ id: input.id, title: input.title, version: history.length + 1,
+        savedAt: new Date(now + history.length * 1000).toISOString(), assessment: structuredClone(input.assessment),
+        result: assessBrandPresence(input.assessment, now) });
+      owned(owner).set(input.id, [...history, snapshot]);
+      receipts.set(`${owner}:${input.requestKey}`, snapshot);
+      return structuredClone(snapshot);
+    },
+  };
+  const forbidden = async () => { assert.fail("Saved reports cannot perform search/provider or unrelated account work."); };
+  const execute = createMcpProductExecutor({ brandReports: createBrandReportsHandler({ authorize, store, enabled: () => true }),
+    quota: forbidden, domainSearch: forbidden, membership: forbidden, savedDomains: forbidden, trading: forbidden });
+  const fixture = await serve(t, { execute, keys: new Map([
+    ["test-a", accountA], ["test-b", accountB],
+    ["reports-read", { ...accountA, scopes: ["projects:read"] }],
+    ["reports-write", { ...accountA, scopes: ["projects:write"] }],
+    ["reports-none", { ...accountA, scopes: [] }],
+  ]) });
+  const { client: a } = await fixture.client(), { client: b } = await fixture.client("test-b");
+  const { client: reader } = await fixture.client("reports-read"), { client: writer } = await fixture.client("reports-write");
+  const { client: noScope } = await fixture.client("reports-none");
+  for (const client of [a, b, reader, writer, noScope]) {
+    const catalogue = await client.listTools();
+    for (const name of ["brand_reports_list", "brand_reports_get", "brand_reports_history", "brand_reports_save"]) {
+      const tool = catalogue.tools.find(item => item.name === name)!;
+      assert.equal(tool.inputSchema.additionalProperties, false);
+      assert.deepEqual(tool._meta?.["sajda/requiredScopes"], [name === "brand_reports_save" ? "projects:write" : "projects:read"]);
+      const output = tool.outputSchema as { additionalProperties: boolean;
+        properties: { data: { additionalProperties: boolean; required: string[]; properties: Record<string, unknown> } } };
+      assert.equal(output.additionalProperties, false);
+      assert.equal(output.properties.data.additionalProperties, false);
+      assert.ok(output.properties.data.required.includes("accountId"));
+      assert.ok(output.properties.data.required.includes("requestId"));
+      assert.ok(name === "brand_reports_list" ? "reports" in output.properties.data.properties
+        : name === "brand_reports_history" ? "versions" in output.properties.data.properties : "report" in output.properties.data.properties);
+    }
+  }
+  assert.deepEqual(calls, [], "Tool discovery must not reach authorization or persistence.");
+  const assessment = { brand_name: "Example Brand", identity_label: "example", primary_domain: "example.com",
+    domains: ["example.com"], socials: [{ platform: "github", handle: "example" }], markets: ["US"],
+    observations: [{ target_id: "domain:example.com", status: "reported_owned", source_url: "https://example.com/about", reported_at: declaredAt }] };
+  const input = { id: randomUUID(), requestKey: randomUUID(), expectedVersion: 0, title: "Original private report", assessment };
+  const first = await writer.callTool({ name: "brand_reports_save", arguments: { report: input } });
+  assert.equal(first.isError, undefined); assert.equal(first.structuredContent?.ok, true);
+  const saved = brandReportResponseSchema.parse(first.structuredContent?.data);
+  assert.equal(saved.accountId, accountA.userId); assert.equal(saved.report.version, 1);
+  assert.equal(saved.report.assessment.observations[0].reported_at, declaredAt);
+  assert.equal(saved.report.result.targets.find(target => target.id === "domain:example.com")?.reported_at, declaredAt);
+  assert.equal(saved.report.result.targets.find(target => target.id === "domain:example.com")?.status_freshness, "stale");
+  assert.equal(saved.report.result.index.verified_score, null); assert.equal(saved.report.result.index.classification, "SELF_ASSESSMENT");
+  assert.ok(saved.report.result.targets.every(target => target.classification === "USER_SUPPLIED"));
+  const unrelated = { ...input, id: randomUUID(), requestKey: randomUUID(), title: "Unrelated private report" };
+  await a.callTool({ name: "brand_reports_save", arguments: { report: unrelated } });
+  const update = { ...input, requestKey: randomUUID(), expectedVersion: 1, title: "Updated private report",
+    assessment: { ...assessment, brand_name: "Updated Example Brand" } };
+  const updated = await writer.callTool({ name: "brand_reports_save", arguments: { report: update } });
+  assert.equal(updated.isError, undefined);
+  const receipt = brandReportResponseSchema.parse(updated.structuredContent?.data);
+  assert.deepEqual(Object.keys(receipt).sort(), ["accountId", "report", "requestId"]);
+  assert.equal(receipt.report.version, 2);
+  assert.doesNotMatch(JSON.stringify(updated.structuredContent), /Unrelated private report/,
+    "A write-only receipt cannot reveal another report or account workspace.");
+  const listed = await reader.callTool({ name: "brand_reports_list", arguments: {} });
+  assert.equal(listed.isError, undefined);
+  const list = brandReportsListResponseSchema.parse(listed.structuredContent?.data);
+  assert.equal(list.accountId, accountA.userId); assert.equal(list.reports.length, 2);
+  assert.equal(list.reports.find(report => report.id === input.id)?.version, 2);
+  const historical = await reader.callTool({ name: "brand_reports_get", arguments: { id: input.id, version: 1 } });
+  assert.equal(historical.isError, undefined);
+  const original = brandReportResponseSchema.parse(historical.structuredContent?.data);
+  assert.deepEqual(original.report, saved.report, "The historical snapshot and its original declarations remain immutable.");
+  const historyResult = await reader.callTool({ name: "brand_reports_history", arguments: { id: input.id } });
+  assert.equal(historyResult.isError, undefined);
+  const history = brandReportHistoryResponseSchema.parse(historyResult.structuredContent?.data);
+  assert.equal(history.accountId, accountA.userId); assert.deepEqual(history.versions.map(version => version.version), [2, 1]);
+  assert.ok(history.versions.every(version => version.id === input.id));
+  const bList = await b.callTool({ name: "brand_reports_list", arguments: {} });
+  assert.deepEqual(brandReportsListResponseSchema.parse(bList.structuredContent?.data).reports, []);
+  for (const name of ["brand_reports_get", "brand_reports_history"]) {
+    const result = await b.callTool({ name, arguments: { id: input.id } });
+    assert.equal(result.isError, true); assert.equal(result.structuredContent?.status, 404);
+    assert.equal(result.structuredContent?.data, undefined);
+    assert.doesNotMatch(JSON.stringify(result), /Original private report|Updated private report|example\.com/);
+  }
+  const bSave = await b.callTool({ name: "brand_reports_save", arguments: { report: { ...input, requestKey: randomUUID(), title: "Owner B report" } } });
+  assert.equal(brandReportResponseSchema.parse(bSave.structuredContent?.data).accountId, accountB.userId);
+  const aLatest = await reader.callTool({ name: "brand_reports_get", arguments: { id: input.id } });
+  assert.equal(brandReportResponseSchema.parse(aLatest.structuredContent?.data).report.title, "Updated private report");
+  assert.ok(calls.filter(call => ["limit", "save", "list", "get", "history"].includes(String(call[0])))
+    .every(call => call[1] === accountA.userId || call[1] === accountB.userId));
+  const dispatches = calls.length;
+  for (const client of [reader, noScope]) {
+    const denied = await client.callTool({ name: "brand_reports_save", arguments: { report: { ...input, id: randomUUID(), requestKey: randomUUID() } } });
+    assert.equal(denied.isError, true); assert.equal(denied.structuredContent?.status, 403);
+    assert.equal((denied.structuredContent?.error as { code: string }).code, "insufficient_scope");
+  }
+  for (const client of [writer, noScope]) for (const name of ["brand_reports_list", "brand_reports_get", "brand_reports_history"]) {
+    const denied = await client.callTool({ name, arguments: name === "brand_reports_list" ? {} : { id: input.id } });
+    assert.equal(denied.isError, true); assert.equal(denied.structuredContent?.status, 403);
+  }
+  await assert.rejects(a.callTool({ name: "brand_reports_get", arguments: { id: input.id, ownerId: accountB.userId } }),
+    error => error instanceof McpError && error.code === ErrorCode.InvalidParams);
+  await assert.rejects(a.callTool({ name: "brand_reports_save", arguments: { report: { ...input, verified_score: 99 } } }),
+    error => error instanceof McpError && error.code === ErrorCode.InvalidParams);
+  assert.equal(calls.length, dispatches, "Missing scopes and fabricated owner/verification fields must fail before product dispatch.");
 });
 
 test("domain adapter retains exact status/currency and delegates sanitized input without a credential", async () => {

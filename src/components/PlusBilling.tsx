@@ -3,9 +3,11 @@ import { Link, useLocation } from "react-router-dom";
 import { ArrowUpRight, LoaderCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { getPlusBillingCopy } from "@/i18n/plusBillingCopy";
+import { tradingAddonCopy } from "@/i18n/tradingAddonCopy";
+import { isLanguage } from "@/i18n/languagePreference";
 import type { LostDomainsCopy } from "@/i18n/lostDomainsCopy";
 import { getPlusBilling, openPlusBilling, PlusBillingError, type PlusBillingAction, type PlusBillingSnapshot } from "@/lib/plusBilling";
-import { formatPlusMonthlyPrice } from "../../shared/plus-plan";
+import { formatTradingAddonMonthlyPrice, formatTradingBundleMonthlyPrice } from "../../shared/plans";
 import { isNativeApp } from "@/lib/appSurface";
 import NativePurchaseNotice from "@/app/NativePurchaseNotice";
 import AccountMembershipPanel from "@/components/AccountMembershipPanel";
@@ -13,6 +15,7 @@ import AccountMembershipPanel from "@/components/AccountMembershipPanel";
 const button = "h-auto min-h-11 w-full whitespace-normal px-4 py-3 text-center";
 export default function PlusBilling({ accountId, language, fallback, disabled = false, onStatusVerified }: { accountId: string | null; language: string; fallback: LostDomainsCopy; disabled?: boolean; onStatusVerified?: (accountId: string) => void }) {
   const copy = getPlusBillingCopy(language);
+  const addonCopy = tradingAddonCopy[isLanguage(language) ? language : "en"];
   const location = useLocation();
   const [data, setData] = useState<{ owner: string; value: PlusBillingSnapshot } | null>(null);
   const [busy, setBusy] = useState<"load" | PlusBillingAction | null>(null);
@@ -45,8 +48,11 @@ export default function PlusBilling({ accountId, language, fallback, disabled = 
     } finally { if (current()) { request.current = null; setBusy(null); } }
   }, [accountId, disabled, onStatusVerified]);
   useEffect(() => { if (accountId) void load(); }, [accountId, load]);
-  async function open(action: PlusBillingAction) {
-    if (isNativeApp || !accountId || request.current || disabled || !snapshot || !(action === "checkout" ? snapshot.ready && snapshot.canCheckout : snapshot.canManage)) return;
+  async function openPortal() {
+    // Add/remove/cancel-pending flows live in Pricing, with one confirmation
+    // surface. A schedule is not access and must be resolved before the portal.
+    if (isNativeApp || !accountId || request.current || disabled || !snapshot?.canManage || !snapshot.tradingAddon || snapshot.tradingAddon.pending !== null) return;
+    const action = "portal" as const;
     const controller = new AbortController(); request.current = controller;
     const current = () => mounted.current && !controller.signal.aborted && owner.current === accountId && request.current === controller;
     setBusy(action); setError(null);
@@ -68,8 +74,11 @@ export default function PlusBilling({ accountId, language, fallback, disabled = 
   const price = snapshot?.ready ? snapshot.price : null;
   if (isNativeApp) return <div className="space-y-4">{accountId && <AccountMembershipPanel />}<NativePurchaseNotice /></div>;
   return <div aria-label={copy.title}>
-    <p className="mt-5 text-sm text-muted-foreground">{copy.priceLabel}</p>
-    <p className="mt-1 text-2xl font-semibold tracking-tight [overflow-wrap:anywhere]">{formatPlusMonthlyPrice(language)}</p>
+    <p className="mt-5 text-sm text-muted-foreground">{addonCopy.priceLabel}</p>
+    <p className="mt-1 text-2xl font-semibold tracking-tight [overflow-wrap:anywhere]">{formatTradingAddonMonthlyPrice(language)}</p>
+    <p className="mt-3 text-sm text-muted-foreground">{addonCopy.totalLabel}</p>
+    <p className="mt-1 font-semibold [overflow-wrap:anywhere]">{formatTradingBundleMonthlyPrice(language)}</p>
+    <p className="mt-3 text-sm leading-6 text-muted-foreground">{addonCopy.proRequiredBody}</p>
     {price ? <>
       <p className="mt-3 text-sm leading-6 text-muted-foreground">{copy[price.taxBehavior]}</p>
       {snapshot?.mode === "live" && <p className="mt-3 text-xs leading-5 text-muted-foreground">{copy.liveNote}</p>}
@@ -85,15 +94,18 @@ export default function PlusBilling({ accountId, language, fallback, disabled = 
       </div>}
       {snapshot && snapshot.status !== "none" && <p className="text-sm leading-6">{copy.existing}: <strong className="font-semibold">{copy.statuses[snapshot.status]}</strong></p>}
       {snapshot?.accessExpiresAt && <p className="mt-2 text-xs leading-5 text-muted-foreground">{copy.expires}: <time dateTime={snapshot.accessExpiresAt}>{new Intl.DateTimeFormat(({ en: "en-US", sv: "sv-SE", es: "es-ES", fr: "fr-FR", zh: "zh-CN" } as Record<string, string>)[language] ?? "en-US", { dateStyle: "medium" }).format(new Date(snapshot.accessExpiresAt))}</time></p>}
+      {snapshot?.tradingAddon?.pending && <p className="mt-3 text-sm leading-6" role="status">{snapshot.tradingAddon.pending.state === "processing" ? addonCopy.processingChange : <>{snapshot.tradingAddon.pending.enabled ? addonCopy.scheduledEnable : addonCopy.scheduledDisable} <time dateTime={snapshot.tradingAddon.pending.effectiveAt}>{new Intl.DateTimeFormat(({ en: "en-US", sv: "sv-SE", es: "es-ES", fr: "fr-FR", zh: "zh-CN" } as Record<string, string>)[language] ?? "en-US", { dateStyle: "medium", timeStyle: "long", timeZone: "UTC" }).format(new Date(snapshot.tradingAddon.pending.effectiveAt))}</time></>}</p>}
       {returnState === "success" && <p className="mt-3 text-sm leading-6 text-muted-foreground" role="status">{copy.returnPending}</p>}
       {returnState === "cancel" && <p className="mt-3 text-sm leading-6 text-muted-foreground" role="status">{copy.cancelled}</p>}
-      {snapshot?.ready && snapshot.canCheckout && <Button className={`${button} mt-4`} disabled={Boolean(busy) || disabled} onClick={() => void open("checkout")}>
-        {busy === "checkout" ? copy.opening : snapshot.mode === "test" ? copy.testCheckout : copy.checkout}<ArrowUpRight className="h-4 w-4 shrink-0" aria-hidden="true" /></Button>}
-      {snapshot?.canManage && <Button variant="outline" className={`${button} mt-3`} disabled={Boolean(busy) || disabled} onClick={() => void open("portal")}>
+      {snapshot && !snapshot.appStoreManaged && <Button asChild className={`${button} mt-4`}><Link to="/pricing#trading-addon">{addonCopy.manage}<ArrowUpRight className="h-4 w-4 shrink-0" aria-hidden="true" /></Link></Button>}
+      {snapshot?.canManage && snapshot.tradingAddon?.pending === null && <Button variant="outline" className={`${button} mt-3`} disabled={Boolean(busy) || disabled} onClick={() => void openPortal()}>
         {busy === "portal" ? copy.openingPortal : copy.portal}<ArrowUpRight className="h-4 w-4 shrink-0" aria-hidden="true" /></Button>}
+      {snapshot && !snapshot.appStoreManaged && <p className="mt-3 text-xs leading-5 text-muted-foreground">{addonCopy.renewalPolicy}</p>}
       <Button variant="ghost" className={`${button} mt-2 text-xs`} disabled={Boolean(busy) || disabled} onClick={() => void load()}><RefreshCw className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />{copy.refresh}</Button>
-      {error && ["unauthenticated", "account_changed", "email_verification_required"].includes(error.code) && <Button asChild variant="outline" className={`${button} mt-2`}><Link to="/auth?next=%2Fplus">{fallback.signIn}</Link></Button>}
+      {error?.code === "email_verification_required" && <Button asChild variant="outline" className={`${button} mt-2`}><Link to="/account#trading">{addonCopy.verify}</Link></Button>}
+      {error?.code === "unauthenticated" && <Button asChild variant="outline" className={`${button} mt-2`}><Link to="/auth?next=%2Faccount%23trading">{addonCopy.signIn}</Link></Button>}
     </div>}
-    {((!snapshot?.ready && !snapshot?.appStoreManaged && error?.code !== "app_store_subscription_exists") || !accountId || error?.code === "review_required") && <Button asChild className={`${button} mt-5`}><Link to="/contact">{fallback.contact}<ArrowUpRight className="h-4 w-4 shrink-0" aria-hidden="true" /></Link></Button>}
+    {!accountId && <Button asChild className={`${button} mt-5`}><Link to="/auth?next=%2Faccount%23trading">{addonCopy.signIn}<ArrowUpRight className="h-4 w-4 shrink-0" aria-hidden="true" /></Link></Button>}
+    {accountId && error?.code === "review_required" && <Button asChild className={`${button} mt-5`}><Link to="/contact">{fallback.contact}<ArrowUpRight className="h-4 w-4 shrink-0" aria-hidden="true" /></Link></Button>}
   </div>;
 }

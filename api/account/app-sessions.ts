@@ -2,9 +2,10 @@ import { AccountAccessError, requireAccount } from "../_shared/account-auth.js";
 import { readDelegatedAccount } from "../_shared/delegated-account.js";
 import type { AccountHeaders } from "../_shared/account-origin.js";
 import { createRequestId } from "../_shared/public-api.js";
+import { readRequestQuery } from "../_shared/request-query.js";
 import { createNativeSessionsService, parseAppSessionCursor, parseAppSessionId } from "../_shared/native-sessions.js";
 
-interface RequestLike { method?: string; headers?: AccountHeaders; query?: Record<string, unknown>; body?: unknown }
+interface RequestLike { method?: string; headers?: AccountHeaders; query?: Record<string, unknown>; url?: string; body?: unknown }
 interface ResponseLike {
   setHeader(name: string, value: string | number): void;
   status(code: number): ResponseLike;
@@ -52,7 +53,7 @@ export function createAppSessionsHandler(authorize = requireAccount, service = c
         throw new AccountAccessError("insufficient_scope", 403, "Use your Sajda account to manage app connections.");
       }
       const account = await authorize(request.headers, { verifiedEmail: true, method });
-      const query = request.query ?? {};
+      const query = readRequestQuery(request);
       if (Object.keys(query).some(key => method !== "GET" || key !== "cursor")) {
         throw new AccountAccessError("invalid_request", 400, "Use only an app-connection cursor when listing connections.");
       }

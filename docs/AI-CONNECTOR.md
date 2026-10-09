@@ -1,9 +1,13 @@
 # Sajda AI connector
 
-Current source, 2026-09-17: public MCP `1.6.0` has six tools and private MCP
-`1.5.0` has 21. Both also provide optional naming prompts and static policy
+Current source, 2026-10-07: public MCP `1.7.0` has six tools and private MCP
+`1.10.0` has 31. Both also provide optional naming prompts and static policy
 resources. See [six-client distribution and consent](CONNECTOR-DISTRIBUTION.md)
 for installation packages and verification boundaries.
+The new [brand evidence ledger](BRAND-EVIDENCE.md) separates current provider
+observations, user claims, source-listed assertions and unknown areas. Source
+version and the separately deployed connector release are distinct; historical
+release evidence below is not proof that new source is already live.
 The `business_names_recommend` tool answers a business-first
 request for up to ten ranked names. It shares the public/protected REST routes
 `POST /api/v1/public/business-names` and `POST /api/v1/business-names`.
@@ -18,7 +22,10 @@ For name recommendations and package searches, `nameLanguage` selects `en`,
 The private catalogue additionally exposes naming-project read/save, GitHub
 profile observations and Trading-scenario read/save. These require explicit
 scopes and retain account ownership, feature gates and product limits; they
-are not available anonymously. See [MCP tools and scopes](MCP.md#tools-and-scopes).
+are not available anonymously. Saved brand reports and separate source-check
+history use the same account data as the web/native product. Explicit check
+starts require both `projects:write` and `domains:search`; a read never refreshes
+evidence or starts monitoring. See [MCP tools and scopes](MCP.md#tools-and-scopes).
 
 `brand_lookup` searches public Wikidata records by name
 and returns the selected entity's profile. Its database-sourced assertions are
@@ -36,7 +43,7 @@ no external query or independent verification. Its score is labeled
 is always null. It consumes no domain/provider quota. MCP messages retain the
 16 KiB cap; the public REST calculator accepts up to 64 KiB. See the
 [existing-brand API contract](API-V1.md#existing-brand-self-assessment).
-Public 1.5.0 is deployed to `sajda-connector.vercel.app` as
+Historical 2026-09-17 release: public 1.5.0 was deployed to `sajda-connector.vercel.app` as
 `dpl_g1P8U9JS4RLgBJMVzJR4yhgzXjkq`. Anonymous initialization, six-tool discovery
 and an actual SDK business-name call were verified: a French logistics brief
 returned five recommendations with fresh available-domain observations and an
@@ -45,11 +52,66 @@ was verified on a separate preview, not promoted to production.
 See [AGENT-API-RELEASE.md](AGENT-API-RELEASE.md) for limitations and test evidence.
 The older 1.1.0 pricing evidence below is historical, not a new price verification.
 
-Status as of 2026-09-12 (Europe/Stockholm): **1.1.0 is deployed with live Cloudflare exact pricing verified**. An anonymous SDK request for ten names within USD 30 for the first year checked a 120-name reserve and returned **10 confirmed exact offers, 0 provisional ideas and no shortfall**, stopping at `target_reached`. This is one successful, dated provider-backed search, not a guarantee of ten matches for every brief or a final tax-inclusive checkout total.
+Historical status as of 2026-09-12 (Europe/Stockholm): **1.1.0 was deployed with live Cloudflare exact pricing verified**. An anonymous SDK request for ten names within USD 30 for the first year checked a 120-name reserve and returned **10 confirmed exact offers, 0 provisional ideas and no shortfall**, stopping at `target_reached`. This is one successful, dated provider-backed search, not a guarantee of ten matches for every brief or a final tax-inclusive checkout total.
 
-The most recent full local `npm run check` recorded 1,370 passed, 0 failed and 7 skipped tests (1,377 total); that full suite was not rerun for this configuration/deployment step. The current step passed 24 scoped local tests. The release includes the host-seed contract correction for ASCII DNS labels of 1–63 characters and an exact-provider timeout covering both fetch and response-body reading. Local regressions, live SDK/provider observations and host-model behavior remain distinct evidence. No ChatGPT, Claude or Grok host-model evaluation, directory submission or approval has been completed.
+At that historical September release, the recorded full local `npm run check` had 1,370 passed, 0 failed and 7 skipped tests (1,377 total); it was not rerun for that configuration/deployment step, which passed 24 scoped local tests. That release included the host-seed contract correction for ASCII DNS labels of 1–63 characters and an exact-provider timeout covering both fetch and response-body reading. Current full-suite evidence is in [the October release record](RELEASE-HARDENING-2026-10-07.md). Local regressions, live SDK/provider observations and host-model behavior remain distinct evidence. No ChatGPT, Claude or Grok host-model evaluation, directory submission or approval has been completed.
 
 The public MCP endpoint helps a founder move from an idea to a budget-aware domain shortlist, recheck selected names, and open a registrar to decide whether to buy. Registration and payment happen separately at the registrar. The connector cannot purchase, reserve, save, or register a domain, and it cannot read Sajda accounts, private search history, saved names, or Trading data.
+
+## Current 1.6.0 isolated release — 2026-10-07
+
+The existing dedicated public connector was updated from source commit
+`95ddbfc5cc2a5f611dd5f7ec11a86e43587cd2f7`, using installed MCP SDK `1.32.1`
+and Vercel CLI `62.5.0`. This released only the isolated connector, not the
+main application's commercial production launch. Vercel deployment metadata
+confirms the source commit, `releaseComponent: public-connector`, project
+`prj_ZyWiT77gZEULbBCF8Bale2nhEZyv`, and region `iad1`.
+
+| Stage | Actual evidence |
+| --- | --- |
+| Local artifact | Builder passed its staged-file allowlist: 323 bundled inputs, zero private dependencies. The local artifact/real-SDK regression passed 1/1. |
+| Protected preview | READY: `dpl_4hUx2HBm1KN6NQCM8zrKagUF5JqX`, `https://sajda-connector-cdqfmq9tz-hypbit.vercel.app`; operator CLI-backed SDK and HTTP gates passed at `2026-10-07T00:47:49.161Z`. |
+| Staged production | READY: `dpl_n9xKnTcaTkG9MBARTvNbqE5VrRDx`, `https://sajda-connector-a55kxqse7-hypbit.vercel.app`; same gates passed at `2026-10-07T00:50:15.942Z` before the stable public alias was promoted. |
+| Public production | The tested production deployment was promoted; `https://sajda-connector.vercel.app` then passed anonymous SDK and HTTP gates at `2026-10-07T00:51:08.070Z`. Alias inspection confirmed the same production deployment ID. |
+
+Each deployed gate used 16 bounded requests, including exactly one synthetic
+`domains_check` call for `sajdaconnectorqa20261007a.com`. SDK initialization
+reported server `1.6.0`; discovery returned exactly six read-only tools, two
+optional prompts and two static resources. The policy resource retained no
+background chat access and consent before a naming search.
+
+The anonymous exact check returned authoritative `available` evidence from
+Verisign RDAP at `2026-10-07T00:51:02.454Z`. Pricing remained explicitly
+separated: Loopia supplied a standard-TLD SEK observation; Porkbun supplied a
+standard-TLD USD 11.08 registration observation; Cloudflare supplied an
+`exact_domain_offer` for this synthetic domain at USD 10.46, observed at
+`2026-10-07T00:51:03.081Z`, with tax treatment `unknown`. Namecheap remained an
+unverified provider-search-page link. These are dated observations, not a
+reservation, purchase, final tax-inclusive checkout price or domain valuation.
+
+Anonymous HTTP verification returned 200 for the setup page and 404 for
+`/api/auth`, `/api/account/membership`, `/api/mcp` and `/api/billing/status`,
+without `Set-Cookie`. The internal registrar bridge returned 401 without its
+independent bearer credential. The downloaded setup kit was 33,215 bytes and
+matched the manifest SHA-256
+`5e62de05c6908ff17dcbb950a30084c7fd5881a14b1c87d53f2c9da231e0537f`.
+
+Standard Protection remained
+`prod_deployment_urls_and_all_previews`: anonymous GETs to both generated
+preview and production addresses returned 302 to Vercel authentication, while
+the stable alias was public. Environment metadata showed only the three
+allowlisted names, all Sensitive, without linked shared configuration:
+Cloudflare account ID/token production-only and bridge token in development,
+preview and production. No environment values were inspected or copied. A
+bounded error-level runtime-log scan for this deployment (last 15 minutes,
+limit 20) returned zero records; this is not a claim of continuous monitoring.
+
+Limitations: no ten-name exact-budget shortlist acceptance, business-name or
+brand-tool execution, ChatGPT/Claude/Grok host behavior, directory approval,
+mobile browser session or payment flow was tested by this release. Metadata
+discovery and a one-domain provider read do not establish those outcomes.
+The prior stable production deployment, recorded before staging, was
+`dpl_93rxqdRH1M1Z9Rj5S8AdMtoGhQbs`; no rollback was performed.
 
 ## Endpoint and authentication
 
@@ -63,12 +125,12 @@ The [public setup page](https://sajda-connector.vercel.app) includes the endpoin
 
 | Host / endpoint | Purpose | Authentication |
 | --- | --- | --- |
-| `sajda-connector.vercel.app/api/mcp/public` | Stable alias; 1.5.0 and six tools anonymously verified 2026-09-17 | None; omit `Authorization`, API keys, and account credentials |
+| `sajda-connector.vercel.app/api/mcp/public` | Stable alias; 1.6.0 and six tools anonymously verified 2026-10-07 | None; omit `Authorization`, API keys, and account credentials |
 | Main Sajda deployment: `/api/mcp/public` | Six-tool public source catalogue; verify the deployed host separately | None; omit `Authorization` |
-| Main Sajda deployment: `/api/mcp` | 21-tool private source catalogue, not deployed on the connector host | Scoped Sajda API key in a bearer header; not OAuth |
+| Main Sajda deployment: `/api/mcp` | 25-tool private source catalogue, not deployed on the connector host | Scoped Sajda API key in a bearer header; not OAuth |
 | `sajda-connector.vercel.app/api/mcp` | No private integration exists on this host | 404; do not send a private key here |
 
-The public endpoint rejects an `Authorization` header. It does not create an account principal or forward cookies, account headers, or caller credentials to the search engine. Connecting it does not link a Sajda account. Private client setup and existing private integration evidence are documented separately in [MCP.md](MCP.md). The dedicated release has one function and no private account/database/payment/AI-provider modules. Version 1.1 permits only its dedicated server-side Cloudflare quote credentials, configured by the operator as described below; public users still provide no credentials. The main Sajda deployment and its protection are outside this release.
+The public endpoint rejects an `Authorization` header. It does not create an account principal or forward cookies, account headers, or caller credentials to the search engine. Connecting it does not link a Sajda account. Private client setup and existing private integration evidence are documented separately in [MCP.md](MCP.md). The dedicated release has two functions: public MCP and the separately authenticated read-only registrar bridge, with no private account/database/payment/AI-provider modules. Its server-only credential allowlist is the two dedicated Cloudflare settings and independent bridge token described below; public users still provide no credentials. The main Sajda deployment and its protection are outside this release.
 
 Transport is stateless MCP Streamable HTTP with JSON responses. Send one JSON-RPC message per `POST`, using `Content-Type: application/json` and `Accept: application/json, text/event-stream`. There is no standalone SSE stream or session ID; `GET` and `DELETE` return 405. `OPTIONS` supports the configured browser origins. Normal MCP clients perform initialization and tool discovery before calling tools.
 
@@ -227,7 +289,7 @@ Project/scenario saves return only the affected record, not the entire private
 workspace. Use stable IDs and optimistic versions; retry the identical payload
 after an ambiguous failure. A GitHub missing-profile observation does not prove
 that a handle can be registered. Trading scenarios remain user-authored
-assumptions and require active Trading membership.
+assumptions and require active Trading access as an add-on to Pro on the same account. Connector permissions cannot activate it or create another subscription.
 
 Authentication, billing, deletion and key administration remain controlled
 account flows, not public agent actions. Disabled legacy Supabase features are
@@ -250,7 +312,7 @@ Store only these operator-managed values in the **dedicated `sajda-connector` Ve
 
 Use Vercel's secret environment input; never paste the token in chat, command arguments, a URL, the public client, a frontend-prefixed variable, source control or staged release files. Do not copy the main Sajda environment or attach a team-wide credential set. Token scope and expiry remain operator security considerations. Billing/registration agreements or other new commitments are not part of this setup; escalate if provider access requires them. After any configuration change and authorized deployment, repeat a real anonymous MCP search plus a live exact-check response review. Public `noauth` remains unchanged.
 
-## Current 1.1 live exact-price release evidence
+## Historical 1.1 live exact-price release evidence — 2026-09-11
 
 The isolated connector production deployment `dpl_Dw2S6r563rWbpfifvtbiJ4gaGiQR` is READY at `https://sajda-connector-ro5cgxdng-hypbit.vercel.app`; clients continue to use the unchanged stable public alias. The main Sajda application was not deployed by this step.
 
@@ -291,13 +353,13 @@ Anonymous HTTP probes confirmed the setup page returned 200 without `Set-Cookie`
 
 ## Repeat the isolated release safely
 
-Use the repository's `scripts/build-public-connector.mjs`, not the main site's build or existing `.vercel/output`. It bundles `infra/public-connector/entry.ts` into one Node 24 function plus small static setup/404/robots files in `tmp/public-connector-release`. The builder checks private dependencies, replaces the AI gateway with a fail-closed stub, and rejects unreviewed staged files, including `.env` files. Build Output API function directories and version-3 configuration are documented by [Vercel](https://vercel.com/docs/build-output-api/primitives).
+Use the repository's `scripts/build-public-connector.mjs`, not the main site's build or existing `.vercel/output`. It produces two Node 24 functions in `tmp/public-connector-release`: anonymous `/api/mcp/public` and the separately authenticated, read-only `/api/internal/registrar/cloudflare` bridge, plus the static setup kit, logos, 404 and robots files. Neither function includes private account, database or payment services. The builder checks private dependencies, replaces the AI gateway with a fail-closed stub, and rejects unreviewed staged files, including `.env` files. Build Output API function directories and version-3 configuration are documented by [Vercel](https://vercel.com/docs/build-output-api/primitives).
 
-For an authorized redeployment, with Vercel CLI 59.14.0 available as `vercel`, run the following from the repository root. These are operator instructions, not an automatic deployment step:
+For an authorized redeployment, with reviewed Vercel CLI 62.5.0 available as `vercel`, run the following from the repository root. These are operator instructions, not an automatic deployment step. An existing stage must already be linked to the dedicated connector project; do not relink it or pull environment files merely to redeploy:
 
 ```powershell
 node scripts/build-public-connector.mjs
-vercel link --yes --project sajda-connector --scope hypbit --cwd tmp/public-connector-release
+vercel project inspect --non-interactive --scope hypbit --cwd tmp/public-connector-release
 ```
 
 Before upload, verify the staged `.vercel/project.json` has exactly the dedicated project ID above, not the main Sajda project. CLI 59.14.0 created `tmp/public-connector-release/.env.local` containing `VERCEL_OIDC_TOKEN` during this release's link step; it was removed without reading or displaying the secret. Remove that exact staging file if linking creates it again, then rerun the builder so its allowlist passes. Stop if any other unexpected credential file appears. Do not copy, upload, print, or commit credential contents. Do not use `vercel pull` to populate this release with the main site's environment.
@@ -311,7 +373,7 @@ vercel project protection sajda-connector --json --scope hypbit
 vercel deploy --prebuilt --prod --project sajda-connector --scope hypbit --cwd tmp/public-connector-release
 ```
 
-The release gate is Vercel Authentication with Standard Protection (`ssoProtection.deploymentType: prod_deployment_urls_and_all_previews`), no unrelated environment variables or linked shared credentials, and the reviewed stage only. Version 1.1's only optional provider credential allowance is the two dedicated server-side Cloudflare variables above; zero configured credentials must remain a supported fail-closed state. Inspect names and scope without exposing values. If protection differs, stop and correct the dedicated project only; do not disable protection on the main site or team. Standard Protection keeps the production alias public and previews/generated deployment addresses protected. The CLI command to configure it, when authorized, is `vercel project protection enable sajda-connector --sso --scope hypbit`. See [Vercel's protection settings](https://vercel.com/docs/deployment-protection/methods-to-protect-deployments/vercel-authentication) and [CLI protection commands](https://vercel.com/docs/cli/project).
+The release gate is Vercel Authentication with Standard Protection (`ssoProtection.deploymentType: prod_deployment_urls_and_all_previews`), no unrelated environment variables or linked shared credentials, and the reviewed stage only. The current server environment allowlist is `SAJDA_CONNECTOR_CLOUDFLARE_ACCOUNT_ID`, `SAJDA_CONNECTOR_CLOUDFLARE_TOKEN`, and the independent `SAJDA_REGISTRAR_BRIDGE_TOKEN`. The bridge token authenticates the main application's read-only registrar requests; it is not a Cloudflare credential or public client key. Zero configured provider credentials must remain a supported fail-closed state. Inspect names and scope without exposing values. If protection differs, stop and correct the dedicated project only; do not disable protection on the main site or team. Standard Protection keeps the production alias public and previews/generated deployment addresses protected. The CLI command to configure it, when authorized, is `vercel project protection enable sajda-connector --sso --scope hypbit`. See [Vercel's protection settings](https://vercel.com/docs/deployment-protection/methods-to-protect-deployments/vercel-authentication) and [CLI protection commands](https://vercel.com/docs/cli/project).
 
 Never pass `--public`: that option exposes deployment source at `/_src`; it is not the anonymous-access switch. Deploy only with `--prebuilt` from the dedicated stage, then repeat anonymous SDK and route-isolation probes on the stable alias. A Vercel CLI-authenticated or bypassed request is not anonymous evidence. See [Vercel deploy](https://vercel.com/docs/cli/deploy).
 

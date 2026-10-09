@@ -2,11 +2,134 @@
 
 Users can connect an AI assistant to their own Sajda account through the authenticated [MCP endpoint](MCP.md), or use the equivalent REST operations below. Both operate on the same account data as the website. An assistant can read saved domains, naming projects, membership and existing Trading reports, and can save changes only when the user has granted the matching permission.
 
-The anonymous connector at `/api/mcp/public` exposes six public research tools and cannot read or change an account. The authenticated `/api/mcp` catalogue has 21 tools, including account operations. Tool discovery describes implemented capabilities; it does not grant scopes, paid membership or access to another user's data. These are source contracts, not a claim that every client or deployed host is already connected.
+The public base plans are Free, Basic and Pro. Trading is an optional Pro add-on on the same account, not a fourth base plan or another login. Membership presentation includes `basePlan` and `addons.trading`; legacy `plan: "premium"` means Pro and `plan: "trading"` means Pro with active Trading access. These compatibility identifiers are not permission grants. API/MCP keys cannot purchase or activate the add-on.
+
+The anonymous connector at `/api/mcp/public` exposes six public research tools and cannot read or change an account. The authenticated `/api/mcp` 1.10.0 catalogue has 31 tools, including saved brand reports, archived registry checks and daily registry-monitor controls. Discovery does not grant scopes, membership or another account's data. These are source contracts, not a claim that every client or deployed host is connected.
+
+## Saved brand assessments
+
+Feature flag: `SAJDA_BRAND_REPORTS_ENABLED=true`, plus migration
+`0022_brand_reports.sql` and a verified account. Disabled environments return 404.
+
+| Intended action | REST query/method | Private MCP | Permission |
+| --- | --- | --- | --- |
+| List up to 50 report summaries | GET ?resource=brand-reports | brand_reports_list | projects:read |
+| Read latest or an immutable version | GET ?resource=brand-reports&id=UUID[&version=N] | brand_reports_get | projects:read |
+| List up to 100 versions | GET ?resource=brand-reports&id=UUID&history=true | brand_reports_history | projects:read |
+| Save one version | POST ?resource=brand-reports with {report:…} | brand_reports_save | projects:write |
+
+Save fields are `id`, `requestKey`, `expectedVersion`, `title`, and strict
+`assessment` from the existing BrandIndexInput contract. Creation uses version
+0; every intentional save uses a new UUID request key. Retry the *identical*
+request after an unknown outcome. A late replay returns the original version,
+not the current latest, and never overwrites a newer edit. Different content
+under the same key conflicts. Stale updates conflict; foreign IDs disclose no
+other account's records. Write-only keys receive only the affected report.
+
+Only declared scope and user reports are stored. Original `reported_at` and
+`source_url` survive saves, refreshes and later reads. `savedAt` means storage
+time, not verification. Freshness is recomputed on retrieval; this is not the
+score as originally evaluated at save time. `verified_score` stays null.
+Browser-only registry-check rows are deliberately not imported as trusted
+evidence. The separate server-check operation below can archive its own source
+observations. No report save or read performs checks, establishes ownership,
+grants legal clearance, or starts monitoring.
+
+REST/browser save envelopes are limited to 64 KiB; private MCP still limits the
+whole protocol request to 16 KiB. Capacity errors are explicit rather than
+truncating history. The native account adapter supports the same feature
+through its private bridge, not browser cookies or embedded API keys.
+
+## Archived registry observations
+
+Both `SAJDA_BRAND_REPORTS_ENABLED=true` and `SAJDA_BRAND_CHECKS_ENABLED=true`,
+migrations `0022` and `0023`, and a verified account are required. Otherwise the
+product handler returns 404. This is an explicit check, not continuous monitoring.
+
+| Intended action | REST query/method | Private MCP | Permissions |
+| --- | --- | --- | --- |
+| Read archived source checks | GET ?resource=brand-checks&reportId=UUID[&version=N&offset=0&limit=10] | brand_checks_history | projects:read |
+| Check the latest saved report's domain scope | POST ?resource=brand-checks with {reportId,expectedVersion,requestKey} | brand_checks_start | projects:write **and** domains:search |
+
+POST fields are strict; each intentional check has a new UUID `requestKey`.
+After an uncertain outcome, retry the identical request with the same key.
+Receipt replay performs no second provider call, even if the report was edited
+later. A new key requires the latest saved `expectedVersion`. One pending run
+per report blocks another; read history to resolve it. An abandoned pending
+receipt becomes `failed/check_interrupted` after five minutes, not a fabricated
+completed check. A failed or completed receipt is immutable.
+
+History returns `{accountId,runs,total,offset,limit,hasMore,requestId}`. A start
+returns `{accountId,run,requestId}`. Runs distinguish `pending`, `completed` and
+`failed`; `completed` means processing finished, not that every source succeeded.
+Omitted `version` returns history across **all** saved versions; supply a version
+to restrict it. Pagination defaults to 10, accepts 1–20, and exposes the remaining
+count rather than silently truncating. Limits are 100 runs per report and 10 new
+runs per account/environment per UTC day, including pending and failed attempts.
+
+Only the exact domains in that immutable saved version are checked (maximum
+20). Reviewed fixed RDAP sources cover `.com`, `.net`, `.org`, `.app`, `.dev`,
+`.ai`, `.xyz`, `.info` and `.biz`; unsupported domains remain undated `unknown`.
+Failures retain only legitimate original source dates and approved source URLs.
+Reads recompute freshness without changing `observed_at`, `requestedAt` or
+`completedAt`, and never fetch a registry. Observations expire after 30 minutes.
+An RDAP availability observation is not a registrar reservation or purchase
+guarantee. Checks do not modify user declarations or the self-assessment score;
+`verified_score` remains null. Ownership, social handles, company names and
+trademarks are not verified. Caller-supplied evidence or source URLs are rejected.
+
+The REST envelope is capped at 4 KiB and the underlying handler at 1 KiB; the
+usual complete MCP cap is 16 KiB. Web, native adapter, scoped REST and private MCP
+share the same owner/environment-scoped handler and database history.
 
 Endpoint: `/api/v1/account`. Every request requires `Authorization: Bearer <scoped-Sajda-key>`. Account identity and environment come from the verified key. Keep keys in server or integration secrets; website cookies and legacy operator search keys are not accepted here. Responses are private and never cached.
 
 ## Connect an assistant to an account
+
+### Daily registry monitoring
+
+Requires migration `0024`, the report/check flags above and
+`SAJDA_BRAND_MONITORS_ENABLED=true`. Worker activation is separately gated by
+`SAJDA_BRAND_MONITORS_CRON_ENABLED=true` and a server-only `CRON_SECRET`.
+
+| Action | REST resource=brand-monitors | Private MCP | Scopes |
+| --- | --- | --- | --- |
+| Read status and alerts | GET with reportId, optional alertOffset/alertLimit | brand_monitors_get | projects:read |
+| Enable/resume/rebind | POST with action, reportId, requestKey and expected versions | brand_monitors_configure | projects:write **and** domains:search |
+| Pause | POST action=pause, reportId, requestKey, expectedMonitorVersion | brand_monitors_pause | projects:write |
+| Mark one alert read | POST action=ack, reportId, alertId, requestKey | brand_monitor_alerts_acknowledge | projects:write |
+
+Enabling is explicit consent to future registry requests for **one saved report
+version**. Creation requires `expectedMonitorVersion=0` and the latest
+`expectedReportVersion`. Resume/pause require the current monitor version;
+rebind also requires the latest report version and resets its baseline. Each
+intent uses a fresh UUID request key; an uncertain response must be retried with
+the identical payload/key. The original receipt is immutable.
+
+Server-verified Basic/Pro/Pro-with-Trading accounts allow 1/5/10 active monitors;
+Free allows none. Reading, pausing and acknowledging remain available after
+downgrade. The oldest eligible monitors survive a lower limit; paused monitors
+do not silently reactivate after upgrade. Changed report scope pauses until
+explicit rebind. Reads perform no source work.
+
+The first definitive observation is a baseline, not an alert. Only newer
+contradictory available/registered observations of the same domain from the
+same approved registry produce a dated in-account alert. Unknown, cached,
+failed or unsupported samples do not mean unchanged or available. The response
+separates last attempt, checked/unknown coverage, last successful sample and
+baseline count. Saved user declarations and index scores remain unchanged.
+
+After an attempt, checks are normally due 24 hours later. Explicitly accepting
+a new saved scope starts a fresh baseline. A five-minute production cron processes at most
+two due reports per tick with durable leases and version fences; this is not
+realtime or a delivery SLA. Vercel does not automatically schedule previews:
+`cronScheduled=false` there, even when an authorized manual test tick succeeds.
+Manual and scheduled checks share 10 new attempts/account/UTC day and the finite
+100-check/report archive. Full history explicitly pauses; records are not
+deleted. This is not unlimited perpetual monitoring. Notifications are
+**in-account only**, not email, and cover neither prices, ownership, social
+names, company names nor trademarks. REST/browser bodies are capped at 4 KiB;
+MCP keeps its 16 KiB whole-message boundary.
 
 1. Sign in to the owning Sajda account, verify its email and create a scoped key in `/developers`.
 2. Begin with only the reads the assistant needs: `account:read`, `saved:read`, `projects:read` and/or `trading:read`. Add `domains:search` for naming/domain research. New keys default to **only** `domains:search`; account reads are an explicit selection and no account writes are selected by default.
@@ -43,7 +166,7 @@ Responses preserve the product handler's body and HTTP status. A successful memb
 
 Project/scenario reads return the owner's collection. Their save responses contain only the affected item in `projects` or `scenarios`, so write-only keys cannot read unrelated private records. Use `expectedVersion: 0` for creation and the last returned version for an update. Retry an identical request after an uncertain failure; a version conflict requires a fresh authorized read. Project shortlist references must already belong to the same account's saved domains. Naming projects also require `SAJDA_NAME_PROJECTS_ENABLED=true` in the deployment. GitHub observations do not prove profile ownership or that an absent handle can be registered.
 
-Account permissions are independent of the user's package. The current plan and capabilities come from the server on the membership read, and restricted operations repeat their live entitlement checks. Trading reports, scenarios, new research and quote refreshes retain their operation-specific Trading membership and budget requirements; an API key cannot upgrade a Free, Basic or Premium account. Feature flags, account verification, environment isolation and product quotas apply just as on the website. Newly added scopes require database migration `0020_agent_product_scopes.sql`; existing keys are not silently expanded.
+Account permissions are independent of the user's package. The current base plan, add-ons and capabilities come from the server on the membership read, and restricted operations repeat their live entitlement checks. Trading reports, scenarios, new research and quote refreshes require active Trading access on Pro and their operation-specific budgets; an API key cannot upgrade a Free, Basic or Pro account or activate Trading. Feature flags, account verification, environment isolation and product quotas apply just as on the website. Newly added scopes require database migration `0020_agent_product_scopes.sql`; existing keys are not silently expanded.
 
 Failures have `{code, error, requestId}`. Authentication uses 401 with `WWW-Authenticate: Bearer`; missing scope or entitlement is 403; invalid input is 400; unsupported methods are 405 with `Allow`; provider/database failures are 503. Throttling uses 429 and `Retry-After` when available. Correlation IDs are echoed in `X-Request-Id`. No provider secrets, SQL error messages or credential values are returned.
 

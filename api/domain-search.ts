@@ -3085,6 +3085,16 @@ async function verifyAvailability(domain: string): Promise<AvailabilityResult> {
   return result;
 }
 
+/** Narrow server capability for archived brand checks. Caller URLs, subdomains,
+ * private hosts and unreviewed suffixes can never become fetch targets. Cached
+ * observations retain their original dates, just like normal exact searches. */
+export async function verifyBrandRegistryDomain(domain: string): Promise<AvailabilityResult> {
+  if (typeof domain !== "string" || domain.length > 253
+    || !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.[a-z]+$/u.test(domain)
+    || !isRdapTld(domain.split(".").at(-1)!)) throw new Error("unsupported_brand_registry_domain");
+  return verifyAvailability(domain);
+}
+
 async function mapWithConcurrency<T, R>(items: T[], limit: number, mapper: (item: T) => Promise<R>): Promise<R[]> {
   const results = new Array<R>(items.length);
   let next = 0;

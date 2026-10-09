@@ -14,7 +14,8 @@ test("auth presentation preserves validation, return destinations and recovery b
   const original = Object.getOwnPropertyDescriptor(globalThis, AUTH_FIXTURE_KEY);
   const originalFetch = globalThis.fetch;
   type Call = { method: string; email?: string; passwordLength?: number; nextPath?: string; token?: string; provider?: string };
-  const fixture = { calls: [] as Call[], toasts: [] as unknown[], user: null as null | { id: string }, configured: true, loading: false, delay: 0, errorCode: null as string | null, language: "en" };
+  const fixture = { calls: [] as Call[], toasts: [] as unknown[], user: null as null | { id: string }, configured: true, loading: false, delay: 0, errorCode: null as string | null, language: "en",
+    socialProviders: undefined as undefined | Array<{ id: "google" | "twitter" | "github" | "apple"; enabled: boolean }> };
   Object.defineProperty(globalThis, AUTH_FIXTURE_KEY, { configurable: true, value: fixture });
   let networkCalls = 0;
   globalThis.fetch = async () => { networkCalls++; throw new Error("Auth presentation tests cannot use real services"); };
@@ -79,6 +80,24 @@ test("auth presentation preserves validation, return destinations and recovery b
       for (const provider of ["Google", "X", "GitHub", "Apple"]) assert.ok(button(provider));
       await click("Google");
       assert.deepEqual(fixture.calls, [{ method: "signInSocial", provider: "google", nextPath: "/developers#access" }]);
+    });
+    await t.test("unconfigured social providers never become dead sign-in controls", async () => {
+      fixture.socialProviders = [
+        { id: "google", enabled: false }, { id: "twitter", enabled: false },
+        { id: "github", enabled: true }, { id: "apple", enabled: false },
+      ];
+      await mount();
+      assert.ok(button("GitHub"));
+      for (const provider of ["Google", "X", "Apple"]) {
+        assert.equal(root().findAllByType("button").some(node => label(node).includes(provider)), false, provider);
+      }
+      assert.match(label(root()), /or use email/);
+
+      fixture.socialProviders = fixture.socialProviders.map(provider => ({ ...provider, enabled: false }));
+      await mount();
+      assert.equal(root().findAllByType("button").some(node => ["Google", "X", "GitHub", "Apple"].some(provider => label(node).includes(provider))), false);
+      assert.doesNotMatch(label(root()), /or use email/);
+      fixture.socialProviders = undefined;
     });
     await t.test("password visibility uses a labelled native button and resets on mode changes", async () => {
       await mount(); await credentials();

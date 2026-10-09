@@ -26,7 +26,6 @@ import { searchRefinementCopy, refinementText, getSearchGenerationNote } from "@
 import { FIRST_RESULTS_COUNT, getVisibleSearchResults, nextSearchResultCount } from "@/lib/searchRefinement";
 import { countAdvancedBriefWords } from "@/lib/advancedSearchBrief";
 import FooterNav from "@/components/FooterNav";
-import Top10Banner from "@/components/Top10Banner";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useScan, getModeTargets, type DiscoveredDomain } from "@/contexts/ScanContext";
@@ -484,7 +483,7 @@ const Index = () => {
               <summary className="flex min-h-11 cursor-pointer list-none items-center rounded-lg px-3 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
                 {language === "sv" ? "Mer" : language === "es" ? "Más" : language === "fr" ? "Plus" : language === "zh" ? "更多" : "More"}
               </summary>
-              <div className="absolute right-0 z-30 mt-2 flex w-60 flex-col rounded-xl border border-border bg-card p-2 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+              <div className="fixed inset-x-4 top-32 z-30 flex flex-col rounded-xl border border-border bg-card p-2 shadow-[0_8px_24px_rgba(0,0,0,0.12)] sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-60">
                 <a href="/pricing" className="min-h-11 rounded-xl px-3 py-2 text-sm font-semibold text-foreground">{language === "sv" ? "Priser & nivåer" : language === "es" ? "Precios y planes" : language === "fr" ? "Tarifs et offres" : language === "zh" ? "价格与方案" : "Pricing & plans"}</a>
                 {nameProjectsEnabled && <Link to="/projects" className="inline-flex min-h-11 items-center rounded-xl px-3 text-sm font-medium text-foreground">{projectCopy.projects}</Link>}
                 <Link to="/name-packages" className="inline-flex min-h-11 items-center rounded-xl px-3 text-sm font-medium text-foreground">{namePackageEntryCopy[language].title}</Link>
@@ -513,7 +512,6 @@ const Index = () => {
         </aside>}
         {!isNativeApp && !anonymousSearchMode && (
           <div className="mb-6">
-            <Top10Banner />
           </div>
         )}
 

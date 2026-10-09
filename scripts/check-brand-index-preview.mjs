@@ -2,9 +2,12 @@
  * No company audit, login, storage, external registry lookup or commercial action. */
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { promisify } from "node:util";
 
 const origin = process.env.SAJDA_TEST_ORIGIN, cli = process.env.SAJDA_VERCEL_CLI;
+const publicMcpVersion = JSON.parse(readFileSync(new URL("../api/_shared/agent-product-openapi.json", import.meta.url), "utf8")).publicMcpVersion;
+assert.match(publicMcpVersion, /^\d+\.\d+\.\d+$/u, "The checked-in public MCP contract must expose a semantic version");
 if (!cli || !/^https:\/\/sajda-[a-z0-9]+-hypbit\.vercel\.app$/u.test(origin ?? "")) throw new Error("Select the Sajda preview and CLI explicitly.");
 const execute = promisify(execFile);
 async function request(path, body) {
@@ -35,6 +38,13 @@ function assertReport(report, expectedScore) {
   assert.equal(report.index.confidence, null); assert.equal(report.scope.is_global_score, false);
   assert.equal(report.targets.length, 3); assert.ok(report.targets.every(target => target.classification === "USER_SUPPLIED"));
   assert.ok(report.limitations.includes("no_external_lookups_performed"));
+  const evidence = report.evidence_report;
+  assert.equal(evidence.schema_version, "sajda.brand-evidence.v1");
+  assert.equal(evidence.ownership_verified, false); assert.equal(evidence.legal_clearance, false);
+  assert.equal(evidence.continuous_monitoring, false);
+  assert.deepEqual(evidence.summary, { total: 7, checked: 0, reported: expectedScore === null ? 0 : 3,
+    listed: 0, unknown: expectedScore === null ? 7 : 4, checked_coverage_percent: 0 });
+  assert.ok(evidence.entries.every(entry => entry.state === "unknown" || entry.origin === "user_report"));
 }
 const page = await request("/brand-index/assessment");
 assert.equal(page.status, 200); assert.match(page.headers.get("content-type") ?? "", /text\/html/u);
@@ -55,7 +65,7 @@ for (const invalid of [{ ...fixture, verified: true }, { ...full, observations: 
 }
 const init = await request("/api/mcp/public", { jsonrpc: "2.0", id: 1, method: "initialize",
   params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "sajda-brand-preview-smoke", version: "1.0.0" } } });
-assert.equal(init.status, 200); assert.equal(init.data.result.serverInfo.version, "1.5.1");
+assert.equal(init.status, 200); assert.equal(init.data.result.serverInfo.version, publicMcpVersion);
 const discovery = await request("/api/mcp/public", { jsonrpc: "2.0", id: 2, method: "tools/list" });
 assert.equal(discovery.status, 200); const tool = discovery.data.result.tools.find(tool => tool.name === "brand_index_assess");
 assert.ok(tool); assert.equal(tool.annotations.readOnlyHint, true); assert.equal(tool.annotations.openWorldHint, false);
@@ -63,5 +73,6 @@ const called = await request("/api/mcp/public", { jsonrpc: "2.0", id: 3, method:
 assert.equal(called.status, 200); assert.equal(called.data.result.structuredContent.ok, true);
 assertReport(called.data.result.structuredContent.data, 100);
 assert.equal(called.data.result.structuredContent.data.scope.comparison_key, assessed.data.scope.comparison_key);
+assert.deepEqual(called.data.result.structuredContent.data.evidence_report.entries, assessed.data.evidence_report.entries);
 console.log(JSON.stringify({ verdict: "PASS", origin, synthetic_only: true, page: true, rest: true, mcp: true,
   invalid_claims_rejected: true, invalid_dates_rejected: true, independent_verification_performed: false, persisted: false }));

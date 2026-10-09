@@ -1,8 +1,9 @@
 import { AccountAccessError, requireAccount } from "../_shared/account-auth.js";
 import { createRequestId } from "../_shared/public-api.js";
+import { hasRequestQueryParameters } from "../_shared/request-query.js";
 import { nativeJson } from "../_shared/native-http.js";
 import { consumePackageSocialQuota, observeGithubHandle, packageSocialInputSchema } from "../_shared/name-package-social.js";
-interface RequestLike { method?: string; headers?: Record<string, string | string[] | undefined>; query?: Record<string, unknown>; body?: unknown }
+interface RequestLike { method?: string; headers?: Record<string, string | string[] | undefined>; query?: Record<string, unknown>; url?: string; body?: unknown }
 interface ResponseLike { setHeader(name:string,value:string|number):void; status(code:number):ResponseLike; json(value:unknown):void }
 export const config = { maxDuration: 15 };
 
@@ -20,7 +21,7 @@ export function createPackageSocialHandler(deps: {
     try {
       const authorize = deps.authorize ?? requireAccount;
       const owner = await authorize(request.headers,{verifiedEmail:true,method:"POST"});
-      if (Object.keys(request.query ?? {}).length) throw new AccountAccessError("invalid_request",400,"Use the request body, not URL parameters.");
+      if (hasRequestQueryParameters(request)) throw new AccountAccessError("invalid_request",400,"Use the request body, not URL parameters.");
       request.headers ??= {};
       // Preserve the real IncomingMessage iterator when Vercel has not parsed it.
       const raw = await nativeJson(request as Parameters<typeof nativeJson>[0],{maxBytes:4096,parsedMaxBytes:()=>4096});

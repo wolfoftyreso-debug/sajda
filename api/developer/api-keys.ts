@@ -1,4 +1,5 @@
 import { createRequestId } from "../_shared/public-api.js";
+import { readRequestQuery } from "../_shared/request-query.js";
 import { AccountAccessError, requireAccount } from "../_shared/account-auth.js";
 import { API_KEY_LIMITS, API_KEY_SCOPES, createDeveloperApiKeyService } from "../_shared/developer-api-keys.js";
 
@@ -14,6 +15,7 @@ interface VercelRequestLike {
   method?: string;
   headers?: Record<string, string | string[] | undefined>;
   query?: Record<string, unknown>;
+  url?: string;
   body?: unknown;
 }
 
@@ -101,7 +103,11 @@ return async function handler(
     } else if (method === "POST") {
       response.status(201).json({ ...await service.create(account, readBody(request, readRequestBody(request))), requestId });
     } else {
-      let id = request.query?.id;
+      const query = readRequestQuery(request);
+      if (Object.keys(query).some(key => key !== "id")) {
+        throw new AccountAccessError("invalid_request", 400, "Choose one API key to revoke.");
+      }
+      let id = query.id;
       const body = readRequestBody(request);
       // A DELETE selected by query ID has no representation to type-check.
       // Runtimes can expose an absent payload as undefined, "", or Buffer(0),

@@ -3,6 +3,8 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import { useLocation } from "react-router-dom";
 import { contactCopy } from "./contactCopy";
 import { namePackageEntryCopy } from "./namePackageEntryCopy";
+import { brandLookupCopy } from "./brandLookupCopy";
+import { brandIndexCopy } from "./brandIndexCopy";
 import { getDeviceLanguage, isLanguage, isSwedishMarketPath, languageForPath, LANGUAGE_STORAGE_KEY, readLanguagePreference, type Language } from "./languagePreference";
 
 export type { Language } from "./languagePreference";
@@ -1362,31 +1364,31 @@ const routeMetadataCopy: Readonly<Record<Language, {
     tradingTitle: "Sajda Trading — Domain research",
     tradingDescription: "An evidence-based workspace for discovered domains. Review registry status, sources and risks before your next decision.",
     pricingTitle: "Pricing & plans — Sajda",
-    pricingDescription: "Compare Free, Basic, Premium and Trading. Clear monthly prices in USD, with current details on features and access.",
+    pricingDescription: "Compare Free, Basic and Pro. Add Trading to Pro for domain research. Clear monthly USD prices, features and access.",
   },
   sv: {
     tradingTitle: "Sajda Trading — Domänanalys",
     tradingDescription: "En arbetsyta för domänanalys med tydliga källor. Granska registerstatus, underlag och risker innan du fattar nästa beslut.",
     pricingTitle: "Priser och nivåer — Sajda",
-    pricingDescription: "Jämför Gratis, Bas, Premium och Trading. Tydliga månadspriser i USD med aktuell information om funktioner och åtkomst.",
+    pricingDescription: "Jämför Gratis, Bas och Pro. Lägg till Trading i Pro för domänresearch. Tydliga månadspriser i USD, funktioner och åtkomst.",
   },
   es: {
     tradingTitle: "Sajda Trading — Análisis de dominios",
     tradingDescription: "Un espacio de análisis de dominios con fuentes verificables. Revisa el estado en el registro, las fuentes y los riesgos antes de decidir.",
     pricingTitle: "Precios y planes — Sajda",
-    pricingDescription: "Compara Gratis, Básico, Premium y Trading. Precios mensuales claros en USD e información actualizada sobre funciones y acceso.",
+    pricingDescription: "Compara Gratis, Básico y Pro. Añade Trading a Pro para investigar dominios. Precios mensuales en USD, funciones y acceso.",
   },
   fr: {
     tradingTitle: "Sajda Trading — Analyse de domaines",
     tradingDescription: "Un espace d’analyse de domaines fondé sur des sources vérifiables. Consultez le statut du registre, les sources et les risques avant de décider.",
     pricingTitle: "Tarifs et offres — Sajda",
-    pricingDescription: "Comparez Gratuit, Basique, Premium et Trading. Des tarifs mensuels clairs en USD et des informations à jour sur les fonctionnalités et les accès.",
+    pricingDescription: "Comparez Gratuit, Basique et Pro. Ajoutez l’option Trading pour étudier les domaines. Tarifs mensuels en USD, fonctions et accès.",
   },
   zh: {
     tradingTitle: "Sajda Trading — 域名研究",
     tradingDescription: "在有据可查的域名研究工作区中，查看注册局状态、来源和风险，再做决定。",
     pricingTitle: "价格与套餐 — Sajda",
-    pricingDescription: "比较免费、基础、Premium 和 Trading 套餐。月费以美元清晰列出，并提供最新的功能和使用权限说明。",
+    pricingDescription: "比较免费、基础和 Pro 方案。为 Pro 添加 Trading 域名研究服务。清晰列出美元月费、功能和权限。",
   },
 };
 
@@ -1437,11 +1439,15 @@ export function applyDocumentMetadata(language: Language, pathname: string): voi
   const contact = pathname === "/contact" || pathname === "/contact/" ? contactCopy[language] : undefined;
   const plus = pathname === "/plus" || pathname === "/plus/";
   const pricing = pathname === "/pricing" || pathname === "/pricing/";
+  const brandIndex = pathname === "/brand-index" || pathname === "/brand-index/";
+  const brandAssessment = pathname === "/brand-index/assessment" || pathname === "/brand-index/assessment/";
   const namePackage = pathname === "/name-packages" || pathname === "/name-packages/";
   const routeCopy = routeMetadataCopy[language];
   const metadata = contact ? { ...base, title: `${contact.title} — Sajda`, description: contact.lead }
     : plus ? { ...base, title: routeCopy.tradingTitle, description: routeCopy.tradingDescription }
     : pricing ? { ...base, title: routeCopy.pricingTitle, description: routeCopy.pricingDescription }
+    : brandIndex ? { ...base, title: `${brandLookupCopy[language].title} — Sajda`, description: brandLookupCopy[language].intro }
+    : brandAssessment ? { ...base, title: `${brandIndexCopy[language].title} — Sajda`, description: brandIndexCopy[language].intro }
     : namePackage ? { ...base, title: `${namePackageEntryCopy[language].title} — Sajda` }
     : base;
   document.documentElement.lang = metadata.htmlLang;

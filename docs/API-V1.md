@@ -265,11 +265,13 @@ It is CORS-enabled for the consumer search UI, but its advanced and Swipe
 fields are not the stable public developer contract. New integrations should
 use `/api/v1/public/domains`.
 
-## Protected integration API — development and preview
+## Protected integration API — release validation
 
 > Neon-backed self-service keys are deployed and verified in development and
-> protected preview. The production key migration has not been applied. This
-> is not a production rollout or a purchasable API plan.
+> protected preview. Read-only migration checks on 2026-10-07 confirmed all 22
+> migrations applied in both Preview and Production. An applied schema is not
+> production runtime or provider verification: production rollout and the
+> external release gates remain pending. This is not a purchasable API plan.
 
 `POST /api/v1/domains` is a narrow, authenticated domain-search API for trusted server-side
 integrations. It uses the same bounded candidate generator, authoritative
@@ -344,9 +346,12 @@ prices remain separate from availability and are not a checkout quote.
 
 ## Required deployment configuration
 
-Development and protected preview use the reviewed migrations under
-`db/migrations/`, including `0013_developer_api_keys.sql`. Production migration
-and rollout remain pending. Keep preview data isolated from production.
+Development, protected preview and production have separate database targets.
+The read-only Preview and Production ledger checks on 2026-10-07 found all
+reviewed migrations `0000`–`0021` applied, including
+`0013_developer_api_keys.sql`, with matching source checksums and none pending.
+Recheck the intended environment before release; production rollout remains
+pending. Keep preview data isolated from production.
 `DATABASE_URL` and `BETTER_AUTH_SECRET` are server-only; browser authentication
 uses Sajda's same-origin `/api/auth` service backed by Neon. Do not publish
 database credentials or configure a direct Neon browser auth endpoint.
@@ -373,12 +378,14 @@ integrations should use a self-service key in a migrated environment.
 
 Use a persisted bearer key with `GET` or `POST /api/v1/account?resource=...`.
 The account comes only from that key. Project availability, verified email,
-ownership, Trading entitlement and durable product limits remain enforced.
+ownership, active Trading add-on access on Pro and durable product limits remain enforced. Public base plans are Free, Basic and Pro; Trading uses the same account rather than a separate plan or login. Legacy `premium` and `trading` identifiers remain compatible; use membership `basePlan`, `addons` and `capabilities` for verified presentation.
 
 | Resource | Method and body | Required scope | Result |
 | --- | --- | --- | --- |
 | `name-projects` | `GET` | `projects:read` | Account-owned project list, including saved brand-package configurations. |
 | `name-projects` | `POST {"project": ...}` | `projects:write` | Only the affected project in `projects`, never unrelated workspace records. |
+| `brand-reports` | `GET` with optional `id` and `version` or `history=true` | `projects:read` | Account-owned summaries, one dated self-assessment, or version receipts. |
+| `brand-reports` | `POST {"report": ...}` | `projects:write` | One immutable version receipt; UUID `requestKey` required and reused for identical retries. |
 | `social-profiles` | `POST {"handles": ["example"]}` | `social:check` | Up to five public GitHub profile observations. |
 | `trading-scenarios` | `GET` | `trading:read` | Account-owned scenario journal; active Trading access required. |
 | `trading-scenarios` | `POST {"scenario": ...}` | `trading:write` | Only the affected scenario in `scenarios`; active Trading access required. |
@@ -391,13 +398,13 @@ already belong to the account. Write permissions do not imply list access.
 Missing or ambiguous mutation receipts return a safe failure, since the write
 may already have committed.
 
-REST body ceilings are 32 KiB for projects, 16 KiB for scenarios and 4 KiB for
+REST body ceilings are 64 KiB for brand reports, 32 KiB for projects, 16 KiB for scenarios and 4 KiB for
 social checks; underlying product envelope/storage limits also apply. MCP
 retains its 16 KiB complete JSON-RPC message limit. A GitHub `not_found`
 observation does not prove registrability. Other social networks remain manual
 review candidates. Scenario prices and probabilities remain user assumptions.
 
-The current source catalogue contains 21 authenticated MCP tools and six public
+The current source catalogue contains 25 authenticated MCP tools and six public
 tools; discover contracts using `tools/list` and `/api/openapi`. This is not a
 claim of universal feature parity: billing, authentication, key management and
 account deletion remain separate control-plane workflows, not agent tools.

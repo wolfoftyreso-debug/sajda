@@ -31,9 +31,11 @@ test("actual AuthProvider preserves drafts only across transient, unexpired back
     close() {}
   }
   let reads = 0;
+  let invalidations = 0;
+  const readOptions: { coalesce?: boolean }[] = [];
   let read: () => Promise<AccountSession | null> = async () => session();
   let signOut: () => Promise<{ error?: unknown }> = async () => ({});
-  const fixture = { read: () => { reads++; return read(); }, signOut: () => signOut() };
+  const fixture = { read: (options: { coalesce?: boolean }) => { reads++; readOptions.push(options); return read(); }, invalidate: () => { invalidations++; }, signOut: () => signOut() };
   Object.defineProperty(globalThis, key, { configurable: true, value: fixture });
   Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { configurable: true, value: true });
   Object.defineProperty(globalThis, "BroadcastChannel", { configurable: true, value: TestChannel });
@@ -57,7 +59,8 @@ test("actual AuthProvider preserves drafts only across transient, unexpired back
       if (name.endsWith("/src/lib/nativeTransport.ts")) return "export const nativeSignIn=async()=>{};export const nativeSignOut=async()=>{};export const forgetDeletedAccount=async()=>{};";
       if (name.endsWith("/src/integrations/neon/auth.ts")) return `
         export const isAccountAuthConfigured=true;
-        export const readAccountSession=()=>globalThis.${key}.read();
+        export const invalidateAccountSessionReads=()=>globalThis.${key}.invalidate();
+        export const readAccountSession=(options)=>globalThis.${key}.read(options);
         export const accountError=(error,message)=>Object.assign(new Error(message),{status:error?.status,code:error?.code});
         export const getAccountAuthClient=async()=>({signIn:{email:async()=>({})},signOut:()=>globalThis.${key}.signOut()});`;
     } }],
@@ -74,7 +77,7 @@ test("actual AuthProvider preserves drafts only across transient, unexpired back
     const Probe = () => { auth = useAuth(); return auth.user ? h(Draft, { key: auth.user.id }) : h("output", {}, "signed-out"); };
     const mount = async (initial: () => Promise<AccountSession | null> = async () => session()) => {
       if (renderer) await act(async () => renderer!.unmount());
-      reads = 0; read = initial; signOut = async () => ({});
+      reads = 0; invalidations = 0; readOptions.length = 0; read = initial; signOut = async () => ({});
       await act(async () => { renderer = create(h(AuthProvider, {}, h(Probe))); });
     };
     const refresh = async () => act(async () => { for (const listener of focus) listener(); });
@@ -84,12 +87,14 @@ test("actual AuthProvider preserves drafts only across transient, unexpired back
 
     await t.test("429, 503 and network failure preserve an unexpired owner and unsaved mounted work, recovery clears the error", async () => {
       await mount(); await editDraft();
+      const fences = invalidations;
       for (const failure of [httpFailure(429), httpFailure(503), new TypeError("Failed to fetch")]) {
         read = async () => { throw failure; }; await refresh();
         assert.equal(auth.user?.id, "owner-a"); assert.equal(draft(), "Unsaved owner-a thesis"); assert.ok(auth.error);
       }
       read = async () => session(); await refresh();
       assert.equal(auth.error, null); assert.equal(draft(), "Unsaved owner-a thesis");
+      assert.equal(invalidations, fences, "transient display continuity does not discard otherwise unchanged pending owner checks");
     });
     await t.test("first-load transport failure never invents a session", async () => {
       await mount(async () => { throw httpFailure(503); });
@@ -98,8 +103,10 @@ test("actual AuthProvider preserves drafts only across transient, unexpired back
     await t.test("null, 401, 403 and explicit revoked-session errors clear the owner and draft", async () => {
       for (const failure of [null, httpFailure(401), httpFailure(403), Object.assign(new Error("revoked"), { code: "INVALID_SESSION" })]) {
         await mount(); await editDraft();
+        const fences = invalidations;
         read = async () => { if (failure) throw failure; return null; }; await refresh();
         assert.equal(auth.user, null); assert.equal(renderer!.root.findAllByType("input").length, 0);
+        assert.ok(invalidations > fences, "known revocation also fences pending transport checks");
       }
     });
     await t.test("expired, missing and invalid expirations are never restored", async () => {
@@ -111,8 +118,10 @@ test("actual AuthProvider preserves drafts only across transient, unexpired back
     await t.test("expiry clears identity at its deadline even when a refresh is still pending; its late response cannot resurrect it", async () => {
       await mount(async () => session("owner-a", Date.now() / 1000 + 2)); await editDraft();
       const late = deferred<AccountSession | null>(); read = () => late.promise; await refresh();
+      const fences = invalidations;
       await act(async () => t.mock.timers.tick(2000));
       assert.equal(auth.user, null);
+      assert.ok(invalidations > fences, "expiry fences pending transport checks");
       await act(async () => late.resolve(session()));
       assert.equal(auth.user, null);
     });
@@ -121,13 +130,17 @@ test("actual AuthProvider preserves drafts only across transient, unexpired back
       const pending = deferred<AccountSession | null>(); read = () => pending.promise;
       await act(async () => { for (const listeners of [focus, visibility, intervals]) for (const listener of listeners) listener(); });
       assert.equal(reads, 2, "initial check plus one shared refresh");
+      assert.ok(readOptions.every(options => options.coalesce === true), "only ordinary background refreshes opt into sharing with preflights");
       await act(async () => pending.resolve(session()));
       read = async () => session(); await refresh(); assert.equal(reads, 3, "completed checks are not reused as authorization cache");
     });
     await t.test("known credentials changed in another tab discards old private work even if the new check fails", async () => {
       await mount(); await editDraft();
+      const fences = invalidations;
       read = async () => { throw httpFailure(503); }; await broadcast();
       assert.equal(auth.user, null);
+      assert.ok(invalidations > fences, "cross-tab credentials changes fence all earlier checks");
+      assert.equal(readOptions.at(-1)?.coalesce, false, "identity restoration requires a fresh post-change check");
       read = async () => session("owner-b"); await refresh();
       assert.equal(auth.user?.id, "owner-b"); assert.equal(draft(), "");
     });
@@ -144,16 +157,20 @@ test("actual AuthProvider preserves drafts only across transient, unexpired back
       const old = deferred<AccountSession | null>(); read = () => old.promise; await refresh();
       read = async () => { throw httpFailure(429); };
       await act(async () => { assert.ok((await auth.signIn("owner-b@example.test", "fixture-password")).error); });
+      assert.equal(readOptions.at(-1)?.coalesce, false);
       assert.equal(auth.user, null);
       await act(async () => old.resolve(session())); assert.equal(auth.user, null);
     });
     await t.test("failed logout preserves current state, successful logout fences a late refresh", async () => {
       await mount(); await editDraft();
+      const fences = invalidations;
       signOut = async () => ({ error: httpFailure(503) });
       await act(async () => { await assert.rejects(auth.signOut(), /Sign-out failed/); });
       assert.equal(auth.user?.id, "owner-a"); assert.equal(draft(), "Unsaved owner-a thesis");
+      assert.equal(invalidations, fences, "a failed sign-out does not assert a change that was not confirmed");
       const late = deferred<AccountSession | null>(); read = () => late.promise; await refresh();
       signOut = async () => ({}); await act(async () => auth.signOut());
+      assert.ok(invalidations > fences, "successful sign-out fences pending transport checks");
       await act(async () => late.resolve(session())); assert.equal(auth.user, null);
     });
   } finally {

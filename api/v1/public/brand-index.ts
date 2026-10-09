@@ -1,6 +1,6 @@
 import { AccountAccessError } from "../../_shared/account-error.js";
 import { executeBrandIndexAssessment, parseBrandIndexRequest } from "../../_shared/brand-index.js";
-import { createRequestId, setPublicApiHeaders } from "../../_shared/public-api.js";
+import { createRequestId, hasRequestQueryParameters, setPublicApiHeaders } from "../../_shared/public-api.js";
 
 export const config = { maxDuration: 10 };
 export const BRAND_INDEX_MAX_BODY_BYTES = 65_536;
@@ -82,8 +82,7 @@ export function createPublicBrandIndexHandler(dependencies: {
         throw new AccountAccessError("authorization_not_supported", 400,
           "This public calculator does not accept Authorization. Connect without credentials.");
       }
-      if (request.query && Object.keys(request.query).length
-        || request.url && new URL(request.url, "https://sajda.invalid").searchParams.size) {
+      if (hasRequestQueryParameters(request)) {
         throw new AccountAccessError("invalid_request", 400, "The brand-index calculator does not accept URL query parameters.");
       }
       if (request.method === "OPTIONS") { response.status(204).end(); return; }

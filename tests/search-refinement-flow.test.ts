@@ -78,7 +78,7 @@ test("mounted iterative search preserves original context, access boundaries and
   const wrapped = ["DomainCard", "DomainFilters", "TLDSelector", "ProviderSelector", "ScanModeSelector", "AdvancedSearchBrief", "DeepReviewPanel"];
   for (const component of wrapped) mocks.set(`/src/components/${component}.tsx`,
     `import {createElement as h} from 'react'; export default function ${component}(props){return h('fixture-${component.toLowerCase()}',props,props.children);}`);
-  for (const component of ["StatsCard", "ScanningIndicator", "SearchResultHelp", "FooterNav", "Top10Banner", "LanguageSwitcher", "AccountLink"])
+  for (const component of ["StatsCard", "ScanningIndicator", "SearchResultHelp", "FooterNav", "LanguageSwitcher", "AccountLink"])
     mocks.set(`/src/components/${component}.tsx`, `export default function ${component}(){return null;}`);
   const vite = await createServer({ configFile: false, appType: "custom",
     server: { middlewareMode: true, watch: null, hmr: false, ws: false },

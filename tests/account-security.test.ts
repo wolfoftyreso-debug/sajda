@@ -246,7 +246,7 @@ test("verified saved-domain requests stay owner-scoped, idempotent and reject fo
     const own = await perform("GET", "account-a");
     assert.equal((own.body as { items: unknown[] }).items.length, 1);
     const foreign = await perform("GET", "account-b", undefined, { user_id: "account-a" });
-    assert.equal((foreign.body as { items: unknown[] }).items.length, 0);
+    assert.equal(foreign.code, 400, "Undocumented ownership query parameters must be rejected, not ignored");
     await perform("DELETE", "account-b", { domain: "example.com" });
     assert.equal(records.size, 1, "Another account cannot delete the saved row");
     await perform("DELETE", "account-a", { domain: "example.com" });
@@ -302,7 +302,7 @@ test("auth transport routes only supported actions and preserves recovery querie
   assert.equal(last.searchParams.get("callbackURL"), "/auth");
   assert.equal(last.searchParams.has("authAction"), false);
   assert.equal(calls[0].headers.get("x-vercel-forwarded-for"), "127.0.0.1");
-  const forwarded = authAction({ url: "/api/auth?token=fixture", headers: {}, query: { authAction: "verify-email" } });
+  const forwarded = authAction({ url: "/api/auth?token=fixture&authAction=verify-email", headers: {} });
   assert.equal(forwarded.action, "verify-email");
   assert.equal(forwarded.search.get("token"), "fixture");
 
@@ -310,7 +310,7 @@ test("auth transport routes only supported actions and preserves recovery querie
   for (const url of ["/api/auth", "/api/auth/admin/list-users", "/api/auth/update-user", "/api/auth//sign-in/email", "/api/auth/reset-password/%2Fattacker"]) {
     assert.equal((await requestAuth(handler, { url })).code, 404, url);
   }
-  assert.equal((await requestAuth(handler, { url: "/api/auth", query: { authAction: ["sign-in/email", "get-session"] } })).code, 404);
+  assert.equal((await requestAuth(handler, { url: "/api/auth?authAction=sign-in%2Femail&authAction=get-session" })).code, 404);
   for (const [method, action, allow] of [["GET", "sign-in/email", "POST"], ["POST", "get-session", "GET"], ["DELETE", "sign-out", "POST"], ["OPTIONS", "get-session", "GET"]]) {
     const response = await requestAuth(handler, { method, url: `/api/auth/${action}` });
     assert.equal(response.code, 405);

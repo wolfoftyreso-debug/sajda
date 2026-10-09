@@ -2,8 +2,31 @@ import { useCallback,useEffect,useRef,useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/i18n/LanguageProvider";
-import { nativeCommerceCopy } from "@/i18n/nativeCommerceCopy";
-import { nativeAvailable,nativeCommerceCatalog,nativeCommercePurchase,nativeCommerceRestore,nativeCommerceManage,type NativeStoreCatalog } from "@/lib/nativeTransport";
+import { nativeCommerceCopy, nativePlanFeatures, nativePlanName } from "@/i18n/nativeCommerceCopy";
+import type { Language } from "@/i18n/languagePreference";
+import { nativeAvailable,nativeCommerceCatalog,nativeCommercePurchase,nativeCommerceRestore,nativeCommerceManage,type NativeStoreCatalog,type NativeStoreProduct } from "@/lib/nativeTransport";
+
+function NativeStoreOffer({product,language,disabled,onPurchase}:{product:NativeStoreProduct;language:Language;disabled:boolean;onPurchase:(id:string)=>void}){
+  const copy=nativeCommerceCopy(language);
+  const name=nativePlanName(product.plan,language);
+  const trading=product.plan==="trading";
+  const action=trading?copy.tradingSubscribe:copy.buy;
+  return <article data-native-plan={product.plan} data-native-product-kind={trading?"bundle":"base-plan"} className="rounded-xl border p-4 min-w-0 space-y-3" aria-labelledby={`native-plan-${product.plan}`}>
+    <div className="min-w-0 break-words">
+      <h3 id={`native-plan-${product.plan}`} className="text-lg font-semibold">{name}</h3>
+      {trading&&<p className="text-sm text-muted-foreground">{copy.tradingBundlePrice}</p>}
+      <p className="font-medium">{product.price} {copy.month}</p>
+    </div>
+    {trading&&<p className="text-sm leading-relaxed text-muted-foreground">{copy.tradingBundleScope}</p>}
+    <h4 className="text-sm font-semibold">{copy.releasedFeatures}</h4>
+    <ul className="list-disc space-y-2 pl-5 text-sm leading-relaxed break-words">
+      {nativePlanFeatures(product.plan,language).map(feature=><li key={feature}>{feature}</li>)}
+    </ul>
+    {product.plan==="basic"&&<p className="text-sm text-muted-foreground">{copy.basicScope}</p>}
+    {trading&&<p className="text-sm text-muted-foreground">{copy.researchLimit}</p>}
+    <Button className="min-h-11 h-auto whitespace-normal w-full sm:w-auto" disabled={disabled} aria-label={`${action} · ${name}`} onClick={()=>onPurchase(product.id)}>{action}</Button>
+  </article>;
+}
 
 export default function NativeCommercePanel({accountId,onChanged}:{accountId:string;onChanged:()=>Promise<void>}){
   const {language}=useLanguage();
@@ -56,6 +79,8 @@ export default function NativeCommercePanel({accountId,onChanged}:{accountId:str
   };
   if(!nativeAvailable)return null;
   const own=catalog?.accountId===accountId?catalog:null;
+  const baseProducts=own?.products.filter(product=>product.plan!=="trading")??[];
+  const tradingProduct=own?.products.find(product=>product.plan==="trading");
   return <section className="rounded-2xl border border-border bg-card p-5 space-y-4 min-w-0" aria-labelledby="native-store-heading">
     <h2 id="native-store-heading" className="text-xl font-semibold">{copy.title}</h2>
     <p className="text-sm text-muted-foreground">{copy.intro}</p>
@@ -63,10 +88,16 @@ export default function NativeCommercePanel({accountId,onChanged}:{accountId:str
     {own&&!own.enabled&&<p>{copy.unavailable}</p>}
     {own?.enabled&&<>
       {!own.purchasesEnabled&&<p>{copy.paused}</p>}
-      {own.purchasesEnabled&&own.products.map(product=><div key={product.id} className="flex flex-wrap items-center gap-3 justify-between rounded-xl border p-3 min-w-0">
-        <div className="min-w-0 break-words"><h3 className="font-semibold">{product.name}</h3><p>{product.price} {copy.month}</p></div>
-        <Button className="min-h-11 h-auto whitespace-normal" disabled={busy} onClick={()=>void act("purchase",product.id)}>{copy.buy}</Button>
-      </div>)}
+      {!!baseProducts.length&&<section className="space-y-3" aria-labelledby="native-base-plans-heading">
+        <h3 id="native-base-plans-heading" className="text-lg font-semibold">{copy.basePlans}</h3>
+        {baseProducts.map(product=><NativeStoreOffer key={product.id} product={product} language={language} disabled={busy||!own.purchasesEnabled} onPurchase={id=>void act("purchase",id)} />)}
+      </section>}
+      {tradingProduct&&<section className="space-y-3" aria-labelledby="native-trading-addon-heading">
+        <h3 id="native-trading-addon-heading" className="text-lg font-semibold">{copy.tradingAddon}</h3>
+        <p className="text-sm leading-relaxed text-muted-foreground">{copy.tradingEligibility}</p>
+        <NativeStoreOffer product={tradingProduct} language={language} disabled={busy||!own.purchasesEnabled} onPurchase={id=>void act("purchase",id)} />
+      </section>}
+      {!!own.products.length&&<p className="text-sm leading-relaxed text-muted-foreground">{copy.standardLimits}</p>}
       <p className="text-sm text-muted-foreground">{copy.terms}</p>
       <p className="text-sm text-muted-foreground">{copy.account}</p>
       <div className="flex flex-wrap gap-4 text-sm">

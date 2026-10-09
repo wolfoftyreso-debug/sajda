@@ -9,7 +9,11 @@ import { businessNamesResultSchema } from "../api/_shared/business-names-contrac
 import { DEVELOPER_API_SCOPES } from "../shared/developer-scopes.js";
 import { NAME_PROJECT_LIMIT, nameProjectSchema } from "../shared/name-projects.js";
 import { tradingScenarioSchema } from "../shared/trading-scenarios.js";
+import { brandReportsListResponseSchema, brandReportResponseSchema, brandReportHistoryResponseSchema } from "../shared/brand-reports.js";
+import { brandCheckResponseSchema, brandChecksHistoryResponseSchema } from "../shared/brand-checks.js";
+import { brandMonitorsMutationSchema, brandMonitorsResponseSchema, brandMonitorMutationResponseSchema } from "../shared/brand-monitors.js";
 import { socialObservationSchema } from "../shared/name-packages.js";
+import packageMetadata from "../package.json" with { type: "json" };
 
 type JsonObject = Record<string, unknown>;
 function jsonSchema(value: Parameters<typeof toJsonSchemaCompat>[0]): JsonObject {
@@ -42,6 +46,16 @@ export function generateAgentProductOpenApiSchemas() {
     BusinessNamesResponse: names,
     NameProjectsSaveRequest: inputs.name_projects_save,
     NameProjectsResponse: jsonSchema(z.object({ ...owner, projects: z.array(nameProjectSchema).max(NAME_PROJECT_LIMIT) }).strict()),
+    BrandReportsSaveRequest: inputs.brand_reports_save,
+    BrandChecksStartRequest: inputs.brand_checks_start,
+    BrandMonitorsMutationRequest: { type: "object", ...z4.toJSONSchema(brandMonitorsMutationSchema, { io: "input" }) } as JsonObject,
+    BrandMonitorsResponse: z4.toJSONSchema(brandMonitorsResponseSchema, { io: "input" }) as JsonObject,
+    BrandMonitorMutationResponse: z4.toJSONSchema(brandMonitorMutationResponseSchema, { io: "input" }) as JsonObject,
+    BrandCheckResponse: z4.toJSONSchema(brandCheckResponseSchema, { io: "input" }) as JsonObject,
+    BrandChecksHistoryResponse: z4.toJSONSchema(brandChecksHistoryResponseSchema, { io: "input" }) as JsonObject,
+    BrandReportsListResponse: z4.toJSONSchema(brandReportsListResponseSchema, { io: "input" }) as JsonObject,
+    BrandReportResponse: z4.toJSONSchema(brandReportResponseSchema, { io: "input" }) as JsonObject,
+    BrandReportHistoryResponse: z4.toJSONSchema(brandReportHistoryResponseSchema, { io: "input" }) as JsonObject,
     TradingScenariosSaveRequest: inputs.trading_scenarios_save,
     TradingScenariosResponse: jsonSchema(z.object({ ...owner, scenarios: z.array(tradingScenarioSchema).max(100) }).strict()),
     SocialProfilesCheckRequest: inputs.social_profiles_check,
@@ -55,6 +69,7 @@ export function generateAgentProductOpenApiSchemas() {
     schemaVersion: "sajda.agent-product-catalogue.v1",
     privateMcpVersion: SAJDA_MCP_VERSION,
     publicMcpVersion: PUBLIC_MCP_VERSION,
+    sdkVersion: packageMetadata.dependencies["@modelcontextprotocol/sdk"],
     scopes: [...DEVELOPER_API_SCOPES], catalogue, inputs,
     schemas: Object.fromEntries(Object.entries(schemas).map(([name, schema]) => [name, component(schema, name)])),
   };

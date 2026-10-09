@@ -2,6 +2,7 @@ import { defineConfig, normalizePath, type Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import { fileURLToPath } from "node:url";
 import { authFixtureBoundary } from "./auth-boundaries";
+import { renderConnectorHub } from "../../scripts/connector-hub.mjs";
 const root = fileURLToPath(new URL(".", import.meta.url));
 const projectRoot = fileURLToPath(new URL("../..", import.meta.url));
 // Serve the same local, credential-free logos as the production UI.
@@ -16,6 +17,12 @@ const fixture: Plugin = {
   configureServer(server) {
     server.middlewares.use((request, response, next) => {
       if (request.url?.startsWith("/api/")) { response.statusCode = 403; response.end("LOCAL UI FIXTURE: APIs are prohibited."); return; }
+      if (request.url?.split("?")[0] === "/connector-hub") {
+        response.setHeader("Content-Type", "text/html; charset=utf-8");
+        // Render the actual script-free directory locally, without building,
+        // deploying or following any provider/client setup link.
+        response.end(renderConnectorHub("https://sajda-connector.vercel.app/api/mcp/public")); return;
+      }
       if (["/", "/auth", "/pricing", "/brand-index", "/name-packages", "/developers", "/swipe", "/trading", "/security", "/legal", "/story", "/how-it-works", "/marketplace", "/primitives", "/more", "/help"].includes(request.url?.split("?")[0] ?? "")) request.url = "/responsive-preview.html";
       next();
     });
@@ -32,7 +39,18 @@ const fixture: Plugin = {
       export class TradingScenariosError extends Error {constructor(code){super(code);this.code=code;}}
       export const getTradingScenarios=async scope=>({accountId:scope.accountId,requestId:'req_0123456789abcdef',scenarios:[]});
       export const saveTradingScenario=async()=>{throw new TradingScenariosError('unavailable');};`;
-    if (suffix(id, "/src/lib/localTestSearch.ts")) return `export const runAnonymousSearch=async()=>({results:[],checkedAt:new Date().toISOString()});`;
+    if (suffix(id, "/src/lib/localTestSearch.ts")) return `
+      export const runAnonymousSearch=async(tlds)=>{
+        const qa=globalThis.__sajdaResponsiveFixture,checkedAt=new Date().toISOString();
+        qa.swipeCalls??=[];qa.swipeCalls.push({tlds:[...tlds],mode:qa.swipeMode??'empty'});
+        if(qa.swipeMode==='failure')throw new Error('Synthetic deck unavailable. No live registry was contacted.');
+        const results=qa.swipeMode==='results'?['alviona','nordform','cleara'].map((label,index)=>({
+          domain:label+'.'+tlds[index%tlds.length],tld:tlds[index%tlds.length],status:'available',authoritative:true,
+          checkMethod:'rdap',checkedAt,source:'LOCAL SYNTHETIC UI FIXTURE — no registry observation',
+          confidenceScore:0,registrarPrice:0,estimatedValue:0,rationale:'Synthetic presentation only.'
+        })):[];
+        return {results,checkedAt};
+      };`;
     if (suffix(id, "/src/lib/productFetch.ts")) return `export const productFetch=async()=>{throw new Error('Responsive fixture blocks live product services');};`;
     const auth = authFixtureBoundary(id);
     if (auth) return auth.replaceAll("__sajdaAuthFixture", "__sajdaResponsiveFixture");

@@ -50,20 +50,52 @@ export function productionConfigurationIssues(env = process.env, deployment = {}
   } catch { issues.push("production_database_connections_invalid"); }
   if ((env.BETTER_AUTH_SECRET?.trim().length ?? 0) < 32) issues.push("production_auth_secret_required");
   for (const [provider, idVariable, secretVariable] of socialProviders) {
-    const idPresent = Boolean(env[idVariable]?.trim());
-    const secretPresent = Boolean(env[secretVariable]?.trim());
-    // An absent provider stays disabled at runtime. A partial pair is a broken setup.
-    if ((idPresent || secretPresent) && (!oauthCredential(env[idVariable], 512) || !oauthCredential(env[secretVariable], provider === "apple" ? 8192 : 4096))) {
-      issues.push(`production_${provider}_oauth_required`);
-    }
+    const hasId = oauthCredential(env[idVariable], 512);
+    const hasSecret = oauthCredential(env[secretVariable], provider === "apple" ? 8192 : 4096);
+    if (!hasId || !hasSecret) issues.push(`production_${provider}_oauth_required`);
   }
   const emailKey = env.RESEND_API_KEY?.trim() ?? "";
+  if (!/^re_[A-Za-z0-9_-]{10,}$/u.test(emailKey)) issues.push("production_email_key_required");
   const from = env.SAJDA_EMAIL_FROM?.trim() ?? "";
-  if (emailKey || from) {
-    if (!/^re_[A-Za-z0-9_-]{10,}$/u.test(emailKey)) issues.push("production_email_key_required");
-    if (!from || /[\r\n]/u.test(from) || !/^[^<>\s@]+@[^<>\s@]+\.[^<>\s@]+$/u.test(from.replace(/^Sajda\s*<([^<>]+)>$/u, "$1"))
-      || /@[^>]*\.(?:test|invalid|example)(?:>|$)/iu.test(from)) {
-      issues.push("production_email_sender_required");
+  const senderAddress = from.replace(/^Sajda\s*<([^<>]+)>$/u, "$1");
+  if (!from || /[\r\n]/u.test(from) || !/^[^<>\s@]+@[^<>\s@]+\.[^<>\s@]+$/u.test(senderAddress)
+    || /@[^>]*\.(?:test|invalid|example)(?:>|$)/iu.test(from)) {
+    issues.push("production_email_sender_required");
+  } else if (senderAddress.slice(senderAddress.lastIndexOf("@") + 1).toLowerCase() !== "mail.sajda.com") {
+    issues.push("production_email_sender_domain_required");
+  }
+  const indexNowKey = env.SAJDA_INDEXNOW_KEY?.trim() ?? "";
+  if (indexNowKey) {
+    const submitSecret = env.SAJDA_INDEXNOW_SUBMIT_SECRET;
+    if (typeof submitSecret !== "string" || !/^[\x21-\x7E]{32,256}$/u.test(submitSecret)
+      || submitSecret === env.CRON_SECRET || submitSecret === env.BETTER_AUTH_SECRET) {
+      issues.push("production_indexnow_submit_secret_required");
+    }
+  }
+  if (env.SAJDA_BRAND_CHECKS_ENABLED === "true" && env.SAJDA_BRAND_REPORTS_ENABLED !== "true") {
+    issues.push("production_brand_checks_require_reports");
+  }
+  if (env.SAJDA_BRAND_MONITORS_ENABLED === "true"
+    && (env.SAJDA_BRAND_REPORTS_ENABLED !== "true" || env.SAJDA_BRAND_CHECKS_ENABLED !== "true")) {
+    issues.push("production_brand_monitors_require_reports_and_checks");
+  }
+  if (env.SAJDA_BRAND_MONITORS_CRON_ENABLED === "true") {
+    if (env.SAJDA_BRAND_REPORTS_ENABLED !== "true" || env.SAJDA_BRAND_CHECKS_ENABLED !== "true"
+      || env.SAJDA_BRAND_MONITORS_ENABLED !== "true") {
+      issues.push("production_brand_monitor_cron_requires_monitors");
+    }
+    if (typeof env.CRON_SECRET !== "string" || !/^[\x21-\x7E]{32,256}$/u.test(env.CRON_SECRET)
+      || env.CRON_SECRET === env.BETTER_AUTH_SECRET) {
+      issues.push("production_brand_monitor_cron_secret_required");
+    }
+    // Daily observations are drained by short ticks, not by one unbounded job.
+    const schedules = Array.isArray(deployment.crons)
+      ? deployment.crons.filter(entry => entry?.path === "/api/cron/brand-monitors") : [];
+    if (schedules.length !== 1 || !/^(?:\*|\*\/[1-5]) \* \* \* \*$/u.test(schedules[0]?.schedule ?? "")) {
+      issues.push("production_brand_monitor_worker_schedule_required");
+    }
+    if (deployment.functions?.["api/cron/brand-monitors.ts"]?.maxDuration !== 180) {
+      issues.push("production_brand_monitor_worker_duration_invalid");
     }
   }
   if (env.SAJDA_LOST_DOMAINS_CRON_ENABLED === "true") {
@@ -89,10 +121,15 @@ export function productionConfigurationIssues(env = process.env, deployment = {}
       issues.push("production_registrar_credentials_required");
     }
   }
-  if (env.STRIPE_CHECKOUT_ENABLED === "true" && (env.STRIPE_MODE !== "live"
+  const paidCheckoutEnabled = env.STRIPE_CHECKOUT_ENABLED === "true"
+    || env.STRIPE_BASIC_CHECKOUT_ENABLED === "true" || env.STRIPE_PREMIUM_CHECKOUT_ENABLED === "true";
+  const multiPlanBilling = env.STRIPE_BASIC_CHECKOUT_ENABLED === "true" || env.STRIPE_PREMIUM_CHECKOUT_ENABLED === "true"
+    || Boolean(env.STRIPE_BASIC_PRICE_ID || env.STRIPE_PREMIUM_PRICE_ID || env.STRIPE_TRADING_PRICE_ID);
+  if (paidCheckoutEnabled && (env.STRIPE_MODE !== "live"
     || env.STRIPE_LIVE_ENABLED !== "true" || !/^sk_live_/u.test(env.STRIPE_SECRET_KEY ?? "")
     || !/^whsec_/u.test(env.STRIPE_WEBHOOK_SECRET ?? "")
-    || !/^price_/u.test(env.STRIPE_PLUS_PRICE_ID ?? "")
+    || !/^price_/u.test(env.STRIPE_TRADING_PRICE_ID ?? env.STRIPE_PLUS_PRICE_ID ?? "")
+    || multiPlanBilling && (!/^price_/u.test(env.STRIPE_BASIC_PRICE_ID ?? "") || !/^price_/u.test(env.STRIPE_PREMIUM_PRICE_ID ?? ""))
     || !/^bpc_/u.test(env.STRIPE_PORTAL_CONFIGURATION_ID ?? ""))) {
     issues.push("production_billing_requires_live_configuration");
   }

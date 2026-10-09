@@ -19,6 +19,7 @@ const legacyBrowserCompatEnv = {
   VITE_PORKBUN_API_KEY: "",
   VITE_PORKBUN_SECRET_API_KEY: "",
   VITE_CRON_SECRET: "",
+  VITE_SAJDA_INDEXNOW_SUBMIT_SECRET: "",
 };
 
 /** Pure configuration gate. A public flag cannot enable an unconfigured server. */
@@ -35,6 +36,8 @@ export function createVercelBuildEnvironment(environment = process.env, deployme
     && environment.DATABASE_URL.trim().length > 0;
   const buildEnvironment = {
     ...environment,
+    ...(environment.SAJDA_SEO_INDEXING !== undefined
+      ? { SAJDA_SEO_INDEXING: environment.SAJDA_SEO_INDEXING } : {}),
     VITE_SAJDA_CANONICAL_ORIGIN: canonicalOrigin,
     VITE_PUBLIC_SEARCH_MODE: "true",
     VITE_LOCAL_TEST_MODE: "false",

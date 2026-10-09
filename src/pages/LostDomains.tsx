@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import AccountLink from "@/components/AccountLink";
 import { tradingWorkspaceCopy } from "@/i18n/tradingWorkspaceCopy";
+import { tradingAddonCopy } from "@/i18n/tradingAddonCopy";
 import PlusBilling from "@/components/PlusBilling";
 import { isNativeApp } from "@/lib/appSurface";
 import { nativeShareCsv } from "@/lib/nativeTransport";
@@ -31,6 +32,7 @@ export default function LostDomains() {
   const { language } = useLanguage();
   const copy = getLostDomainsCopy(language);
   const ux = tradingWorkspaceCopy[language];
+  const addonCopy = tradingAddonCopy[language];
   const accountId = user?.id ?? null;
   const [data, setData] = useState<OwnedData | null>(null);
   const [busy, setBusy] = useState<"load" | LostDomainsAction["action"] | null>(null);
@@ -274,7 +276,8 @@ export default function LostDomains() {
       </div>}
       <header className={isNativeApp ? "pb-5" : "pb-5 pt-6"}>
         <div className="min-w-0">
-          <h1 className="text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">Trading</h1>
+          <p className="text-sm font-semibold text-primary">{addonCopy.title} · Pro</p>
+          <h1 className="mt-2 text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">{ux.workspaceTitle}</h1>
           <p className="mt-3 max-w-2xl text-base leading-7 text-muted-foreground">{ux.intro}</p>
         </div>
       </header>
@@ -301,7 +304,7 @@ export default function LostDomains() {
               {activeRun && waiting && activeRun.nextCheckAt && <p className="mt-2 text-sm font-medium">{copy.waitingForCheck}: <time dateTime={activeRun.nextCheckAt}>{time(activeRun.nextCheckAt)}</time></p>}
               {report?.latestRun && !activeRun && <p className="mt-2 text-sm font-medium">{report.candidates.length} {tradingText(copy.locale, "Domains in this report")} · {reviewCount} {copy.reviews}</p>}
               <div className="mt-5 flex flex-col flex-wrap gap-3 sm:flex-row sm:items-center">
-                {workspaceState === "guest" && <Link className={primaryLink} to="/auth?next=%2Fplus">{ux.signIn}<ArrowUpRight className="h-4 w-4 shrink-0" aria-hidden="true" /></Link>}
+                {workspaceState === "guest" && <Link className={primaryLink} to="/auth?next=%2Faccount%23trading">{ux.signIn}<ArrowUpRight className="h-4 w-4 shrink-0" aria-hidden="true" /></Link>}
                 {workspaceState === "locked" && <a className={primaryLink} href="#trading-access">{ux.accessOptions}<ArrowDown className="h-4 w-4 shrink-0" aria-hidden="true" /></a>}
                 {snapshot?.access && activeRun && <a className={primaryLink} href="#trading-progress">{ux.viewProgress}<ArrowDown className="h-4 w-4 shrink-0" aria-hidden="true" /></a>}
                 {snapshot?.access && report?.latestRun && !activeRun && <a className={primaryLink} href="#trading-results">{reviewCount ? ux.viewResults : ux.viewChecked}<ArrowDown className="h-4 w-4 shrink-0" aria-hidden="true" /></a>}
@@ -319,7 +322,8 @@ export default function LostDomains() {
           <p className="text-sm font-medium leading-6">{copy.errors[error.code]}</p>
           {startKey.current && <p className="mt-2 text-sm leading-6 text-muted-foreground">{copy.recovery}</p>}
           {error.requestId && <p className="mt-2 break-all text-xs text-muted-foreground">{copy.requestReference}: {error.requestId}</p>}
-          {["unauthenticated", "account_changed"].includes(error.code) && <Link className={`${link} mt-2`} to="/auth?next=%2Fplus">{copy.signIn}</Link>}
+          {error.code === "unauthenticated" && <Link className={`${link} mt-2`} to="/auth?next=%2Faccount%23trading">{copy.signIn}</Link>}
+          {error.code === "email_verification_required" && <Link className={`${link} mt-2`} to="/account#trading">{addonCopy.verify}</Link>}
         </div>}
 
         {snapshot?.access && <div className="mt-5 space-y-5">
@@ -444,7 +448,7 @@ export default function LostDomains() {
         </details>}
       </aside>}
 
-      {snapshot?.access && <details className={`${panel} mb-8 p-5`}><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{tradingText(copy.locale, "Account and Trading subscription")}</summary>
+      {snapshot?.access && <details className={`${panel} mb-8 p-5`}><summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{addonCopy.billing}</summary>
         <div className="max-w-xl pt-4"><PlusBilling accountId={accountId} language={language} fallback={copy} disabled={signingOut} onStatusVerified={billingStatusVerified}/></div>
       </details>}
 

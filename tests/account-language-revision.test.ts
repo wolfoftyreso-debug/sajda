@@ -48,7 +48,7 @@ test("account, pricing and native language catalogs preserve English structure a
     assert.equal(nativeCopy[language].saved, savedLabels[index]);
     assert.equal(nativeCopy[language].swipe, "Swipe");
     assert.equal(getPricingCopy(language).plans.trading.name, "Trading");
-    assert.equal(getPricingCopy(language).plans.premium.name, "Premium");
+    assert.equal(getPricingCopy(language).plans.premium.name, "Pro");
   }
   for (const language of ["sv", "es", "fr", "zh"] as const) {
     for (const key of ["helpIntro", "swipeHelp", "tradingHelp", "history", "today"] as const) assert.notEqual(nativeCopy[language][key], nativeCopy.en[key]);

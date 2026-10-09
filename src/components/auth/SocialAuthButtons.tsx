@@ -12,7 +12,6 @@ function ProviderLogo({ provider }: { provider: SocialAuthProviderId }) {
 
 export interface SocialAuthButtonCopy {
   continueWith: string;
-  setupPending: string;
   orEmail: string;
 }
 
@@ -23,18 +22,17 @@ export default function SocialAuthButtons({ providers, copy, busyProvider, disab
   disabled: boolean;
   onSelect(provider: SocialAuthProviderId): void;
 }) {
-  if (!providers.length) return null;
+  const enabledProviders = providers.filter(provider => provider.enabled);
+  if (!enabledProviders.length) return null;
   return <div className="sajda-social-auth" aria-label={copy.continueWith}>
     <div className="sajda-social-auth-grid">
-      {providers.map(provider => {
+      {enabledProviders.map(provider => {
         const label = providerLabels[provider.id];
-        const pending = !provider.enabled;
         const busy = busyProvider === provider.id;
-        return <button key={provider.id} type="button" className="sajda-social-auth-button" disabled={disabled || pending}
-          onClick={() => onSelect(provider.id)} aria-label={`${copy.continueWith} ${label}${pending ? `. ${copy.setupPending}` : ""}`}>
+        return <button key={provider.id} type="button" className="sajda-social-auth-button" disabled={disabled}
+          onClick={() => onSelect(provider.id)} aria-label={`${copy.continueWith} ${label}`}>
           <span className="sajda-social-auth-logo">{busy ? <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <ProviderLogo provider={provider.id} />}</span>
           <span>{label}</span>
-          {pending && <span className="sajda-social-auth-pending">{copy.setupPending}</span>}
         </button>;
       })}
     </div>

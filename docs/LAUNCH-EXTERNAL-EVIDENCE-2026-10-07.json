@@ -1,0 +1,169 @@
+{
+  "schema_version": 1,
+  "repository": "https://github.com/wolfoftyreso-debug/sajda.git",
+  "release_branch": "codex/launch-hardening",
+  "release_commit": "95ddbfc5cc2a5f611dd5f7ec11a86e43587cd2f7",
+  "recorded_at": "2026-10-07T00:56:11.000Z",
+  "recorded_by": "Codex production-finisher",
+  "verdict": "no_go",
+  "rules": {
+    "contains_secrets": false,
+    "contains_personal_data": false,
+    "live_charge_performed": false,
+    "legal_approval_inferred": false
+  },
+  "gates": [
+    {
+      "id": "baseline",
+      "status": "verified",
+      "environment": "local_and_github_ci",
+      "evidence": [
+        {
+          "type": "command",
+          "reference": "Retained local check:ci output reviewed: 1853 tests, 1845 passed, 0 failed, 8 opt-in PostgreSQL suites skipped; build, lint, types, 94 language catalogues and 71 local HTTP checks passed",
+          "observed_at": "2026-10-07T00:55:47.000Z"
+        },
+        {
+          "type": "provider",
+          "reference": "https://github.com/wolfoftyreso-debug/sajda/actions/runs/37553179938 completed successfully at release commit 95ddbfc5cc2a5f611dd5f7ec11a86e43587cd2f7",
+          "observed_at": "2026-10-07T00:56:11.000Z"
+        },
+        {
+          "type": "database",
+          "reference": "Retained PostgreSQL output reviewed: three opt-in Preview suites passed with rolled-back fixtures; read-only Preview and Production migration checks each verified 22 applied and 0 pending",
+          "observed_at": "2026-10-07T00:55:47.000Z"
+        }
+      ],
+      "remaining_blocker": null
+    },
+    {
+      "id": "final_origin",
+      "status": "blocked",
+      "environment": "production_configuration",
+      "evidence": [
+        {
+          "type": "provider",
+          "reference": "Fresh canonical configuration is https://sajda.dev; current Vercel project domain list contains only sajda-eight.vercel.app. The new Preview has no aliases",
+          "observed_at": "2026-10-07T00:55:47.000Z"
+        }
+      ],
+      "remaining_blocker": "Confirm and connect the final owned web domain, then align canonical, authentication and provider callback origins; configuration alone does not prove domain control"
+    },
+    {
+      "id": "transactional_email",
+      "status": "blocked",
+      "environment": "preview_then_production",
+      "evidence": [
+        {
+          "type": "provider",
+          "reference": "Fresh production sender targets mail.sajda.com; Preview sender differs. Resend protected Secret cannot be retrieved by official env run, so provider approval and delivery remain unverified",
+          "observed_at": "2026-10-07T00:55:47.000Z"
+        },
+        {
+          "type": "http",
+          "reference": "Google and Cloudflare DNS returned NXDOMAIN for mail.sajda.com, default DKIM and return-path MX/TXT names; authoritative DNS ownership and exact provider-generated records remain unknown",
+          "observed_at": "2026-10-07T00:50:04.000Z"
+        }
+      ],
+      "remaining_blocker": "Obtain authorized DNS and Resend access; apply exact provider records without replacing unrelated inbound MX; verify real password-reset and contact delivery"
+    },
+    {
+      "id": "social_auth",
+      "status": "blocked",
+      "environment": "preview_then_production",
+      "evidence": [
+        {
+          "type": "http",
+          "reference": "GET /api/auth-providers on the new protected Preview returned Google, X, GitHub and Apple disabled; unavailable methods must not be represented as working sign-in",
+          "observed_at": "2026-10-07T00:46:35.000Z"
+        }
+      ],
+      "remaining_blocker": "Create and configure all four OAuth applications on the stable origin; Apple also requires Developer enrollment; then test real login and account-linking paths"
+    },
+    {
+      "id": "stripe_sandbox",
+      "status": "blocked",
+      "environment": "preview_test_mode",
+      "evidence": [
+        {
+          "type": "provider",
+          "reference": "Fresh Vercel configuration plus read-only Stripe TEST API verified active USD Basic 9/month, Premium 19/month, Trading 49/month and portal access to all three prices; checkout flags Basic/Premium false, Trading true",
+          "observed_at": "2026-10-07T00:54:36.000Z"
+        },
+        {
+          "type": "provider",
+          "reference": "Only enabled test webhook still targets https://sajda-k455asubf-hypbit.vercel.app/api/billing-webhook; signing-secret match and actual event delivery were not verified. No provider writes or transactions occurred",
+          "observed_at": "2026-10-07T00:54:36.000Z"
+        }
+      ],
+      "remaining_blocker": "Choose a stable test callback and verify protection/signing configuration, then execute checkout, webhook, entitlement, duplicate/failure/retry, portal and cancellation tests before live commerce"
+    },
+    {
+      "id": "legal_and_operations",
+      "status": "blocked",
+      "environment": "operator_review",
+      "evidence": [
+        {
+          "type": "command",
+          "reference": "Retained passing CI output includes legal/privacy/support surfaces and account-deletion tests; this does not constitute legal or operator approval",
+          "observed_at": "2026-10-07T00:55:47.000Z"
+        }
+      ],
+      "remaining_blocker": "Landvex AB must approve final legal entity details, terms, privacy disclosures, retention and support obligations"
+    },
+    {
+      "id": "deployed_golden_paths",
+      "status": "blocked",
+      "environment": "release_preview",
+      "evidence": [
+        {
+          "type": "deployment",
+          "reference": "https://sajda-hqfc316q3-hypbit.vercel.app READY as dpl_84d5RHhVdm57hBGAa1RERVXbKBat; official metadata confirms source commit 95ddbfc5cc2a5f611dd5f7ec11a86e43587cd2f7; Functions inspected in fra1",
+          "observed_at": "2026-10-07T00:52:28.000Z"
+        },
+        {
+          "type": "http",
+          "reference": "Official protected Preview checks: database connected; anonymous Sajda session null; private account/API-key/MCP access denied; OpenAPI 3.1 returned 14 paths; one real exact-domain lookup reported taken correctly",
+          "observed_at": "2026-10-07T00:46:35.000Z"
+        },
+        {
+          "type": "http",
+          "reference": "Real ten-business-name request returned 5 with matching counts, partial status, registered-domain exclusions, shortfall reason and next steps; no fabricated ten-name result or legal clearance",
+          "observed_at": "2026-10-07T00:51:08.620Z"
+        },
+        {
+          "type": "deployment",
+          "reference": "Isolated public connector dpl_n9xKnTcaTkG9MBARTvNbqE5VrRDx released at https://sajda-connector.vercel.app; anonymous SDK 1.32.1/server 1.6.0 metadata, one live exact read and private-route isolation passed; not commercial-account or host-model verification",
+          "observed_at": "2026-10-07T00:51:08.070Z"
+        }
+      ],
+      "remaining_blocker": "Complete deployed browser account/email/payment/Trading and authenticated agent golden paths after provider configuration; browser security policy prevented UI checks in this pass"
+    },
+    {
+      "id": "production_and_indexing",
+      "status": "blocked",
+      "environment": "commercial_production",
+      "evidence": [
+        {
+          "type": "deployment",
+          "reference": "Commercial account app remains a protected Preview, not promoted; Preview API headers are noindex. Only the isolated public connector was separately promoted after its own gates",
+          "observed_at": "2026-10-07T00:55:47.000Z"
+        }
+      ],
+      "remaining_blocker": "Promote the commercial app only after its web gates pass, repeat production smoke and explicitly verify indexing/canonical configuration on the final domain"
+    },
+    {
+      "id": "app_store",
+      "status": "blocked",
+      "environment": "apple_sandbox_and_testflight",
+      "evidence": [
+        {
+          "type": "command",
+          "reference": "Retained native bundle build and exclusion-policy output reviewed: build passed without SEO/service worker; no Xcode, signing, physical iPhone, VoiceOver, StoreKit provider or TestFlight verification occurred",
+          "observed_at": "2026-10-07T00:55:47.000Z"
+        }
+      ],
+      "remaining_blocker": "Complete Apple Developer enrollment, signing, App Store Connect products, StoreKit sandbox, TestFlight and physical-device verification"
+    }
+  ]
+}

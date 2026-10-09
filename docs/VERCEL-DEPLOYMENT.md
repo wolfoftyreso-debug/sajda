@@ -1,16 +1,15 @@
-# Public Vercel deployment
+# Vercel deployment architecture and release boundaries
 
-Current verification (2026-09-10): the reviewed release is the **protected**
-[test preview](https://sajda-test-hypbit.vercel.app), runtime `99c045d`.
-This document describes the public deployment architecture, not evidence that
-anonymous visitors or external iPhones can bypass preview protection. Website
-indexing remains deliberately disabled. See the [iOS/SEO revision](IOS-SEO-AUDIT-2026-09-10.md)
-for the final deployed checks and explicit launch gates.
+This document describes the implementation and configuration, not a launch
+approval or proof that a particular deployment is accessible. Consult the dated
+[release evidence](LAUNCH-EXTERNAL-EVIDENCE-2026-10-07.json) for the verification
+environment and unresolved gates. A protected preview is not a public release;
+website indexing remains deliberately disabled during validation.
 
-This is the fastest supported public deployment path for Sajda. It runs
-the Vite app as static files and `api/domain-search.ts` as a Vercel Node
-function. Search is public by default; persistent product workflows are being
-ported behind same-origin Vercel APIs backed by Neon Postgres.
+The Vite app is served as static files and `api/domain-search.ts` runs as a
+Vercel Node function. Anonymous search and authenticated account workflows use
+same-origin Vercel APIs. Persistent account data is backed by Neon Postgres.
+Verify each workflow separately rather than inferring readiness from the build.
 
 ## Configure the Vercel project
 
@@ -24,12 +23,12 @@ ported behind same-origin Vercel APIs backed by Neon Postgres.
    in the same Vercel application, backed by these Postgres tables. Do not
    enable a second, managed Neon Auth service. Configure `BETTER_AUTH_SECRET`,
    a matching `BETTER_AUTH_URL`, and verified Resend delivery.
-3. To enable price comparison beyond Loopia's published list, add **one**
-   server-only variable named `TLDES_API_KEY` in **Project Settings →
-   Environment Variables** (Production, and Preview if previews should show
-   the feed). Do not add `VITE_TLDES_API_KEY`: anything prefixed `VITE_` is
-   compiled into the browser bundle. Do not add `VITE_LOCAL_TEST_MODE` to a
-   Vercel project.
+3. Loopia and Porkbun published standard-TLD prices need no provider credentials.
+   To add the optional aggregated standard-price feed, configure the server-only
+   `TLDES_API_KEY` in **Project Settings → Environment Variables** (Production,
+   and Preview if previews should show the feed). Do not add `VITE_TLDES_API_KEY`:
+   anything prefixed `VITE_` is compiled into the browser bundle. Do not add
+   `VITE_LOCAL_TEST_MODE` to a Vercel project.
 4. Redeploy after adding or changing the key. The configuration builds `dist-vercel/`,
    gives the registry function up to 30 seconds, and sends client-side routes
    to `index.html`.
@@ -73,27 +72,48 @@ npx vercel --scope hypbit
   the selected providers together on every domain result so the client can
   show a side-by-side comparison. Each selection has an official HTTPS
   provider page; unknown IDs and duplicate selections are rejected.
-- Without `TLDES_API_KEY`, **Loopia** is the sole direct price connection. The
-  function fetches Loopia's public detailed price list, accepts only the exact
-  row for the relevant TLD, and shows first-year price (including and excluding
-  VAT where supplied), renewal price, source link, and a check timestamp.
-  Results without a fresh, parseable source row say *Not available*; they never
-  show a guessed price. The other providers explicitly return no numeric price
-  and `priceVerified: false`; their pages are linked so the buyer can check the
-  current price and availability directly. Every offer also exposes a
+- Without `TLDES_API_KEY`, **Loopia and Porkbun** provide direct published
+  standard-TLD prices without provider credentials. Loopia's public detailed
+  price list supplies the matching TLD row, first-year price (including and
+  excluding VAT where supplied), renewal price, source link and check timestamp.
+  Porkbun's [official public pricing API](https://porkbun.com/api/json/v3/spec#/paths/~1pricing~1get)
+  supplies standard registration and renewal amounts in USD for supported TLDs;
+  tax treatment remains unknown. Both catalogues are cached for up to 15 minutes.
+  These are TLD references, not exact-domain availability, premium-name prices
+  or checkout totals. Missing, expired or unparseable prices are withheld rather
+  than guessed. Other providers return official purchase links without a numeric
+  price unless the optional feed or a configured reviewed bridge supplies valid
+  evidence. Every offer also exposes a
   machine-readable `priceStatus`, `dataSource`, `connectorState` and
   `checkedAt` value so the UI can make the source state explicit.
 - With `TLDES_API_KEY` configured, the function also asks the **TLDES price
   feed** for the selected providers' published standard prices for each
   selected TLD. The request and key stay inside the Vercel function; neither
   is sent to the browser. Results are cached server-side for up to one hour
-  and include the feed's timestamp and `tldes_price_feed` source state. Loopia's
-  direct public price-list result retains priority when it is available.
+  and include the feed's timestamp and `tldes_price_feed` source state. Direct
+  provider observations retain priority when present; Porkbun can use this feed
+  when its public catalogue has no usable price for the requested TLD.
   TLDES prices are standard-TLD registration/renewal references only: they are
   **not** an availability check, an exact-domain quote, a premium-name quote,
   a promotion, a tax calculation, or a checkout total. If the feed has no
   valid current result, the card remains *Not available* or an official
   purchase link; it never falls back to a guessed price.
+- Cloudflare exact-domain standard offers use the isolated `sajda-connector`
+  registrar bridge, independently of the standard-TLD catalogues and TLDES.
+  Configure an independent server-only `SAJDA_REGISTRAR_BRIDGE_TOKEN` in both
+  projects; keep `SAJDA_CONNECTOR_CLOUDFLARE_ACCOUNT_ID` and
+  `SAJDA_CONNECTOR_CLOUDFLARE_TOKEN` only in the connector project. See the
+  [Cloudflare operator setup](AI-CONNECTOR.md#cloudflare-operator-setup--production-configured-not-public-user-authentication).
+  Configuration alone does not verify access. Successful checks produce
+  `priceScope: "exact_domain_offer"` for standard, available domains. Premium,
+  unavailable or unverified names receive no numeric exact offer. Taxes remain
+  unknown, and the five-minute evidence expiry does not lock the checkout price.
+- Trading's exact-domain Porkbun observations require its separate opt-in
+  `SAJDA_LOST_DOMAINS_REGISTRAR_ENABLED=true`, server-only `PORKBUN_API_KEY`
+  and `PORKBUN_SECRET_API_KEY`, plus the reviewed database/provider setup.
+  Porkbun's public catalogue does not enable this authenticated check. These
+  read-only observations retain missing costs, fees and tax treatment as unknown;
+  they do not register, reserve or purchase a domain.
 - Do not scrape retail search pages. Provider APIs such as Spaceship, Name.com,
   NameSilo, Alibaba Cloud and InternetBS require their own server-side account
   credentials and a reviewed adapter. Store those credentials only in Vercel
@@ -104,10 +124,13 @@ npx vercel --scope hypbit
   premium names, VAT treatment, and the supplier's final availability check
   can change the final order price.
 
-Account login, saved domains and developer keys use same-origin Better Auth
-and Postgres APIs. They are not proof that the legacy history, watchlist or
-marketplace mutations have been ported. New signup and password recovery require
-real Resend delivery; see [RESEND-CONTACT.md](./RESEND-CONTACT.md).
+Account login uses same-origin Better Auth. Saved/watchlist snapshots use
+`/api/account/saved-domains`; name projects, Trading research and developer keys
+have separate authenticated Postgres APIs and server-side authorization.
+Saved snapshots are not automatic monitoring, and these endpoints do not prove
+that every historical-search or marketplace workflow works. New signup and
+password recovery require real Resend delivery; see
+[RESEND-CONTACT.md](./RESEND-CONTACT.md).
 A search asks for up to 50 displayed suggestions; the API checks a
 reserve of candidates (up to 80 total) so registered names can be filtered out
 without making the batch unexpectedly thin. It applies a best-effort per-IP
@@ -123,7 +146,10 @@ if abuse becomes a concern.
 - `sajda-production`: Production only, on the free plan. No copy of pilot data
   or account credentials is used for production.
 
-Both resources have migrations `0000`–`0008` applied. The production baseline was
+At this historical baseline, both resources had migrations `0000`–`0008` applied.
+This is not the current schema ledger: use the reviewed-target `--check`
+workflow in [NEON-VERCEL.md](NEON-VERCEL.md) against each intended environment
+before release. Bare migration commands intentionally fail closed. The production baseline was
 verified empty before applying them, with zero accounts, customers and Plus grants
 afterward. `vercel.json` selects `fra1` for Functions to match the Frankfurt
 database; verify the deployment's actual regions after deploying. This placement

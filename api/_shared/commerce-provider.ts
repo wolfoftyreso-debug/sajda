@@ -1,9 +1,11 @@
 import Stripe from "stripe";
+import { validateAddonSubscription, type AddonSubscription } from "./commerce-addon.js";
 import { createHash } from "node:crypto";
-import { PLUS_PLAN } from "../../shared/plus-plan.js";
+import { PAID_PLAN_ORDER, PLANS, PREMIUM_INTRO_OFFER, type PaidPlanId } from "../../shared/plans.js";
 import {
   CommerceError,
   commerceId,
+  commercePriceId,
   safeStripeUrl,
   type CommerceConfig,
 } from "./commerce-config.js";
@@ -32,6 +34,7 @@ export interface BillingState {
   subscriptionId: string | null;
   cancelAtPeriodEnd: boolean;
   grant: {
+    plan?: PaidPlanId;
     subscriptionId: string;
     invoiceId: string;
     priceId: string;
@@ -44,7 +47,11 @@ export interface CheckoutState {
   status: "open" | "complete" | "expired";
   url: string | null;
   expiresAt: string;
+  subscriptionId?: string | null;
 }
+export interface AppliedIntroReservation { id: string; offer: "premium-first-month-v1"; couponId: string; priceId: string; completed?: boolean }
+export interface CheckoutIntent { offer?: "premium-first-month-v1"; couponId?: string; returnTo?: "swipe"; id?: string; origin?: string }
+export type IntroEvidence = AppliedIntroReservation[] | (() => Promise<AppliedIntroReservation[]>);
 export interface BillingEvent {
   id: string;
   type: string;
@@ -54,20 +61,33 @@ export interface BillingEvent {
   hold: boolean;
 }
 export interface CommerceProvider {
-  price(): Promise<CommercePrice>;
+  addonSubscription?(subscriptionId: string, customerId: string, forRelease?: boolean): Promise<AddonSubscription>;
+  addonSchedule?(scheduleId: string): Promise<unknown>;
+  createAddonSchedule?(subscriptionId: string, changeId: string): Promise<unknown>;
+  updateAddonSchedule?(scheduleId: string, body: Stripe.SubscriptionScheduleUpdateParams, changeId: string): Promise<unknown>;
+  releaseAddonSchedule?(scheduleId: string, operationId: string): Promise<unknown>;
+  price(plan?: PaidPlanId): Promise<CommercePrice>;
   createCustomer(key: string, ownerId: string): Promise<string>;
-  reconcile(customerId: string): Promise<BillingState>;
+  reconcile(customerId: string, approvedIntro?: IntroEvidence): Promise<BillingState>;
+  introEligible(customerId: string): Promise<boolean>;
+  introCoupon(couponId: string): Promise<void>;
   createCheckout(input: {
     id: string;
     customerId: string;
     origin: string;
     createdAt: string;
+    plan?: PaidPlanId;
+    offer?: "premium-first-month-v1";
+    couponId?: string;
+    returnTo?: "swipe";
   }): Promise<CheckoutState>;
-  checkout(sessionId: string, customerId: string): Promise<CheckoutState>;
+  checkout(sessionId: string, customerId: string, plan?: PaidPlanId, intent?: CheckoutIntent): Promise<CheckoutState>;
   recoverCheckout(
     customerId: string,
     reservationId: string,
     createdAt: string,
+    plan?: PaidPlanId,
+    intent?: CheckoutIntent,
   ): Promise<CheckoutState | null>;
   portal(
     customerId: string,
@@ -101,9 +121,39 @@ const identity = (v: unknown) =>
  * handler: untrusted payloads must not acquire permissive object coercion.
  */
 export function stripeSdkPayload(
-  value: Stripe.Price | Stripe.Checkout.Session | Stripe.ApiList<Stripe.Subscription>,
+  value: Stripe.Price | Stripe.Checkout.Session | Stripe.ApiList<Stripe.Subscription> | Stripe.ApiList<Stripe.Invoice> | Stripe.Coupon | Stripe.BillingPortal.Configuration,
 ): unknown {
   return JSON.parse(JSON.stringify(value)) as unknown;
+}
+
+export function validatePremiumIntroCoupon(value: unknown, couponId: string, productId: string, mode: CommerceConfig["mode"]): void {
+  const coupon = obj(value), products = obj(coupon.applies_to).products;
+  if (coupon.object !== "coupon" || coupon.id !== couponId || coupon.livemode !== (mode === "live")
+    || coupon.valid !== true || coupon.deleted === true || coupon.amount_off !== PREMIUM_INTRO_OFFER.discountAmount
+    || coupon.percent_off != null || coupon.currency !== PREMIUM_INTRO_OFFER.currency || coupon.duration !== PREMIUM_INTRO_OFFER.duration
+    || coupon.duration_in_months != null || !Array.isArray(products) || products.length !== 1 || products[0] !== productId
+    || obj(coupon.metadata).sajda_offer !== PREMIUM_INTRO_OFFER.id || obj(coupon.metadata).sajda_environment !== mode) {
+    throw new CommerceError("intro_offer_unavailable", 409);
+  }
+}
+
+/** The launch portal manages an existing subscription, but cannot replace its
+ * Price mid-period. The entitlement reader accepts full paid monthly periods,
+ * not unpaid/prorated plan changes. Never offer an unsafe provider-side switch.
+ */
+export function validateCommercePortalConfiguration(
+  value: unknown,
+  config: Pick<CommerceConfig, "mode" | "portalConfigurationId">,
+): void {
+  const portal = obj(value), features = obj(portal.features), cancel = obj(features.subscription_cancel);
+  if (portal.id !== config.portalConfigurationId || portal.object !== "billing_portal.configuration"
+    || portal.active !== true || portal.livemode !== (config.mode === "live")
+    || cancel.enabled !== true || cancel.mode !== "at_period_end" || cancel.proration_behavior !== "none"
+    || obj(features.subscription_update).enabled !== false || obj(features.customer_update).enabled !== false
+    || obj(features.invoice_history).enabled !== true || obj(features.payment_method_update).enabled !== true
+    || obj(portal.login_page).enabled !== false) {
+    throw new CommerceError("billing_portal_unavailable");
+  }
 }
 
 /** Validate provider evidence against the approved commercial contract.
@@ -115,23 +165,34 @@ export function validatePlusPrice(
   config: Pick<CommerceConfig, "mode" | "priceId">,
   requireActive = true,
 ): CommercePrice {
+  return validateCommercePrice(value, config, "trading", requireActive);
+}
+
+export function validateCommercePrice(
+  value: unknown,
+  config: Pick<CommerceConfig, "mode" | "priceId"> & Partial<Pick<CommerceConfig, "priceIds">>,
+  plan: PaidPlanId,
+  requireActive = true,
+): CommercePrice {
   const price = obj(value);
   const recurring = obj(price.recurring);
+  const contract = PLANS[plan];
+  const expectedPriceId = commercePriceId(config, plan);
   const decimal = price.unit_amount_decimal;
   const exactDecimal =
     decimal == null ||
     (typeof decimal === "string" &&
-      new RegExp(`^${PLUS_PLAN.unitAmount}(?:\\.0{1,12})?$`, "u").test(
+      new RegExp(`^${contract.unitAmount}(?:\\.0{1,12})?$`, "u").test(
         decimal,
       ));
   if (
     price.object !== "price" ||
-    price.id !== config.priceId ||
+    price.id !== expectedPriceId ||
     typeof price.active !== "boolean" ||
     (requireActive && !price.active) ||
     price.livemode !== (config.mode === "live") ||
-    price.currency !== PLUS_PLAN.currency ||
-    price.unit_amount !== PLUS_PLAN.unitAmount ||
+    price.currency !== contract.currency ||
+    price.unit_amount !== contract.unitAmount ||
     !Number.isSafeInteger(price.unit_amount) ||
     !exactDecimal ||
     price.type !== "recurring" ||
@@ -140,8 +201,8 @@ export function validatePlusPrice(
     price.tiers != null ||
     price.transform_quantity != null ||
     price.custom_unit_amount != null ||
-    recurring.interval !== PLUS_PLAN.interval ||
-    recurring.interval_count !== PLUS_PLAN.intervalCount ||
+    recurring.interval !== contract.interval ||
+    recurring.interval_count !== contract.intervalCount ||
     recurring.usage_type !== "licensed" ||
     !["inclusive", "exclusive", "unspecified"].includes(
       String(price.tax_behavior ?? ""),
@@ -167,7 +228,18 @@ export function validatePlusCheckout(
   customerId: string,
   config: Pick<CommerceConfig, "mode" | "priceId">,
 ): CheckoutState {
+  return validateCommerceCheckout(value, customerId, config, "trading");
+}
+
+export function validateCommerceCheckout(
+  value: unknown,
+  customerId: string,
+  config: Pick<CommerceConfig, "mode" | "priceId"> & Partial<Pick<CommerceConfig, "priceIds">>,
+  plan: PaidPlanId,
+  intent: CheckoutIntent = {},
+): CheckoutState {
   const session = obj(value);
+  const contract = PLANS[plan];
   if (
     session.livemode !== (config.mode === "live") ||
     identity(session.customer) !== customerId ||
@@ -181,14 +253,42 @@ export function validatePlusCheckout(
     if (
       lines.length !== 1 ||
       lines[0].quantity !== 1 ||
-      lines[0].currency !== PLUS_PLAN.currency ||
-      session.currency !== PLUS_PLAN.currency
+      lines[0].currency !== contract.currency ||
+      session.currency !== contract.currency
     ) {
       throw new CommerceError("billing_price_unavailable");
     }
     // Validate the unit Price rather than pre-tax subtotal or after-tax total;
     // those totals have different meanings for inclusive/exclusive tax.
-    validatePlusPrice(lines[0].price, config);
+    validateCommercePrice(lines[0].price, config, plan);
+    const discounts = session.discounts == null ? [] : session.discounts;
+    if (!Array.isArray(discounts)) throw new CommerceError("intro_offer_unavailable", 409);
+    if (intent.offer) {
+      const metadata = obj(session.metadata), discount = obj(discounts[0]);
+      if (plan !== "premium" || intent.offer !== PREMIUM_INTRO_OFFER.id || !intent.couponId || discounts.length !== 1
+        || identity(discount.coupon) !== intent.couponId || discount.promotion_code != null
+        || obj(session.total_details).amount_discount !== PREMIUM_INTRO_OFFER.discountAmount
+        || metadata.sajda_offer !== intent.offer || metadata.sajda_coupon !== intent.couponId
+        || (intent.id !== undefined && metadata.sajda_checkout !== intent.id)) {
+        throw new CommerceError("intro_offer_unavailable", 409);
+      }
+    } else if (discounts.length !== 0 || Number(obj(session.total_details).amount_discount ?? 0) !== 0) {
+      throw new CommerceError("billing_price_unavailable");
+    }
+    if ((obj(session.metadata).sajda_return_to ?? undefined) !== intent.returnTo) throw new CommerceError("checkout_context_conflict", 409);
+    if (intent.origin !== undefined || intent.returnTo !== undefined) {
+      const path = intent.returnTo === "swipe" ? "/swipe" : plan === "trading" ? "/plus" : "/pricing";
+      try {
+        for (const [field, outcome] of [["success_url", "success"], ["cancel_url", "cancel"]] as const) {
+          const url = new URL(String(session[field]));
+          const localTest = config.mode === "test" && intent.origin !== undefined && new URL(intent.origin).origin === url.origin
+            && url.protocol === "http:" && ["127.0.0.1", "localhost"].includes(url.hostname);
+          if (url.protocol !== "https:" && !localTest || url.username || url.password || url.hash || url.pathname !== path
+            || url.search !== `?billing=${outcome}` || intent.origin !== undefined && url.origin !== new URL(intent.origin).origin)
+            throw new Error("callback_contract_mismatch");
+        }
+      } catch { throw new CommerceError("checkout_context_conflict", 409); }
+    }
   }
   return {
     id: commerceId(session.id, config.mode === "live" ? "cs_live" : "cs_test"),
@@ -196,6 +296,7 @@ export function validatePlusCheckout(
     url:
       session.status === "open" ? safeStripeUrl(session.url, "checkout") : null,
     expiresAt: new Date(epoch(session.expires_at) * 1000).toISOString(),
+    subscriptionId: session.subscription ? commerceId(session.subscription, "sub") : null,
   };
 }
 
@@ -206,8 +307,9 @@ export function evaluateSubscription(
   sub: unknown,
   invoices: unknown,
   customerId: string,
-  config: Pick<CommerceConfig, "mode" | "priceId">,
+  config: Pick<CommerceConfig, "mode" | "priceId"> & Partial<Pick<CommerceConfig, "priceIds">>,
   now = Date.now(),
+  approvedIntro: AppliedIntroReservation[] = [],
 ): BillingState {
   const s = obj(sub),
     live = config.mode === "live";
@@ -233,6 +335,22 @@ export function evaluateSubscription(
     grant: null,
   };
   const items = list(s.items);
+  const ongoing = ["active", "past_due", "unpaid"].includes(String(s.status));
+  const plan = ongoing && items.length === 1 && items[0].quantity === 1 ? PAID_PLAN_ORDER.find(candidate => {
+    try { validateCommercePrice(items[0].price, config, candidate, false); return true; }
+    catch (error) {
+      if (error instanceof CommerceError && error.code === "billing_price_unavailable") return false;
+      throw error;
+    }
+  }) : undefined;
+  // A cancel-only Stripe portal may use cancel_at rather than the boolean.
+  // Normalize only the exact, independently validated single-item boundary;
+  // a custom earlier/later date is not a period-end cancellation. This status
+  // projection never supplies payment evidence or extends an access grant.
+  if (plan && Number.isSafeInteger(s.cancel_at) && Number(s.cancel_at) > 0
+    && Number.isSafeInteger(items[0].current_period_end)
+    && s.cancel_at === items[0].current_period_end && Number(s.cancel_at) > Math.floor(now / 1000))
+    state.cancelAtPeriodEnd = true;
   if (
     s.status !== "active" ||
     s.pause_collection ||
@@ -240,16 +358,14 @@ export function evaluateSubscription(
     items[0].quantity !== 1
   )
     return state;
-  try {
-    validatePlusPrice(items[0].price, config, false);
-  } catch (error) {
-    if (
-      error instanceof CommerceError &&
-      error.code === "billing_price_unavailable"
-    )
-      return state;
-    throw error;
-  }
+  if (!plan) return state;
+  const contract = PLANS[plan], expectedPriceId = commercePriceId(config, plan);
+  const subscriptionMetadata = obj(s.metadata);
+  const hasIntro = subscriptionMetadata.sajda_offer !== undefined;
+  const appliedIntro = hasIntro ? approvedIntro.find(reservation => plan === "premium" && reservation.offer === PREMIUM_INTRO_OFFER.id
+    && subscriptionMetadata.sajda_offer === reservation.offer && subscriptionMetadata.sajda_coupon === reservation.couponId
+    && subscriptionMetadata.sajda_checkout === reservation.id && reservation.priceId === expectedPriceId) : undefined;
+  if (hasIntro && !appliedIntro) return state;
   const item = items[0],
     periodEnd = epoch(item.current_period_end),
     periodStart = epoch(item.current_period_start),
@@ -271,7 +387,7 @@ export function evaluateSubscription(
       throw new CommerceError("provider_owner_mismatch");
     if (
       invoice.status !== "paid" ||
-      invoice.currency !== PLUS_PLAN.currency ||
+      invoice.currency !== contract.currency ||
       typeof invoice.amount_paid !== "number" ||
       invoice.amount_paid <= 0 ||
       typeof invoice.amount_due !== "number" ||
@@ -282,14 +398,27 @@ export function evaluateSubscription(
       const parent = obj(obj(line.parent).subscription_item_details);
       if (
         line.livemode !== live ||
-        line.currency !== PLUS_PLAN.currency ||
+        line.currency !== contract.currency ||
         identity(parent.subscription) !== subscriptionId ||
         parent.proration !== false ||
         identity(obj(obj(line.pricing).price_details).price) !==
-          config.priceId ||
+          expectedPriceId ||
         line.quantity !== 1
       )
         continue;
+      if (appliedIntro) {
+        const lineDiscounts = line.discount_amounts == null ? [] : line.discount_amounts;
+        const invoiceDiscounts = invoice.discounts == null ? [] : invoice.discounts;
+        if (!Array.isArray(lineDiscounts) || !Array.isArray(invoiceDiscounts)) continue;
+        if (invoice.billing_reason === "subscription_create") {
+          const discount = obj(invoiceDiscounts[0]), source = obj(discount.source);
+          if (line.amount !== contract.unitAmount || lineDiscounts.length !== 1 || invoiceDiscounts.length !== 1
+            || obj(lineDiscounts[0]).amount !== PREMIUM_INTRO_OFFER.discountAmount || identity(obj(lineDiscounts[0]).discount) !== discount.id
+            || source.type !== "coupon" || identity(source.coupon) !== appliedIntro.couponId || discount.promotion_code != null
+            || (discount.customer != null && identity(discount.customer) !== customerId)
+            || (discount.subscription != null && identity(discount.subscription) !== subscriptionId)) continue;
+        } else if (invoice.billing_reason !== "subscription_cycle" || line.amount !== contract.unitAmount || lineDiscounts.length !== 0 || invoiceDiscounts.length !== 0) continue;
+      }
       const start = epoch(obj(line.period).start),
         end = Math.min(
           epoch(obj(line.period).end),
@@ -309,9 +438,10 @@ export function evaluateSubscription(
   }
   if (best)
     state.grant = {
+      plan,
       subscriptionId,
       invoiceId: best.invoiceId,
-      priceId: config.priceId,
+      priceId: expectedPriceId,
       validFrom: new Date(best.start * 1000).toISOString(),
       expiresAt: new Date(best.end * 1000).toISOString(),
     };
@@ -327,14 +457,41 @@ export function createCommerceProvider(
     maxNetworkRetries: 0,
   });
   const mode = config.mode === "live";
+  // Coalesce the three independent catalog-price reads within this provider
+  // instance only. Every new service request creates a new provider and reads
+  // the actual portal again; there is no persistent stale readiness cache.
+  let portalVerification: Promise<void> | undefined;
+  const verifyPortal = () => portalVerification ??= stripe.billingPortal.configurations
+    .retrieve(config.portalConfigurationId)
+    .then(value => validateCommercePortalConfiguration(stripeSdkPayload(value), config));
   const ownerHash = (ownerId: string) =>
     createHash("sha256").update(`${config.namespace}:${ownerId}`).digest("hex");
-  const checkoutResult = (session: Stripe.Checkout.Session, customerId: string) =>
-    validatePlusCheckout(stripeSdkPayload(session), customerId, config);
+  const checkoutResult = (session: Stripe.Checkout.Session, customerId: string, plan: PaidPlanId, intent: CheckoutIntent = {}) =>
+    validateCommerceCheckout(stripeSdkPayload(session), customerId, config, plan, intent);
   return {
-    async price() {
-      const price = await stripe.prices.retrieve(config.priceId);
-      return validatePlusPrice(stripeSdkPayload(price), config);
+    async addonSubscription(subscriptionId, customerId, forRelease = false) {
+      const subscription = await stripe.subscriptions.retrieve(commerceId(subscriptionId, "sub"));
+      return validateAddonSubscription(JSON.parse(JSON.stringify(subscription)), customerId, config, Date.now(), forRelease);
+    },
+    async addonSchedule(scheduleId) {
+      return JSON.parse(JSON.stringify(await stripe.subscriptionSchedules.retrieve(commerceId(scheduleId, "sub_sched"))));
+    },
+    async createAddonSchedule(subscriptionId, changeId) {
+      return JSON.parse(JSON.stringify(await stripe.subscriptionSchedules.create(
+        { from_subscription: commerceId(subscriptionId, "sub") }, { idempotencyKey: `sajda-addon-create-${changeId}` })));
+    },
+    async updateAddonSchedule(scheduleId, body, changeId) {
+      return JSON.parse(JSON.stringify(await stripe.subscriptionSchedules.update(commerceId(scheduleId, "sub_sched"), body,
+        { idempotencyKey: `sajda-addon-update-${changeId}` })));
+    },
+    async releaseAddonSchedule(scheduleId, operationId) {
+      return JSON.parse(JSON.stringify(await stripe.subscriptionSchedules.release(commerceId(scheduleId, "sub_sched"),
+        { preserve_cancel_date: true }, { idempotencyKey: `sajda-addon-release-${operationId}` })));
+    },
+    async price(plan = "trading") {
+      await verifyPortal();
+      const price = await stripe.prices.retrieve(commercePriceId(config, plan));
+      return validateCommercePrice(stripeSdkPayload(price), config, plan);
     },
     async createCustomer(key, ownerId) {
       const customer = await stripe.customers.create(
@@ -354,7 +511,21 @@ export function createCommerceProvider(
         throw new CommerceError("provider_owner_mismatch");
       return commerceId(customer.id, "cus");
     },
-    async reconcile(customerId) {
+    async introEligible(customerId) {
+      const history = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 100 });
+      const payload = stripeSdkPayload(history);
+      if (obj(payload).has_more !== false) throw new CommerceError("invalid_provider_response");
+      const rows = list(payload);
+      if (rows.some(row => row.livemode !== mode || identity(row.customer) !== customerId)) throw new CommerceError("provider_owner_mismatch");
+      return rows.length === 0;
+    },
+    async introCoupon(couponId) {
+      const price = await stripe.prices.retrieve(commercePriceId(config, "premium"));
+      validateCommercePrice(stripeSdkPayload(price), config, "premium");
+      const coupon = await stripe.coupons.retrieve(couponId, { expand: ["applies_to"] });
+      validatePremiumIntroCoupon(stripeSdkPayload(coupon), couponId, commerceId(price.product, "prod"), config.mode);
+    },
+    async reconcile(customerId, approvedIntro = []) {
       const subscriptions = await stripe.subscriptions.list({
         customer: customerId,
         status: "all",
@@ -387,6 +558,12 @@ export function createCommerceProvider(
           cancelAtPeriodEnd: false,
           grant: null,
         };
+      // Ordinary subscriptions do not depend on the additive offer migration.
+      // For an intro subscription, retrieve its fenced persisted contract even
+      // after the campaign is disabled or its coupon is no longer redeemable.
+      const evidence = obj(sub.metadata).sajda_offer !== undefined
+        ? typeof approvedIntro === "function" ? await approvedIntro() : approvedIntro
+        : [];
       const invoices =
         sub.status === "active"
           ? await stripe.invoices.list({
@@ -394,54 +571,70 @@ export function createCommerceProvider(
               subscription: commerceId(sub.id, "sub"),
               status: "paid",
               limit: 10,
+              expand: ["data.discounts.source.coupon"],
             })
           : { data: [], has_more: false };
       // Ten recent paid invoices suffice for one monthly period. A pagination
       // marker here is expected on established customers, unlike line truncation.
       return evaluateSubscription(
         sub,
-        { ...invoices, has_more: false },
+        { ...stripeSdkPayload(invoices as Stripe.ApiList<Stripe.Invoice>) as Obj, has_more: false },
         customerId,
         config,
+        Date.now(),
+        evidence,
       );
     },
     async createCheckout(input) {
+      const plan = input.plan ?? "trading";
+      const contract = PLANS[plan];
+      if (input.offer && (input.offer !== PREMIUM_INTRO_OFFER.id || plan !== "premium" || !input.couponId)
+        || !input.offer && input.couponId !== undefined) throw new CommerceError("intro_offer_unavailable", 409);
+      if (input.returnTo !== undefined && input.returnTo !== "swipe") throw new CommerceError("checkout_context_conflict", 409);
       const session = await stripe.checkout.sessions.create(
         {
           mode: "subscription",
           customer: input.customerId,
-          currency: PLUS_PLAN.currency,
+          currency: contract.currency,
           adaptive_pricing: { enabled: false },
           payment_method_types: ["card"],
-          line_items: [{ price: config.priceId, quantity: 1 }],
+          line_items: [{ price: commercePriceId(config, plan), quantity: 1 }],
           expand: ["line_items.data.price"],
-          success_url: `${input.origin}/plus?billing=success`,
-          cancel_url: `${input.origin}/plus?billing=cancel`,
+          ...(input.offer ? { discounts: [{ coupon: input.couponId! }] } : {}),
+          success_url: `${input.origin}/${input.returnTo === "swipe" ? "swipe" : plan === "trading" ? "plus" : "pricing"}?billing=success`,
+          cancel_url: `${input.origin}/${input.returnTo === "swipe" ? "swipe" : plan === "trading" ? "plus" : "pricing"}?billing=cancel`,
           expires_at: Math.floor(Date.parse(input.createdAt) / 1000) + 3600,
           metadata: {
             sajda_namespace: config.namespace,
             sajda_checkout: input.id,
+            sajda_plan: plan,
+            ...(input.offer ? { sajda_offer: input.offer, sajda_coupon: input.couponId! } : {}),
+            ...(input.returnTo ? { sajda_return_to: input.returnTo } : {}),
           },
           subscription_data: {
             metadata: {
               sajda_namespace: config.namespace,
               sajda_checkout: input.id,
+              sajda_plan: plan,
+              ...(input.offer ? { sajda_offer: input.offer, sajda_coupon: input.couponId! } : {}),
             },
           },
         },
         { idempotencyKey: `sajda-checkout-${input.id}` },
       );
-      return checkoutResult(session, input.customerId);
+      return checkoutResult(session, input.customerId, plan, { offer: input.offer, couponId: input.couponId, returnTo: input.returnTo, id: input.id, origin: input.origin });
     },
-    async checkout(sessionId, customerId) {
+    async checkout(sessionId, customerId, plan = "trading", intent = {}) {
       return checkoutResult(
         await stripe.checkout.sessions.retrieve(sessionId, {
           expand: ["line_items.data.price"],
         }),
         customerId,
+        plan,
+        intent,
       );
     },
-    async recoverCheckout(customerId, reservationId, createdAt) {
+    async recoverCheckout(customerId, reservationId, createdAt, plan = "trading", intent = {}) {
       const result = await stripe.checkout.sessions.list({
         customer: customerId,
         created: { gte: Math.floor(Date.parse(createdAt) / 1000) - 60 },
@@ -456,7 +649,8 @@ export function createCommerceProvider(
       const matches = result.data.filter(
         (item) =>
           item.metadata?.sajda_namespace === config.namespace &&
-          item.metadata?.sajda_checkout === reservationId,
+          item.metadata?.sajda_checkout === reservationId &&
+          item.metadata?.sajda_plan === plan,
       );
       if (matches.length > 1)
         throw new CommerceError("billing_reconciliation_required", 409);
@@ -468,9 +662,12 @@ export function createCommerceProvider(
           expand: ["line_items.data.price"],
         }),
         customerId,
+        plan,
+        { ...intent, id: reservationId },
       );
     },
     async portal(customerId, origin, requestKey) {
+      await verifyPortal();
       const session = await stripe.billingPortal.sessions.create(
         {
           customer: customerId,

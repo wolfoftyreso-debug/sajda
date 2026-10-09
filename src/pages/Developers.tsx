@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { throwIfCancelled } from "@/lib/abort";
+import { requestDeadline, throwIfCancelled } from "@/lib/abort";
 import { DEVELOPER_API_SCOPES } from "../../shared/developer-scopes";
 import {
   ArrowLeft,
@@ -71,6 +71,7 @@ type DeveloperCopy = {
   response: string;
   responseIdle: string;
   responseError: string;
+  responseTimeout: string;
   capabilitiesLabel: string;
   capabilitiesTitle: string;
   capabilitiesLead: string;
@@ -405,7 +406,8 @@ const developerCopy: Record<Language, DeveloperCopy> = {
     runDescription: "Makes a real POST request to /api/v1/public/domains. No key is sent or stored.",
     response: "Response",
     responseIdle: "Run the public request to inspect a current JSON response.",
-    responseError: "The public endpoint did not return JSON. Check the deployed application route and try again.",
+    responseError: "The request could not be completed. Check your connection and try again. No account data was changed.",
+    responseTimeout: "The search took too long. Try again to request a fresh result. No account data was changed.",
     capabilitiesLabel: "Endpoint status",
     capabilitiesTitle: "What is public, what is protected.",
     capabilitiesLead: "Public endpoints are available without a key. Authenticated domain search uses a self-service key from your Sajda account and must run from your server.",
@@ -462,7 +464,8 @@ const developerCopy: Record<Language, DeveloperCopy> = {
     runDescription: "Gör ett riktigt POST-anrop till /api/v1/public/domains. Ingen nyckel skickas eller lagras.",
     response: "Svar",
     responseIdle: "Kör det publika anropet för att granska ett aktuellt JSON-svar.",
-    responseError: "Den publika endpointen returnerade inte JSON. Kontrollera den deployade applikationens route och försök igen.",
+    responseError: "Anropet kunde inte slutföras. Kontrollera anslutningen och försök igen. Inga kontouppgifter ändrades.",
+    responseTimeout: "Sökningen tog för lång tid. Försök igen för att hämta ett nytt resultat. Inga kontouppgifter ändrades.",
     capabilitiesLabel: "Endpointstatus",
     capabilitiesTitle: "Vad som är publikt och vad som är skyddat.",
     capabilitiesLead: "Publika endpoints är tillgängliga utan nyckel. Autentiserad domänsökning använder en självbetjäningsnyckel från ditt Sajda-konto och ska köras från din server.",
@@ -519,7 +522,8 @@ const developerCopy: Record<Language, DeveloperCopy> = {
     runDescription: "Realiza una petición POST real a /api/v1/public/domains. No se envía ni almacena ninguna clave.",
     response: "Respuesta",
     responseIdle: "Ejecuta la petición pública para inspeccionar una respuesta JSON actual.",
-    responseError: "El endpoint público no devolvió JSON. Comprueba la ruta de la aplicación desplegada e inténtalo de nuevo.",
+    responseError: "No se pudo completar la petición. Comprueba tu conexión e inténtalo de nuevo. No se modificaron datos de tu cuenta.",
+    responseTimeout: "La búsqueda tardó demasiado. Inténtalo de nuevo para obtener un resultado actualizado. No se modificaron datos de tu cuenta.",
     capabilitiesLabel: "Estado de endpoints",
     capabilitiesTitle: "Qué es público y qué está protegido.",
     capabilitiesLead: "Los endpoints públicos están disponibles sin clave. La búsqueda de dominios autenticada usa una clave autoservicio de tu cuenta Sajda y debe ejecutarse desde tu servidor.",
@@ -576,7 +580,8 @@ const developerCopy: Record<Language, DeveloperCopy> = {
     runDescription: "Effectue une véritable requête POST vers /api/v1/public/domains. Aucune clé n’est envoyée ni stockée.",
     response: "Réponse",
     responseIdle: "Exécutez la requête publique pour examiner une réponse JSON actuelle.",
-    responseError: "L’endpoint public n’a pas renvoyé de JSON. Vérifiez la route de l’application déployée puis réessayez.",
+    responseError: "La requête n’a pas pu aboutir. Vérifiez votre connexion puis réessayez. Aucune donnée de votre compte n’a été modifiée.",
+    responseTimeout: "La recherche a pris trop de temps. Réessayez pour obtenir un résultat actualisé. Aucune donnée de votre compte n’a été modifiée.",
     capabilitiesLabel: "État des endpoints",
     capabilitiesTitle: "Ce qui est public et ce qui est protégé.",
     capabilitiesLead: "Les endpoints publics sont accessibles sans clé. La recherche de domaines authentifiée utilise une clé libre-service de votre compte Sajda et doit s’exécuter depuis votre serveur.",
@@ -633,7 +638,8 @@ const developerCopy: Record<Language, DeveloperCopy> = {
     runDescription: "对 /api/v1/public/domains 发起真实的 POST 请求。不发送或存储密钥。",
     response: "响应",
     responseIdle: "运行公开请求以查看当前 JSON 响应。",
-    responseError: "公开端点没有返回 JSON。请检查已部署应用的路由后重试。",
+    responseError: "请求未能完成。请检查网络连接后重试。账户数据未被修改。",
+    responseTimeout: "搜索耗时过长。请重试以获取最新结果。账户数据未被修改。",
     capabilitiesLabel: "端点状态",
     capabilitiesTitle: "哪些公开，哪些受保护。",
     capabilitiesLead: "公开端点无需密钥即可使用。已认证的域名搜索使用 Sajda 账户中的自助密钥，必须从你的服务器运行。",
@@ -818,11 +824,11 @@ function maskedKey(key: DeveloperApiKey): string {
 
 const permissionScopes = DEVELOPER_API_SCOPES;
 const permissionCopy = {
-  en: { title: "Permissions", expiry: "Expires after", expires: "Expires", expired: "Expired", days: "days", hint: "Choose only the access this integration needs. Trading still requires an active Trading plan.", labels: ["Search domains", "Read account and plan", "Read saved domains", "Save and remove domains", "Read Trading reports", "Start and cancel Trading research", "Refresh registrar quotes", "Read name projects and brand packages", "Save name projects and brand packages", "Check GitHub profiles", "Save Trading scenarios"] },
-  sv: { title: "Behörigheter", expiry: "Upphör efter", expires: "Upphör", expired: "Utgången", days: "dagar", hint: "Välj endast den åtkomst integrationen behöver. Trading kräver fortfarande en aktiv Trading-plan.", labels: ["Sök domäner", "Läs konto och plan", "Läs sparade domäner", "Spara och ta bort domäner", "Läs Trading-rapporter", "Starta och avbryt Trading-analyser", "Uppdatera registrarpriser", "Läs namnprojekt och varumärkespaket", "Spara namnprojekt och varumärkespaket", "Kontrollera GitHub-profiler", "Spara Trading-scenarier"] },
-  es: { title: "Permisos", expiry: "Caduca después de", expires: "Caduca", expired: "Caducada", days: "días", hint: "Selecciona solo el acceso que necesita esta integración. Trading requiere un plan Trading activo.", labels: ["Buscar dominios", "Leer cuenta y plan", "Leer dominios guardados", "Guardar y eliminar dominios", "Leer informes de Trading", "Iniciar y cancelar análisis de Trading", "Actualizar precios del registrador", "Leer proyectos y paquetes de nombres", "Guardar proyectos y paquetes de nombres", "Consultar perfiles de GitHub", "Guardar escenarios de Trading"] },
-  fr: { title: "Autorisations", expiry: "Expire après", expires: "Expiration", expired: "Expirée", days: "jours", hint: "Choisissez uniquement les accès nécessaires. Trading exige toujours un abonnement Trading actif.", labels: ["Rechercher des domaines", "Lire le compte et l’abonnement", "Lire les domaines enregistrés", "Enregistrer et supprimer des domaines", "Lire les rapports Trading", "Lancer et annuler les analyses Trading", "Actualiser les prix du bureau d’enregistrement", "Lire les projets et ensembles de noms", "Enregistrer les projets et ensembles de noms", "Consulter les profils GitHub", "Enregistrer les scénarios Trading"] },
-  zh: { title: "权限", expiry: "有效期", expires: "到期时间", expired: "已到期", days: "天", hint: "仅选择此集成所需的权限。Trading 仍然需要有效的 Trading 套餐。", labels: ["搜索域名", "读取账户与套餐", "读取已保存的域名", "保存和删除域名", "读取 Trading 报告", "启动和取消 Trading 研究", "刷新注册商报价", "读取名称项目和品牌组合", "保存名称项目和品牌组合", "查询 GitHub 资料", "保存 Trading 情景"] },
+  en: { title: "Permissions", expiry: "Expires after", expires: "Expires", expired: "Expired", days: "days", hint: "Choose only the access this integration needs. Trading requires the active Trading add-on on Pro; an API key cannot activate it.", labels: ["Search domains", "Read account and plan", "Read saved domains", "Save and remove domains", "Read Trading reports", "Start and cancel Trading research", "Refresh registrar quotes", "Read naming projects, brand packages and assessments", "Save naming projects, brand packages and assessments", "Check GitHub profiles", "Save Trading scenarios"] },
+  sv: { title: "Behörigheter", expiry: "Upphör efter", expires: "Upphör", expired: "Utgången", days: "dagar", hint: "Välj endast den åtkomst integrationen behöver. Trading kräver ett aktivt Trading-tillägg på Pro. En API-nyckel aktiverar inte tillägget.", labels: ["Sök domäner", "Läs konto och plan", "Läs sparade domäner", "Spara och ta bort domäner", "Läs Trading-rapporter", "Starta och avbryt Trading-analyser", "Uppdatera registrarpriser", "Läs namnprojekt, varumärkespaket och granskningar", "Spara namnprojekt, varumärkespaket och granskningar", "Kontrollera GitHub-profiler", "Spara Trading-scenarier"] },
+  es: { title: "Permisos", expiry: "Caduca después de", expires: "Caduca", expired: "Caducada", days: "días", hint: "Selecciona solo el acceso que necesita esta integración. Trading requiere el complemento activo en Pro; una clave API no lo activa.", labels: ["Buscar dominios", "Leer cuenta y plan", "Leer dominios guardados", "Guardar y eliminar dominios", "Leer informes de Trading", "Iniciar y cancelar análisis de Trading", "Actualizar precios del registrador", "Leer proyectos, paquetes de nombres y evaluaciones", "Guardar proyectos, paquetes de nombres y evaluaciones", "Consultar perfiles de GitHub", "Guardar escenarios de Trading"] },
+  fr: { title: "Autorisations", expiry: "Expire après", expires: "Expiration", expired: "Expirée", days: "jours", hint: "Choisissez uniquement les accès nécessaires. Trading nécessite l’option active sur Pro ; une clé API ne l’active pas.", labels: ["Rechercher des domaines", "Lire le compte et l’abonnement", "Lire les domaines enregistrés", "Enregistrer et supprimer des domaines", "Lire les rapports Trading", "Lancer et annuler les analyses Trading", "Actualiser les prix du bureau d’enregistrement", "Lire les projets, ensembles de noms et évaluations", "Enregistrer les projets, ensembles de noms et évaluations", "Consulter les profils GitHub", "Enregistrer les scénarios Trading"] },
+  zh: { title: "权限", expiry: "有效期", expires: "到期时间", expired: "已到期", days: "天", hint: "仅选择此集成所需的权限。Trading 需要 Pro 上有效的附加功能，API 密钥不会开通该功能。", labels: ["搜索域名", "读取账户与套餐", "读取已保存的域名", "保存和删除域名", "读取 Trading 报告", "启动和取消 Trading 研究", "刷新注册商报价", "读取名称项目、品牌组合和评估", "保存名称项目、品牌组合和评估", "查询 GitHub 资料", "保存 Trading 情景"] },
 };
 
 function DeveloperKeyWorkspace(props: { copy: DeveloperKeyCopy; language: Language }) {
@@ -1048,31 +1054,31 @@ const mcpCopy = {
     auth: "Create a key with only the permissions your integration needs. Store it in your MCP client's secret settings and send it as a Bearer header on every request.",
     protocol: "Streamable HTTP · protocol 2025-11-25",
     compatibility: "Use a client that supports configured Bearer headers. OAuth sign-in is not available.",
-    behavior: "Reading status or a report never starts research. Start, advance, stop and quote refresh are explicit tools. Trading still requires an active plan; no tool purchases a domain.",
+    behavior: "Reading status or a report never starts research. Start, advance, stop and quote refresh are explicit tools. Trading requires the active Pro add-on; no tool purchases a domain or activates an add-on.",
     rest: "The same account operations are available through the scoped REST API.", permission: "Choose access", reference: "Open API reference", keys: "Manage API keys" },
   sv: { title: "Anslut ditt privata Sajda-konto.", lead: "Använd MCP för att söka domäner, arbeta med din sparade lista och läsa Trading-analyser från samma Sajda-konto.",
     auth: "Skapa en nyckel med de behörigheter integrationen behöver. Spara den i MCP-klientens hemliga inställningar och skicka den som Bearer-header vid varje anrop.",
     protocol: "Streamable HTTP · protokoll 2025-11-25",
     compatibility: "Använd en klient med stöd för konfigurerade Bearer-headers. OAuth-inloggning är inte tillgänglig.",
-    behavior: "Status och rapporter startar aldrig analyser. Start, fortsättning, stopp och prisuppdatering är uttryckliga verktyg. Trading kräver fortfarande en aktiv plan; inget verktyg köper domäner.",
+    behavior: "Status och rapporter startar aldrig analyser. Start, fortsättning, stopp och prisuppdatering är uttryckliga verktyg. Trading kräver det aktiva Pro-tillägget. Inget verktyg köper domäner eller aktiverar tillägget.",
     rest: "Samma kontofunktioner finns i REST-API:t med avgränsade behörigheter.", permission: "Välj åtkomst", reference: "Öppna API-referensen", keys: "Hantera API-nycklar" },
   es: { title: "Conecta tu cuenta privada de Sajda.", lead: "Usa MCP para buscar dominios, trabajar con tu lista guardada y leer análisis de Trading de la misma cuenta de Sajda.",
     auth: "Crea una clave con los permisos que necesita tu integración. Guárdala en la configuración de secretos de tu cliente MCP y envíala como cabecera Bearer en cada solicitud.",
     protocol: "Streamable HTTP · protocolo 2025-11-25",
     compatibility: "Usa un cliente compatible con cabeceras Bearer configuradas. El inicio de sesión OAuth no está disponible.",
-    behavior: "Leer el estado o un informe nunca inicia una investigación. Iniciar, avanzar, detener y actualizar precios son herramientas explícitas. Trading requiere un plan activo; ninguna herramienta compra dominios.",
+    behavior: "Leer el estado o un informe nunca inicia una investigación. Iniciar, avanzar, detener y actualizar precios son herramientas explícitas. Trading requiere el complemento activo de Pro; ninguna herramienta compra dominios ni activa complementos.",
     rest: "Las mismas operaciones de cuenta están disponibles en la API REST con permisos definidos.", permission: "Elige el acceso", reference: "Abrir referencia API", keys: "Gestionar claves API" },
   fr: { title: "Connectez votre compte Sajda privé.", lead: "Utilisez MCP pour rechercher des domaines, gérer votre liste et lire les analyses Trading du même compte Sajda.",
     auth: "Créez une clé avec les autorisations nécessaires. Conservez-la dans les paramètres secrets de votre client MCP et envoyez-la en en-tête Bearer à chaque requête.",
     protocol: "Streamable HTTP · protocole 2025-11-25",
     compatibility: "Utilisez un client acceptant des en-têtes Bearer configurés. La connexion OAuth n’est pas disponible.",
-    behavior: "Lire le statut ou un rapport ne lance jamais une analyse. Lancer, avancer, arrêter et actualiser un prix sont des outils explicites. Trading exige un abonnement actif ; aucun outil n’achète de domaine.",
+    behavior: "Lire le statut ou un rapport ne lance jamais une analyse. Lancer, avancer, arrêter et actualiser un prix sont des outils explicites. Trading nécessite l’option Pro active ; aucun outil n’achète de domaine ni n’active l’option.",
     rest: "Les mêmes opérations sont disponibles dans l’API REST avec des autorisations précises.", permission: "Choisir les accès", reference: "Ouvrir la référence API", keys: "Gérer les clés API" },
   zh: { title: "连接你的私人 Sajda 账户。", lead: "通过 MCP 搜索域名、管理收藏并读取同一 Sajda 账户的 Trading 研究报告。",
     auth: "创建仅含所需权限的密钥，将其保存在 MCP 客户端的机密设置中，并在每次请求中通过 Bearer 请求头发送。",
     protocol: "Streamable HTTP · 协议 2025-11-25",
     compatibility: "请使用支持配置 Bearer 请求头的客户端。目前不提供 OAuth 登录。",
-    behavior: "读取状态或报告不会启动研究。启动、推进、停止和刷新报价均需显式调用工具。Trading 仍需有效套餐；所有工具均不会购买域名。",
+    behavior: "读取状态或报告不会启动研究。启动、推进、停止和刷新报价均需显式调用工具。Trading 需要有效的 Pro 附加功能；工具不会购买域名或开通附加功能。",
     rest: "相同的账户操作也可通过带权限控制的 REST API 使用。", permission: "选择权限", reference: "打开 API 参考", keys: "管理 API 密钥" },
 };
 
@@ -1151,6 +1157,12 @@ export default function Developers() {
   const copy = keyPortalEnabled ? developerCopy[language] : { ...developerCopy[language], ...accessCopy };
   const [publicResponse, setPublicResponse] = useState<string>();
   const [publicRequestState, setPublicRequestState] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const publicRequest = useRef<ReturnType<typeof requestDeadline>>();
+
+  useEffect(() => () => {
+    publicRequest.current?.cancel();
+    publicRequest.current = undefined;
+  }, []);
 
   const origin = isNativeApp ? import.meta.env.VITE_NATIVE_API_ORIGIN?.trim() ?? ""
     : typeof window === "undefined" ? "" : window.location.origin;
@@ -1183,11 +1195,19 @@ export default function Developers() {
   }, [copy.documentTitle]);
 
   const runPublicExample = async () => {
+    // The synchronous guard also covers two clicks before React renders disabled.
+    if (publicRequest.current) return;
+    const deadline = requestDeadline(35_000);
+    publicRequest.current = deadline;
     setPublicRequestState("loading");
     setPublicResponse(undefined);
     try {
       const response = await productFetch("/api/v1/public/domains", {
         method: "POST",
+        signal: deadline.signal,
+        credentials: "same-origin",
+        cache: "no-store",
+        redirect: "error",
         headers: { Accept: "application/json", "Content-Type": "application/json" },
         body: JSON.stringify({
           query: "calm scheduling for small clinics",
@@ -1201,11 +1221,17 @@ export default function Developers() {
       const contentType = response.headers.get("content-type") ?? "";
       if (!contentType.includes("application/json")) throw new Error("Expected JSON response");
       const data: unknown = await response.json();
+      throwIfCancelled(deadline.signal);
+      if (publicRequest.current !== deadline) return;
       setPublicResponse(JSON.stringify(data, null, 2));
       setPublicRequestState(response.ok ? "success" : "error");
     } catch {
-      setPublicResponse(copy.responseError);
+      if (publicRequest.current !== deadline) return;
+      setPublicResponse(deadline.signal.reason?.name === "TimeoutError" ? copy.responseTimeout : copy.responseError);
       setPublicRequestState("error");
+    } finally {
+      deadline.dispose();
+      if (publicRequest.current === deadline) publicRequest.current = undefined;
     }
   };
 

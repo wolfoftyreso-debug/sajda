@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { businessNamesResultSchema } from "../api/_shared/business-names-contract.ts";
+import { PUBLIC_MCP_VERSION } from "../api/_shared/public-mcp-tools.ts";
 const origin = process.env.SAJDA_TEST_ORIGIN, cli = process.env.SAJDA_VERCEL_CLI;
 if (!cli || !/^https:\/\/sajda-[a-z0-9]+-hypbit\.vercel\.app$/u.test(origin ?? "")) throw new Error("Select the Sajda preview and CLI explicitly.");
 const execute = promisify(execFile);
@@ -34,7 +35,7 @@ assert.equal(spec.status, 200); assert.ok(spec.data.paths["/api/v1/public/busine
 assert.ok(spec.data.paths["/api/v1/business-names"]);
 const init = await request("/api/mcp/public", { jsonrpc: "2.0", id: 1, method: "initialize",
   params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "sajda-api-preview-check", version: "1.0.0" } } });
-assert.equal(init.data.result.serverInfo.version, "1.6.0");
+assert.equal(init.data.result.serverInfo.version, PUBLIC_MCP_VERSION);
 const prompts = await request("/api/mcp/public", { jsonrpc: "2.0", id: 4, method: "prompts/list", params: {} });
 assert.equal(prompts.data.result.prompts.length, 2);
 const policy = await request("/api/mcp/public", { jsonrpc: "2.0", id: 5, method: "resources/read", params: { uri: "sajda://connector/policy" } });

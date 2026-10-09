@@ -101,6 +101,17 @@ const packageSchema = z.strictObject({
     company: registryEvidenceSchema, trademark: registryEvidenceSchema }),
   signals: z.array(signalSchema).max(REASON_CODES.length), price_assessment: z.strictObject({ status: z.literal("not_assessed") }),
   available_actions: z.array(actionSchema).max(maximumCheckBatches + SOCIAL_PLATFORMS.length),
+}).superRefine((pkg, context) => {
+  const domains = pkg.brand_index.evidence_report.entries.filter(entry => entry.kind === "domain").map(entry => entry.target).sort();
+  const expected = pkg.evidence.domains.map(entry => entry.domain).sort();
+  if (pkg.brand_index.identityLabel !== pkg.canonical_name || pkg.entity_id !== `name-package:${pkg.canonical_name}`
+    || JSON.stringify(domains) !== JSON.stringify(expected) || pkg.brand_index.score !== pkg.index.score
+    || pkg.brand_index.nameFitScore !== pkg.index.name_fit_score || pkg.brand_index.evidenceCoverage !== pkg.index.evidence_coverage_percent
+    || (Object.keys(pkg.brand_index.dimensions) as (keyof typeof pkg.brand_index.dimensions)[]).some(key =>
+      pkg.brand_index.dimensions[key].score !== pkg.index.score_parts[key].score
+        || pkg.brand_index.dimensions[key].max !== pkg.index.score_parts[key].maximum)) {
+    context.addIssue({ code: "custom", message: "The candidate index and its evidence must belong to this exact name package.", path: ["brand_index"] });
+  }
 });
 
 /** Closed JSON contract: engine metadata, prompts, accounts and arbitrary URLs do not pass through. */
@@ -109,7 +120,22 @@ export const namePackageIntelligenceSchema = z.strictObject({
   methodology_version: z.literal(NAME_PACKAGE_METHODOLOGY_VERSION),
   generated_at: timestamp, requested_count: z.number().int().min(1).max(NAME_PACKAGE_LIMIT),
   market_coverage: namePackageMarketCoverageSchema.describe("Versioned manual company and trademark review plan. Source catalog review dates are not observations about a candidate name; no country checks have been performed."),
-  returned_count: z.number().int().min(0).max(NAME_PACKAGE_LIMIT), packages: z.array(packageSchema).max(NAME_PACKAGE_LIMIT),
+  returned_count: z.number().int().min(0).max(NAME_PACKAGE_LIMIT).describe("Exactly the number of returned unique packages; never greater than requested_count."),
+  packages: z.array(packageSchema).max(NAME_PACKAGE_LIMIT),
+}).superRefine((response, context) => {
+  if (response.returned_count !== response.packages.length || response.returned_count > response.requested_count) {
+    context.addIssue({ code: "custom", message: "Returned counts must match the delivered packages and requested limit.", path: ["returned_count"] });
+  }
+  if (new Set(response.packages.map(pkg => pkg.entity_id)).size !== response.packages.length
+    || new Set(response.packages.map(pkg => pkg.canonical_name)).size !== response.packages.length) {
+    context.addIssue({ code: "custom", message: "Every returned package must have a unique canonical identity.", path: ["packages"] });
+  }
+  for (const [position, pkg] of response.packages.entries()) {
+    if (pkg.rank !== position + 1) context.addIssue({ code: "custom", message: "Package ranks must be contiguous in returned order.", path: ["packages", position, "rank"] });
+    if (Date.parse(pkg.brand_index.evidence_report.generated_at) !== Date.parse(response.generated_at)) {
+      context.addIssue({ code: "custom", message: "Package evidence reports must share this response's generation time.", path: ["packages", position, "brand_index", "evidence_report", "generated_at"] });
+    }
+  }
 });
 export type NamePackageIntelligence = z.infer<typeof namePackageIntelligenceSchema>;
 

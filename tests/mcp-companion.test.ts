@@ -7,6 +7,9 @@ import { ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { createMcpHandler } from "../api/mcp.js";
 import { createPublicMcpHandler } from "../api/mcp/public.js";
 import { CONNECTOR_HOST_INSTRUCTIONS, CONNECTOR_POLICY, getConnectorOffer } from "../shared/connector-policy.js";
+import { SAJDA_MCP_VERSION } from "../api/_shared/mcp-tools.js";
+import { PUBLIC_MCP_VERSION } from "../api/_shared/public-mcp-tools.js";
+import { BRAND_EVIDENCE_AGENT_INSTRUCTIONS } from "../shared/brand-evidence.js";
 
 async function serve(t: TestContext, access: "public" | "private") {
   const calls: string[] = [], quotas: string[] = [];
@@ -38,12 +41,13 @@ const invalidParams = (error: unknown) => error instanceof McpError && error.cod
 for (const access of ["public", "private"] as const) {
   test(`${access} HTTP SDK discovers static companion prompts and policy without product work`, async t => {
     const fixture = await serve(t, access), { client } = fixture;
-    assert.equal(client.getServerVersion()?.version, access === "public" ? "1.6.0" : "1.5.0");
+    assert.equal(client.getServerVersion()?.version, access === "public" ? PUBLIC_MCP_VERSION : SAJDA_MCP_VERSION);
     assert.equal(fixture.transport.sessionId, undefined);
     assert.deepEqual(client.getServerCapabilities()?.prompts, { listChanged: false });
     assert.deepEqual(client.getServerCapabilities()?.resources, { subscribe: false, listChanged: false });
     assert.equal(client.getServerCapabilities()?.tasks, undefined);
     assert.ok(client.getInstructions()?.includes(CONNECTOR_HOST_INSTRUCTIONS));
+    assert.ok(client.getInstructions()?.includes(BRAND_EVIDENCE_AGENT_INSTRUCTIONS));
     const catalogue = await client.listPrompts();
     assert.deepEqual(catalogue.prompts.map(prompt => prompt.name), ["sajda-naming-companion", "find-business-names"]);
     assert.equal(catalogue.nextCursor, undefined);
@@ -62,7 +66,7 @@ for (const access of ["public", "private"] as const) {
     assert.match(guide.text, /before calling|before.*acceptance|wait for the user's acceptance/u);
     assert.ok(guide.text.includes(CONNECTOR_HOST_INSTRUCTIONS));
     const tools = (await client.listTools()).tools;
-    assert.equal(tools.length, access === "public" ? 6 : 21);
+    assert.equal(tools.length, access === "public" ? 6 : 31);
     const naming = tools.find(tool => tool.name === "business_names_recommend")!;
     assert.match(naming.description!, /concrete new business, product or project/u);
     assert.match(naming.description!, /ask before sending a brief/u);

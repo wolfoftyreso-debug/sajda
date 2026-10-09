@@ -1,13 +1,13 @@
 import { Link, useLocation } from "react-router-dom";
 import { ArrowUpRight } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { hasSupabaseBrowserConfig } from "@/integrations/supabase/client";
 import { isAccountAuthConfigured } from "@/integrations/neon/auth";
 import { isLocalTestMode } from "@/lib/localTestMode";
 import { useLanguage, type Language } from "@/i18n/LanguageProvider";
 import { accountNavigationCopy } from "@/i18n/accountNavigationCopy";
 import { nameProjectsEnabled } from "@/lib/nameProjectsFeature";
 import { projectEntryCopy } from "@/i18n/projectEntryCopy";
+import { tradingAddonCopy } from "@/i18n/tradingAddonCopy";
 
 type FooterCopy = {
   label: string;
@@ -333,7 +333,7 @@ export default function SajdaFooter() {
   const location = useLocation();
   const copy = footerCopy[language];
   const authDisabled = !isAccountAuthConfigured;
-  const developerKeyPortalEnabled = isLocalTestMode() || hasSupabaseBrowserConfig;
+  const developerKeyPortalEnabled = isLocalTestMode() || isAccountAuthConfigured;
   const hasTaskNavigation = !authDisabled && taskNavigationPaths.has(location.pathname);
   const currentYear = new Date().getFullYear();
 
@@ -365,17 +365,12 @@ export default function SajdaFooter() {
               <FooterLink to="/swipe" description={copy.swipeHint}>{copy.swipe}</FooterLink>
               {nameProjectsEnabled && <FooterLink to="/projects">{projectEntryCopy[language].projects}</FooterLink>}
               <FooterLink to="/pricing">{language === "sv" ? "Priser & nivåer" : language === "es" ? "Precios y planes" : language === "fr" ? "Tarifs et offres" : language === "zh" ? "价格与方案" : "Pricing & plans"}</FooterLink>
-              <FooterLink to="/plus">Sajda Trading · Lost Domains</FooterLink>
+              <FooterLink to="/account#trading">{tradingAddonCopy[language].title}</FooterLink>
               <FooterLink to="/marketplace" description={copy.marketplaceHint}>{copy.marketplace}</FooterLink>
               {user && !authDisabled ? (
                 <>
                   <FooterLink to="/account">{accountNavigationCopy[language].account}</FooterLink>
                   <FooterLink to="/watchlist">{copy.watchlist}</FooterLink>
-                  {hasSupabaseBrowserConfig && <>
-                    <FooterLink to="/top-10-today">{copy.today}</FooterLink>
-                    <FooterLink to="/history">{copy.history}</FooterLink>
-                    <FooterLink to="/my-domains">{copy.domains}</FooterLink>
-                  </>}
                 </>
               ) : !authDisabled ? (
                 <FooterLink to="/auth" description={copy.signInHint}>{copy.signIn}</FooterLink>

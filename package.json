@@ -13,6 +13,8 @@
       "uuid": "11.1.1"
     },
     "lodash": "^4.18.1",
+    "proxy-addr": "2.0.8",
+    "postcss-selector-parser": "7.1.6",
     "yaml": "^2.9.0"
   },
   "scripts": {
@@ -36,6 +38,8 @@
     "serve:full": "node --env-file-if-exists=.env.local infra/local-server/full-app-server.mjs",
     "start:local-search": "node infra/local-server/server.mjs",
     "check:local": "node infra/local-server/check-page.mjs",
+    "check:launch-evidence": "node scripts/check-launch-evidence.mjs",
+    "check:release-ready": "node scripts/check-release-ready.mjs",
     "build": "node scripts/build-static.mjs",
     "build:local": "node scripts/build-static.mjs --local-test",
     "generate:seo": "node scripts/generate-seo-static.mjs",
@@ -62,7 +66,7 @@
     "@capacitor/core": "8.5.1",
     "@capacitor/ios": "8.5.1",
     "@fontsource/plus-jakarta-sans": "^5.2.8",
-    "@modelcontextprotocol/sdk": "1.30.0",
+    "@modelcontextprotocol/sdk": "1.32.1",
     "@neondatabase/serverless": "^1.1.0",
     "@radix-ui/react-collapsible": "^1.1.11",
     "@radix-ui/react-dialog": "^1.1.14",
@@ -80,7 +84,7 @@
     "@radix-ui/react-tooltip": "^1.2.7",
     "@vercel/functions": "3.9.7",
     "@vercel/oidc": "3.8.5",
-    "better-auth": "1.7.3",
+    "better-auth": "1.7.7",
     "cheerio": "1.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -116,6 +120,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^15.15.0",
+    "playwright": "1.63.0",
     "postcss": "^8.5.26",
     "react-test-renderer": "18.3.1",
     "tailwindcss": "^3.4.17",

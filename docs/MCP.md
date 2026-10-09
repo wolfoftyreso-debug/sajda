@@ -1,11 +1,17 @@
 # Sajda remote MCP
 
-Endpoint: `https://<your-sajda-host>/api/mcp`. Transport: MCP Streamable HTTP with JSON responses. The source server version is `1.5.0`; the official TypeScript SDK is pinned to `@modelcontextprotocol/sdk` **1.30.0**.
+Endpoint: `https://<your-sajda-host>/api/mcp`. Transport: MCP Streamable HTTP with JSON responses. The authenticated source server version is `1.10.0` (31 tools); the official TypeScript SDK is pinned to `@modelcontextprotocol/sdk` **1.32.1**. Daily registry controls use the same account and scoped handler as the website; see [account permissions and boundaries](ACCOUNT-API.md#daily-registry-monitoring).
 
-Public source version `1.6.0` advertises six tools; the authenticated catalogue
-has 21. Both additionally expose two opt-in prompts and two static policy resources.
+Public source version `1.7.0` advertises six tools; the authenticated catalogue
+has 27, including four private saved-brand-report operations and two separate archived-registry-check operations. Both additionally expose two opt-in prompts and two static policy resources.
 See [connector distribution](CONNECTOR-DISTRIBUTION.md) for the current release
 and [earlier API release status](AGENT-API-RELEASE.md) for tested account boundaries.
+
+Brand results now include a shared `sajda.brand-evidence.v1` ledger with separate
+checked observations, user reports, source-listed relationships and unknown
+areas. Preserve their exact targets, dates and origins. A current registry check
+does not verify ownership; source retrieval is not real-world verification.
+See [the evidence contract](BRAND-EVIDENCE.md) for freshness and score boundaries.
 
 `business_names_recommend` accepts a business description and returns up to ten
 ranked recommendations, each backed by at least one fresh authoritative
@@ -87,7 +93,7 @@ The implemented and tested negotiated protocol versions are **2025-11-25**, **20
 
 ## Connect
 
-Create a scoped API key from the Sajda account that owns the saved domains and Trading membership. Keep the key in the MCP client's secret settings. Send `Authorization: Bearer <key>` on **every** request. Keys belong to one account and deployment environment, expire, and stop working after revocation or loss of a verified account.
+Create a scoped API key from the same Sajda account that owns the saved domains and, when applicable, the Trading add-on on Pro. Keep the key in the MCP client's secret settings. Send `Authorization: Bearer <key>` on **every** request. Keys belong to one account and deployment environment, expire, and stop working after revocation or loss of a verified account. Trading never requires another account or login.
 
 This release supports MCP clients that can send a configured bearer header. It does **not** implement OAuth discovery, OAuth registration, or OAuth login for clients that require those flows. A browser session cookie and the legacy operator search key cannot authenticate this endpoint.
 
@@ -130,6 +136,16 @@ Use HTTPS outside localhost. The deployment must configure its own trusted origi
 | `account_membership` | `account:read` | Read current verified plan, capabilities and expiry. |
 | `name_projects_list` | `projects:read` | Read naming projects and saved brand-package configurations. |
 | `name_projects_save` | `projects:write` | Save one versioned project; return only its mutation receipt. |
+| `brand_reports_list` | `projects:read` | List up to 50 account-owned self-assessment summaries. |
+| `brand_reports_get` | `projects:read` | Read the latest or specified immutable version; preserve original claim dates. |
+| `brand_reports_history` | `projects:read` | List up to 100 saved version receipts; no new checks. |
+| `brand_reports_save` | `projects:write` | Save one declared assessment version with a stable UUID requestKey; never accept verified ownership claims. |
+| `brand_checks_history` | `projects:read` | Read archived source observations, preserving original dates; optional version filter, paginated, no provider call. |
+| `brand_checks_start` | `projects:write` **and** `domains:search` | Explicitly check the latest saved report's exact domain scope; stable UUID receipt, no automatic monitoring or ownership claim. |
+| `brand_monitors_get` | `projects:read` | Read an owned report's monitoring status and paginated private alerts; no provider call. |
+| `brand_monitors_configure` | `projects:write` **and** `domains:search` | Explicitly enable, resume or rebind an eligible saved report's daily registry monitoring with a stable UUID receipt and expected versions. |
+| `brand_monitors_pause` | `projects:write` | Withdraw monitoring consent with a stable UUID receipt and expected monitor version; available after downgrade. |
+| `brand_monitor_alerts_acknowledge` | `projects:write` | Mark one owned alert read with a stable UUID receipt; available after downgrade. |
 | `social_profiles_check` | `social:check` | Observe up to five GitHub profiles; absence is not registrability. |
 | `trading_scenarios_list` | `trading:read` | Read the scenario journal with active Trading access. |
 | `trading_scenarios_save` | `trading:write` | Save one user-authored scenario; return only its mutation receipt. |
@@ -143,7 +159,15 @@ Use HTTPS outside localhost. The deployment must configure its own trusted origi
 | `trading_stop` | `trading:run` | Cancel an owned run, including while the engine is paused. |
 | `trading_refresh_quote` | `trading:quote` | Explicitly refresh a server-approved candidate's registrar observation. |
 
-There are no payment, purchase, registration, reservation, or automatic buying tools. Trading scopes do not grant Trading membership; the same server-side membership, quota, kill-switch, candidate and ownership checks used by the website remain in force. Saved fields are research notes, not an authoritative quote. Domain results preserve unknown availability, evidence dates, price scope, and currency.
+Archived brand checks require both feature flags and migration `0023`, use only
+reviewed fixed registry sources and leave unsupported targets `unknown`. The
+source history is separate from self-reported scores. Reading never starts or
+refreshes a check; omitted history version means all versions, not just the
+latest. Retry an uncertain start with its identical UUID receipt; `pending` is
+not success and terminal receipts never change. See [limits, source coverage and
+recovery](ACCOUNT-API.md#archived-registry-observations).
+
+There are no payment, purchase, registration, reservation, or automatic buying tools. Trading scopes do not activate the Pro add-on; the same server-side membership, quota, kill-switch, candidate and ownership checks used by the website remain in force. Saved fields are research notes, not an authoritative quote. Domain results preserve unknown availability, evidence dates, price scope, and currency.
 
 The four new permissions are opt-in. Apply migration
 `0020_agent_product_scopes.sql` before issuing keys with `projects:read`,

@@ -1,6 +1,6 @@
 import { SEO_CANONICAL_ORIGIN } from "./seoCanonicalOrigin";
 import { applyDocumentMetadata, applySharePreviewMetadata, type Language } from "@/i18n/LanguageProvider";
-import { seoDocumentForPath, seoRobotsForLocation, seoStructuredData } from "./seoDocuments";
+import { isPublicIndexPath, seoDocumentForPath, seoHreflangAlternates, seoRobotsForLocation, seoStructuredData } from "./seoDocuments";
 
 function setHeadValue(tag: "meta" | "link", attribute: string, key: string, field: string, value: string) {
   const selector = `${tag}[${attribute}='${key}']`;
@@ -13,7 +13,8 @@ function setHeadValue(tag: "meta" | "link", attribute: string, key: string, fiel
 /** One web-only owner prevents static SEO data leaking across client-side routes. */
 export function applyWebSeoMetadata(pathname: string, search: string, origin: string, language: Language = "en"): void {
   const page = seoDocumentForPath(pathname);
-  const canonical = `${SEO_CANONICAL_ORIGIN}${page?.path ?? "/"}`;
+  const canonicalPath = page?.path ?? (isPublicIndexPath(pathname) ? pathname.replace(/\/+$/u, "") || "/" : "/");
+  const canonical = `${SEO_CANONICAL_ORIGIN}${canonicalPath}`;
   const buildPolicy = document.head.querySelector("meta[name='sajda-seo-indexing']")?.getAttribute("content") ?? null;
   document.head.querySelectorAll("[data-sajda-seo-document]").forEach(node => node.remove());
   setHeadValue("meta", "name", "robots", "content", seoRobotsForLocation({
@@ -24,6 +25,16 @@ export function applyWebSeoMetadata(pathname: string, search: string, origin: st
   applySharePreviewMetadata();
   if (!page) {
     applyDocumentMetadata(language, pathname.startsWith("/se/") ? "/" : pathname);
+    if (isPublicIndexPath(pathname)) {
+      for (const link of seoHreflangAlternates(canonicalPath, SEO_CANONICAL_ORIGIN)) {
+        const alternate = document.createElement("link");
+        alternate.setAttribute("rel", "alternate");
+        alternate.setAttribute("hreflang", link.hreflang);
+        alternate.setAttribute("href", link.href);
+        alternate.setAttribute("data-sajda-seo-document", "");
+        document.head.appendChild(alternate);
+      }
+    }
     return;
   }
 
@@ -34,12 +45,14 @@ export function applyWebSeoMetadata(pathname: string, search: string, origin: st
   setHeadValue("meta", "property", "og:title", "content", page.title);
   setHeadValue("meta", "property", "og:description", "content", page.description);
   setHeadValue("meta", "property", "og:locale", "content", "sv_SE");
-  const alternate = document.createElement("link");
-  alternate.setAttribute("rel", "alternate");
-  alternate.setAttribute("hreflang", "sv-SE");
-  alternate.setAttribute("href", canonical);
-  alternate.setAttribute("data-sajda-seo-document", "");
-  document.head.appendChild(alternate);
+  for (const link of seoHreflangAlternates(page.path, SEO_CANONICAL_ORIGIN)) {
+    const alternate = document.createElement("link");
+    alternate.setAttribute("rel", "alternate");
+    alternate.setAttribute("hreflang", link.hreflang);
+    alternate.setAttribute("href", link.href);
+    alternate.setAttribute("data-sajda-seo-document", "");
+    document.head.appendChild(alternate);
+  }
   for (const record of seoStructuredData(page, SEO_CANONICAL_ORIGIN)) {
     const script = document.createElement("script");
     script.type = "application/ld+json";

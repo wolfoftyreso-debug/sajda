@@ -11,6 +11,20 @@ export const accountAuthUnavailableReason = isLocalTestMode() ? "local_test" : "
 
 type AccountClient = ReturnType<typeof createManagedAccountClient>;
 let clientPromise: Promise<AccountClient> | undefined;
+let sessionReadRevision = 0;
+let pendingSessionRead: Promise<AccountSession | null> | undefined;
+
+/** Forget pending reads, never store a completed session as authorization. */
+export function invalidateAccountSessionReads(): void {
+  sessionReadRevision += 1;
+  pendingSessionRead = undefined;
+}
+
+function assertSessionReadRevision(revision: number): void {
+  if (revision !== sessionReadRevision) {
+    throw Object.assign(new Error("Your account changed while checking the session. Try again."), { code: "account_changed", status: 409 });
+  }
+}
 
 /** Same-origin Vercel auth owns passwords and secure session cookies. */
 export async function getAccountAuthClient(): Promise<AccountClient> {
@@ -33,11 +47,11 @@ export function accountError(error: unknown, fallback: string): Error {
   return safe;
 }
 
-export async function readAccountSession(): Promise<AccountSession | null> {
-  if (!isAccountAuthConfigured) return null;
-  if (isNativeApp) return readNativeSession();
+async function readFreshAccountSession(revision: number): Promise<AccountSession | null> {
   const client = await getAccountAuthClient();
+  assertSessionReadRevision(revision);
   const result = await client.getSession({ query: { disableCookieCache: true } });
+  assertSessionReadRevision(revision);
   if (result.error) throw accountError(result.error, "Could not restore your account session.");
   if (!result.data?.user || !result.data.session) return null;
   const { user, session } = result.data;
@@ -53,6 +67,29 @@ export async function readAccountSession(): Promise<AccountSession | null> {
   };
 }
 
+export async function readAccountSession(options: { coalesce?: boolean } = {}): Promise<AccountSession | null> {
+  if (!isAccountAuthConfigured) return null;
+  if (isNativeApp) return readNativeSession();
+  // The default remains fresh: a post-response owner check must never join a
+  // read started before that response. Only explicit preflight/background
+  // callers share the currently pending read; settled results are discarded.
+  const revision = sessionReadRevision;
+  if (!options.coalesce) {
+    const result = await readFreshAccountSession(revision);
+    assertSessionReadRevision(revision);
+    return result;
+  }
+  if (!pendingSessionRead) {
+    const pending = readFreshAccountSession(revision).finally(() => {
+      if (pendingSessionRead === pending) pendingSessionRead = undefined;
+    });
+    pendingSessionRead = pending;
+  }
+  const result = await pendingSessionRead;
+  assertSessionReadRevision(revision);
+  return result ? { ...result, user: { ...result.user } } : null;
+}
+
 /** API errors carry only the safe application message and correlation ID. */
 export async function accountRequest<T>(path: string, options: AccountRequestScope & { method?: string; body?: unknown }): Promise<T> {
   // Capacitor can expose an opaque ("null") origin. Native requests carry only
@@ -66,9 +103,11 @@ export async function accountRequest<T>(path: string, options: AccountRequestSco
   if (target.origin !== origin || target.username || target.password || !target.pathname.startsWith("/api/account/")) throw new Error("Invalid account API path.");
   // Snapshot the initiating account before an asynchronous session check.
   const { accountId, signal, body, method = "GET" } = options;
+  const revision = sessionReadRevision;
   throwIfCancelled(signal);
-  const current = await readAccountSession();
+  const current = await readAccountSession({ coalesce: true });
   throwIfCancelled(signal);
+  if (!isNativeApp) assertSessionReadRevision(revision);
   assertAccountSessionOwner(current?.user.id, accountId);
   if (isNativeApp) {
     const response = await nativeRequest("/api/native/account","POST",{path,method,body,accountId},signal);
@@ -97,12 +136,17 @@ export async function accountRequest<T>(path: string, options: AccountRequestSco
     });
     const payload = await response.json().catch(() => null);
     throwIfCancelled(signal);
+    assertSessionReadRevision(revision);
     if (!response.ok || !payload) {
       const error = new Error(typeof payload?.error === "string" ? payload.error : "Your account request could not be completed. Try again.");
       Object.assign(error, { code: payload?.code, requestId: payload?.requestId, status: response.status });
       throw error;
     }
     return payload as T;
+  } catch (error) {
+    throwIfCancelled(signal);
+    assertSessionReadRevision(revision);
+    throw error;
   } finally {
     window.clearTimeout(timeout);
     signal?.removeEventListener("abort", abort);

@@ -24,7 +24,9 @@ export async function executeBusinessNamesRecommendation(value: unknown, search:
     .slice(0, BUSINESS_NAMES_CANDIDATE_LIMIT);
   const namingByLabel = new Map(naming.map(candidate => [candidate.label, candidate]));
   if (!naming.length) throw new AccountAccessError("invalid_request", 400, "Describe the business with more specific naming keywords.");
-  const intelligence = namePackageIntelligenceSchema.parse(await search(request));
+  const parsedIntelligence = namePackageIntelligenceSchema.safeParse(await search(request));
+  if (!parsedIntelligence.success) throw new Error("Business-name evidence did not match its bounded candidate search.");
+  const intelligence = parsedIntelligence.data;
   if (intelligence.packages.some(pkg => !namingByLabel.has(pkg.canonical_name))
     || intelligence.requested_count !== BUSINESS_NAMES_CANDIDATE_LIMIT
     || intelligence.returned_count !== intelligence.packages.length
